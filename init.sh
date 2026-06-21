@@ -117,7 +117,7 @@ fi
 # 6. Quality gates (soft until they exist) ------------------------------------
 echo "[6/6] Quality gates"
 if [ ! -f "$PWD/pyproject.toml" ]; then
-  note_warn "no Python gates yet — docs-only project; CI runs shellcheck + markdownlint"
+  note_warn "no Python gates yet — docs-only project; run shellcheck + markdownlint locally when editing docs or scripts"
 elif [ "$fail" -ne 0 ]; then
   yellow "  ! skipping gates until earlier preflight failures are fixed"
 else

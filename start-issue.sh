@@ -9,7 +9,7 @@
 # Flow (the harness start-of-session ritual, mechanised):
 #   1. Run ./init.sh; ABORT if the environment is not green. A worktree is only
 #      created on top of a healthy environment. (Set SKIP_INIT=1 to bypass — for
-#      tests/CI only; it defeats the purpose otherwise.)
+#      scripted tests only; it defeats the purpose otherwise.)
 #   2. Derive a slug from the issue title (gh) → branch feature/issue-NN-<slug>.
 #   3. Create a worktree at <repo>-worktrees/issue-NN on that branch (off main).
 #   4. Scaffold .copilot-tracking/issues/issue-NN/ (feature_list.json, progress.md)

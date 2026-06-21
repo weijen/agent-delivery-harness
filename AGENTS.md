@@ -7,8 +7,8 @@
 
 This repository is a reusable Microsoft / Azure / GitHub-oriented harness for
 issue-driven agent work. It provides preflight checks, isolated issue worktrees,
-local per-issue progress state, quality gates, review sensors, and PR/CI
-closeout scripts. Project-specific product specs, architecture notes,
+local per-issue progress state, quality gates, review sensors, and PR closeout
+scripts. Project-specific product specs, architecture notes,
 validation plans, and delivery milestones should live under `docs/`.
 
 ## Sensitivity (read before writing or pushing anything)
@@ -30,9 +30,9 @@ sanitized, commit-safe fixture or specification.
    Code Interpreter session) and config from env, never hard-coded secrets.
 6. **GitHub Issues (description + comments) are the single source of truth** for issue
    requirements — fetch with `gh issue view <N> --comments`; there are no local issue-draft files.
-7. When an issue is complete and reviewed, **open the PR, wait for CI to pass, then merge it**;
+7. When an issue is complete and reviewed, **open the PR, then merge it**;
    don't leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
-   auto-merge as a standing practice — merge only after you have confirmed CI is green.
+   auto-merge as a standing practice.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
    its regression sensor, and any feature with a real runtime boundary (Foundry call, agent run,
    report generation, deployed endpoint) should name its e2e sensor.

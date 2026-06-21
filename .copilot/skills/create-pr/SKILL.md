@@ -17,7 +17,7 @@ This skill enables the agent to create complete, well-structured pull requests f
 
    <optional body explaining what and why>
    ```
-   Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `ci`
+   Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 3. **Pre-PR Quality Gates** — Before pushing, run through these checks using the companion skills:
 
@@ -86,4 +86,3 @@ gh pr create --title "feat(scope): description" --body "..." --label "enhancemen
 - **Empty repos** — Ensure at least one commit exists on the base branch before creating a PR.
 - **Fork workflows** — Use `gh pr create --head user:branch` when working from a fork.
 - **Multiple remotes** — Specify the correct remote with `--repo owner/repo` if ambiguous.
-- **CI requirements** — Some repos require passing checks before merge; note this in the PR description if tests are still running.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# create-pr.sh — sync onto latest main, push, open the PR, then watch CI.
+# create-pr.sh — sync onto latest main, push, and open the PR.
 #
 # Codifies the "sync with main before opening the PR" rule as an action instead
 # of leaving it to the agent's judgement: a branch cut from a stale base can pass
@@ -16,17 +16,14 @@
 #   2. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict).
 #   3. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
 #   4. Open the PR (gh pr create) if none exists yet, passing through your args.
-#   5. Hand off to ./check-pr.sh to watch CI (post-PR loop, harness §6).
 #
-# Exit codes: 0 PR open and CI green · 1 precondition / conflict / CI failure
+# Exit codes: 0 PR open · 1 precondition / conflict / PR creation failure
 
 set -euo pipefail
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
@@ -76,7 +73,4 @@ else
   pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 fi
 
-# --- 4. Watch CI (post-PR loop) ---------------------------------------------
-echo
-bold "==> Watching CI for PR #${pr_number}"
-exec "${SCRIPT_DIR}/check-pr.sh" "${pr_number}"
+green "✓ PR #${pr_number} is open."

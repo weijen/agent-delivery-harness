@@ -2,7 +2,7 @@
 
 A reusable Microsoft / Azure / GitHub-oriented harness for issue-driven agent
 work: preflight checks, isolated worktrees, per-issue progress tracking,
-deterministic quality gates, and PR/CI closeout.
+deterministic quality gates, and PR closeout.
 
 > For agents and contributors, start at [AGENTS.md](AGENTS.md). Project-specific
 > product specs, architecture notes, validation plans, and delivery milestones
@@ -63,17 +63,12 @@ project still has no code.
 ## Quality gates
 
 There are no Python gates yet — the project starts as a docs-only spec pack.
-The committed gates run by CI today are:
+Run the docs-era gates locally when editing harness scripts or Markdown:
 
 ```sh
 shellcheck ./*.sh scripts/*.sh        # the harness scripts themselves
 markdownlint 'docs/**/*.md' '*.md'    # docs hygiene
 ```
-
-> Branch protection (`./scripts/protect-main.sh`) should be applied **only
-> after** the first CI run goes green. If your organization requires
-> self-hosted runners, update `.github/workflows/ci.yml` with the labels for
-> your runner pool before enabling required checks.
 
 When code lands, the four standard Python gates will be added by the issue
 that introduces them:
@@ -94,7 +89,7 @@ docs/                # project-specific contracts, architecture, and status
 apps/                # runnable services, agents, or tools
 packages/            # shared libraries and reusable project code
 infra/               # Terraform or other deployment assets when needed
-scripts/             # harness shell library (issue-lib, protect-main)
+scripts/             # harness shell library
 tests/               # cross-cutting tests; per-service tests live with apps
 ```
 

@@ -115,7 +115,7 @@ runnable through the real boundary.
 
 - **Regression sensor starts immediately.** Every feature needs a deterministic test or gate
   that would fail if the completed behaviour regresses (unit test, contract test,
-  architecture-fitness test, golden fixture/checksum, CI gate, or — for prompt/analyzer
+  architecture-fitness test, golden fixture/checksum, local gate, or — for prompt/analyzer
   assets — a snapshot test of expected structured output on fixed test input).
 - **End-to-end starts when there is a runnable boundary.** Once a feature exposes a Foundry
   call, an agent loop, a CLI report, or a deployed endpoint, its feature-completion sensor
@@ -206,24 +206,17 @@ Skipping this gate is a process violation even when the four computational gates
 the inferential sensors catch what the deterministic ones cannot. If you find yourself about
 to type `gh pr create`, confirm this gate has run for the current branch HEAD first.
 
-### Open + merge
+- **Open + merge**
 
 - Do not stop at "PR ready". After the Pre-PR verify gate passes (features all `passes:true`,
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it fetches + rebases onto `origin/main`, pushes, runs `gh pr create`, then hands off to
-  `./check-pr.sh` to watch CI. Do not hand-run `gh pr create` against a stale base.
-- **Post-PR CI loop (MANDATORY before merge).** Opening the PR is not the end — local gates
-  green does not guarantee CI green (the runner differs). `create-pr.sh` already starts the
-  watch; thereafter:
-  1. **Watch** the PR's checks to completion via `./check-pr.sh` (wraps `gh pr checks --watch`).
-  2. If any check **fails**, fetch and read the failing logs (`gh run view <id> --log-failed`),
-     **go back to implementation**, fix the root cause, commit, and re-run `./create-pr.sh`.
-  3. Loop until all required checks are green. Treat a red CI exactly like a red local gate —
-     it blocks, it is never "logged and ignored".
-- **Merge only after CI is green**, then merge it yourself (do not leave manual merge work for
-  the human). **Do not enable GitHub auto-merge** as a standing practice.
+  it fetches + rebases onto `origin/main`, pushes, and runs `gh pr create`. Do not hand-run
+  `gh pr create` against a stale base.
+- **Merge after the PR is open and local gates/reviews are complete**, then merge it yourself
+  (do not leave manual merge work for the human). **Do not enable GitHub auto-merge** as a
+  standing practice.
 - Conventional commits: `type(scope): summary` (≤ 50 chars) + bullet body. Don't reference
   internal workflow phases.
 - **Never disable commit signing** to dodge a passphrase. If signing fails, stop and ask the

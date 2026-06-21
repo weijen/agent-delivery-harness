@@ -55,7 +55,7 @@ RBAC role assignments, Function Apps, Container Apps, and other project infrastr
   **Azure Key Vault**, environment variables (`ARM_*`), or a secrets manager — not `.tfvars`
   committed to git.
 - Authenticate via Azure CLI (`az login`) locally or a **Managed Identity / Service Principal**
-  in CI. Don't put credentials in provider blocks.
+  in a controlled deployment environment. Don't put credentials in provider blocks.
 
 ## Resource hygiene
 - Prefer specific resource arguments over `null_resource`/local-exec workarounds.
@@ -75,7 +75,8 @@ terraform apply tfplan       # apply the reviewed plan
 - Run `terraform fmt` and `terraform validate` before every commit.
 - **Always review `plan` output** before `apply`. Never `apply -auto-approve` against
   shared/prod environments.
-- Run `tflint` and a security scanner (`checkov` / `tfsec`) in CI.
+- Run `tflint` and a security scanner (`checkov` / `tfsec`) before applying shared or
+  production infrastructure changes.
 
 ## Safety
 - `terraform destroy` is destructive — confirm scope and never run it against prod without
