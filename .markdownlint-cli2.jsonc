@@ -1,0 +1,18 @@
+{
+  // markdownlint-cli2 config for the harness repo.
+  // Rules tuned for a docs-heavy spec pack: long lines OK, inline HTML OK,
+  // emoji-bearing headings OK, duplicate "Out of scope" / "Risks" headings OK.
+  "config": {
+    "default": true,
+    "MD013": false,      // line length — spec tables and code blocks blow past 80
+    "MD024": false,      // duplicate headings across repeated project-doc sections
+    "MD033": false,      // inline HTML — we use <details>, <sub>, occasionally
+    "MD041": false,      // first line need not be H1 (front-matter)
+    "MD026": false       // trailing punctuation in headings (we use "?" sometimes)
+  },
+  "ignores": [
+    "**/node_modules/**",
+    ".copilot-tracking/**",
+    "**/.venv/**"
+  ]
+}

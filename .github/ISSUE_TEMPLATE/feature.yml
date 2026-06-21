@@ -1,0 +1,59 @@
+name: Feature / Deliverable
+description: A unit of work that maps to one or more `feature_list.json` items.
+title: "[feat] <one-line scope>"
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues here are the single source of truth for what to build. Once opened,
+        run `./start-issue.sh <N>` from the main checkout to scaffold a worktree.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Which project milestone or spec section does this support? Which doc or issue comment is the contract?
+      placeholder: |
+        - Milestone: Phase 2 — Foundry smoke
+        - Spec contract: docs/<project-spec>.md § Validation
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Bulleted, externally observable, ideally one bullet per `feature_list` item. Each MUST be verifiable by a sensor.
+      placeholder: |
+        - Custom analyzer schema vN deployed to the configured Foundry resource.
+        - `python -m apps.smoke.<workflow> <fixture>` returns valid structured JSON for the fixture.
+        - Snapshot fixture under `tests/fixtures/<workflow>/fixture001.json` matches output (regression sensor).
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What this issue is NOT solving (so reviewers don't ask for it).
+      placeholder: |
+        - Adjacent workflow support (issue-NN).
+        - Additional report surfaces (issue-NN).
+
+  - type: textarea
+    id: sensors
+    attributes:
+      label: Sensors
+      description: Per acceptance bullet, the regression and e2e sensor that prove `passes:true`.
+      placeholder: |
+        - Regression: tests/apps/smoke/test_workflow_snapshot.py
+        - E2E: ./scripts/smoke-workflow.sh fixtures/input001.json -> JSON matches schema
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / open questions
+      description: Anything the next session should know (decisions pending, sample data location, etc.).

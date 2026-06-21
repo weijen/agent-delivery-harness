@@ -1,0 +1,56 @@
+# Customer-confidential material — NEVER commit.
+# Raw media, screenshots, and decks often contain customer or partner IP and
+# must stay out of tracked paths unless explicitly sanitized and approved.
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.pptx
+*.ppt
+# Allow our own diagrams / template if we ever check one in deliberately.
+!docs/**/template-*.pptx
+
+# Python-generated files (added when code lands)
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Test / type-check / lint caches and coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Ephemeral per-issue agent working state (local-persistent, never pushed)
+.copilot-tracking/issues/issue-*/
+.copilot-tracking/plans/*.md
+!.copilot-tracking/issues/.gitkeep
+!.copilot-tracking/plans/.gitkeep
+
+# Local secrets / config — copy .env.example to .env and fill values
+.env
+.env.local
+.env.*.local
+
+# Local SQLite caches / sample data
+*.db
+*.db-shm
+*.db-wal
+data/synthetic/
+data/raw-video/
+
+# azd / Azure environment (subscription/tenant/object ids — never commit)
+.azure/
+
+# OS junk
+.DS_Store
+Thumbs.db
