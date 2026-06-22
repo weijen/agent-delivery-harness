@@ -99,6 +99,42 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
     issue progress Action Log.
   - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code
     quality before closeout and reports substantive review findings or approvals for the issue progress Action Log.
+
+#### The conductor's feature work is non-delegable to itself (MANDATORY)
+
+When the issue workflow is active, the conductor **must not directly** perform feature work. This is a
+**non-delegable** boundary: it **cannot be delegated** back to the conductor by convenience, time pressure, or
+"it's just a small change". In plain terms: the conductor must not directly write tests, must not directly write
+sensors, and must not directly write production implementation for the feature. Specifically, the conductor
+**must not**:
+
+- **write tests or sensors** (no test-writing, no sensor implementation, no RED/GREEN authoring) for the feature;
+- write the feature's **production implementation** (no production code / production assets changes);
+- flip a feature to `passes:true` or otherwise own verification.
+
+The conductor **does not** implement and the conductor **never** writes the feature's tests. Those acts belong to
+the `implementation-subagent` (production) and `test-subagent` (sensors + `passes:true`). The conductor's own job is
+strictly orchestration: select the issue and one `passes:false` feature, prepare context, invoke the correct
+subagent, record handbacks, own commits/pushes/PRs/merge, and stop on blockers. If no subagent is available, **stop
+and report the blocker** — do not silently absorb the implementation or test role.
+
+#### Required per-feature handoff sequence
+
+For each selected `passes:false` feature, the conductor drives this exact sequence (it must appear, in order, in the
+Action Log):
+
+1. **Conductor selects** one `passes:false` feature and prepares context (changed files, declared sensors).
+2. **`test-subagent` creates/validates the RED sensor** — the smallest failing test/sensor that expresses the
+   feature, confirmed to fail for the right reason.
+3. **`implementation-subagent` makes the minimal production change** to satisfy that sensor; it does not touch tests
+   or `passes:true`.
+4. **`test-subagent` verifies GREEN** and updates completion status — it runs the declared `regression_sensor` and
+   any `e2e_sensor`, and only then may flip `passes:true`.
+5. **Conductor commits/pushes** the result and records the handbacks.
+
+If a step fails, the conductor routes the handback to the owning subagent (production defect →
+`implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
+itself.
 - **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
   other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
   smoke run): write the smallest failing test that expresses the feature; confirm it fails for
@@ -161,6 +197,12 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
   commit sha, next feature to pick). Its Action Log must include substantive conductor and subagent actions, including
   any stop/report/recover entry for a harness deviation. Update `.copilot-tracking/issues/<issue>/plan.md` if the
   approach or remaining phases changed.
+   - **Distinguish conductor actions from subagent handbacks.** Each Action Log entry must attribute the act to its
+     owner — conductor (selection, context prep, commit/push/PR/merge) versus `test-subagent` (RED/GREEN sensor work,
+     `passes:true`) versus `implementation-subagent` (production change) versus `code-review-subagent` (review
+     verdict). A log that only says **"conductor TDD"** — i.e. the conductor claiming the test+implementation work —
+     is **visibly non-compliant**, because it hides the required subagent handoff and means the non-delegable
+     role-separation rule (§3) was skipped.
 4. When the issue's features are all `passes:true`, bring the repo-wide
    `docs/IMPLEMENTATION-STATUS.md` (once introduced) to its **final** form as part of the
    branch — **inside the PR, never as a post-merge commit on `main`**. Once the PR is open you

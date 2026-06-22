@@ -62,6 +62,21 @@ root-level copies are stale by definition and should be removed instead of docum
 The conductor remains responsible for selecting the issue and feature, preserving scope, approving the current HEAD,
 committing, pushing, opening PRs, and merging.
 
+### The conductor must not do feature work itself (non-delegable)
+
+When the issue workflow is active, the conductor **must not directly** write the feature's tests/sensors or its
+production implementation, and must not flip `passes:true`. That feature work is **non-delegable** to the conductor:
+it belongs to the subagents. The required per-feature handoff is:
+
+1. **conductor selects** one `passes:false` feature and prepares context;
+2. **`test-subagent` creates/validates the RED sensor** (a failing test/sensor that expresses the feature);
+3. **`implementation-subagent` makes the minimal production change** to satisfy it;
+4. **`test-subagent` verifies GREEN** and updates completion status (`passes:true`);
+5. **conductor commits/pushes** and records the handbacks.
+
+A progress log that only records **"conductor TDD"** is non-compliant — it hides this handoff. See
+[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md) for the enforceable rule.
+
 Conductor, implementation-subagent, test-subagent, and code-review-subagent actions must be visible in the issue
 progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
 for logging when they are not authorized to edit local issue progress directly.
