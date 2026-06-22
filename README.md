@@ -8,6 +8,8 @@ deterministic quality gates, and PR closeout.
 > product specs, architecture notes, validation plans, and delivery milestones
 > should live under `docs/` and be linked from the repository map.
 
+For the full Copilot issue lifecycle, see [docs/HARNESS.md](docs/HARNESS.md).
+
 ## Sensitivity
 
 > Do not commit customer-supplied or confidential material such as raw media,
@@ -51,15 +53,6 @@ environment is healthy and exits non-zero with remediation instructions if a
 hard check fails. Soft checks (Python / uv / gates) only warn while the
 project still has no code.
 
-### Devcontainer (recommended)
-
-1. Open the repo in VS Code.
-2. Run **Reopen in Container**.
-3. Wait for `postCreateCommand` to complete successfully.
-4. Run `gh auth login` inside the container.
-5. Run `az login --use-device-code` inside the container when working on Foundry or infra tasks.
-6. Run `pnpm install` inside `frontend/` once the dashboard subfolder is added.
-
 ## Quality gates
 
 There are no Python gates yet — the project starts as a docs-only spec pack.
@@ -101,6 +94,9 @@ scripts/             # harness shell entrypoints and shared shell library
 tests/               # cross-cutting tests; per-service tests live with apps
 ```
 
+All harness shell entrypoints live under `scripts/`; the repository root should not contain `.sh`
+entrypoint copies.
+
 ## Where to go next
 
 - **Project contract docs** — keep the active requirements and architecture
@@ -108,5 +104,5 @@ tests/               # cross-cutting tests; per-service tests live with apps
 - **Implementation status** — track repo-wide progress in `docs/` once project
   work starts.
 - **Agents working on issues** — read [AGENTS.md](AGENTS.md) and follow the
-  harness lifecycle in
+  harness lifecycle in [docs/HARNESS.md](docs/HARNESS.md) and
   [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md).
