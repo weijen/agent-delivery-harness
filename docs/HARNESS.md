@@ -96,6 +96,14 @@ for logging when they are not authorized to edit local issue progress directly.
 `progress.md` should include an Action Log section for substantive lifecycle actions, including conductor decisions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
+`./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
+`feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
+and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
+state. Incomplete (`passes:false`) features are a non-blocking warning by default and a hard failure under
+`REQUIRE_FEATURES_COMPLETE=1`. `./scripts/finish-issue.sh` reuses this same check, so the two paths cannot drift. It
+is deliberately generic: it does not read project docs, devcontainers, CI, or any sensor registry, and never executes
+anything from the feature list.
+
 ## Gates And Sensors
 
 `./scripts/init.sh` detects project surfaces and runs the matching local gates when present:
