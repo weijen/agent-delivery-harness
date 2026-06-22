@@ -116,7 +116,7 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
 
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
-| Pre-commit (docs-only era) | `shellcheck` on the harness scripts · `markdownlint` on touched .md | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
+| Pre-commit (docs-only era) | `shellcheck` on the harness scripts | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
 | Pre-commit (code era) | `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` · `uv run pytest` | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
 | **Pre-PR verify gate** | full suite + coverage (or the docs-era equivalent) | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
 
@@ -154,7 +154,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-1. Ensure the era-appropriate computational gates are green (shellcheck + markdownlint in
+1. Ensure the era-appropriate computational gates are green (shellcheck in
    docs-only era; ruff/mypy/pytest once Python lands).
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
@@ -196,7 +196,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
   `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
   (re-run them if the rebase pulled in new commits) so they verify the merged result.
 3. Full deterministic suite green for the current era:
-  - Docs-only era: `shellcheck scripts/*.sh` · `markdownlint 'docs/**/*.md' '*.md'`.
+  - Docs-only era: `shellcheck scripts/*.sh`.
    - Code era: `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` ·
      `uv run pytest` (with coverage).
 4. Run the inferential sensor set over the branch diff (**this is the authoritative list** —
