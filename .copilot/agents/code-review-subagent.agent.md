@@ -29,6 +29,13 @@ Return any substantive review action or verdict that the conductor should record
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
 
+**Applicable instruction files are part of the review contract.** When the diff touches any `.py` file, treat
+`.copilot/instructions/python.instructions.md` and `.copilot/instructions/tdd.instructions.md` as binding review
+criteria alongside the acceptance criteria: a Python change that violates those instructions (e.g. ignores pathlib,
+parses external responses without typing, weakens or skips a sensor, or abandons RED→GREEN discipline) is a finding.
+You run in a fresh context, so read those files from the repo when the diff is Python and they are not already in your
+prompt.
+
 ## Review Stages
 
 You run **two stages** in order: spec compliance first, then code quality. A diff that fails spec compliance is

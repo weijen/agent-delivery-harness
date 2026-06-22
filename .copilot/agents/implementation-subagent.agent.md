@@ -24,6 +24,11 @@ from nearby context.
 ## Scope Rules
 
 - Modify production code, prompts, docs, config, or scripts only when they are required by the selected feature.
+- **Load the applicable language instructions before you edit.** Before editing any `.py` file, read and follow
+  `.copilot/instructions/python.instructions.md` — you run in a fresh context and do not inherit the conductor's
+  Copilot instruction resolution, so treat that file as part of your contract (pathlib preference, typed parsing of
+  external responses, no speculative abstractions, etc.). The conductor should hand you the file; if it is missing
+  from your context and the feature touches `.py`, read it from the repo path above.
 - Do not create, edit, weaken, or delete tests or verification fixtures.
 - Do not edit `.copilot-tracking/**`, except when the conductor explicitly asks for a production-facing template file
   outside the per-issue working state.

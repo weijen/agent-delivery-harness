@@ -24,6 +24,12 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
 ## Scope Rules
 
 - Write or update tests, fixtures, smoke checks, or validation commands required by the selected feature.
+- **Load the applicable language and TDD instructions before you write or run tests.** Before writing or running any
+  Python (`.py`) test, read and follow both `.copilot/instructions/python.instructions.md` and
+  `.copilot/instructions/tdd.instructions.md` — you run in a fresh context and do not inherit the conductor's Copilot
+  instruction resolution, so treat those files as part of your contract (RED→GREEN discipline, never weaken a sensor,
+  typed assertions, etc.). The conductor should hand you the files; if they are missing from your context and the
+  feature touches `.py`, read them from the repo paths above.
 - Run the feature's `regression_sensor` and, when a runtime boundary exists, its `e2e_sensor`.
 - Do not edit production code, prompts, docs, config, or scripts except for dedicated test or smoke assets.
 - Do not weaken, delete, or skip a failing test to make verification pass.
