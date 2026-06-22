@@ -2,9 +2,9 @@
 # finish-issue.sh — tear down the worktree for an issue after its PR is merged.
 #
 # Usage:
-#   ./finish-issue.sh 1
-#   ./finish-issue.sh ISSUE=1
-#   ./finish-issue.sh ISSUE=1 SLUG=custom-slug   # if the slug can't be derived
+#   ./scripts/finish-issue.sh 1
+#   ./scripts/finish-issue.sh ISSUE=1
+#   ./scripts/finish-issue.sh ISSUE=1 SLUG=custom-slug   # if the slug can't be derived
 #
 # Removes <repo>-worktrees/issue-NN and prunes worktree metadata. By default it
 # REFUSES when the worktree has uncommitted changes (override with FORCE=1) and
@@ -23,7 +23,7 @@ bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
-source "${SCRIPT_DIR}/scripts/issue-lib.sh"
+source "${SCRIPT_DIR}/issue-lib.sh"
 
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
@@ -34,7 +34,7 @@ for arg in "$@"; do
   esac
 done
 if [ -z "$NUM_ARG" ]; then
-  red "usage: ./finish-issue.sh <issue-number> [SLUG=custom-slug] [DELETE_BRANCH=1] [FORCE=1]"
+  red "usage: ./scripts/finish-issue.sh <issue-number> [SLUG=custom-slug] [DELETE_BRANCH=1] [FORCE=1]"
   exit 1
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
@@ -70,7 +70,7 @@ else
   if ! git worktree remove ${remove_args[@]+"${remove_args[@]}"} "$WORKTREE_DIR" 2>/dev/null; then
     red "✗ Worktree has uncommitted changes (or is locked)."
     echo "  Commit/stash your work, or re-run with FORCE=1 to discard it:"
-    echo "    FORCE=1 ./finish-issue.sh ${ISSUE_NUM}"
+    echo "    FORCE=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
     exit 1
   fi
   green "✓ Removed worktree ${WORKTREE_DIR}"
@@ -95,5 +95,5 @@ if [ "${DELETE_BRANCH:-0}" = "1" ]; then
 else
   echo
   echo "Local branch ${BRANCH} kept. Delete it with:"
-  echo "  DELETE_BRANCH=1 ./finish-issue.sh ${ISSUE_NUM}"
+  echo "  DELETE_BRANCH=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
 fi

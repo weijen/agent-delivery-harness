@@ -31,7 +31,7 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
 ## 1. Two kinds of session
 
 - **Initializer (this scaffold)** — sets up the environment so future sessions can work:
-  AGENTS.md, `init.sh`, project docs, and per-issue `feature_list.json`. Done once per
+  AGENTS.md, `scripts/init.sh`, project docs, and per-issue `feature_list.json`. Done once per
   project/issue.
 - **Coding session** — makes **incremental** progress on exactly one feature, then leaves a
   clean state. This is the normal mode.
@@ -39,16 +39,16 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
 ## 2. Start-of-session ritual (always)
 
 1. **Get into the right worktree.**
-   - **Starting an issue:** run `./start-issue.sh <N>` from the **main checkout**. It runs
-     `./init.sh` and, only on a green environment, creates branch
+   - **Starting an issue:** run `./scripts/start-issue.sh <N>` from the **main checkout**. It runs
+     `./scripts/init.sh` and, only on a green environment, creates branch
     `feature/issue-NN-<slug>` and an isolated worktree at
     `../<repo>-worktrees/issue-NN`, scaffolds
      `.copilot-tracking/issues/issue-NN/`, and prints the `cd` path. Work happens **in that
      worktree**, never directly on the main checkout. For Foundry / Terraform / deploy work,
-     run `REQUIRE_AZ=1 ./start-issue.sh <N>`.
-   - **Resuming an issue:** `cd` into its existing worktree and run `./init.sh` for a fresh
+     run `REQUIRE_AZ=1 ./scripts/start-issue.sh <N>`.
+   - **Resuming an issue:** `cd` into its existing worktree and run `./scripts/init.sh` for a fresh
      preflight.
-   - `./init.sh` is the preflight sensor itself: `gh` login HARD-FAIL, `az` login WARN unless
+   - `./scripts/init.sh` is the preflight sensor itself: `gh` login HARD-FAIL, `az` login WARN unless
      `REQUIRE_AZ=1`, signing WARN, `uv sync` and the four gates run **only when
      `pyproject.toml` exists** (this project starts docs-only). Fix any hard failure before
      doing anything else.
@@ -61,7 +61,7 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
    `gh issue view <N> --comments`. GitHub Issues are the single source of truth for issue
   requirements; the repo keeps **no** local issue-draft files (don't recreate them). For
   underlying spec detail, read the relevant project docs under `docs/`.
-5. Run a quick smoke check from the project validation docs, or `./init.sh` while docs-only,
+5. Run a quick smoke check from the project validation docs, or `./scripts/init.sh` while docs-only,
   to confirm the repo isn't already broken before you add to it.
 
 ### Per-issue working directory (`.copilot-tracking/issues/issue-NN/`)
@@ -159,8 +159,8 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 ## 6. Branching & commits
 
 - One branch per issue: `feature/issue-NN-<slug>`, created together with its worktree by
-  `./start-issue.sh <N>` (§2). Develop in `../<repo>-worktrees/issue-NN`, not the
-  main checkout. After the PR merges, run `./finish-issue.sh <N>` (optionally
+  `./scripts/start-issue.sh <N>` (§2). Develop in `../<repo>-worktrees/issue-NN`, not the
+  main checkout. After the PR merges, run `./scripts/finish-issue.sh <N>` (optionally
   `DELETE_BRANCH=1`) from the main checkout to remove the worktree and prune.
 
 ### Pre-PR verify gate (MANDATORY — stop here before `gh pr create`)
@@ -169,13 +169,13 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
 **Pre-PR verify gate** (the BLOCKING row in §4) over the whole branch diff (`main...HEAD`):
 
 1. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
-   `./create-pr.sh`, which `git fetch origin main` + rebases your branch onto `origin/main`
+  `./scripts/create-pr.sh`, which `git fetch origin main` + rebases your branch onto `origin/main`
    before pushing and opening the PR. `main` moves while you work, so a branch cut from a
    stale base can pass local gates yet break against current `main` — or duplicate a fix that
    already landed. Run the gates below **after** the sync (re-run them if the rebase pulled
    in new commits) so they verify the merged result.
 2. Full deterministic suite green for the current era:
-   - Docs-only era: `shellcheck ./*.sh scripts/*.sh` · `markdownlint 'docs/**/*.md' '*.md'`.
+  - Docs-only era: `shellcheck scripts/*.sh` · `markdownlint 'docs/**/*.md' '*.md'`.
    - Code era: `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` ·
      `uv run pytest` (with coverage).
 3. Run the inferential sensor set over the branch diff (**this is the authoritative list** —
@@ -211,7 +211,7 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
 - Do not stop at "PR ready". After the Pre-PR verify gate passes (features all `passes:true`,
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
-  **`./create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
+  **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
   it fetches + rebases onto `origin/main`, pushes, and runs `gh pr create`. Do not hand-run
   `gh pr create` against a stale base.
 - **Merge after the PR is open and local gates/reviews are complete**, then merge it yourself

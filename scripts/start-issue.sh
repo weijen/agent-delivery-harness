@@ -2,12 +2,12 @@
 # start-issue.sh — begin work on a GitHub issue in an isolated git worktree.
 #
 # Usage:
-#   ./start-issue.sh 1
-#   ./start-issue.sh ISSUE=1
-#   ./start-issue.sh ISSUE=1 SLUG=custom-slug
+#   ./scripts/start-issue.sh 1
+#   ./scripts/start-issue.sh ISSUE=1
+#   ./scripts/start-issue.sh ISSUE=1 SLUG=custom-slug
 #
 # Flow (the harness start-of-session ritual, mechanised):
-#   1. Run ./init.sh; ABORT if the environment is not green. A worktree is only
+#   1. Run ./scripts/init.sh; ABORT if the environment is not green. A worktree is only
 #      created on top of a healthy environment. (Set SKIP_INIT=1 to bypass — for
 #      scripted tests only; it defeats the purpose otherwise.)
 #   2. Derive a slug from the issue title (gh) → branch feature/issue-NN-<slug>.
@@ -27,7 +27,7 @@ bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
-source "${SCRIPT_DIR}/scripts/issue-lib.sh"
+source "${SCRIPT_DIR}/issue-lib.sh"
 
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
@@ -38,7 +38,7 @@ for arg in "$@"; do
   esac
 done
 if [ -z "$NUM_ARG" ]; then
-  red "usage: ./start-issue.sh <issue-number> [SLUG=custom-slug]"
+  red "usage: ./scripts/start-issue.sh <issue-number> [SLUG=custom-slug]"
   exit 1
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
@@ -56,8 +56,8 @@ fi
 if [ "${SKIP_INIT:-0}" = "1" ]; then
   bold "==> Skipping init.sh (SKIP_INIT=1)"
 else
-  bold "==> Running preflight (./init.sh)"
-  if ! "${ROOT}/init.sh"; then
+  bold "==> Running preflight (./scripts/init.sh)"
+  if ! "${ROOT}/scripts/init.sh"; then
     red "✗ Preflight failed — fix the environment before starting an issue."
     exit 1
   fi

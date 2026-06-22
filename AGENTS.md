@@ -47,7 +47,7 @@ sanitized, commit-safe fixture or specification.
 an isolated branch + worktree so issues never collide in one checkout:
 
 ```sh
-./start-issue.sh 1         # runs init.sh; on green, creates branch
+./scripts/start-issue.sh 1 # runs scripts/init.sh; on green, creates branch
                            # feature/issue-01-<slug> + worktree
                            # ../<repo>-worktrees/issue-01, then cd into it
 cd ../<repo>-worktrees/issue-01
@@ -56,9 +56,9 @@ cd ../<repo>-worktrees/issue-01
 **Resuming / a pure preflight check** in an existing worktree:
 
 ```sh
-./init.sh                  # preflight: gh login (HARD), optional az login, signing,
+./scripts/init.sh          # preflight: gh login (HARD), optional az login, signing,
                            # optional uv sync, optional gates
-REQUIRE_AZ=1 ./init.sh     # for Foundry / infra / deploy work
+REQUIRE_AZ=1 ./scripts/init.sh # for Foundry / infra / deploy work
 ```
 
 ## Where to find things
@@ -85,7 +85,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | Asset | Purpose | Where the harness uses it |
 |---|---|---|
 | **Skill** `code-review` | Pre-commit / pre-PR review of a diff for spec compliance + bugs | `harness.instructions.md` § Verify gate (every commit, every PR) |
-| **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `create-pr.sh` |
+| **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `scripts/create-pr.sh` |
 | **Skill** `general` | Default coding-style + testing + git conventions when project-specific guidance is silent | Background context for all coding |
 | **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Pulled in by `code-review-subagent` review checklist |
 | **Skill** `find-duplicates` | Semantic duplication / DRY violations | Pulled in by `code-review-subagent` review checklist |

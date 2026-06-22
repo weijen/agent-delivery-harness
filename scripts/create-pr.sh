@@ -6,9 +6,9 @@
 # local gates yet break against current main (or duplicate a fix already landed).
 #
 # Usage:
-#   ./create-pr.sh --title "feat: ..." --body-file body.md
-#   ./create-pr.sh --title "fix: ..."  --body "..."
-#   ./create-pr.sh                       # PR already exists: just re-sync + push + watch
+#   ./scripts/create-pr.sh --title "feat: ..." --body-file body.md
+#   ./scripts/create-pr.sh --title "fix: ..."  --body "..."
+#   ./scripts/create-pr.sh                       # PR already exists: just re-sync + push
 # Any extra args are passed straight through to `gh pr create`.
 #
 # Steps:
@@ -44,7 +44,7 @@ if ! git rebase origin/main; then
   red "✗ Rebase onto origin/main hit conflicts."
   echo "  Resolve them manually:"
   echo "    git rebase origin/main   # fix conflicts, git add, git rebase --continue"
-  echo "  then re-run ./create-pr.sh"
+  echo "  then re-run ./scripts/create-pr.sh"
   exit 1
 fi
 green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
@@ -66,7 +66,7 @@ else
   bold "==> Opening PR"
   if [ "$#" -eq 0 ]; then
     red "✗ No PR exists yet and no gh pr create args were given."
-    echo "  Re-run with: ./create-pr.sh --title \"…\" --body-file body.md"
+    echo "  Re-run with: ./scripts/create-pr.sh --title \"…\" --body-file body.md"
     exit 1
   fi
   gh pr create "$@"

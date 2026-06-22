@@ -10,7 +10,7 @@
 # Soft requirements (warn only while the project has no code yet):
 #   - uv / Python 3.14: required once a pyproject.toml lives at the repo root.
 #   - az / Azure login: required for Foundry / Terraform / deploy work
-#     (opt in with REQUIRE_AZ=1 ./init.sh).
+#     (opt in with REQUIRE_AZ=1 ./scripts/init.sh).
 #
 # Exit codes:
 #   0  environment ready
@@ -81,14 +81,14 @@ fi
 
 # 3. Azure auth (conditional) -------------------------------------------------
 # Local docs / harness work should not be blocked by an expired Azure session.
-# Foundry, Terraform, and deploy work must opt in with REQUIRE_AZ=1 ./init.sh.
+# Foundry, Terraform, and deploy work must opt in with REQUIRE_AZ=1 ./scripts/init.sh.
 echo "[3/6] Azure authentication"
 if command -v az >/dev/null 2>&1 && az account show >/dev/null 2>&1; then
   note_ok "az logged in (sub: $(az account show --query name -o tsv 2>/dev/null || echo '?'))"
 elif [ "${REQUIRE_AZ:-0}" = "1" ]; then
   note_fail "az not authenticated (REQUIRE_AZ=1)" "install az + run: az login"
 else
-  note_warn "az not authenticated (required for Foundry/infra/deploy; run: REQUIRE_AZ=1 ./init.sh)"
+  note_warn "az not authenticated (required for Foundry/infra/deploy; run: REQUIRE_AZ=1 ./scripts/init.sh)"
 fi
 
 # 4. Commit signing (warn) ----------------------------------------------------
@@ -133,6 +133,6 @@ if [ "$fail" -eq 0 ]; then
   echo "Next: read .copilot-tracking/issues/<issue>/progress.md (or project docs if no issue yet) and pick the next feature."
   exit 0
 else
-  red "Preflight FAILED. Fix the items above and re-run ./init.sh"
+  red "Preflight FAILED. Fix the items above and re-run ./scripts/init.sh"
   exit 1
 fi

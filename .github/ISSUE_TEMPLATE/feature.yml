@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Issues here are the single source of truth for what to build. Once opened,
-        run `./start-issue.sh <N>` from the main checkout to scaffold a worktree.
+        run `./scripts/start-issue.sh <N>` from the main checkout to scaffold a worktree.
 
   - type: textarea
     id: context

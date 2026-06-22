@@ -32,9 +32,9 @@ deterministic quality gates, and PR closeout.
 - [GitHub CLI](https://cli.github.com/) — `gh auth login`. **Hard-required.**
 - Git with commit signing configured (SSH or GPG).
 - [Azure CLI](https://learn.microsoft.com/cli/azure/) — `az login`. Required
-  once Foundry / Terraform work starts (`REQUIRE_AZ=1 ./init.sh`).
+  once Foundry / Terraform work starts (`REQUIRE_AZ=1 ./scripts/init.sh`).
 - [uv ≥ 0.11.9](https://docs.astral.sh/uv/getting-started/installation/) —
-  required only once Python code is added. Until then, `./init.sh` warns and
+  required only once Python code is added. Until then, `./scripts/init.sh` warns and
   carries on.
 
 ## First-time setup
@@ -42,11 +42,11 @@ deterministic quality gates, and PR closeout.
 ```sh
 git clone https://github.com/<owner>/<repo>.git
 cd <repo>
-./init.sh                 # preflight: gh auth, (optional) az auth, signing,
+./scripts/init.sh         # preflight: gh auth, (optional) az auth, signing,
                           # uv sync IF a pyproject.toml exists, gates IF any
 ```
 
-`./init.sh` is a **sensor**, not an interactive installer: it CHECKS that your
+`./scripts/init.sh` is a **sensor**, not an interactive installer: it CHECKS that your
 environment is healthy and exits non-zero with remediation instructions if a
 hard check fails. Soft checks (Python / uv / gates) only warn while the
 project still has no code.
@@ -66,7 +66,7 @@ There are no Python gates yet — the project starts as a docs-only spec pack.
 Run the docs-era gates locally when editing harness scripts or Markdown:
 
 ```sh
-shellcheck ./*.sh scripts/*.sh        # the harness scripts themselves
+shellcheck scripts/*.sh               # the harness scripts themselves
 markdownlint 'docs/**/*.md' '*.md'    # docs hygiene
 ```
 
@@ -80,7 +80,7 @@ uv run mypy                    # strict type-check
 uv run pytest                  # suite (with coverage)
 ```
 
-`./init.sh` already runs the Python gates when `pyproject.toml` is present.
+`./scripts/init.sh` already runs the Python gates when `pyproject.toml` is present.
 
 ## Project Layout
 
@@ -89,7 +89,7 @@ docs/                # project-specific contracts, architecture, and status
 apps/                # runnable services, agents, or tools
 packages/            # shared libraries and reusable project code
 infra/               # Terraform or other deployment assets when needed
-scripts/             # harness shell library
+scripts/             # harness shell entrypoints and shared shell library
 tests/               # cross-cutting tests; per-service tests live with apps
 ```
 
