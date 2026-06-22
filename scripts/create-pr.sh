@@ -13,10 +13,11 @@
 #
 # Steps:
 #   1. Refuse on main or a dirty tree.
-#   2. Require review approval for the current HEAD.
+#   2. Require review approval for the current HEAD before syncing.
 #   3. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict).
-#   4. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
-#   5. Open the PR (gh pr create) if none exists yet, passing through your args.
+#   4. Require review approval for the final post-sync HEAD.
+#   5. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
+#   6. Open the PR (gh pr create) if none exists yet, passing through your args.
 #
 # Exit codes: 0 PR open · 1 precondition / conflict / PR creation failure
 
@@ -53,7 +54,10 @@ if ! git rebase origin/main; then
 fi
 green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
 
-# --- 3. Push (the issue branch is single-owner; rebase rewrote local history) -
+# --- 3. Review approval for the final HEAD ----------------------------------
+"$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+
+# --- 4. Push (the issue branch is single-owner; rebase rewrote local history) -
 bold "==> Pushing ${branch}"
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
   git push --force-with-lease origin "$branch"
@@ -62,7 +66,7 @@ else
 fi
 green "✓ Pushed"
 
-# --- 4. Open the PR (if one doesn't already exist) --------------------------
+# --- 5. Open the PR (if one doesn't already exist) --------------------------
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 if [ -n "$pr_number" ]; then
   green "✓ PR #${pr_number} already exists — re-synced and pushed."

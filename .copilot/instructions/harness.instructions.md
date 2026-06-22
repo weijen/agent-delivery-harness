@@ -182,8 +182,9 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    deterministic gates and review findings are resolved for the current HEAD. Any new commit requires
    a fresh approval.
 2. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
-  `./scripts/create-pr.sh`, which first checks the current HEAD approval, then `git fetch origin main`
-  + rebases your branch onto `origin/main` before pushing and opening the PR. `main` moves while
+  `./scripts/create-pr.sh`, which checks the current HEAD approval, then `git fetch origin main`
+  + rebases your branch onto `origin/main`, then checks approval again for the final post-sync HEAD
+  before pushing and opening the PR. `main` moves while
   you work, so a branch cut from a stale base can pass local gates yet break against current
   `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
   (re-run them if the rebase pulled in new commits) so they verify the merged result.
@@ -225,8 +226,9 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, pushes, and runs
-  `gh pr create`. Do not hand-run `gh pr create` against a stale base.
+  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, checks approval
+  again for the final post-sync HEAD, pushes, and runs `gh pr create`. Do not hand-run `gh pr create`
+  against a stale base.
 - **Merge after the PR is open and local gates/reviews are complete**, then merge it yourself
   (do not leave manual merge work for the human). **Do not enable GitHub auto-merge** as a
   standing practice.

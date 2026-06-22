@@ -87,8 +87,9 @@ hard failures.
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
-`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before fetching, rebasing, pushing, or opening a PR.
-Any new commit changes HEAD and requires a fresh review approval.
+`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then checks again after
+`git fetch origin main` + `git rebase origin/main` before pushing or opening a PR. Any new commit or rebase that
+changes HEAD requires a fresh review approval for that final HEAD.
 
 ## Smoke CI Boundary
 
