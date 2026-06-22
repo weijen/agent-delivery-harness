@@ -176,7 +176,7 @@ else
   fi
 
   if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
-    note_warn "docs-only project — no language gates detected; run shellcheck + markdownlint locally when editing docs or scripts"
+    note_warn "docs-only project — no language gates detected; run shellcheck on the harness scripts when you touch them"
   fi
 fi
 
