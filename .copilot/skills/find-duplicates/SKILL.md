@@ -131,6 +131,30 @@ Adapt these to the project language and scope:
 - Generated code, vendored code, examples, tutorials, and documentation snippets when they are not part of runtime behavior.
 - Two-location duplication where extraction would add coupling or obscure intent.
 
+## Implementation-Usefulness Grading
+
+After a duplication is classified and assigned a severity, grade how useful and safe it
+is to consolidate **now**. This grading is **separate from severity**: severity ranks
+how risky the duplication is; usefulness ranks how worthwhile and tractable the fix is.
+Score every confirmed duplication on five dimensions (High / Medium / Low):
+
+- **Evidence strength** — how certain you are the blocks are truly redundant, not coincidental.
+- **Payoff clarity** — how clearly consolidation reduces drift and maintenance cost.
+- **Tractability** — how bounded the extraction is without dragging in unrelated concerns.
+- **Verification clarity** — whether tests/lint can prove the consolidation is behavior-preserving.
+- **Pattern fit** — whether a natural shared home already exists for the extracted code.
+
+Roll the scores into one **implementation decision** per finding:
+
+- **Fix now** — strong evidence, clear payoff, a natural shared home, verifiable. Safe to consolidate.
+- **Plan first** — real but broad or cross-layer; route to a phased plan before extracting.
+- **Defer-accept** — low payoff or risks coupling unrelated callers; record under Accepted Patterns.
+
+**The decision does not override severity.** A high usefulness score never licenses a
+**premature abstraction**: do not introduce a shared module that tightly couples otherwise
+independent callers just because a score is high. Three similar lines can beat the wrong
+abstraction. When the only shared home would couple unrelated concerns, prefer Defer-accept.
+
 ## Report Template
 
 ````markdown
@@ -142,11 +166,11 @@ Adapt these to the project language and scope:
 
 ### Findings
 
-| ID | Sev | Type | Files | Description |
-| --- | --- | --- | --- | --- |
-| DUP-1 | High | Exact | a.py, b.py, c.py | `helper()` copied across three modules. |
-| DUP-2 | Medium | Cross-layer | module.py, script.sh | Deployment logic reimplemented in shell and source code. |
-| TDUP-1 | Low | Test helper | test_a.py, test_b.py | Similar setup helper repeated in two test files. |
+| ID | Sev | Type | Files | Decision | Description |
+| --- | --- | --- | --- | --- | --- |
+| DUP-1 | High | Exact | a.py, b.py, c.py | Fix now | `helper()` copied across three modules. |
+| DUP-2 | Medium | Cross-layer | module.py, script.sh | Plan first | Deployment logic reimplemented in shell and source code. |
+| TDUP-1 | Low | Test helper | test_a.py, test_b.py | Defer-accept | Similar setup helper repeated in two test files. |
 
 ### Details
 
@@ -161,6 +185,7 @@ Adapt these to the project language and scope:
 ```
 
 **Evidence:** <why these are duplicates>
+**Implementation decision:** <Fix now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
 **Risk:** <what can diverge or become harder to maintain>
 **Recommended strategy:** <extract shared module | parametrize | keep and cross-reference | accept>
 **Validation:** <tests, lint, or review steps if this is later fixed>

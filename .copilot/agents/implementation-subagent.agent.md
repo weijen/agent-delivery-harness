@@ -17,6 +17,13 @@ From the conductor:
 - The selected `feature_list.json` item, including its `steps`, `regression_sensor`, and `e2e_sensor`
 - The files or areas likely to be touched
 - Any known constraints, out-of-scope items, or approved deviations
+- **Evaluator or reviewer handback, when this is a revision pass** — a concrete item naming the file/path, the
+  problem, the expected fix direction, and the sensor or review to re-run. Handbacks may carry an audit-skill
+  **implementation-usefulness decision** (for example `Fix now` / `Simplify now` / `Delete now`). Act only on
+  in-scope `*-now` items that the handback judged safe; route `Plan first` items back to the conductor for planning,
+  and leave `Defer-accept` / `Defer-protect` items untouched. A high usefulness score never justifies an unsafe
+  deletion, a premature abstraction, or collapsing a justified boundary — when in doubt, return a blocking question
+  rather than forcing the change. You stay production-only: you do not write tests or set `passes:true`.
 
 If the selected feature is missing or ambiguous, stop and return a blocking question. Do not infer a different feature
 from nearby context.

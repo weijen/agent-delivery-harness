@@ -108,6 +108,33 @@ For each candidate, collect as many as apply:
 - Tests or smoke flows run after proposed removal
 - Reason it is not generated/vendor/public compatibility code
 
+## Implementation-Usefulness Grading
+
+After a candidate is classified (confirmed dead / suspect / intentional) and its impact
+assessed, grade how useful and safe it is to remove **now**. This grading stays **separate from**
+the dead/suspect classification: classification says whether the code runs;
+usefulness says whether acting on it is worthwhile and safe. Score each candidate on five
+dimensions (High / Medium / Low):
+
+- **Evidence strength** — how conclusively static, runtime, and coverage evidence prove unreachability.
+- **Payoff clarity** — how clearly removal reduces confusion, surface area, or maintenance.
+- **Tractability** — how bounded the removal is, including transitive now-dead references.
+- **Verification clarity** — whether a sensor, test, or smoke flow can confirm nothing breaks.
+- **Reuse risk** — whether anything external or deferred might still need the symbol.
+
+Roll the scores into one **implementation decision** per candidate:
+
+- **Delete now** — conclusive evidence of unreachability, bounded blast radius, verifiable.
+- **Plan first** — likely dead but broad or cross-module; route to a phased removal plan.
+- **Defer-protect** — evidence is weak or the symbol is an external/contract surface; keep and annotate.
+
+**The decision does not override classification or evidence.** A high usefulness score
+never licenses an unsafe deletion. **Default to Defer-protect** for public APIs, exported
+symbols, extension points and plugin seams, migration/compatibility paths, and
+generated/vendored code — these stay even when they look locally unused, unless removal is
+explicitly in scope and externally confirmed. When evidence is weak, prefer Defer-protect
+over Delete now.
+
 ## Common Patterns To Inspect
 
 - Code after unconditional terminators
