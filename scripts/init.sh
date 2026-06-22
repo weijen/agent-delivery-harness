@@ -100,9 +100,24 @@ else
   note_warn "commit signing not enabled for this repo (commits may show Unverified)"
 fi
 
-# 5. Python environment (soft until pyproject.toml exists) --------------------
-echo "[5/6] Python environment"
-if [ -f "$PWD/pyproject.toml" ]; then
+# 5. Project surfaces --------------------------------------------------------
+echo "[5/6] Project surfaces"
+has_python=0 has_go=0 has_pnpm=0 has_terraform=0
+[ -f "$PWD/pyproject.toml" ] && has_python=1
+[ -f "$PWD/go.mod" ] && has_go=1
+if [ -f "$PWD/pnpm-lock.yaml" ] || [ -f "$PWD/package.json" ]; then has_pnpm=1; fi
+if find "$PWD" -maxdepth 3 -name '*.tf' -not -path '*/.terraform/*' -print -quit | grep -q .; then has_terraform=1; fi
+
+if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
+  note_ok "docs-only project surface detected"
+else
+  [ "$has_python" = "1" ] && note_ok "Python surface detected (pyproject.toml)"
+  [ "$has_go" = "1" ] && note_ok "Go surface detected (go.mod)"
+  [ "$has_pnpm" = "1" ] && note_ok "Node/pnpm surface detected (package.json or pnpm-lock.yaml)"
+  [ "$has_terraform" = "1" ] && note_ok "Terraform surface detected (*.tf)"
+fi
+
+if [ "$has_python" = "1" ]; then
   if ! command -v uv >/dev/null 2>&1; then
     note_fail "uv not installed but pyproject.toml present" "install: curl -LsSf https://astral.sh/uv/install.sh | sh"
   elif uv sync --all-groups >/dev/null 2>&1; then
@@ -114,17 +129,55 @@ else
   note_warn "no pyproject.toml yet — skipping uv sync (will become a hard check once code lands)"
 fi
 
-# 6. Quality gates (soft until they exist) ------------------------------------
+# 6. Quality gates (language-detected) ---------------------------------------
 echo "[6/6] Quality gates"
-if [ ! -f "$PWD/pyproject.toml" ]; then
-  note_warn "no Python gates yet — docs-only project; run shellcheck + markdownlint locally when editing docs or scripts"
-elif [ "$fail" -ne 0 ]; then
+if [ "$fail" -ne 0 ]; then
   yellow "  ! skipping gates until earlier preflight failures are fixed"
 else
-  if uv run ruff format --check . >/dev/null 2>&1; then note_ok "ruff format clean"; else note_fail "ruff format would reformat" "uv run ruff format ."; fi
-  if uv run ruff check >/dev/null 2>&1; then note_ok "ruff clean"; else note_fail "ruff failed" "uv run ruff check"; fi
-  if uv run mypy >/dev/null 2>&1;       then note_ok "mypy clean"; else note_fail "mypy failed" "uv run mypy"; fi
-  if uv run pytest -q >/dev/null 2>&1;  then note_ok "pytest passing"; else note_fail "pytest failed" "uv run pytest"; fi
+  if [ "$has_python" = "1" ]; then
+    if uv run ruff format --check . >/dev/null 2>&1; then note_ok "ruff format clean"; else note_fail "ruff format would reformat" "uv run ruff format ."; fi
+    if uv run ruff check >/dev/null 2>&1; then note_ok "ruff clean"; else note_fail "ruff failed" "uv run ruff check"; fi
+    if uv run mypy >/dev/null 2>&1;       then note_ok "mypy clean"; else note_fail "mypy failed" "uv run mypy"; fi
+    if uv run pytest -q >/dev/null 2>&1;  then note_ok "pytest passing"; else note_fail "pytest failed" "uv run pytest"; fi
+  fi
+
+  if [ "$has_go" = "1" ]; then
+    if command -v go >/dev/null 2>&1; then
+      if go test ./... >/dev/null 2>&1; then note_ok "go test passing"; else note_fail "go test failed" "go test ./..."; fi
+      if go vet ./... >/dev/null 2>&1; then note_ok "go vet clean"; else note_fail "go vet failed" "go vet ./..."; fi
+    else
+      note_warn "Go surface detected but go is not installed — skipping Go gates" "install go to run: go test ./... && go vet ./..."
+    fi
+  fi
+
+  if [ "$has_pnpm" = "1" ]; then
+    if command -v pnpm >/dev/null 2>&1; then
+      if [ -f "$PWD/package.json" ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
+        if pnpm test >/dev/null 2>&1; then note_ok "pnpm test passing"; else note_fail "pnpm test failed" "pnpm test"; fi
+      else
+        note_warn "Node/pnpm surface has no package.json test script — skipping pnpm test"
+      fi
+    else
+      note_warn "Node/pnpm surface detected but pnpm is not installed — skipping pnpm gates" "install pnpm to run project scripts"
+    fi
+  fi
+
+  if [ "$has_terraform" = "1" ]; then
+    if command -v terraform >/dev/null 2>&1; then
+      if terraform fmt -check -recursive >/dev/null 2>&1; then note_ok "terraform fmt clean"; else note_fail "terraform fmt failed" "terraform fmt -recursive"; fi
+      if find "$PWD" -name '.terraform' -type d -print -quit | grep -q .; then
+        if terraform validate >/dev/null 2>&1; then note_ok "terraform validate clean"; else note_fail "terraform validate failed" "terraform validate"; fi
+      else
+        note_warn "Terraform surface detected but .terraform is absent — skipping terraform validate" "run terraform init in the relevant module"
+      fi
+    else
+      note_warn "Terraform surface detected but terraform is not installed — skipping Terraform gates" "install terraform to run fmt/validate"
+    fi
+  fi
+
+  if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
+    note_warn "docs-only project — no language gates detected; run shellcheck + markdownlint locally when editing docs or scripts"
+  fi
 fi
 
 echo

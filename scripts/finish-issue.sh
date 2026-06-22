@@ -50,6 +50,28 @@ fi
 
 resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
 
+check_feature_completion() {
+  local feature_list incomplete_count
+  feature_list="${TRACKING_DIR}/feature_list.json"
+  if [ ! -f "$feature_list" ]; then
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    yellow "  ! jq not installed — skipping feature completion check"
+    return 0
+  fi
+  incomplete_count="$(jq '[.features[]? | select(.passes != true)] | length' "$feature_list")"
+  if [ "$incomplete_count" -gt 0 ]; then
+    if [ "${REQUIRE_FEATURES_COMPLETE:-0}" = "1" ]; then
+      red "✗ ${incomplete_count} incomplete feature_list items remain."
+      echo "  Set each completed feature to passes:true before finishing, or unset REQUIRE_FEATURES_COMPLETE for warning mode."
+      exit 1
+    fi
+    yellow "  ! ${incomplete_count} incomplete feature_list items remain (warning only)."
+    echo "    → Set REQUIRE_FEATURES_COMPLETE=1 to make this a hard gate."
+  fi
+}
+
 # The worktree's own checked-out branch is the deterministic source of truth —
 # prefer it over a slug recomputed from the (mutable) issue title.
 if [ -e "$WORKTREE_DIR" ]; then
@@ -60,6 +82,8 @@ fi
 bold "==> Finishing issue ${ISSUE_NUM}"
 echo "  branch:   ${BRANCH}"
 echo "  worktree: ${WORKTREE_DIR}"
+
+check_feature_completion
 
 if [ ! -e "$WORKTREE_DIR" ]; then
   green "✓ No worktree at ${WORKTREE_DIR} — nothing to remove."

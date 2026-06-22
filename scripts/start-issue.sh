@@ -98,6 +98,16 @@ if [ ! -d "$TRACKING_DIR" ]; then
   "issue": ${ISSUE_NUM},
   "title": "$(gh issue view "$ISSUE_NUM" --json title -q .title 2>/dev/null || echo "issue ${ISSUE_NUM}")",
   "branch": "${BRANCH}",
+  "feature_schema": {
+    "id": "string",
+    "title": "string",
+    "steps": [],
+    "passes": false,
+    "regression_sensor": null,
+    "e2e_sensor": null,
+    "blocked_on": null,
+    "verification": null
+  },
   "features": []
 }
 JSON
