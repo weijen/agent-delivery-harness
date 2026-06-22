@@ -30,8 +30,9 @@ review every file the diff touches. Do not invent a scope wider than the diff.
 ## Review Stages
 
 You run **two stages** in order: spec compliance first, then code quality. A diff that fails spec compliance is
-already NEEDS_REVISION — you may still surface code-quality findings as additional notes, but the spec failure is
-what blocks approval.
+already `NEEDS_REVISION` — you may still surface code-quality findings as additional notes, but the spec failure is
+what blocks approval. Your final status is the blocking verdict a HEAD-bound review gate consumes: exactly
+`APPROVED` or `NEEDS_REVISION`.
 
 ### Stage 1 — Spec Compliance
 
@@ -69,8 +70,13 @@ Block only when the difference changes scope, misses acceptance criteria, or cre
    to the diff. Read the skill for the clone-vs-coincidence judgement and when extraction is warranted.
 8. **Over-design introduced by this change** — Apply [`find-over-design`](.copilot/skills/find-over-design/SKILL.md)
    to the diff. Read the skill for the YAGNI heuristics on premature abstractions and speculative parameters.
+9. **Dead-code risk introduced by this change** — Apply [`dead-code-detection`](.copilot/skills/dead-code-detection/SKILL.md)
+   to touched symbols and paths when the diff adds, renames, routes, or removes callable code, scripts, hooks, prompts,
+   agents, or config entries.
+10. **Docs drift introduced by this change** — Apply [`sync-docs`](.copilot/skills/sync-docs/SKILL.md) to touched
+    user-facing commands, paths, lifecycle rules, agent names, skill names, setup steps, and validation gates.
 
-For all three skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
+For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
 unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
 this subagent.
 
@@ -78,8 +84,8 @@ this subagent.
 
 - Style/formatting — the linter handles that.
 - Whole-codebase hygiene sweep — use the standalone skills, not this subagent.
-- Dead-code orphans or doc drift across the rest of the repo — these are issue-wide concerns and belong to a separate
-  hygiene pass.
+- Dead-code orphans or doc drift across untouched parts of the repo — review only what the diff creates, removes, or
+   contradicts.
 - Performance optimisation unless the acceptance criteria explicitly require it.
 
 ## Issue Severity and the Two-Stage Reporting
@@ -100,6 +106,9 @@ investigations. Keeping the passes distinct preserves recall.
 - **CRITICAL** — Spec criteria not met, bugs, security vulnerabilities, or data loss risk. Blocks approval.
 - **MAJOR** — Significant quality issues that should be fixed. Blocks approval.
 - **MINOR** — Suggestions for improvement. Does NOT block approval.
+
+Any CRITICAL or MAJOR finding makes the final verdict `NEEDS_REVISION`. Only return `APPROVED` when acceptance criteria
+are satisfied, no out-of-scope behaviour was introduced, and no blocking quality/security/documentation finding remains.
 
 **Confidence ladder:**
 
