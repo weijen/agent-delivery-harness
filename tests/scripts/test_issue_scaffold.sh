@@ -57,4 +57,47 @@ jq '.features[0].passes = true' "$FEATURE_LIST" >"${FEATURE_LIST}.tmp"
 mv "${FEATURE_LIST}.tmp" "$FEATURE_LIST"
 REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >/tmp/finish-pass.out
 
+# --- Issue #17 regression: warning paths must not crash on an undefined helper ---
+# finish-issue.sh has two warning-mode branches (incomplete features in default mode,
+# and missing jq). Both call a warning helper; if that helper is undefined the script
+# aborts with "command not found" under `set -e` instead of warning. Exercise both.
+
+# (a) Default mode (REQUIRE_FEATURES_COMPLETE unset): incomplete features are a WARNING.
+#     finish-issue.sh must exit 0 and emit the warning, not crash.
+SKIP_INIT=1 ./scripts/start-issue.sh 124 SLUG=warn-test >/tmp/start-warn.out
+WORKTREE_WARN="${TMP_DIR}/repo-worktrees/issue-124"
+FEATURE_LIST_WARN="${WORKTREE_WARN}/.copilot-tracking/issues/issue-124/feature_list.json"
+jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_WARN" >"${FEATURE_LIST_WARN}.tmp"
+mv "${FEATURE_LIST_WARN}.tmp" "$FEATURE_LIST_WARN"
+if ! ./scripts/finish-issue.sh 124 SLUG=warn-test >/tmp/finish-warn.out 2>&1; then
+  cat /tmp/finish-warn.out >&2
+  fail "default-mode finish crashed on incomplete features (expected a warning + exit 0)"
+fi
+grep -q "incomplete feature_list items remain" /tmp/finish-warn.out || fail "default-mode finish did not emit the incomplete-features warning"
+if grep -qi "command not found" /tmp/finish-warn.out; then
+  fail "default-mode finish hit an undefined helper (yellow-path regression)"
+fi
+
+# (b) Missing jq: the completion check must SKIP with a warning, not crash. Run with a
+#     restricted PATH that provides the tools finish-issue.sh needs but omits jq.
+SKIP_INIT=1 ./scripts/start-issue.sh 125 SLUG=nojq-test >/tmp/start-nojq.out
+WORKTREE_NOJQ="${TMP_DIR}/repo-worktrees/issue-125"
+FEATURE_LIST_NOJQ="${WORKTREE_NOJQ}/.copilot-tracking/issues/issue-125/feature_list.json"
+jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_NOJQ" >"${FEATURE_LIST_NOJQ}.tmp"
+mv "${FEATURE_LIST_NOJQ}.tmp" "$FEATURE_LIST_NOJQ"
+NOJQ_BIN="${TMP_DIR}/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for tool in git env bash sh dirname basename mkdir rm cat sed tr cut grep; do
+  tool_path="$(command -v "$tool" || true)"
+  [ -n "$tool_path" ] && ln -sf "$tool_path" "${NOJQ_BIN}/${tool}"
+done
+if ! PATH="$NOJQ_BIN" ./scripts/finish-issue.sh 125 SLUG=nojq-test >/tmp/finish-nojq.out 2>&1; then
+  cat /tmp/finish-nojq.out >&2
+  fail "missing-jq finish crashed (expected a skip warning + exit 0)"
+fi
+grep -q "jq not installed" /tmp/finish-nojq.out || fail "missing-jq finish did not emit the jq-skip warning"
+if grep -qi "command not found" /tmp/finish-nojq.out; then
+  fail "missing-jq finish hit an undefined helper (yellow-path regression)"
+fi
+
 printf 'issue scaffold smoke passed\n'
