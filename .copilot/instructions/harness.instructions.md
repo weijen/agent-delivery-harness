@@ -135,6 +135,23 @@ Action Log):
 If a step fails, the conductor routes the handback to the owning subagent (production defect →
 `implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
 itself.
+
+#### Pass the applicable instruction files into subagent prompts
+
+Subagents run in a **fresh context** and do **not** inherit the conductor's Copilot instruction resolution. So the
+conductor must make the relevant instruction files part of the subagent prompt, not assume the subagent already has
+them. When the selected feature touches Python (`.py`):
+
+- to `implementation-subagent`: include/point to `.copilot/instructions/python.instructions.md`;
+- to `test-subagent`: include/point to `.copilot/instructions/python.instructions.md` **and**
+  `.copilot/instructions/tdd.instructions.md`;
+- to `code-review-subagent`: name `.copilot/instructions/python.instructions.md` and
+  `.copilot/instructions/tdd.instructions.md` as review criteria for the Python diff.
+
+How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
+instruction to read and follow them before acting. The matching subagent templates also require reading these files
+when the work is Python, so this is a belt-and-suspenders contract: the conductor supplies them and the subagent
+loads them. Generalize the same pattern to other languages that gain an `applyTo` instruction file.
 - **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
   other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
   smoke run): write the smallest failing test that expresses the feature; confirm it fails for
