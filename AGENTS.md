@@ -43,6 +43,10 @@ sanitized, commit-safe fixture or specification.
 
 ## Start every session here
 
+This repo has a thin `harness-smoke.yml` GitHub Actions workflow for harness
+health only. Treat it as a remote smoke sensor, not CI/CD delivery, not a PR
+watch loop, and not a branch-protection gate.
+
 **Starting a new issue?** Use the worktree harness — it runs preflight, then creates
 an isolated branch + worktree so issues never collide in one checkout:
 
