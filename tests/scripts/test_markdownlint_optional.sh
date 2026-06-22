@@ -19,9 +19,13 @@ if grep -qi 'markdownlint' "$instructions"; then
 fi
 
 # 2. Where markdownlint is still mentioned (README, HARNESS.md), it must never be presented
-#    as a required gate. Two concrete "looks required" signals are forbidden:
+#    as a required gate. Three "looks required" signals are forbidden unless the same line
+#    also frames markdownlint as optional:
 #      (a) pairing it with shellcheck as a single gate (the exact pattern issue #21 flagged),
-#      (b) a bare `markdownlint <glob>.md` command invocation not annotated as optional.
+#      (b) a command-style invocation (line begins with the markdownlint command),
+#      (c) prose asserting a requirement near markdownlint (required / mandatory / blocking /
+#          "do not commit|merge|open").
+req_kw='required|requires|mandatory|blocking|do not (commit|merge|open)'
 for doc in "docs/HARNESS.md" "README.md"; do
 	[ -f "$doc" ] || continue
 
@@ -30,10 +34,18 @@ for doc in "docs/HARNESS.md" "README.md"; do
 	fi
 
 	while IFS= read -r line; do
-		# A markdownlint command that runs it over .md files, with no 'optional' on the line.
-		if printf '%s' "$line" | grep -Eqi 'markdownlint[^#]*\.md' &&
-			! printf '%s' "$line" | grep -qi 'optional'; then
+		printf '%s' "$line" | grep -qi 'markdownlint' || continue
+		# An 'optional' qualifier on the same line clears the line.
+		printf '%s' "$line" | grep -qi 'optional' && continue
+
+		# (b) command-style invocation: the line starts with the markdownlint command.
+		if printf '%s' "$line" | grep -Eqi '^[[:space:]]*(\$ )?markdownlint([[:space:]]|$)'; then
 			note "$doc invokes markdownlint as a gate without an 'optional' annotation: ${line}"
+			continue
+		fi
+		# (c) prose asserting a requirement next to markdownlint.
+		if printf '%s' "$line" | grep -Eqi "$req_kw"; then
+			note "$doc describes markdownlint as required without an 'optional' qualifier: ${line}"
 		fi
 	done <"$doc"
 done
