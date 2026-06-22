@@ -5,11 +5,14 @@
 
 ## What this project is
 
-This repository is a reusable Microsoft / Azure / GitHub-oriented harness for
-issue-driven agent work. It provides preflight checks, isolated issue worktrees,
+This repository is a reusable, language-agnostic harness for issue-driven agent
+work. It provides preflight checks, isolated issue worktrees,
 local per-issue progress state, quality gates, review sensors, and PR closeout
-scripts. Project-specific product specs, architecture notes,
-validation plans, and delivery milestones should live under `docs/`.
+scripts. Python is the default/common code path, and optional surface detection
+exists for Go, Node/pnpm, and Terraform when a project uses them. Project-specific
+product specs, architecture notes, validation plans, delivery milestones, and any
+cloud/provider conventions (e.g. Azure, Foundry) should live under `docs/` or the
+project's own instruction files — the harness itself does not require them.
 
 ## Sensitivity (read before writing or pushing anything)
 
@@ -25,17 +28,18 @@ sanitized, commit-safe fixture or specification.
    code. Never edit/delete a test to make it pass.
 3. **Leave the environment clean after every session**: green gates, committed, progress updated.
 4. **Push after every completed feature** to the issue's working branch.
-5. **Agents don't call Foundry / Azure with privileged credentials from a worktree** —
-   go through the approved tool wrappers (Content Understanding client, model client,
-   Code Interpreter session) and config from env, never hard-coded secrets.
+5. **Agents don't call privileged cloud/provider APIs with privileged credentials from a worktree** —
+   go through the project's approved tool wrappers and config from env, never hard-coded secrets.
+   (For example, in an Azure/Foundry project this means the Content Understanding client, model
+   client, or Code Interpreter session — never a raw privileged call.)
 6. **GitHub Issues (description + comments) are the single source of truth** for issue
    requirements — fetch with `gh issue view <N> --comments`; there are no local issue-draft files.
 7. When an issue is complete and reviewed, **open the PR, then merge it**;
    don't leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
    auto-merge as a standing practice.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
-   its regression sensor, and any feature with a real runtime boundary (Foundry call, agent run,
-   report generation, deployed endpoint) should name its e2e sensor.
+   its regression sensor, and any feature with a real runtime boundary (e.g. an external service
+   call, agent run, report generation, deployed endpoint) should name its e2e sensor.
 9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
    coding-agent habits and personal workflow shortcuts.
 10. **Keep the issue Action Log current** in `.copilot-tracking/issues/issue-NN/progress.md` with conductor handbacks,
@@ -69,7 +73,7 @@ Keep harness shell entrypoints under `scripts/`. Do not create root-level `.sh` 
 ```sh
 ./scripts/init.sh          # preflight: gh login (HARD), optional az login, signing,
                            # optional uv sync, optional gates
-REQUIRE_AZ=1 ./scripts/init.sh # for Foundry / infra / deploy work
+REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / Foundry)
 ```
 
 ## Where to find things

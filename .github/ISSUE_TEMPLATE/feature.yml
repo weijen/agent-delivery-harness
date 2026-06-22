@@ -15,7 +15,7 @@ body:
       label: Context
       description: Which project milestone or spec section does this support? Which doc or issue comment is the contract?
       placeholder: |
-        - Milestone: Phase 2 — Foundry smoke
+        - Milestone: Phase 2 — <milestone or spec section>
         - Spec contract: docs/<project-spec>.md § Validation
     validations:
       required: true
@@ -26,7 +26,7 @@ body:
       label: Acceptance criteria
       description: Bulleted, externally observable, ideally one bullet per `feature_list` item. Each MUST be verifiable by a sensor.
       placeholder: |
-        - Custom analyzer schema vN deployed to the configured Foundry resource.
+        - <Externally observable outcome for this deliverable>.
         - `python -m apps.smoke.<workflow> <fixture>` returns valid structured JSON for the fixture.
         - Snapshot fixture under `tests/fixtures/<workflow>/fixture001.json` matches output (regression sensor).
     validations:
