@@ -24,6 +24,8 @@ From the conductor:
 - Any conductor-approved scope change or intentional deviation
 - Review mode: `full` or `concise`
 
+Return any substantive review action or verdict that the conductor should record in the issue progress Action Log.
+
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
 
@@ -150,6 +152,8 @@ For concise mode:
 - **[CRITICAL][confidence: high|medium|low]** {Issue with file:line reference}
 - **[MAJOR][confidence: high|medium|low]** {Issue with file:line reference}
 
+**Action Log:** {Paste-ready entry for the conductor's issue progress Action Log, including verdict and required follow-up.}
+
 **Summary:** {1 sentence assessment}
 ```
 
@@ -180,6 +184,8 @@ For full mode:
 
 **Strengths:** {Optional; include only if useful}
 
+**Action Log:** {Paste-ready entry for the conductor's issue progress Action Log, including verdict and required follow-up.}
+
 **Next Steps:** {Approve and continue, or specific revisions needed}
 ```
 
@@ -196,6 +202,8 @@ For full mode:
 - Under-building: None
 
 **Findings:** None
+
+**Action Log:** code-review-subagent APPROVED add MCP server health-check endpoint; no follow-up required.
 
 **Summary:** New endpoint reuses the existing dependency-injection pattern; tests cover both healthy and degraded paths.
 ```
@@ -226,6 +234,8 @@ For full mode:
 - **[MINOR][confidence: medium]** `tests/.../test_billing.py:55` — Asserts `result is not None` only; consider asserting on the actual returned balance.
 
 **Strengths:** Refactor collapsed two callers into one shared helper without adding new abstractions.
+
+**Action Log:** code-review-subagent NEEDS_REVISION billing-balance retry logic; redact SAS token logging and bound retries before re-review.
 
 **Next Steps:** Redact the SAS token in the log line, add `max_attempts=5` + exponential backoff to the retry, then re-request review.
 ```

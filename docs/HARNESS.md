@@ -4,6 +4,9 @@ This repository is a reusable harness for issue-driven Copilot work. The harness
 project contract in GitHub Issues, the implementation isolated in per-issue worktrees, and the
 agent steering loop grounded in local sensors.
 
+For harness-enabled projects, the harness lifecycle is mandatory and stricter than generic Copilot or personal
+workflow rules. If another instruction conflicts with this lifecycle, use the harness rule.
+
 ## Lifecycle
 
 ```mermaid
@@ -59,6 +62,10 @@ root-level copies are stale by definition and should be removed instead of docum
 The conductor remains responsible for selecting the issue and feature, preserving scope, approving the current HEAD,
 committing, pushing, opening PRs, and merging.
 
+Conductor, implementation-subagent, test-subagent, and code-review-subagent actions must be visible in the issue
+progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
+for logging when they are not authorized to edit local issue progress directly.
+
 ## Local Tracking
 
 `.copilot-tracking/` is gitignored local state. It is persistent on the developer machine but never pushed.
@@ -70,6 +77,9 @@ committing, pushing, opening PRs, and merging.
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
 | `.copilot-tracking/plans/*.md` | Local planning-subagent output for deep plans. |
 | `.copilot-tracking/review-gate/approved-head` | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
+
+`progress.md` should include an Action Log section for substantive lifecycle actions, including conductor decisions,
+subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
 ## Gates And Sensors
 

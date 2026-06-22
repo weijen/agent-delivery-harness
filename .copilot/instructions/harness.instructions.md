@@ -7,8 +7,9 @@ applyTo: '**'
 
 This file is the **full lifecycle** behind the golden rules in
 [AGENTS.md](../../AGENTS.md). The human-readable lifecycle overview and diagram live in
-[docs/HARNESS.md](../../docs/HARNESS.md). This file complements the personal workflow tiers;
-where both apply, follow the stricter rule. The model is borrowed from three sources:
+[docs/HARNESS.md](../../docs/HARNESS.md). In harness-enabled projects, strict harness adherence is mandatory:
+these instructions override personal workflow tiers and override generic coding-agent behavior whenever they differ.
+Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model is borrowed from three sources:
 
 - **Anthropic** — long-running agents: initializer vs coding agent, a feature list, incremental
   progress, getting-up-to-speed rituals, leave a clean state.
@@ -16,6 +17,9 @@ where both apply, follow the stricter rule. The model is borrowed from three sou
   computational vs inferential; quality-left; the steering loop.
 - **OpenAI/Codex** — repo as system of record, AGENTS.md as a map, enforce invariants not
   implementations, garbage collection of drift.
+
+If you deviate from the harness path, stop, report the deviation in the issue progress Action Log, and recover by
+returning to the required lifecycle step before continuing.
 
 ## 0. Project shape (read this once)
 
@@ -86,13 +90,15 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
 - **Never one-shot** a feature or a whole issue. One `feature_list` item at a time.
 - For Copilot-assisted issue work, keep the roles separate:
   - **Conductor** chooses the issue, reads the GitHub contract, selects one `passes:false`
-    feature, and owns commits/PRs.
+    feature, owns commits/PRs, and records substantive conductor actions in the issue progress Action Log.
   - **Generator** (`implementation-subagent`) implements only that selected feature's production
-    assets and must not write tests or mark `passes:true`.
+    assets, reports substantive implementation actions for the issue progress Action Log, and must not write tests or
+    mark `passes:true`.
   - **Evaluator** (`test-subagent`) writes/runs the selected feature's sensors and may mark that
-    feature `passes:true` only after the declared checks pass.
+    feature `passes:true` only after the declared checks pass; it reports substantive verification actions for the
+    issue progress Action Log.
   - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code
-    quality before closeout.
+    quality before closeout and reports substantive review findings or approvals for the issue progress Action Log.
 - **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
   other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
   smoke run): write the smallest failing test that expresses the feature; confirm it fails for
@@ -152,8 +158,9 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
    docs-only era; ruff/mypy/pytest once Python lands).
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
-   commit sha, next feature to pick) and `.copilot-tracking/issues/<issue>/plan.md` if the
-   approach or remaining phases changed.
+  commit sha, next feature to pick). Its Action Log must include substantive conductor and subagent actions, including
+  any stop/report/recover entry for a harness deviation. Update `.copilot-tracking/issues/<issue>/plan.md` if the
+  approach or remaining phases changed.
 4. When the issue's features are all `passes:true`, bring the repo-wide
    `docs/IMPLEMENTATION-STATUS.md` (once introduced) to its **final** form as part of the
    branch — **inside the PR, never as a post-merge commit on `main`**. Once the PR is open you
