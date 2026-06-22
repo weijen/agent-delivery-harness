@@ -82,6 +82,14 @@ uv run pytest                  # suite (with coverage)
 
 `./scripts/init.sh` already runs the Python gates when `pyproject.toml` is present.
 
+## Harness smoke workflow
+
+The repository has a thin GitHub Actions smoke workflow at
+[.github/workflows/harness-smoke.yml](.github/workflows/harness-smoke.yml). It
+only checks that harness shell scripts parse, `shellcheck` passes, and Copilot
+agent/skill frontmatter is present. It is not CI/CD delivery, a deployment
+pipeline, a PR watch loop, or a branch-protection required check.
+
 ## Project Layout
 
 ```text
