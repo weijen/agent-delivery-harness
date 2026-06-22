@@ -148,6 +148,30 @@ Adapt these to the project language and scope:
 - Meta-work: `plan|phase|roadmap|tracking|handoff|runbook|checklist|governance|process|workflow`
 - Repetition: distinctive verbs repeated across sibling files, such as `create`, `find`, `deploy`, `patch`, `validate`, `backup`, `restore`, `restart`, `poll`, `verify`, and `normalize`.
 
+## Implementation-Usefulness Grading
+
+After a finding is classified and assigned a severity, grade how useful and safe it is
+to simplify **now**. This grading is **separate from severity**: severity ranks how
+disproportionate the design is; usefulness ranks how worthwhile and tractable the
+simplification is. Score every confirmed finding on five dimensions (High / Medium / Low):
+
+- **Evidence strength** — how certain you are the complexity is unjustified, not load-bearing.
+- **Payoff clarity** — how clearly removing it reduces lines, layers, or cognitive load.
+- **Tractability** — how bounded the simplification is without a wide ripple.
+- **Verification clarity** — whether tests/lint can prove behavior is preserved after simplifying.
+- **Pattern fit** — whether the simpler shape matches the rest of the codebase.
+
+Roll the scores into one **implementation decision** per finding:
+
+- **Simplify now** — strong evidence the abstraction is unused/single-use, bounded, verifiable.
+- **Plan first** — real but wide-reaching; route to a phased plan before collapsing layers.
+- **Defer-accept** — payoff unclear or complexity may be load-bearing; record as proportional.
+
+**The decision does not override severity.** A high usefulness score never licenses
+collapsing a **justified boundary**: extension points, plugin seams, and abstractions that
+absorb real, demonstrated variation must be protected even when a quick simplification
+looks tempting. When you cannot prove the complexity is unused, prefer Defer-accept.
+
 ## Report Template
 
 ````markdown
@@ -170,11 +194,11 @@ Adapt these to the project language and scope:
 
 ### Findings
 
-| ID | Sev | Category | Files | Description |
-| --- | --- | --- | --- | --- |
-| OD-1 | High | Dual implementation | a.py, b.sh | Same behavior exists in two runtimes and must stay synchronized. |
-| OD-2 | Medium | Over-parameterized interface | service.py | Optional callbacks and modes are not used by callers. |
-| OD-3 | Low | Single-use type | models.py | Dataclass wraps a dict used in one local function. |
+| ID | Sev | Category | Files | Decision | Description |
+| --- | --- | --- | --- | --- | --- |
+| OD-1 | High | Dual implementation | a.py, b.sh | Plan first | Same behavior exists in two runtimes and must stay synchronized. |
+| OD-2 | Medium | Over-parameterized interface | service.py | Simplify now | Optional callbacks and modes are not used by callers. |
+| OD-3 | Low | Single-use type | models.py | Defer-accept | Dataclass wraps a dict used in one local function. |
 
 ### Details
 
@@ -189,6 +213,7 @@ Adapt these to the project language and scope:
 ```
 
 **Signal:** <what makes this look disproportionate>
+**Implementation decision:** <Simplify now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
 **Why it matters:** <maintenance/change/debugging risk>
 **Suggested simplification:** <specific strategy>
 **Estimated payoff:** <line savings, fewer layers, fewer files touched, simpler workflow, or qualitative payoff>

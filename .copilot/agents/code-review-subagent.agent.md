@@ -89,6 +89,17 @@ For all skill-based checks, flag only patterns the diff **introduces**; long-sta
 unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
 this subagent.
 
+Each audit skill now emits an **implementation-usefulness decision** per finding (for example
+`Fix now` / `Plan first` / `Defer-accept`, or `Delete now` / `Plan first` / `Defer-protect`). When you apply a
+skill to the diff, **consume that decision but do not let it replace your severity judgement**: usefulness ranks how
+worthwhile and safe the fix is, while your **CRITICAL / MAJOR / MINOR** ladder ranks how much the finding blocks this
+change. Map them as follows — a `Fix now` / `Simplify now` / `Delete now` finding that the diff introduced and left
+unaddressed is normally **MAJOR** (or **CRITICAL** if it also breaks a spec criterion or is a security/data-loss risk);
+a `Plan first` finding is **MAJOR** when in-scope, otherwise a tracked **MINOR**; a `Defer-accept` / `Defer-protect`
+finding is **MINOR** at most. A high usefulness score never downgrades a blocking severity, and it never justifies an
+unsafe deletion, a premature abstraction, or collapsing a justified boundary. Loop every CRITICAL/MAJOR finding back to
+the implementer and name the sensor that must re-run before re-review.
+
 ## What You Do NOT Check
 
 - Style/formatting — the linter handles that.

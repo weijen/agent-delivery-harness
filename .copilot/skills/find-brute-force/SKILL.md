@@ -112,6 +112,31 @@ Adapt these to the project language and scope:
 - Security shortcuts: `verify=False|--no-verify|rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0|curl .* -k|chmod 777|chmod 666|shell=True|eval\(|exec\(|allow_origins\s*=\s*\[\s*["']\*["']`
 - Debug leftovers: `print\(|console\.log|debugger;|breakpoint\(|pdb\.set_trace|TODO.*remove|commented out`
 
+## Implementation-Usefulness Grading
+
+After a finding is classified and assigned a severity, grade how useful and safe it
+is to act on it **now**. This grading is **separate from severity**: severity ranks
+how harmful the smell is; usefulness ranks how worthwhile and tractable the fix is.
+Score every confirmed finding on five dimensions (High / Medium / Low):
+
+- **Evidence strength** — how certain you are this is a real shortcut, not intentional code.
+- **Payoff clarity** — how clearly the fix improves correctness, safety, or maintainability.
+- **Tractability** — how bounded and well-understood the fix is.
+- **Verification clarity** — whether a concrete sensor, test, or review step can confirm the fix.
+- **Pattern fit** — whether the fix aligns with an existing accepted pattern in the codebase.
+
+Roll the scores into one **implementation decision** per finding:
+
+- **Fix now** — strong evidence, clear payoff, bounded change, verifiable. Safe to fix in this pass.
+- **Plan first** — real but broad or risky; route to a phased remediation plan before touching code.
+- **Defer-accept** — low payoff or speculative; record under Accepted Patterns and leave as-is.
+
+**The decision does not override severity.** A high usefulness score never licenses an
+unsafe shortcut: a blocking Critical (security, data loss, destructive operation) still
+blocks regardless of decision, and a high score must not justify a hasty fix that swaps
+one hardcoded value or swallowed error for another. When evidence is weak, prefer
+Defer-accept over Fix now.
+
 ## Report Template
 
 ````markdown
@@ -122,10 +147,10 @@ Adapt these to the project language and scope:
 
 ### Findings
 
-| ID | Sev | File | Category | Description |
-| --- | --- | --- | --- | --- |
-| BF-1 | High | path/to/file.py:42 | Hardcoded value | Environment-specific resource name embedded in runtime logic. |
-| BF-2 | Low | scripts/setup.sh:18 | Swallowed error | Suppressed command failure has fallback logging and bounded impact. |
+| ID | Sev | File | Category | Decision | Description |
+| --- | --- | --- | --- | --- | --- |
+| BF-1 | High | path/to/file.py:42 | Hardcoded value | Fix now | Environment-specific resource name embedded in runtime logic. |
+| BF-2 | Low | scripts/setup.sh:18 | Swallowed error | Defer-accept | Suppressed command failure has fallback logging and bounded impact. |
 
 ### Details
 
@@ -139,6 +164,7 @@ Adapt these to the project language and scope:
 ```
 
 **Concern:** <why this is risky>
+**Implementation decision:** <Fix now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
 **Recommended fix:** <specific fix strategy>
 **Verification:** <targeted command or review step>
 

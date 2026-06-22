@@ -39,7 +39,11 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
 ## Workflow
 
 1. Read the selected feature and implementation diff.
-2. Add the smallest verification asset needed to prove the feature, if one is missing.
+2. Add the smallest verification asset needed to prove the feature, if one is missing. Use the finding's
+   **verification clarity** (from the audit-skill implementation-usefulness grading, when present) to choose the
+   sensor: high verification clarity means a deterministic regression sensor is expected; a real runtime boundary
+   means an e2e sensor is required; only low verification clarity with no automatable boundary may fall back to a
+   documented manual check. A high usefulness score never licenses weakening or skipping a required sensor.
 3. Run the declared deterministic sensor first, then the e2e sensor when applicable.
 4. If all required sensors pass, update only that selected feature's `passes`, `verification`, and factual status fields
    in `.copilot-tracking/issues/issue-NN/feature_list.json` when the conductor asks you to own the pass flip.
