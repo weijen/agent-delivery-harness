@@ -56,11 +56,17 @@ project still has no code.
 ## Quality gates
 
 There are no Python gates yet — the project starts as a docs-only spec pack.
-Run the docs-era gates locally when editing harness scripts or Markdown:
+The only required docs-era gate is shellcheck on the harness scripts:
 
 ```sh
-shellcheck scripts/*.sh               # the harness scripts themselves
-markdownlint 'docs/**/*.md' '*.md'    # docs hygiene
+shellcheck scripts/*.sh               # the harness scripts themselves (required)
+```
+
+markdownlint is optional docs hygiene, not a required harness gate — run it ad hoc
+if you want Markdown style feedback:
+
+```sh
+markdownlint 'docs/**/*.md' '*.md'    # optional docs hygiene (not a gate)
 ```
 
 When code lands, the four standard Python gates will be added by the issue

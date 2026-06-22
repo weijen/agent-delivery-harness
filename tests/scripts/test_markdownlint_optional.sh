@@ -18,6 +18,18 @@ if grep -qi 'markdownlint' "$instructions"; then
 	note "$instructions still references markdownlint; remove it from the required harness flow"
 fi
 
+# 2. Where markdownlint is still mentioned (README, HARNESS.md), every mention must be
+#    clearly framed as optional — never as a required gate.
+for doc in "docs/HARNESS.md" "README.md"; do
+	[ -f "$doc" ] || continue
+	while IFS= read -r line; do
+		if printf '%s' "$line" | grep -qi 'markdownlint' &&
+			! printf '%s' "$line" | grep -qi 'optional'; then
+			note "$doc presents markdownlint without an 'optional' framing: ${line}"
+		fi
+	done <"$doc"
+done
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
