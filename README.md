@@ -86,16 +86,16 @@ pipeline, a PR watch loop, or a branch-protection required check.
 ## Project Layout
 
 ```text
-docs/                # project-specific contracts, architecture, and status
-apps/                # runnable services, agents, or tools
-packages/            # shared libraries and reusable project code
-infra/               # Terraform or other deployment assets when needed
+.copilot/            # Copilot instructions, prompts, agents, and skills
+.github/workflows/   # thin harness-health smoke workflow
+docs/                # harness lifecycle and project-specific docs
 scripts/             # harness shell entrypoints and shared shell library
-tests/               # cross-cutting tests; per-service tests live with apps
+tests/               # harness regression sensors
 ```
 
 All harness shell entrypoints live under `scripts/`; the repository root should not contain `.sh`
-entrypoint copies.
+entrypoint copies. Product repositories that adopt this harness can add their own `apps/`,
+`packages/`, and `infra/` directories when runnable code or deployment assets land.
 
 ## Where to go next
 
