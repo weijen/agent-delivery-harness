@@ -61,4 +61,8 @@ Return exactly these sections:
 - `Summary`: concise implementation notes.
 - `Checks`: commands or deterministic checks run, including skipped checks with reasons.
 - `Handback`: anything the conductor or test-subagent must verify next, including Action Log entries the conductor
-  should record.
+  should record. When this was a **revision pass**, give enough concrete context for a targeted follow-up:
+  the selected feature, the exact files/lines changed, what the change does and does not cover, the sensor that
+  should now pass, and any remaining `Plan first` or `Defer` items you intentionally left for the conductor to route.
+  You stay production-only and route through the conductor — you do not call `test-subagent` or `code-review-subagent`
+  directly.
