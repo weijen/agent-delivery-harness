@@ -94,6 +94,11 @@ subagent handbacks, verification results, review outcomes, and any deviation sto
 Missing optional tools are explicit skips or warnings. Hard requirements such as `git`, `gh`, and GitHub auth remain
 hard failures.
 
+markdownlint is treated as **optional** docs hygiene, not a required harness gate — markdownlint is not
+part of the pre-commit, end-of-session, or pre-PR gates. The devcontainer pin for it is likewise optional
+tooling, not a mandatory harness requirement. Run markdownlint ad hoc for optional Markdown style
+feedback; a red markdownlint result never blocks issue work.
+
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
