@@ -32,6 +32,7 @@ grep -Eq '\bcheckov\b' "$dockerfile"
 grep -Eq '\buv\b' "$dockerfile"
 grep -Eq 'ghcr\.io/devcontainers/features/node:1' "$json_file"
 grep -Eq 'corepack prepare pnpm@' .devcontainer/postCreate.sh
-grep -Eq 'markdownlint-cli2@' .devcontainer/postCreate.sh
+# markdownlint is optional docs hygiene, not a required harness tool, so the devcontainer
+# is not required to pin markdownlint-cli2. (See docs/HARNESS.md § Gates And Sensors.)
 
 echo "devcontainer regression checks passed"

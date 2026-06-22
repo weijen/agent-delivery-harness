@@ -85,7 +85,7 @@ subagent handbacks, verification results, review outcomes, and any deviation sto
 
 `./scripts/init.sh` detects project surfaces and runs the matching local gates when present:
 
-- docs-only: reports that no language gates are present and points agents to shellcheck/markdownlint for touched docs and scripts.
+- docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
 - Python: `uv sync --all-groups`, ruff format/check, mypy, and pytest.
 - Go: `go test ./...` and `go vet ./...` when `go` is installed.
 - Node/pnpm: `pnpm test` when a package test script exists and `pnpm` is installed.
@@ -93,6 +93,11 @@ subagent handbacks, verification results, review outcomes, and any deviation sto
 
 Missing optional tools are explicit skips or warnings. Hard requirements such as `git`, `gh`, and GitHub auth remain
 hard failures.
+
+markdownlint is treated as **optional** docs hygiene, not a required harness gate — markdownlint is not
+part of the pre-commit, end-of-session, or pre-PR gates. The devcontainer pin for it is likewise optional
+tooling, not a mandatory harness requirement. Run markdownlint ad hoc for optional Markdown style
+feedback; a red markdownlint result never blocks issue work.
 
 ## Review Gate
 

@@ -11,7 +11,12 @@ cd "$ROOT"
 
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
-grep -q "markdownlint" "$OUT" || { cat "$OUT"; exit 1; }
+# markdownlint must NOT be presented as a required local gate in the docs-only flow.
+if grep -q "markdownlint" "$OUT"; then
+	echo "init.sh docs-only output must not recommend markdownlint as a required gate"
+	cat "$OUT"
+	exit 1
+fi
 
 mkdir -p "${TMP_DIR}/repo/scripts" "${TMP_DIR}/fakebin"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
