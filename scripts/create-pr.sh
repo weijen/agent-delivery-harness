@@ -13,9 +13,10 @@
 #
 # Steps:
 #   1. Refuse on main or a dirty tree.
-#   2. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict).
-#   3. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
-#   4. Open the PR (gh pr create) if none exists yet, passing through your args.
+#   2. Require review approval for the current HEAD.
+#   3. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict).
+#   4. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
+#   5. Open the PR (gh pr create) if none exists yet, passing through your args.
 #
 # Exit codes: 0 PR open · 1 precondition / conflict / PR creation failure
 
@@ -36,7 +37,10 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-# --- 1. Sync onto the latest main -------------------------------------------
+# --- 1. Review approval gate ------------------------------------------------
+"$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+
+# --- 2. Sync onto the latest main -------------------------------------------
 bold "==> Syncing ${branch} onto latest origin/main"
 git fetch origin main
 if ! git rebase origin/main; then
@@ -49,7 +53,7 @@ if ! git rebase origin/main; then
 fi
 green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
 
-# --- 2. Push (the issue branch is single-owner; rebase rewrote local history) -
+# --- 3. Push (the issue branch is single-owner; rebase rewrote local history) -
 bold "==> Pushing ${branch}"
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
   git push --force-with-lease origin "$branch"
@@ -58,7 +62,7 @@ else
 fi
 green "✓ Pushed"
 
-# --- 3. Open the PR (if one doesn't already exist) --------------------------
+# --- 4. Open the PR (if one doesn't already exist) --------------------------
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 if [ -n "$pr_number" ]; then
   green "✓ PR #${pr_number} already exists — re-synced and pushed."

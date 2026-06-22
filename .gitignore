@@ -33,6 +33,7 @@ htmlcov/
 # Ephemeral per-issue agent working state (local-persistent, never pushed)
 .copilot-tracking/issues/issue-*/
 .copilot-tracking/plans/*.md
+.copilot-tracking/review-gate/
 !.copilot-tracking/issues/.gitkeep
 !.copilot-tracking/plans/.gitkeep
 
