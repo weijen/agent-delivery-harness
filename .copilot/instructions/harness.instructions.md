@@ -6,8 +6,9 @@ applyTo: '**'
 # Harness Doctrine
 
 This file is the **full lifecycle** behind the golden rules in
-[AGENTS.md](../../AGENTS.md). It complements the personal workflow tiers; where both apply,
-follow the stricter rule. The model is borrowed from three sources:
+[AGENTS.md](../../AGENTS.md). The human-readable lifecycle overview and diagram live in
+[docs/HARNESS.md](../../docs/HARNESS.md). This file complements the personal workflow tiers;
+where both apply, follow the stricter rule. The model is borrowed from three sources:
 
 - **Anthropic** — long-running agents: initializer vs coding agent, a feature list, incremental
   progress, getting-up-to-speed rituals, leave a clean state.
@@ -49,9 +50,9 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
    - **Resuming an issue:** `cd` into its existing worktree and run `./scripts/init.sh` for a fresh
      preflight.
    - `./scripts/init.sh` is the preflight sensor itself: `gh` login HARD-FAIL, `az` login WARN unless
-     `REQUIRE_AZ=1`, signing WARN, `uv sync` and the four gates run **only when
-     `pyproject.toml` exists** (this project starts docs-only). Fix any hard failure before
-     doing anything else.
+     `REQUIRE_AZ=1`, signing WARN, and project-surface gates run when their files exist. It detects
+     docs-only, Python, Go, pnpm, and Terraform surfaces and reports explicit skip reasons for
+     missing optional tools. Fix any hard failure before doing anything else.
 2. Read the project-specific contract docs linked from [AGENTS.md](../../AGENTS.md), then
   `.copilot-tracking/issues/<issue>/progress.md` and
    `.copilot-tracking/issues/<issue>/plan.md` (if present), and `git log --oneline -20` for
@@ -177,17 +178,20 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 When the issue's features are all `passes:true`, do **not** open the PR yet. First run the
 **Pre-PR verify gate** (the BLOCKING row in §4) over the whole branch diff (`main...HEAD`):
 
-1. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
-  `./scripts/create-pr.sh`, which `git fetch origin main` + rebases your branch onto `origin/main`
-   before pushing and opening the PR. `main` moves while you work, so a branch cut from a
-   stale base can pass local gates yet break against current `main` — or duplicate a fix that
-   already landed. Run the gates below **after** the sync (re-run them if the rebase pulled
-   in new commits) so they verify the merged result.
-2. Full deterministic suite green for the current era:
+1. **Approve the current HEAD after review.** Run `./scripts/review-gate.sh approve` only after
+   deterministic gates and review findings are resolved for the current HEAD. Any new commit requires
+   a fresh approval.
+2. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
+  `./scripts/create-pr.sh`, which first checks the current HEAD approval, then `git fetch origin main`
+  + rebases your branch onto `origin/main` before pushing and opening the PR. `main` moves while
+  you work, so a branch cut from a stale base can pass local gates yet break against current
+  `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
+  (re-run them if the rebase pulled in new commits) so they verify the merged result.
+3. Full deterministic suite green for the current era:
   - Docs-only era: `shellcheck scripts/*.sh` · `markdownlint 'docs/**/*.md' '*.md'`.
    - Code era: `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` ·
      `uv run pytest` (with coverage).
-3. Run the inferential sensor set over the branch diff (**this is the authoritative list** —
+4. Run the inferential sensor set over the branch diff (**this is the authoritative list** —
    everywhere else that mentions "the verify-gate sensors" means exactly these):
    - `code-review-subagent` (full)
    - `security-audit`
@@ -196,7 +200,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    - `find-brute-force`
    - `dead-code-detection`
    - `sync-docs`
-4. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
+5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
    | Severity (any sensor) | Action — BEFORE the PR |
@@ -208,7 +212,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
 
    Loop until no Critical/Major/High remains and Medium items are fixed or explicitly deferred.
    Only then proceed.
-5. `docs/IMPLEMENTATION-STATUS.md` (once introduced) is in its final closed form on the branch
+6. `docs/IMPLEMENTATION-STATUS.md` (once introduced) is in its final closed form on the branch
    (per §5) — committed here, so the merge needs no follow-up edit. Only then open the PR.
 
 Skipping this gate is a process violation even when the four computational gates are green —
@@ -221,8 +225,8 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it fetches + rebases onto `origin/main`, pushes, and runs `gh pr create`. Do not hand-run
-  `gh pr create` against a stale base.
+  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, pushes, and runs
+  `gh pr create`. Do not hand-run `gh pr create` against a stale base.
 - **Merge after the PR is open and local gates/reviews are complete**, then merge it yourself
   (do not leave manual merge work for the human). **Do not enable GitHub auto-merge** as a
   standing practice.

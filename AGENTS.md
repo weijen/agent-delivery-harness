@@ -38,7 +38,8 @@ sanitized, commit-safe fixture or specification.
    report generation, deployed endpoint) should name its e2e sensor.
 9. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
 
-→ The full lifecycle, session rituals, and garbage-collection cadence are in
+→ The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
+session rituals and garbage-collection cadence are in
 **[.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md)**.
 
 ## Start every session here
@@ -57,6 +58,8 @@ an isolated branch + worktree so issues never collide in one checkout:
 cd ../<repo>-worktrees/issue-01
 ```
 
+Keep harness shell entrypoints under `scripts/`. Do not create root-level `.sh` copies.
+
 **Resuming / a pure preflight check** in an existing worktree:
 
 ```sh
@@ -74,6 +77,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for Foundry / infra / deploy work
 | Validation plan and smoke tests | Project-specific docs under `docs/` |
 | Agent topology and prompts | Project-specific docs under `docs/` |
 | Delivery plan, RACI, risk register | Project-specific docs under `docs/` |
+| Copilot issue lifecycle and diagram | [docs/HARNESS.md](docs/HARNESS.md) |
 | Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
 | Cross-project workflow tiers (Tier 0-3 + subagent pipeline) | [.copilot/instructions/workflow-tiers.instructions.md](.copilot/instructions/workflow-tiers.instructions.md) |
 | Python conventions (added when code lands) | [.copilot/instructions/python.instructions.md](.copilot/instructions/python.instructions.md) |
