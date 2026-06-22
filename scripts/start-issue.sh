@@ -119,6 +119,10 @@ Status: not started.
 - Branch: \`${BRANCH}\`
 - Worktree: \`${WORKTREE_DIR}\`
 
+## Action Log
+
+- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._
+
 Populate \`feature_list.json\` with the feature breakdown, then work one
 \`passes:false\` item at a time (see harness §3).
 MD

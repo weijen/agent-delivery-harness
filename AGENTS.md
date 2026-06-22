@@ -36,7 +36,11 @@ sanitized, commit-safe fixture or specification.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
    its regression sensor, and any feature with a real runtime boundary (Foundry call, agent run,
    report generation, deployed endpoint) should name its e2e sensor.
-9. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
+9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
+   coding-agent habits and personal workflow shortcuts.
+10. **Keep the issue Action Log current** in `.copilot-tracking/issues/issue-NN/progress.md` with conductor handbacks,
+   subagent actions, review verdicts, and any stop/report/recover notes.
+11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
 
 → The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
 session rituals and garbage-collection cadence are in
@@ -77,6 +81,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for Foundry / infra / deploy work
 | Validation plan and smoke tests | Project-specific docs under `docs/` |
 | Agent topology and prompts | Project-specific docs under `docs/` |
 | Delivery plan, RACI, risk register | Project-specific docs under `docs/` |
+| Local issue progress and Action Log | `.copilot-tracking/issues/issue-NN/progress.md` |
 | Copilot issue lifecycle and diagram | [docs/HARNESS.md](docs/HARNESS.md) |
 | Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
 | Cross-project workflow tiers (Tier 0-3 + subagent pipeline) | [.copilot/instructions/workflow-tiers.instructions.md](.copilot/instructions/workflow-tiers.instructions.md) |

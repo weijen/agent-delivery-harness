@@ -38,6 +38,7 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
 4. If all required sensors pass, update only that selected feature's `passes`, `verification`, and factual status fields
    in `.copilot-tracking/issues/issue-NN/feature_list.json` when the conductor asks you to own the pass flip.
 5. Return failures with the command output summary and the production area that should be revisited.
+6. Return the substantive verification actions the conductor should record in the issue progress Action Log.
 
 ## Output Format
 
@@ -46,4 +47,5 @@ Return exactly these sections:
 - `Verification files`: tests, fixtures, or smoke assets created or modified.
 - `Commands`: commands run and pass/fail results.
 - `Pass status`: whether `passes:true` is justified for the selected feature.
-- `Handback`: production fixes needed, or confirmation that the conductor can proceed to review.
+- `Handback`: production fixes needed, or confirmation that the conductor can proceed to review, including Action Log
+   entries the conductor should record.

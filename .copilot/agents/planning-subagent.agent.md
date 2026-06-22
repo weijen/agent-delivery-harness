@@ -229,6 +229,8 @@ sufficient — no formal template required.
 - **Write scope is restricted to `.copilot-tracking/plans/`.** No path outside that directory may be created or
   modified. If you need a change outside that scope, name it as an open question for the conductor instead of acting
   on it.
+- Hand back a concise Action Log entry for the conductor to record in the issue `progress.md`; do not edit
+  `progress.md` yourself because your write scope remains limited to `.copilot-tracking/plans/`.
 - Each phase must be self-contained — no red/green cycles spanning multiple phases
 - Do NOT implement anything — only research and plan
 - Do NOT include code blocks unless the approach is non-obvious or complex

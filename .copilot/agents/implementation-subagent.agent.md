@@ -38,7 +38,8 @@ from nearby context.
 3. Apply the smallest production edit that satisfies the feature steps.
 4. Run only cheap checks that are necessary to catch syntax or formatting errors in the files you changed, when your
    tools allow it.
-5. Return the changed files, the implementation summary, and any checks run or skipped.
+5. Return the changed files, the implementation summary, any checks run or skipped, and the substantive actions the
+  conductor should record in the issue progress Action Log.
 
 ## Output Format
 
@@ -47,4 +48,5 @@ Return exactly these sections:
 - `Changed files`: files created or modified.
 - `Summary`: concise implementation notes.
 - `Checks`: commands or deterministic checks run, including skipped checks with reasons.
-- `Handback`: anything the conductor or test-subagent must verify next.
+- `Handback`: anything the conductor or test-subagent must verify next, including Action Log entries the conductor
+  should record.
