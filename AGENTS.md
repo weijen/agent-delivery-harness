@@ -78,7 +78,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for Foundry / infra / deploy work
 
 ## Skills and subagents (in-repo)
 
-The harness's review gates and Tier 3 workflow assume these are available;
+The harness's feature workflow and review gates assume these are available;
 they're now checked into the repo so any contributor (human or AI) gets the
 same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 
@@ -94,6 +94,8 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
 | **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
 | **Subagent** `planning-subagent` | Tier 3 planning pass; produces `.copilot-tracking/plans/<issue>.md` | Conductor invokes at the start of any Tier 3 issue |
+| **Subagent** `implementation-subagent` | Generator role for one `feature_list` item; edits production assets only | Conductor invokes after selecting one `passes:false` feature |
+| **Subagent** `test-subagent` | Evaluator role for one `feature_list` item; writes/runs sensors and may flip `passes:true` only after verification | Conductor invokes after implementation is ready to verify |
 | **Subagent** `code-review-subagent` | Tier 3 final review pass (full mode) before PR | Conductor invokes after implementation completes |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.

@@ -83,6 +83,15 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
 ## 3. Implement one feature (TDD, incremental)
 
 - **Never one-shot** a feature or a whole issue. One `feature_list` item at a time.
+- For Copilot-assisted issue work, keep the roles separate:
+  - **Conductor** chooses the issue, reads the GitHub contract, selects one `passes:false`
+    feature, and owns commits/PRs.
+  - **Generator** (`implementation-subagent`) implements only that selected feature's production
+    assets and must not write tests or mark `passes:true`.
+  - **Evaluator** (`test-subagent`) writes/runs the selected feature's sensors and may mark that
+    feature `passes:true` only after the declared checks pass.
+  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code
+    quality before closeout.
 - **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
   other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
   smoke run): write the smallest failing test that expresses the feature; confirm it fails for
