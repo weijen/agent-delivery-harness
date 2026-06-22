@@ -58,4 +58,8 @@ Return exactly these sections:
 - `Commands`: commands run and pass/fail results.
 - `Pass status`: whether `passes:true` is justified for the selected feature.
 - `Handback`: production fixes needed, or confirmation that the conductor can proceed to review, including Action Log
-   entries the conductor should record.
+   entries the conductor should record. **Classify the handback so the conductor can route it (Loop 1):** label each
+   item a **production defect** (declared sensor fails on real behaviour → conductor routes to `implementation-subagent`)
+   or a **verification/sensor gap** (a sensor is missing, weak, or itself wrong → conductor routes back to you, or to
+   the conductor when a *declared* sensor must change). Never weaken, skip, or replace a declared sensor to make
+   verification pass; report the gap instead. You do not call other subagents directly — the conductor owns the loop.

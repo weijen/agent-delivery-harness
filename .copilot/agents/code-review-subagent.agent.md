@@ -204,7 +204,11 @@ For full mode:
 
 **Action Log:** {Paste-ready entry for the conductor's issue progress Action Log, including verdict and required follow-up.}
 
-**Next Steps:** {Approve and continue, or specific revisions needed}
+**Next Steps:** {Approve and continue, or specific revisions needed. For each blocking finding, name the **route**
+(Loop 2): to `implementation-subagent` when a production/code/prompt/config change is needed, to `test-subagent` when
+the gap is a missing or weak sensor, or to the **conductor** when it is a scope/planning decision. Give file/path, the
+problem, the expected fix direction, and the sensor or review to re-run on the new HEAD. You do not call other
+subagents directly — the conductor owns the loop.}
 ```
 
 ### Worked example — APPROVED, concise mode

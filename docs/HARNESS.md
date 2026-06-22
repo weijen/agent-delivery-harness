@@ -77,6 +77,15 @@ it belongs to the subagents. The required per-feature handoff is:
 A progress log that only records **"conductor TDD"** is non-compliant — it hides this handoff. See
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md) for the enforceable rule.
 
+When a handoff step fails, the conductor runs two **grading-driven revision loops** (it owns the loop boundary;
+subagents never call each other). **Loop 1 (implementation ↔ test):** a production defect routes back to
+`implementation-subagent`, a verification/sensor gap routes back to `test-subagent` (never weakening a declared
+sensor). **Loop 2 (review → implementation):** a `code-review-subagent` `NEEDS_REVISION` routes each blocking finding
+to `implementation-subagent`, `test-subagent`, or a conductor decision, then the relevant sensor and the review are
+re-run on the new HEAD. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
+failure stops and asks the human after two attempts. Full protocol in
+[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
+
 Conductor, implementation-subagent, test-subagent, and code-review-subagent actions must be visible in the issue
 progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
 for logging when they are not authorized to edit local issue progress directly.

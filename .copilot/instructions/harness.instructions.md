@@ -136,6 +136,45 @@ If a step fails, the conductor routes the handback to the owning subagent (produ
 `implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
 itself.
 
+#### Grading-driven revision loops (conductor-owned)
+
+The conductor runs two explicit revision loops. The **conductor owns the loop boundary**: subagents do **not call
+each other** directly — the conductor passes compact, concrete handback context and re-invokes the right role. The
+implementation-usefulness grading from the audit skills (issue #13) is a **routing signal, not a severity override**:
+it helps decide *where* work goes and *what proof* is needed, but it never downgrades a blocking severity — Critical
+security, data-loss, destructive behaviour, or a missing acceptance criterion still blocks regardless of score.
+
+**Loop 1 — implementation ↔ test.** After `implementation-subagent` returns, the conductor invokes `test-subagent`.
+When the evaluator reports a failure, the conductor routes by defect type:
+
+- **Production defect** (declared sensor fails on real behaviour) → back to `implementation-subagent` with the same
+  selected feature, the changed files, the failing commands, and the exact sensor output summary.
+- **Verification gap** (missing/weak/incorrect sensor) → back to `test-subagent` to strengthen the sensor, **without
+  weakening any declared sensor**. If a declared sensor is itself wrong, the evaluator reports the gap and hands back
+  to the conductor rather than silently substituting a weaker check.
+- **Low verification clarity** (per the #13 grading) → the conductor pauses or plans the missing sensor rather than
+  flipping `passes:true` on weak evidence.
+
+Loop 1 continues until the declared `regression_sensor` and any required `e2e_sensor` pass, or a real blocker is
+recorded.
+
+**Loop 2 — review → implementation.** After the feature or closeout diff is reviewed by `code-review-subagent`:
+
+- **APPROVED** → the conductor proceeds to the next lifecycle step.
+- **NEEDS_REVISION** with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) → the conductor
+  routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to re-run — to
+  `implementation-subagent` when a production/code/prompt/config change is needed, or to `test-subagent` when the gap
+  is a missing or weak sensor.
+- **MINOR/Low** → may be deferred only where §6 allows, with rationale and tracking; never silently dropped when a
+  concise review mode hides them.
+
+After any fix, the conductor re-runs the relevant deterministic sensor and then re-runs `code-review-subagent` on the
+new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the user or issue plan expands scope, and
+**preserve role boundaries**: `implementation-subagent` does not edit tests, `test-subagent` does not edit production,
+`code-review-subagent` reviews only. **Avoid infinite loops** — repeated failure on the same sensor or finding stops
+and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
+exists.
+
 #### Pass the applicable instruction files into subagent prompts
 
 Subagents run in a **fresh context** and do **not** inherit the conductor's Copilot instruction resolution. So the
