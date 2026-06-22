@@ -12,6 +12,10 @@ are plan documents under `.copilot-tracking/plans/` — see [Step 4](#step-4-sav
 ## Principles
 
 - **YAGNI** — Only plan what was asked for
+- **Reuse first** — Before proposing new scripts, agents, schemas, or helpers, look for an existing local pattern to
+  extend. Prefer the repo's current harness primitives over inventing parallel ones.
+- **Issue driven** — Treat the GitHub issue description/comments as the work contract and `feature_list.json` as the
+  local execution breakdown. Plans should preserve that contract rather than replace it.
 - **TDD** — For behavior changes, every task must follow: write failing test → verify fails for right reason → minimal
   implementation → verify passes. Non-behavior changes (docs, prompts, config, mechanical refactors) do not require TDD
   task ordering.
@@ -67,6 +71,13 @@ If no depth is specified, default to `standard`.
 ### Step 1: Research
 
 Research depth depends on the planning depth above.
+
+For all depths:
+1. Read the selected GitHub issue contract provided by the conductor, including comments when available.
+2. Read the current `feature_list.json` item when the conductor is planning inside an issue worktree.
+3. Search for an existing implementation, script, prompt, agent, skill, or documentation pattern to reuse before
+  recommending a new artifact.
+4. If reuse is rejected, state why the existing pattern cannot satisfy the issue contract.
 
 For `quick`:
 1. Search for relevant files and functions.
@@ -130,6 +141,8 @@ Produce the minimum number of phases needed. One phase is acceptable for small c
 For each phase:
 - **Objective:** What is to be achieved
 - **Files/Functions:** Exact paths to create or modify
+- **Feature contract:** The `feature_list.json` item or GitHub acceptance criterion this phase satisfies
+- **Verification:** The regression sensor and e2e sensor, or an explicit reason no runtime boundary exists
 - **Tasks:** In TDD order (for behavior changes):
   1. Write failing test — include the test name and what it verifies
   2. Run test — include the project's test command and expected failure message
@@ -142,8 +155,12 @@ logical order instead.
 For complex or non-obvious parts, include code examples showing the approach. For straightforward parts, a description
 referencing files and functions is sufficient.
 
-**Stop when:** Every phase names the exact files/functions it will touch, and (for behavior changes) the specific test
-file and test name that will gate it.
+Each phase must be self-contained: it starts from a known state, changes one concern, names its own verification, and
+can be reviewed independently. Do not create phases that only become meaningful after a later phase supplies the test,
+schema, or runtime boundary.
+
+**Stop when:** Every phase names the exact files/functions it will touch, the issue/feature contract it satisfies, and
+the sensor that proves it. For behavior changes, also name the specific test file and test name that will gate it.
 
 ### Step 4: Save (deep or on request)
 
