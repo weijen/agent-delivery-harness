@@ -338,9 +338,14 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, checks approval
   again for the final post-sync HEAD, pushes, and runs `gh pr create`. Do not hand-run `gh pr create`
   against a stale base.
-- **Merge after the PR is open and local gates/reviews are complete**, then merge it yourself
-  (do not leave manual merge work for the human). **Do not enable GitHub auto-merge** as a
-  standing practice.
+- **A green remote CI run is a hard precondition for merge.** After the PR is open and local
+  gates/reviews are complete, do **not** merge until the harness CI run
+  (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through
+  **`./scripts/merge-pr.sh`**, which verifies `gh pr checks` is green and then merges — it refuses
+  while checks are pending or failing. You still merge it yourself (do not leave manual merge work
+  for the human); this gate is **not** GitHub auto-merge, which remains disabled as a standing
+  practice. A repo admin should additionally enforce this as a branch-protection required check on
+  `main`.
 - Conventional commits: `type(scope): summary` (≤ 50 chars) + bullet body. Don't reference
   internal workflow phases.
 - **Never disable commit signing** to dodge a passphrase. If signing fails, stop and ask the

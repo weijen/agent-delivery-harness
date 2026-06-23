@@ -111,4 +111,27 @@ require_text "$bash_instructions" 'byte-for-byte|snapshot' \
 require_text "AGENTS.md" 'bash\.instructions\.md' \
   "Bash instructions reference in the agent map"
 
+# --- CI sensor-suite execution (#51) -----------------------------------------
+workflow=".github/workflows/harness-smoke.yml"
+require_text "$workflow" 'tests/scripts/test_\*\.sh' \
+  "workflow execution of the tests/scripts sensor glob"
+require_text "$workflow" 'tests/meta/test_\*\.sh' \
+  "workflow execution of the tests/meta sensor glob"
+require_text "$workflow" 'shellcheck[^\n]*tests/' \
+  "workflow shellcheck coverage of tests/"
+
+# --- CI-green merge gate doctrine (#51) --------------------------------------
+require_text ".copilot/instructions/harness.instructions.md" 'merge-pr\.sh' \
+  "merge-pr.sh reference in the harness merge doctrine"
+require_text ".copilot/instructions/harness.instructions.md" 'green.*(precondition|before.*merg)|(precondition|before.*merg).*green' \
+  "green-CI precondition for merge wording"
+require_text "AGENTS.md" 'merge-pr\.sh' \
+  "merge-pr.sh reference in the agent map golden rules"
+require_text "AGENTS.md" 'green.*CI|CI.*green' \
+  "green-CI merge precondition wording in the agent map"
+require_text "docs/HARNESS.md" 'merge-pr\.sh' \
+  "merge-pr.sh reference in the HARNESS smoke boundary"
+require_text "docs/HARNESS.md" 'branch-protection required check' \
+  "branch-protection required-check recommendation"
+
 printf 'harness smoke passed\n'

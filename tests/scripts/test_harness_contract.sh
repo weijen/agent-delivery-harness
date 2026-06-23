@@ -123,12 +123,22 @@ for required in \
   scripts/check-feature-list.sh \
   scripts/review-gate.sh \
   scripts/create-pr.sh \
+  scripts/merge-pr.sh \
   scripts/finish-issue.sh; do
   case " ${declared_scripts} " in
     *" ${required} "*) : ;;
     *) fail "contract no longer declares required script: ${required}" ;;
   esac
 done
+
+# --- 2b. CI-green merge precondition backstop (issue #51) --------------------
+# The contract must keep declaring that a green CI run is required before merge,
+# owned by scripts/merge-pr.sh. Deleting the lifecycle obligation from the YAML
+# must fail this sensor even though section 3 would no longer check it.
+grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-green-precondition[[:space:]]*$' "$CONTRACT" \
+  || fail "contract no longer declares the ci-green-precondition lifecycle obligation"
+grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
+  || fail "contract no longer declares the ci-not-green-refused failure mode"
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
@@ -139,7 +149,10 @@ check_owner_present() {
     id="$(field "$rec" id)"; [ -n "$id" ] || id="$(field "$rec" name)"
     owner="$(field "$rec" owner)"
     present="$(field "$rec" present)"
-    [ -n "$owner" ] && [ -n "$present" ] || { fail "${section}/${id:-?}: missing owner or present in contract"; continue; }
+    if [ -z "$owner" ] || [ -z "$present" ]; then
+      fail "${section}/${id:-?}: missing owner or present in contract"
+      continue
+    fi
     case " ${declared_scripts} " in
       *" ${owner} "*) : ;;
       *) fail "${section}/${id}: owner '${owner}' is not a declared script" ;;

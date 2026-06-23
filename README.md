@@ -85,11 +85,14 @@ uv run pytest                  # suite (with coverage)
 
 ## Harness smoke workflow
 
-The repository has a thin GitHub Actions smoke workflow at
+The repository has a GitHub Actions workflow at
 [.github/workflows/harness-smoke.yml](.github/workflows/harness-smoke.yml). It
-only checks that harness shell scripts parse, `shellcheck` passes, and Copilot
-agent/skill frontmatter is present. It is not CI/CD delivery, a deployment
-pipeline, a PR watch loop, or a branch-protection required check.
+runs the harness shell sensor suite (`tests/scripts/` and `tests/meta/`), checks
+that harness shell scripts parse, runs `shellcheck`, and validates Copilot
+agent/skill frontmatter. A green run is a hard precondition for merge, enforced
+via [scripts/merge-pr.sh](scripts/merge-pr.sh). It is not CI/CD delivery, a
+deployment pipeline, or GitHub auto-merge; a repo admin may additionally enable a
+branch-protection required check on `main`.
 
 ## Project Layout
 
