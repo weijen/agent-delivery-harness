@@ -7,7 +7,21 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -f "${OUT}"; rm -rf "${TMP_DIR}"' EXIT
 
 cd "$ROOT"
-./scripts/init.sh >"$OUT"
+
+# The docs-only invocation runs against the real repo root, so fake an
+# authenticated gh (init.sh hard-fails on gh auth) to keep the test hermetic in
+# CI and on machines without an active gh/az login. uv/az are soft in init.sh.
+DOCSBIN="${TMP_DIR}/docsbin"
+mkdir -p "$DOCSBIN"
+cat > "${DOCSBIN}/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+	auth) exit 0 ;;
+	api) printf 'fixture-user\n' ;;
+esac
+SH
+chmod +x "${DOCSBIN}/gh"
+PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
 
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
