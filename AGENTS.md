@@ -8,8 +8,9 @@
 This repository is a reusable, language-agnostic harness for issue-driven agent
 work. It provides preflight checks, isolated issue worktrees,
 local per-issue progress state, quality gates, review sensors, and PR closeout
-scripts. Python is the default/common code path, and optional surface detection
-exists for Go, Node/pnpm, and Terraform when a project uses them. Project-specific
+scripts. Language support is declarative: the core ships profiles for Python, Go,
+Node.js, Java, and Ruby (plus Terraform surface detection) and a generator for
+adding more, without hard-coding any language in the core. Project-specific
 product specs, architecture notes, validation plans, delivery milestones, and any
 cloud/provider conventions (e.g. Azure, Foundry) should live under `docs/` or the
 project's own instruction files — the harness itself does not require them.
@@ -95,7 +96,13 @@ REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / F
 | Copilot issue lifecycle and diagram | [docs/HARNESS.md](docs/HARNESS.md) |
 | Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
 | Cross-project workflow tiers (Tier 0-3 + subagent pipeline) | [.copilot/instructions/workflow-tiers.instructions.md](.copilot/instructions/workflow-tiers.instructions.md) |
+| Harness layers (Core / Language Profiles / Framework Templates) | [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers |
+| Language profile contract + per-language gate lists | [profiles/README.md](profiles/README.md) |
+| Multi-language profile design (Python, Go, Node.js, Java, Ruby) | [docs/multi-language-profiles.md](docs/multi-language-profiles.md) |
+| Frozen lifecycle / non-regression contract | [docs/harness-contract.yml](docs/harness-contract.yml) + `tests/scripts/test_harness_contract.sh` |
+| Adding or updating a language profile (generator) | `./scripts/scaffold-language.sh <profile>` (see [docs/HARNESS.md](docs/HARNESS.md) § Adding or updating a language profile) |
 | Python conventions (added when code lands) | [.copilot/instructions/python.instructions.md](.copilot/instructions/python.instructions.md) |
+| Go / Node / Java / Ruby conventions | `.copilot/instructions/<language>.instructions.md` — scaffolded by `scripts/scaffold-language.sh`; load the file matching the files you change |
 | Bash conventions (harness scripts & shell tests) | [.copilot/instructions/bash.instructions.md](.copilot/instructions/bash.instructions.md) |
 | TDD discipline | [.copilot/instructions/tdd.instructions.md](.copilot/instructions/tdd.instructions.md) |
 | Terraform / Azure conventions | [.copilot/instructions/terraform-azure.instructions.md](.copilot/instructions/terraform-azure.instructions.md) |
