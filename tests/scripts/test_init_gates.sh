@@ -85,4 +85,42 @@ grep -q "go test passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "pnpm test passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
 
+# --- Failed-gate reporting ---------------------------------------------------
+# A failing quality gate must be REPORTED and turn the run into a hard failure
+# (exit 1), not be swallowed. Use a Python-only repo with a fake uv whose
+# `ruff format --check` gate fails while `sync` succeeds.
+FAILBIN="${TMP_DIR}/failbin"
+mkdir -p "${TMP_DIR}/failrepo/scripts" "$FAILBIN"
+cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/failrepo/scripts/init.sh"
+cat > "${FAILBIN}/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+	auth) exit 0 ;;
+	api) printf 'fixture-user\n' ;;
+esac
+SH
+cat > "${FAILBIN}/uv" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+	"sync --all-groups") exit 0 ;;
+	"run ruff format --check .") exit 1 ;;
+	*) exit 0 ;;
+esac
+SH
+chmod +x "${FAILBIN}"/*
+
+cd "${TMP_DIR}/failrepo"
+git init -q -b main
+git config user.name "Harness Test"
+git config user.email "harness-test@example.invalid"
+printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
+
+if PATH="${FAILBIN}:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
+	cat "$OUT"
+	echo "init.sh must hard-fail when a quality gate fails"
+	exit 1
+fi
+grep -qi "ruff format would reformat" "$OUT" || { cat "$OUT"; echo "failed gate was not reported"; exit 1; }
+grep -qi "Preflight FAILED" "$OUT" || { cat "$OUT"; echo "failed gate did not surface a preflight failure"; exit 1; }
+
 printf 'init gates smoke passed\n'
