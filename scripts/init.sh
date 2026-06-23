@@ -48,6 +48,33 @@ note_ok() {
   return 0
 }
 
+# run_gate_loop — iterate the currently-sourced PROFILE_GATES, printing OK / SKIP
+# / FAIL from the descriptor's message strings. A gate exit code of 2 means SKIP
+# (an optional tool/script is absent) → warn, not hard-fail; any other nonzero is
+# a real failure that fails preflight. Python gates only return 0/1, so the SKIP
+# branch is dormant for Python and its hard-fail contract is preserved.
+run_gate_loop() {
+  local g ok_var fail_var fix_var skip_var rc skip_msg
+  for g in "${PROFILE_GATES[@]}"; do
+    ok_var="PROFILE_GATE_${g}_OK"
+    fail_var="PROFILE_GATE_${g}_FAIL"
+    fix_var="PROFILE_GATE_${g}_FIX"
+    skip_var="PROFILE_GATE_${g}_SKIP"
+    if "profile_gate_${g}" >/dev/null 2>&1; then
+      note_ok "${!ok_var}"
+    else
+      rc=$?
+      if [ "$rc" -eq 2 ]; then
+        skip_msg="${!skip_var:-}"
+        [ -n "$skip_msg" ] || skip_msg="${g} skipped"
+        note_warn "$skip_msg"
+      else
+        note_fail "${!fail_var}" "${!fix_var}"
+      fi
+    fi
+  done
+}
+
 repo_name="$(basename "$PWD")"
 bold "==> ${repo_name} preflight"
 
@@ -115,18 +142,28 @@ fi
 
 # 5. Project surfaces --------------------------------------------------------
 echo "[5/6] Project surfaces"
-has_python=0 has_go=0 has_pnpm=0 has_terraform=0
+has_python=0 has_go=0 has_node=0 has_terraform=0
 profile_detect && has_python=1
 [ -f "$PWD/go.mod" ] && has_go=1
-if [ -f "$PWD/pnpm-lock.yaml" ] || [ -f "$PWD/package.json" ]; then has_pnpm=1; fi
+[ -f "$PWD/package.json" ] && has_node=1
 if find "$PWD" -maxdepth 3 -name '*.tf' -not -path '*/.terraform/*' -print -quit | grep -q .; then has_terraform=1; fi
 
-if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
+# The Node descriptor is sourced late (step 6) so it does not clobber Python's
+# PROFILE_* before the Python gate loop runs. Extract just its surface label now
+# via a subshell source so this report line stays descriptor-driven.
+node_label=""
+if [ "$has_node" = "1" ]; then
+  # shellcheck disable=SC1091  # sourced in a subshell purely to read its label
+  node_label="$(. "$PROFILES_DIR/node.profile.sh" >/dev/null 2>&1; printf '%s' "$PROFILE_SURFACE_LABEL")"
+  [ -n "$node_label" ] || node_label="Node surface detected (package.json)"
+fi
+
+if [ "$has_python$has_go$has_node$has_terraform" = "0000" ]; then
   note_ok "docs-only project surface detected"
 else
   [ "$has_python" = "1" ] && note_ok "$PROFILE_SURFACE_LABEL"
   [ "$has_go" = "1" ] && note_ok "Go surface detected (go.mod)"
-  [ "$has_pnpm" = "1" ] && note_ok "Node/pnpm surface detected (package.json or pnpm-lock.yaml)"
+  [ "$has_node" = "1" ] && note_ok "$node_label"
   [ "$has_terraform" = "1" ] && note_ok "Terraform surface detected (*.tf)"
 fi
 
@@ -148,16 +185,7 @@ if [ "$fail" -ne 0 ]; then
   yellow "  ! skipping gates until earlier preflight failures are fixed"
 else
   if [ "$has_python" = "1" ]; then
-    for g in "${PROFILE_GATES[@]}"; do
-      ok_var="PROFILE_GATE_${g}_OK"
-      fail_var="PROFILE_GATE_${g}_FAIL"
-      fix_var="PROFILE_GATE_${g}_FIX"
-      if "profile_gate_${g}" >/dev/null 2>&1; then
-        note_ok "${!ok_var}"
-      else
-        note_fail "${!fail_var}" "${!fix_var}"
-      fi
-    done
+    run_gate_loop
   fi
 
   if [ "$has_go" = "1" ]; then
@@ -169,15 +197,15 @@ else
     fi
   fi
 
-  if [ "$has_pnpm" = "1" ]; then
-    if command -v pnpm >/dev/null 2>&1; then
-      if [ -f "$PWD/package.json" ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
-        if pnpm test >/dev/null 2>&1; then note_ok "pnpm test passing"; else note_fail "pnpm test failed" "pnpm test"; fi
-      else
-        note_warn "Node/pnpm surface has no package.json test script — skipping pnpm test"
-      fi
+  if [ "$has_node" = "1" ]; then
+    if command -v node >/dev/null 2>&1; then
+      # Source the Node descriptor now (late) so its PROFILE_* override Python's
+      # after the Python gate loop has already run, then drive the shared loop.
+      # shellcheck source=profiles/node.profile.sh
+      . "$PROFILES_DIR/node.profile.sh"
+      run_gate_loop
     else
-      note_warn "Node/pnpm surface detected but pnpm is not installed — skipping pnpm gates" "install pnpm to run project scripts"
+      note_warn "Node surface detected but node is not installed — skipping Node gates" "install node to run the project's format/lint/test scripts"
     fi
   fi
 
@@ -194,7 +222,7 @@ else
     fi
   fi
 
-  if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
+  if [ "$has_python$has_go$has_node$has_terraform" = "0000" ]; then
     note_warn "docs-only project — no language gates detected; run shellcheck on the harness scripts when you touch them"
   fi
 fi
