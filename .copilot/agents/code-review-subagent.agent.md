@@ -30,12 +30,16 @@ Return any substantive review action or verdict that the conductor should record
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
 
-**Applicable instruction files are part of the review contract.** When the diff touches any `.py` file, treat
-`.copilot/instructions/python.instructions.md` and `.copilot/instructions/tdd.instructions.md` as binding review
-criteria alongside the acceptance criteria: a Python change that violates those instructions (e.g. ignores pathlib,
+**Applicable instruction files are part of the review contract (profile-aware routing).** Select the instruction file
+that matches each changed file, by extension, under `.copilot/instructions/<language>.instructions.md`:
+`.py` → `python`, `.go` → `go`, `.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a
+mixed-language diff, treat **every** applicable language instruction file plus `.copilot/instructions/tdd.instructions.md`
+as binding review criteria alongside the acceptance criteria. For example, a Python change that violates
+`.copilot/instructions/python.instructions.md` or `.copilot/instructions/tdd.instructions.md` (e.g. ignores pathlib,
 parses external responses without typing, weakens or skips a sensor, or abandons RED→GREEN discipline) is a finding.
-You run in a fresh context, so read those files from the repo when the diff is Python and they are not already in your
-prompt.
+You run in a fresh context, so read the applicable files from the repo when they are not already in your prompt. If a
+`<language>.instructions.md` file does not exist yet, fall back to the **general skill**
+(`.copilot/skills/general/SKILL.md`) and the harness contract rather than inventing language conventions to enforce.
 
 ## Review Verdicts
 

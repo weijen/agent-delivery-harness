@@ -31,11 +31,17 @@ from nearby context.
 ## Scope Rules
 
 - Modify production code, prompts, docs, config, or scripts only when they are required by the selected feature.
-- **Load the applicable language instructions before you edit.** Before editing any `.py` file, read and follow
-  `.copilot/instructions/python.instructions.md` — you run in a fresh context and do not inherit the conductor's
-  Copilot instruction resolution, so treat that file as part of your contract (pathlib preference, typed parsing of
-  external responses, no speculative abstractions, etc.). The conductor should hand you the file; if it is missing
-  from your context and the feature touches `.py`, read it from the repo path above.
+- **Load the applicable language instructions before you edit (profile-aware routing).** Select the instruction file
+  that matches the files you are changing, by extension, under `.copilot/instructions/<language>.instructions.md`:
+  `.py` → `python`, `.go` → `go`, `.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a
+  mixed-language change, load **every** applicable language instruction file. You run in a fresh context and do not
+  inherit the conductor's Copilot instruction resolution, so treat the applicable files as part of your contract (for a
+  `.py` edit that means `.copilot/instructions/python.instructions.md` — pathlib preference, typed parsing of external
+  responses, no speculative abstractions, etc.). The conductor should hand you the files; if they are missing from your
+  context, read them from the repo paths above. If a `<language>.instructions.md` file does not exist yet (only some
+  languages are provisioned), fall back to the **general skill** (`.copilot/skills/general/SKILL.md`) and the harness
+  contract (`.copilot/instructions/harness.instructions.md` plus `.copilot/instructions/tdd.instructions.md`) rather
+  than inventing language conventions.
 - Do not create, edit, weaken, or delete tests or verification fixtures.
 - Do not edit `.copilot-tracking/**`, except when the conductor explicitly asks for a production-facing template file
   outside the per-issue working state.

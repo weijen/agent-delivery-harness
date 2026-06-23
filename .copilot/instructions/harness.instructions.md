@@ -179,7 +179,11 @@ exists.
 
 Subagents run in a **fresh context** and do **not** inherit the conductor's Copilot instruction resolution. So the
 conductor must make the relevant instruction files part of the subagent prompt, not assume the subagent already has
-them. When the selected feature touches Python (`.py`):
+them. Routing is **profile-aware**: select the instruction file that matches the files the feature changes, by
+extension, under `.copilot/instructions/<language>.instructions.md` — `.py` → `python`, `.go` → `go`,
+`.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a **mixed-language** feature, pass **every**
+applicable language instruction file, always alongside `.copilot/instructions/tdd.instructions.md` and this harness
+contract. For example, when the selected feature touches Python (`.py`):
 
 - to `implementation-subagent`: include/point to `.copilot/instructions/python.instructions.md`;
 - to `test-subagent`: include/point to `.copilot/instructions/python.instructions.md` **and**
@@ -187,14 +191,19 @@ them. When the selected feature touches Python (`.py`):
 - to `code-review-subagent`: name `.copilot/instructions/python.instructions.md` and
   `.copilot/instructions/tdd.instructions.md` as review criteria for the Python diff.
 
+Apply the same `<language>.instructions.md` pattern for `go`, `node`, `java`, and `ruby` surfaces. If a matching
+`<language>.instructions.md` file does not exist yet (only some languages are provisioned — see `profiles/` and
+`scripts/scaffold-language.sh`), fall back to the **general skill** (`.copilot/skills/general/SKILL.md`) and this
+harness contract rather than inventing language conventions.
+
 When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
 `.copilot/instructions/bash.instructions.md`: include/point to it for the implementation and test work, and name it as
 a review criterion for the shell diff.
 
 How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
-instruction to read and follow them before acting. The matching subagent templates also require reading these files
-when the work is Python, so this is a belt-and-suspenders contract: the conductor supplies them and the subagent
-loads them. Generalize the same pattern to other languages that gain an `applyTo` instruction file.
+instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
+`<language>.instructions.md` files, so this is a belt-and-suspenders contract: the conductor supplies them and the
+subagent loads them.
 - **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
   other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
   smoke run): write the smallest failing test that expresses the feature; confirm it fails for
