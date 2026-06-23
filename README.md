@@ -1,8 +1,10 @@
 # Agent Worktree Harness
 
-A reusable Microsoft / Azure / GitHub-oriented harness for issue-driven agent
-work: preflight checks, isolated worktrees, per-issue progress tracking,
-deterministic quality gates, and PR closeout.
+A reusable, **language-agnostic** harness for issue-driven agent work: preflight
+checks, isolated worktrees, per-issue progress tracking, deterministic quality
+gates, and PR closeout. Language support is declarative — the core ships
+profiles for **Python, Go, Node.js, Java, and Ruby**, and a generator for adding
+more (see [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers).
 
 > For agents and contributors, start at [AGENTS.md](AGENTS.md). Project-specific
 > product specs, architecture notes, validation plans, and delivery milestones
@@ -18,17 +20,27 @@ For the harness evaluation strategy, see
 > screenshots, decks, exports, secrets, or local environment files. See
 > [.gitignore](.gitignore) for the default suppression patterns.
 
-## Tech Stack
+## Language profiles
 
-- **Azure AI Foundry** — Content Understanding (video, GA), GPT-5.4 (vision +
-  reasoning), GPT-4.1-nano (high-volume triage), and Code Interpreter for
-  analysis workflows when a project needs them.
-- **Python 3.14**, managed with [uv](https://docs.astral.sh/uv/) — added when
-  the first runnable feature lands.
-- **pytest** for tests (TDD), **ruff** for lint/format, **mypy** (strict) for
-  type checking.
-- **Terraform** for provisioned Azure resources when infrastructure work is in
-  scope.
+The harness core is language-neutral. `./scripts/init.sh` detects a project's
+surfaces and runs the matching gates through declarative descriptors in
+`profiles/<id>.profile.sh` — it does not assume any one language. The initial
+supported set is:
+
+| Profile | Detect | Gates |
+| --- | --- | --- |
+| **Python** | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) |
+| **Go** | `go.mod` | gofmt, go vet, optional golangci-lint, go test |
+| **Node.js** | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) |
+| **Java** | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) |
+| **Ruby** | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep |
+
+Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. See
+[profiles/README.md](profiles/README.md) for the descriptor contract and
+[docs/HARNESS.md](docs/HARNESS.md) for how to add a profile with
+`./scripts/scaffold-language.sh`. **Azure AI Foundry**, **Terraform**, and
+similar stacks are optional layers an adopting project enables when it needs
+them — they are not required by the harness itself.
 
 ## Prerequisites
 
@@ -57,8 +69,10 @@ project still has no code.
 
 ## Quality gates
 
-There are no Python gates yet — the project starts as a docs-only spec pack.
-The only required docs-era gate is shellcheck on the harness scripts:
+`./scripts/init.sh` runs the gates for whatever language surfaces it detects,
+driven by the profile descriptors — there is no single "primary" language. A
+docs-only repo (like this spec pack today) has just one required gate: shellcheck
+on the harness scripts.
 
 ```sh
 shellcheck scripts/*.sh               # the harness scripts themselves (required)
@@ -71,8 +85,8 @@ if you want Markdown style feedback:
 markdownlint 'docs/**/*.md' '*.md'    # optional docs hygiene (not a gate)
 ```
 
-When code lands, the four standard Python gates will be added by the issue
-that introduces them:
+When a language surface is present, `init.sh` runs that profile's gates
+automatically. For example, a Python surface (`pyproject.toml`) runs:
 
 ```sh
 uv run ruff format --check .   # auto-format check
@@ -81,7 +95,9 @@ uv run mypy                    # strict type-check
 uv run pytest                  # suite (with coverage)
 ```
 
-`./scripts/init.sh` already runs the Python gates when `pyproject.toml` is present.
+Go, Node.js, Java, and Ruby surfaces run their own gates the same way; missing
+optional tools warn or skip rather than failing. See
+[profiles/README.md](profiles/README.md) for the full per-profile gate list.
 
 ## Harness smoke workflow
 
@@ -100,6 +116,7 @@ branch-protection required check on `main`.
 .copilot/            # Copilot instructions, prompts, agents, and skills
 .github/workflows/   # thin harness-health smoke workflow
 docs/                # harness lifecycle and project-specific docs
+profiles/            # declarative language profile descriptors (+ contract)
 scripts/             # harness shell entrypoints and shared shell library
 tests/               # harness regression sensors
 ```

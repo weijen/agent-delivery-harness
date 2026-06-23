@@ -7,6 +7,66 @@ agent steering loop grounded in local sensors.
 For harness-enabled projects, the harness lifecycle is mandatory and stricter than generic Copilot or personal
 workflow rules. If another instruction conflicts with this lifecycle, use the harness rule.
 
+## Harness Layers
+
+The harness is organized in three layers so that stable lifecycle behavior stays
+separate from replaceable language support and project-specific conventions:
+
+- **Core Harness** — the language-neutral lifecycle: preflight, per-issue
+  worktrees, local progress tracking, the review gate, and PR closeout. Its
+  behavior is frozen in the machine-readable contract
+  [docs/harness-contract.yml](harness-contract.yml) and guarded by
+  `tests/scripts/test_harness_contract.sh`. The owner scripts
+  (`scripts/issue-lib.sh`, `start-issue.sh`, `check-feature-list.sh`,
+  `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`, `finish-issue.sh`) must stay
+  language-neutral.
+- **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
+  that teach `init.sh` how to detect a project surface and run its gates. The
+  initial supported set is **Python, Go, Node.js, Java, and Ruby**. The core
+  does not hard-code any language; it loads the matching profile. See
+  [profiles/README.md](../profiles/README.md) for the descriptor contract and
+  [docs/multi-language-profiles.md](multi-language-profiles.md) for the design.
+- **Framework Templates** — project-specific conventions layered on top of a
+  profile (e.g. FastAPI/Django for Python, Spring Boot/Quarkus for Java). These
+  live in the adopting project's own docs and instruction files, never in the
+  core. A profile only declares framework *hints*; it never forces a framework.
+
+### Adding or updating a language profile
+
+Use the generator rather than hand-copying assets:
+
+```sh
+./scripts/scaffold-language.sh <python|go|node|java|ruby>          # dry run
+./scripts/scaffold-language.sh <profile> --write                  # create missing assets
+./scripts/scaffold-language.sh <profile> --update                 # overwrite a differing asset (after showing the diff)
+```
+
+The generator is idempotent and conservative: it refuses unknown profiles, does
+not overwrite project-specific files without `--write`, creates or updates the
+matching `.copilot/instructions/<language>.instructions.md`, reports the gates the
+profile adds to `init.sh`, and leaves the issue / worktree / review-gate scripts
+untouched. After adding a profile, add a `tests/scripts/test_<id>_profile.sh`
+regression sensor and extend the multi-surface `tests/scripts/test_init_gates.sh`
+e2e fixture so the new surface is exercised.
+
+### Non-regression contract
+
+The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
+single source of truth for Core Harness behavior. Before changing any lifecycle
+script, keep these sensors green:
+
+- `tests/scripts/test_harness_contract.sh` — scripts still satisfy the contract
+  (required scripts exist and parse; declared lifecycle steps, env flags, state
+  transitions, and failure modes still appear; owner scripts stay
+  language-neutral).
+- `tests/scripts/test_profiles.sh` and each `tests/scripts/test_<id>_profile.sh`
+  — descriptors keep their Profile Interface shape.
+- `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
+  runs the matching gates.
+
+The full sensor suite (`tests/scripts/test_*.sh` and `tests/meta/test_*.sh`) runs
+in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
+
 ## Lifecycle
 
 ```mermaid
@@ -116,12 +176,15 @@ anything from the feature list.
 
 ## Gates And Sensors
 
-`./scripts/init.sh` detects project surfaces and runs the matching local gates when present:
+`./scripts/init.sh` detects project surfaces and runs the matching local gates when present. Each language is
+driven by its profile descriptor in `profiles/<id>.profile.sh`, not by hard-coded branches:
 
 - docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
-- Python: `uv sync --all-groups`, ruff format/check, mypy, and pytest.
-- Go: `go test ./...` and `go vet ./...` when `go` is installed.
-- Node/pnpm: `pnpm test` when a package test script exists and `pnpm` is installed.
+- Python (`pyproject.toml`): `uv sync --all-groups`, ruff format/check, mypy, and pytest.
+- Go (`go.mod`): `gofmt -l`, `go vet ./...`, optional golangci-lint, and `go test ./...`.
+- Node.js (`package.json`): prettier, eslint, optional tsc, and the project's test script — pnpm when the project declares it, otherwise npm.
+- Java (`pom.xml`, `build.gradle`, or `build.gradle.kts`): optional Spotless and Checkstyle/PMD/SpotBugs, plus the test task — Maven or Gradle, preferring `./mvnw`/`./gradlew` wrappers.
+- Ruby (`Gemfile`): standardrb or RuboCop and RSpec or Minitest, plus a typecheck gate only when Sorbet/Steep is configured.
 - Terraform: `terraform fmt -check -recursive`, plus `terraform validate` when initialized.
 
 Missing optional tools are explicit skips or warnings. Hard requirements such as `git`, `gh`, and GitHub auth remain
