@@ -11,6 +11,12 @@ This is the descriptor format introduced in issue #35; the Python profile is the
 first descriptor. Later issues add Go, Node.js, Ruby, and Java profiles and a
 generator (`scripts/scaffold-language.sh`).
 
+> **Scaffolding a new profile:** run `scripts/scaffold-language.sh <profile>`
+> (one of `python go node java ruby`) to preview the skeleton descriptor and
+> instruction file it would create; add `--write` to apply, or `--update` to
+> overwrite an existing asset after showing the diff. The generator is
+> idempotent and never touches the issue lifecycle scripts.
+
 ## File format
 
 Each profile is a Bash-sourced descriptor named `<id>.profile.sh` (for example
