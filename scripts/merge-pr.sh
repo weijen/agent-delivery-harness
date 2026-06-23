@@ -9,7 +9,10 @@
 #
 # Usage:
 #   ./scripts/merge-pr.sh                 # gate, then `gh pr merge` with no flags
-#   ./scripts/merge-pr.sh --squash --delete-branch   # extra args pass through to gh pr merge
+#   ./scripts/merge-pr.sh --squash --delete-branch   # extra FLAGS pass through to gh pr merge
+#
+# It takes NO PR number: the PR is resolved from the current worktree branch, so
+# a positional arg (e.g. a bare PR number) is rejected to avoid merging the wrong PR.
 #
 # Steps:
 #   1. Resolve the PR for the current branch (refuse if none is open).
@@ -22,6 +25,25 @@ set -euo pipefail
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
+
+# --- 0. Reject stray positional args ----------------------------------------
+# This script resolves the target PR from the CURRENT worktree branch (below),
+# so a non-flag positional arg — e.g. a bare PR number like `73` — never selects
+# a PR; it would only leak through to `gh pr merge`. Refuse it before any merge
+# so a mistaken arg cannot contribute to merging the wrong PR. Only pass-through
+# flags (starting with `-`) are allowed.
+for arg in "$@"; do
+  case "$arg" in
+    -*) : ;;  # a flag — forwarded to gh pr merge
+    *)
+      red "✗ Refusing to run: unexpected positional argument '${arg}'."
+      echo "  merge-pr.sh merges the PR for the CURRENT worktree branch; it does not take a PR number."
+      echo "  cd into the target issue's worktree and pass only flags, e.g.:"
+      echo "    ./scripts/merge-pr.sh --squash --delete-branch"
+      exit 1
+      ;;
+  esac
+done
 
 # --- 1. Resolve the PR ------------------------------------------------------
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
