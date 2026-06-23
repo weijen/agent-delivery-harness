@@ -15,9 +15,22 @@ descriptor. There are two common ways to start:
 - **Use this repository as the project root.** Clone it and start adding your
   code under `apps/`, `packages/`, or `infra/` as it lands. The harness scripts
   in `scripts/` and the profiles in `profiles/` stay where they are.
-- **Copy the harness into an existing project.** Bring across `scripts/`,
-  `profiles/`, `tests/`, `.copilot/`, `.github/workflows/harness-smoke.yml`, and
-  the `docs/` lifecycle files, then keep your project's own code in place.
+- **Copy the harness into an existing project.** Run the installer, which copies
+  the real harness assets — `scripts/`, `profiles/`, `tests/scripts` and
+  `tests/meta`, `.copilot/instructions/`, `.copilot/agents/`,
+  `.github/workflows/harness-smoke.yml`, and the lifecycle docs — into a target
+  directory verbatim, touching nothing else:
+
+  ```sh
+  ./scripts/install-harness.sh /path/to/project            # dry run — prints what it would copy
+  ./scripts/install-harness.sh /path/to/project --write    # copy missing assets (never clobbers a differing file)
+  ./scripts/install-harness.sh /path/to/project --update   # overwrite a differing asset (after showing the diff)
+  ```
+
+  It defaults to a dry run, never overwrites a target file that differs without
+  `--update`, and leaves your project's own code in place. All
+  `.copilot/instructions/*` are installed, including the language-specific ones
+  (`python`, `terraform-azure`) — delete whichever you do not need.
 
 Either way, project-specific product specs, architecture notes, and delivery
 plans live under `docs/` and are linked from [AGENTS.md](../AGENTS.md).
