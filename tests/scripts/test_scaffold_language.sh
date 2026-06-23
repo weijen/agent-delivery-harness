@@ -69,10 +69,15 @@ grep -qF "pass --update" "$OUT" || { cat "$OUT"; echo "case-d: did not advise --
 grep -qE '^@@|^\+\+\+ ' "$OUT" || { cat "$OUT"; echo "case-d: --update did not show a diff before overwriting"; exit 1; }
 
 # --- Case (e): gate report honors the empty-slot rule (AC#6) ------------------
-"$GEN" node >"$OUT" 2>&1 || { cat "$OUT"; echo "case-e: node dry run failed"; exit 1; }
+# Run in a hermetic seed repo with the real node/go descriptors removed, so the
+# dry-run reports a fresh skeleton and is not polluted by a descriptor that may
+# already live in the working tree.
+e="${TMP_DIR}/e"; seed_repo "$e"
+rm -f "$e/profiles/node.profile.sh" "$e/profiles/go.profile.sh"
+( cd "$e" && ./scripts/scaffold-language.sh node >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-e: node dry run failed"; exit 1; }
 grep -qF "Gates this profile adds to init.sh: format_check lint typecheck test" "$OUT" \
   || { cat "$OUT"; echo "case-e: wrong node gate report"; exit 1; }
-"$GEN" go >"$OUT" 2>&1 || { cat "$OUT"; echo "case-e: go dry run failed"; exit 1; }
+( cd "$e" && ./scripts/scaffold-language.sh go >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-e: go dry run failed"; exit 1; }
 grep -qF "Gates this profile adds to init.sh: format_check lint test" "$OUT" \
   || { cat "$OUT"; echo "case-e: wrong go gate report"; exit 1; }
 grep -q "typecheck" "$OUT" && { cat "$OUT"; echo "case-e: go must not declare a typecheck gate"; exit 1; }
