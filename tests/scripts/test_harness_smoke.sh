@@ -108,4 +108,7 @@ require_text "$bash_instructions" 'hard[ -]?fail|warning|warn' \
 require_text "$bash_instructions" 'behavioral|byte-for-byte|contract' \
   "behavioral contract test guidance"
 
+require_text "AGENTS.md" 'bash\.instructions\.md' \
+  "Bash instructions reference in the agent map"
+
 printf 'harness smoke passed\n'
