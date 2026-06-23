@@ -10,6 +10,8 @@ more (see [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers).
 > product specs, architecture notes, validation plans, and delivery milestones
 > should live under `docs/` and be linked from the repository map.
 
+New to the harness? Start with [docs/getting-started.md](docs/getting-started.md)
+for a walkthrough of standing up a new project and choosing a language.
 For the full Copilot issue lifecycle, see [docs/HARNESS.md](docs/HARNESS.md).
 For the harness evaluation strategy, see
 [docs/evaluation/README.md](docs/evaluation/README.md).
@@ -127,6 +129,9 @@ entrypoint copies. Product repositories that adopt this harness can add their ow
 
 ## Where to go next
 
+- **Starting a new project** — follow
+  [docs/getting-started.md](docs/getting-started.md) to adopt the harness, pick a
+  language, scaffold its profile, and start your first issue.
 - **Project contract docs** — keep the active requirements and architecture
   under `docs/`.
 - **Implementation status** — track repo-wide progress in `docs/` once project
