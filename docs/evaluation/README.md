@@ -15,6 +15,12 @@ Start with the roadmap below, then read [evaluation-matrix.md](evaluation-matrix
 for the shared eval schema and [research-notes.md](research-notes.md) for the
 external grounding behind these choices.
 
+For the first executable slice, read
+[l0-l1-solution/README.md](l0-l1-solution/README.md). It narrows the broad
+strategy in this directory into an L0/L1 architecture and specification with a
+determinism-based runtime split: deterministic Tier A checks in GitHub Actions
+CI, and model-driven Tier B checks on Azure.
+
 ## Layer Map
 
 Evaluation is organized by how attributable and how expensive each layer is.
@@ -53,6 +59,7 @@ and have their own pages below.
 | [statistical-methodology.md](statistical-methodology.md) | Cross-cutting | Trials, pass@k vs pass^k, noise vs regression |
 | [evaluation-matrix.md](evaluation-matrix.md) | Cross-cutting | Shared eval schema and grader types |
 | [research-notes.md](research-notes.md) | Cross-cutting | External grounding and open questions |
+| [l0-l1-solution/](l0-l1-solution/) | L0/L1 solution | Runnable architecture and spec for the first two layers |
 
 ## Scorecard Model
 
