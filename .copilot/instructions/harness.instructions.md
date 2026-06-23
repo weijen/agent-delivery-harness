@@ -100,6 +100,27 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
   - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code
     quality before closeout and reports substantive review findings or approvals for the issue progress Action Log.
 
+#### What counts as one feature (granularity rule)
+
+This is the single source of truth for how an issue is split into `feature_list` items; `docs/HARNESS.md`
+and `AGENTS.md` rule 8 point here rather than restating it.
+
+A **feature** is one externally observable acceptance criterion that can be proven by **exactly one**
+`regression_sensor` (plus an `e2e_sensor` when the criterion crosses a real runtime boundary — an external
+service call, agent run, report generation, or deployed endpoint). The sensor is the unit: if you cannot name
+the one sensor that proves a `feature_list` item, it is not yet a feature.
+
+- **Split** a candidate feature when it needs **more than one independent sensor** to prove, or when it mixes
+  **more than one concern** (e.g. a parser change *and* an unrelated CLI flag). Each resulting piece must carry
+  its own sensor.
+- **Merge** two candidate features when they share a **single sensor** and cannot be verified independently —
+  forcing them apart produces a sensor that has to assert both, which defeats attribution.
+
+A good `feature_list` is therefore a list where every item names exactly one `regression_sensor`, no two items
+share a sensor, and no item bundles concerns. The conductor authors the breakdown to satisfy this rule after the
+plan + human-input gate (see the breakdown-flow doctrine), and `passes:true` stays meaningful because each item
+is provable in isolation.
+
 #### The conductor's feature work is non-delegable to itself (MANDATORY)
 
 When the issue workflow is active, the conductor **must not directly** perform feature work. This is a

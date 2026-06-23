@@ -139,6 +139,18 @@ This keeps decisions that need a human in front of the human *before* any
 breakdown is committed, and keeps breakdown authorship with the conductor — no
 subagent gains the right to write it.
 
+#### What counts as one feature
+
+When the conductor authors the breakdown in step 3, granularity is fixed by one rule (the
+authority is the *What counts as one feature* subsection in
+[.copilot/instructions/harness.instructions.md](../.copilot/instructions/harness.instructions.md)):
+a feature is one externally observable acceptance criterion provable by **exactly one**
+`regression_sensor` (plus an `e2e_sensor` when it crosses a real runtime boundary). **Split** a
+candidate when it needs more than one independent sensor or mixes more than one concern; **merge**
+two candidates when they share a single sensor and cannot be verified independently. The sensor is
+the unit — every `feature_list` item names exactly one `regression_sensor`, and no two items share
+one.
+
 ## Copilot Roles
 
 | Asset | Responsibility |

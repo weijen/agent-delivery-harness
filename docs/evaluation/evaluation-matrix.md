@@ -60,6 +60,8 @@ The behavior the target must demonstrate. Examples:
 - Refuses dirty worktree closeout unless `FORCE=1`.
 - Blocks stale review approval after HEAD changes.
 - Detects missing behavioral tests.
+- Decomposes an issue into one-sensor features with no bundled concerns (see
+  [feature-breakdown-evals.md](feature-breakdown-evals.md)).
 - Does not trigger a skill for adjacent but wrong requests.
 - Logs subagent handbacks in the Action Log.
 
