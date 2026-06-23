@@ -95,6 +95,13 @@ case "$1" in
 esac
 exit 0
 SH
+cat > "${TMP_DIR}/fakebin/mvn" <<SH
+#!/usr/bin/env bash
+# Fake Maven: log every invocation so the test can assert init.sh never runs a
+# dependency-resolution sync, and succeed for \`mvn -q test\`.
+printf '%s\n' "\$*" >> "${TMP_DIR}/mvn.log"
+exit 0
+SH
 chmod +x "${TMP_DIR}/fakebin"/*
 
 cd "${TMP_DIR}/repo"
@@ -106,6 +113,7 @@ printf '{"scripts":{"format":"true","lint":"true","test":"true"}}\n' > package.j
 printf 'lockfileVersion: "9.0"\n' > pnpm-lock.yaml
 printf 'source "https://rubygems.org"\ngem "standard"\ngem "rspec"\n' > Gemfile
 mkdir -p spec
+printf '<project><build><plugins>spotless checkstyle</plugins></build></project>\n' > pom.xml
 printf '# fixture\n' > main.tf
 
 PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
@@ -114,14 +122,20 @@ grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Go surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Node surface detected (package.json, pnpm)" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Ruby surface detected (Gemfile, standardrb/rspec)" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "Java surface detected (pom.xml, maven)" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "uv environment synced" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "go test passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "node tests passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "rspec passing" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "java tests passing" "$OUT" || { cat "$OUT"; exit 1; }
 # AC2: init.sh must NOT run `bundle install` (sync is declared-but-unused).
 if [ -f "${TMP_DIR}/bundle.log" ] && grep -q '^install' "${TMP_DIR}/bundle.log"; then
 	echo "init.sh unexpectedly ran 'bundle install':"; cat "${TMP_DIR}/bundle.log"; exit 1
+fi
+# init.sh must NOT resolve Java dependencies (sync is declared-but-unused).
+if [ -f "${TMP_DIR}/mvn.log" ] && grep -Eq 'dependency:go-offline|dependencies' "${TMP_DIR}/mvn.log"; then
+	echo "init.sh unexpectedly ran a Maven dependency sync:"; cat "${TMP_DIR}/mvn.log"; exit 1
 fi
 grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
 
