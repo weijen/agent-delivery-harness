@@ -42,8 +42,13 @@ The conductor specifies a planning depth when invoking you. Match your research 
 - **Research:** Read project docs and patterns related to the change area only (e.g. the README section that covers
   the touched area, the test file that demonstrates the pattern you'll follow). Read deeper design docs (architecture
   overviews, ADRs) only if the change touches a domain those docs cover.
-- **Web research:** Not used at this depth. If web research feels necessary, surface that as an open question and let
-  the conductor escalate to `deep`.
+- **Web research (`web/fetch`, `web/githubRepo`):** Allowed only as a fallback when the codebase cannot answer a
+  specific question. Search the local context first (project files, docs, tests); only escalate to the web for a
+  concrete, well-defined gap — for example an SDK API surface the codebase uses only partially, version-specific
+  behaviour of a declared dependency, or a public spec the change implements against. Do **not** use it for open-ended
+  topic exploration: if the gap is a broad or unfamiliar *topic* rather than a specific lookup, surface it as an
+  open question for the conductor instead of browsing. Note briefly why local context could not answer, keep the query
+  precise, and cite the URL in the plan/handback when it influenced a decision.
 - **Output:** Inline plan returned to the conductor. Save a plan file only if the conductor explicitly requests it.
 - **Phases:** Produce the minimum number of phases needed; one phase is acceptable.
 - **Approaches:** Propose approaches only if multiple viable paths exist and the trade-offs are non-obvious.
