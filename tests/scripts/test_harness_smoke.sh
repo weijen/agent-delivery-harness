@@ -134,4 +134,10 @@ require_text "docs/HARNESS.md" 'merge-pr\.sh' \
 require_text "docs/HARNESS.md" 'branch-protection required check' \
   "branch-protection required-check recommendation"
 
+# --- Public exposure audit skill (#53) ---------------------------------------
+require_text ".copilot/instructions/harness.instructions.md" 'public-exposure-audit' \
+  "public-exposure-audit skill in the verify-gate inferential sensor set"
+require_text "AGENTS.md" 'public-exposure-audit' \
+  "public-exposure-audit skill row in the agent map skills table"
+
 printf 'harness smoke passed\n'

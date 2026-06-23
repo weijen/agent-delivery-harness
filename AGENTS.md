@@ -117,6 +117,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `dead-code-detection` | Unreachable code, stale flags, oxbow paths | On-demand during refactor issues |
 | **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
 | **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
+| **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
 | **Subagent** `planning-subagent` | Tier 3 planning pass; produces `.copilot-tracking/plans/<issue>.md` | Conductor invokes at the start of any Tier 3 issue |
 | **Subagent** `implementation-subagent` | Generator role for one `feature_list` item; edits production assets only | Conductor invokes after selecting one `passes:false` feature |
 | **Subagent** `test-subagent` | Evaluator role for one `feature_list` item; writes/runs sensors and may flip `passes:true` only after verification | Conductor invokes after implementation is ready to verify |

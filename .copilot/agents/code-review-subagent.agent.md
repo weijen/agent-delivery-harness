@@ -113,6 +113,13 @@ A passing build is not proof. Judge whether the sensors actually establish the c
    agents, or config entries.
 10. **Docs drift introduced by this change** — Apply [`sync-docs`](../skills/sync-docs/SKILL.md) to touched
     user-facing commands, paths, lifecycle rules, agent names, skill names, setup steps, and validation gates.
+11. **Public-repo exposure introduced by this change** — Apply
+    [`public-exposure-audit`](../skills/public-exposure-audit/SKILL.md) to the diff when reviewing pre-commit/pre-PR
+    changes, especially for public repos, docs, prompts, skills, agents, workflows, fixtures, logs, and generated
+    artifacts. Read the skill for the exposure-vs-intentional classification and the tracked-files / Git-history /
+    Git-metadata / ignored-untracked sweep. Customer-supplied raw media, screenshots, decks, exports, secrets, local
+    environment files (`.env`), personal emails, tenant/subscription IDs, and resource endpoints found in pushed or
+    soon-to-be-pushed content are **BLOCKING** (see the severity ladder).
 
 For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
 unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
@@ -167,7 +174,10 @@ investigations. Keeping the passes distinct preserves recall.
 - **BLOCKING** — A failed spec-compliance or test/sensor-adequacy verdict, or a lifecycle/role-boundary violation:
   unmet acceptance criterion, missing/unrun sensor for a `passes:true` claim, happy-path-only coverage of a required
   failure mode, a presence-only check standing in for a behavioural requirement, a reordered/skipped lifecycle step, or
-  a weakened/deleted declared sensor. Blocks approval **even when code quality is clean**. List BLOCKING findings first.
+  a weakened/deleted declared sensor. Also BLOCKING: customer-supplied raw media, screenshots, decks, exports, secrets,
+  local environment files, personal emails, tenant/subscription IDs, or resource endpoints present in pushed or
+  soon-to-be-pushed content (per [`public-exposure-audit`](../skills/public-exposure-audit/SKILL.md)). Blocks approval
+  **even when code quality is clean**. List BLOCKING findings first.
 - **CRITICAL** — Bugs, security vulnerabilities, or data-loss risk introduced by the change. Blocks approval.
 - **MAJOR** — Significant quality issues that should be fixed. Blocks approval.
 - **MINOR** — Suggestions for improvement. Does NOT block approval.

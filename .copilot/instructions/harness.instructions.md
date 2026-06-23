@@ -310,6 +310,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    - `find-brute-force`
    - `dead-code-detection`
    - `sync-docs`
+   - `public-exposure-audit`
 5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
