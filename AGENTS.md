@@ -34,8 +34,10 @@ sanitized, commit-safe fixture or specification.
    client, or Code Interpreter session — never a raw privileged call.)
 6. **GitHub Issues (description + comments) are the single source of truth** for issue
    requirements — fetch with `gh issue view <N> --comments`; there are no local issue-draft files.
-7. When an issue is complete and reviewed, **open the PR, then merge it**;
-   don't leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
+7. When an issue is complete and reviewed, **open the PR, then merge it once CI is green**;
+   wait for the harness CI run to pass, then merge with **`./scripts/merge-pr.sh`** (it verifies
+   `gh pr checks` is green before merging). A green CI run is a hard merge precondition. Don't
+   leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
    auto-merge as a standing practice.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
    its regression sensor, and any feature with a real runtime boundary (e.g. an external service
@@ -52,9 +54,12 @@ session rituals and garbage-collection cadence are in
 
 ## Start every session here
 
-This repo has a thin `harness-smoke.yml` GitHub Actions workflow for harness
-health only. Treat it as a remote smoke sensor, not CI/CD delivery, not a PR
-watch loop, and not a branch-protection gate.
+This repo has a `harness-smoke.yml` GitHub Actions workflow that runs the harness
+shell sensor suite (`tests/scripts/` and `tests/meta/`), shell parsing, and
+`shellcheck`. A green run is a hard precondition for merge (enforced via
+`./scripts/merge-pr.sh`). It is still not CI/CD delivery, not a deploy pipeline,
+and not GitHub auto-merge; a repo admin may additionally enable a
+branch-protection required check on `main`.
 
 **Starting a new issue?** Use the worktree harness — it runs preflight, then creates
 an isolated branch + worktree so issues never collide in one checkout:

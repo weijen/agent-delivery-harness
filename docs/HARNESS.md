@@ -26,7 +26,8 @@ flowchart TD
   K --> L[./scripts/review-gate.sh approve]
   L --> M[./scripts/create-pr.sh]
   M --> N[Pull request]
-  N --> O[Merge]
+  N --> Q[./scripts/merge-pr.sh CI-green gate]
+  Q --> O[Merge]
   O --> P[./scripts/finish-issue.sh N]
 ```
 
@@ -138,18 +139,23 @@ feedback; a red markdownlint result never blocks issue work.
 `git fetch origin main` + `git rebase origin/main` before pushing or opening a PR. Any new commit or rebase that
 changes HEAD requires a fresh review approval for that final HEAD.
 
-## Smoke CI Boundary
+## CI Boundary
 
-`.github/workflows/harness-smoke.yml` is intentionally small. It checks shell parsing, `shellcheck`, and Copilot
-customization frontmatter. It is a remote harness-health sensor only.
+`.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
+(`tests/scripts/test_*.sh` and `tests/meta/test_*.sh`), checks shell parsing, runs `shellcheck`
+over `scripts/` and `tests/`, and validates Copilot customization frontmatter. The runner is
+`ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
+so the suite needs no secrets and runs on fork PRs.
 
-It is not:
+A green run is a **hard precondition for merge**: merge through `./scripts/merge-pr.sh`, which
+verifies `gh pr checks` is green before merging. For belt-and-braces enforcement, a repo admin
+should enable a **branch-protection required check** on `main` so the gate cannot be bypassed.
+
+It is still not:
 
 - CI/CD delivery.
 - Azure deployment.
-- A PR check watcher.
-- A branch-protection required-check setup.
 - Auto-merge or release automation.
 
-Product repositories that adopt this harness can add their own CI/CD later, but that is outside this harness smoke
+Product repositories that adopt this harness can add their own CI/CD later, but that is outside this harness
 workflow.

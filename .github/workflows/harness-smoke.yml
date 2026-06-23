@@ -20,7 +20,7 @@ jobs:
         run: bash -n scripts/*.sh
 
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh
+        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/meta/*.sh
 
       - name: Validate customization frontmatter
         shell: bash
@@ -39,3 +39,28 @@ jobs:
               END { if (!found) exit 1 }
             ' "$file"
           done
+      - name: Run harness sensor suite
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          tests=(tests/scripts/test_*.sh tests/meta/test_*.sh)
+          if [ "${#tests[@]}" -eq 0 ]; then
+            echo "No harness sensor scripts found." >&2
+            exit 1
+          fi
+          rc=0
+          for t in "${tests[@]}"; do
+            echo "::group::${t}"
+            if bash "$t"; then
+              echo "PASS ${t}"
+            else
+              echo "FAIL ${t}"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$rc" -ne 0 ]; then
+            echo "One or more harness sensors failed." >&2
+          fi
+          exit "$rc"

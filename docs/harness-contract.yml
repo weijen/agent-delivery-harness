@@ -44,6 +44,9 @@ scripts:
   - id: create-pr
     path: scripts/create-pr.sh
     role: Sync onto main, enforce review gate, push, and open the PR.
+  - id: merge-pr
+    path: scripts/merge-pr.sh
+    role: Verify the PR's CI checks concluded green, then merge (conductor-invoked, not auto-merge).
   - id: finish-issue
     path: scripts/finish-issue.sh
     role: Tear down the worktree after the PR merges.
@@ -78,6 +81,9 @@ lifecycle:
   - id: pr-merge-sync
     owner: scripts/create-pr.sh
     present: git rebase origin/main
+  - id: ci-green-precondition
+    owner: scripts/merge-pr.sh
+    present: gh pr checks
   - id: closeout-worktree-cleanup
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
@@ -181,6 +187,10 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: has not been approved
+  - id: ci-not-green-refused
+    kind: hard
+    owner: scripts/merge-pr.sh
+    present: checks are not green
 
 # ---------------------------------------------------------------------------
 # Boundaries that MUST stay language-neutral. The listed owner scripts must not
@@ -195,6 +205,7 @@ language_neutral:
     - scripts/check-feature-list.sh
     - scripts/review-gate.sh
     - scripts/create-pr.sh
+    - scripts/merge-pr.sh
     - scripts/finish-issue.sh
   tokens:
     - python
@@ -225,5 +236,6 @@ mermaid: |
     scaffold --> validate[feature-list validation]
     validate --> review[review-gate approve]
     review --> pr[create-pr sync + open]
-    pr --> merge[PR merge]
+    pr --> cigreen[merge-pr CI-green gate]
+    cigreen --> merge[PR merge]
     merge --> closeout[finish-issue cleanup]
