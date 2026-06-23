@@ -123,8 +123,12 @@ Status: not started.
 
 - _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._
 
-Populate \`feature_list.json\` with the feature breakdown, then work one
-\`passes:false\` item at a time (see harness §3).
+The **conductor authors** \`feature_list.json\` — but only *after* the
+\`planning-subagent\` plan is approved and the human-input gate has resolved
+every Open Question. The planning-subagent never writes this breakdown. Once it
+is populated (each feature carrying its \`regression_sensor\`/\`e2e_sensor\`),
+work one \`passes:false\` item at a time (see harness §3 and docs/HARNESS.md
+step 4).
 MD
   green "✓ Scaffolded ${TRACKING_DIR#"$WORKTREE_DIR"/} (feature_list.json, progress.md)"
 else
@@ -136,4 +140,4 @@ echo
 bold "Ready. Start working in the worktree:"
 echo "  cd ${WORKTREE_DIR}"
 echo "  gh issue view ${ISSUE_NUM} --comments   # single source of truth"
-echo "  # edit ${TRACKING_DIR#"$WORKTREE_DIR"/}/feature_list.json, then pick one passes:false feature"
+echo "  # plan first; after the plan + human-input gate, the conductor authors ${TRACKING_DIR#"$WORKTREE_DIR"/}/feature_list.json, then pick one passes:false feature"

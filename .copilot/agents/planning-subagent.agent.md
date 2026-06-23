@@ -15,7 +15,9 @@ are plan documents under `.copilot-tracking/plans/` — see [Step 4](#step-4-sav
 - **Reuse first** — Before proposing new scripts, agents, schemas, or helpers, look for an existing local pattern to
   extend. Prefer the repo's current harness primitives over inventing parallel ones.
 - **Issue driven** — Treat the GitHub issue description/comments as the work contract and `feature_list.json` as the
-  local execution breakdown. Plans should preserve that contract rather than replace it.
+  local execution breakdown. Plans should preserve that contract rather than replace it. You do not author
+  `feature_list.json` yourself — the conductor writes that breakdown after your plan and the human-input gate clears;
+  surface anything that blocks it as an Open Question.
 - **TDD** — For behavior changes, every task must follow: write failing test → verify fails for right reason → minimal
   implementation → verify passes. Non-behavior changes (docs, prompts, config, mechanical refactors) do not require TDD
   task ordering.
@@ -131,8 +133,10 @@ Skip this step for `quick` depth unless the conductor explicitly asks for approa
 
 2. **Recommend one** with clear reasoning.
 
-3. **List open questions** as numbered options where possible. These are decisions that need user input — not things
-   you can research yourself.
+3. **List open questions** in a dedicated **Open Questions / Needs-Human-Input** section as numbered options where
+   possible. These are decisions that need user input — not things you can research yourself. The conductor takes this
+   section to the human at the human-input gate **before** it authors `feature_list.json`, so it is mandatory: include
+   the section in every plan, writing "None" only when you are certain no decision is outstanding.
 
 For `standard` depth: skip approach exploration if only one viable path exists.
 
@@ -234,7 +238,9 @@ sufficient — no formal template required.
 ### Phase 2: {Title}
 ...
 
-## Open Questions
+## Open Questions / Needs-Human-Input
+(Mandatory — always present. List the decisions the conductor must resolve with the human at the human-input gate
+before authoring `feature_list.json`. Write "None" only when no decision is outstanding.)
 1. {Question? Option A / Option B}
 ```
 
@@ -243,6 +249,8 @@ sufficient — no formal template required.
 - **Write scope is restricted to `.copilot-tracking/plans/`.** No path outside that directory may be created or
   modified. If you need a change outside that scope, name it as an open question for the conductor instead of acting
   on it.
+- You do not author `feature_list.json` or any other per-issue breakdown — the conductor owns that, after your plan
+  and the human-input gate. Anything that would block the breakdown belongs in the Open Questions section.
 - Hand back a concise Action Log entry for the conductor to record in the issue `progress.md`; do not edit
   `progress.md` yourself because your write scope remains limited to `.copilot-tracking/plans/`.
 - Each phase must be self-contained — no red/green cycles spanning multiple phases

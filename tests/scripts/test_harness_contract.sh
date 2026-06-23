@@ -140,6 +140,14 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-green-precondition[[:space
 grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
   || fail "contract no longer declares the ci-not-green-refused failure mode"
 
+# --- 2c. Breakdown-ownership backstop (issue #78) ----------------------------
+# The contract must keep declaring that the conductor owns authoring the
+# feature_list.json breakdown (after the plan + human-input gate), owned by
+# scripts/start-issue.sh. Deleting the obligation from the YAML must fail this
+# sensor even though section 3 would then no longer check it.
+grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]]*$' "$CONTRACT" \
+  || fail "contract no longer declares the breakdown-ownership lifecycle obligation"
+
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
 check_owner_present() {

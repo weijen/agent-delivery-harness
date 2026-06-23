@@ -73,7 +73,9 @@ in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 flowchart TD
   A[GitHub issue] --> B[./scripts/start-issue.sh N]
   B --> C[Issue worktree]
-  C --> D[.copilot-tracking/issues/issue-NN/feature_list.json]
+  C --> PL[planning-subagent: plan + Open Questions]
+  PL --> HG[Conductor relays Open Questions: human-input gate]
+  HG --> D[Conductor authors feature_list.json]
   D --> E[Select one passes:false feature]
   E --> F[implementation-subagent edits production assets]
   F --> G[test-subagent writes and runs sensors]
@@ -96,7 +98,12 @@ The normal path is:
 1. Create or pick a GitHub issue with concrete acceptance criteria and sensors.
 2. Run `./scripts/start-issue.sh <N>` from the main checkout.
 3. Work inside `../<repo>-worktrees/issue-NN`, not directly on the main checkout.
-4. Populate or refine `.copilot-tracking/issues/issue-NN/feature_list.json`.
+4. **(conductor)** Author `.copilot-tracking/issues/issue-NN/feature_list.json` —
+   but only *after* the `planning-subagent` plan is approved and the
+   **human-input gate** has resolved every Open Question. The breakdown is the
+   conductor's to write (each feature carrying its `regression_sensor` /
+   `e2e_sensor`); the `planning-subagent` never authors it. See
+   [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
 6. Use `implementation-subagent` for production assets only.
 7. Use `test-subagent` for tests, smoke checks, and sensor execution.
@@ -108,6 +115,29 @@ The normal path is:
 
 All shell entrypoints live under `scripts/`. The repository root does not carry `.sh` entrypoints;
 root-level copies are stale by definition and should be removed instead of documented.
+
+### The breakdown flow (plan → clarify → feature_list)
+
+Who turns the issue into `feature_list.json`, and when, is fixed — the breakdown
+is never authored before a plan exists, and never while a human still owes a
+decision:
+
+1. **`planning-subagent` plans and surfaces decisions.** It researches the issue,
+   produces the plan, and lists an explicit **Open Questions / Needs-Human-Input**
+   section. It never writes `feature_list.json` — its write scope is
+   `.copilot-tracking/plans/` only.
+2. **The conductor runs the human-input gate.** It relays those open questions to
+   the human and **pauses**. No breakdown is authored while any open question is
+   unresolved.
+3. **The conductor authors the breakdown.** Once the human resolves the questions,
+   the conductor authors `feature_list.json` from the confirmed plan, each feature
+   carrying its `regression_sensor` / `e2e_sensor`.
+4. **The GitHub issue stays the contract; `feature_list.json` is the derived
+   breakdown.**
+
+This keeps decisions that need a human in front of the human *before* any
+breakdown is committed, and keeps breakdown authorship with the conductor — no
+subagent gains the right to write it.
 
 ## Copilot Roles
 

@@ -72,6 +72,9 @@ lifecycle:
   - id: tracking-scaffold
     owner: scripts/start-issue.sh
     present: feature_list.json
+  - id: breakdown-ownership
+    owner: scripts/start-issue.sh
+    present: conductor authors
   - id: feature-list-validation
     owner: scripts/check-feature-list.sh
     present: feature_list.json
