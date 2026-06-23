@@ -85,4 +85,21 @@ rm -f "$FEATURE_LIST"
 if run_check; then cat /tmp/check.out; fail "missing feature_list should fail"; fi
 grep -qiE 'not found|missing' /tmp/check.out || fail "missing-file error message unclear"
 
+# 11. Missing jq: the check must SKIP with a warning and exit 0, never crash.
+#     Run under a restricted PATH that provides git + coreutils but omits jq.
+NOJQ_BIN="${TMP_DIR}/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for tool in git env bash sh dirname basename mkdir rm cat sed tr cut grep printf; do
+  tp="$(command -v "$tool" || true)"
+  [ -n "$tp" ] && ln -sf "$tp" "${NOJQ_BIN}/${tool}"
+done
+set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false}]}'
+if ! PATH="$NOJQ_BIN" ./scripts/check-feature-list.sh 200 SLUG=check-test >/tmp/check.out 2>&1; then
+  cat /tmp/check.out; fail "missing jq should warn and exit 0, not fail"
+fi
+grep -qi "jq not installed" /tmp/check.out || fail "missing-jq run did not emit the jq-skip warning"
+if grep -qi "command not found" /tmp/check.out; then
+  fail "missing-jq run hit an undefined command (crash, not a clean skip)"
+fi
+
 printf 'feature-list-check regression checks passed\n'
