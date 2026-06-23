@@ -65,7 +65,38 @@ separate `typecheck` (compilation covers it); Ruby needs no type checker unless
 Sorbet/Steep is configured. `PROFILE_VARIANTS` may also be empty for a language
 with a single package manager (as Python's `uv`).
 
-## Conventions
+### Optional gates that SKIP
+
+A gate function may return exit code **2** to signal SKIP — the gate's tool or
+project script is absent, so the gate is reported as a warning rather than a hard
+failure. `scripts/init.sh` reads `PROFILE_GATE_<g>_SKIP` for the skip message.
+Any other non-zero exit is a real failure (FAIL+FIX). Profiles that never opt
+into SKIP (e.g. Python, whose gates only return 0/1) keep their strict hard-fail
+contract; the SKIP branch stays dormant for them.
+
+## The Node.js profile (`node.profile.sh`)
+
+The Node descriptor exercises three optional mechanisms of the format:
+
+- **Load-bearing variants.** `PROFILE_PM` resolves to `pnpm` when a
+  `pnpm-lock.yaml` exists or `package.json`'s `packageManager` field names pnpm,
+  and `npm` otherwise. The package manager drives both the surface label
+  (`Node surface detected (package.json, <pm>)`) and every gate command
+  (`<pm> run <script>`).
+- **Conditional gate slot.** `typecheck` is included only for TypeScript
+  projects — detected via `tsconfig.json`, a `typecheck` script, or `*.ts`
+  sources. JS-only projects omit the slot (empty-slot rule), so
+  `PROFILE_GATES` is `(format_check lint test)` instead of
+  `(format_check lint typecheck test)`.
+- **Optional gates that SKIP.** `format_check`, `lint`, and `typecheck` prefer
+  the project's declared script and fall back to the default tool
+  (`prettier`/`eslint`/`tsc`); when neither is available the gate returns 2 and
+  is reported as a skip. The `test` gate falls back across
+  `vitest` → `jest` → `node --test` before skipping.
+
+Because Node's metadata would clobber the shared `PROFILE_*` globals, `init.sh`
+sources `node.profile.sh` **late** — after the Python gate loop has run — and
+reads the surface label up front via a one-shot subshell source.
 
 - Prefer project-local declarations over global defaults (e.g. Node uses pnpm
   only when the project declares it; Java prefers `./mvnw`/`./gradlew`).

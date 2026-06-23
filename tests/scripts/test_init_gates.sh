@@ -69,7 +69,11 @@ exit 0
 SH
 cat > "${TMP_DIR}/fakebin/pnpm" <<'SH'
 #!/usr/bin/env bash
-[ "$1" = "test" ] && exit 0
+# Fake pnpm: every `pnpm run <script>` and `pnpm test` succeeds.
+exit 0
+SH
+cat > "${TMP_DIR}/fakebin/node" <<'SH'
+#!/usr/bin/env bash
 exit 0
 SH
 cat > "${TMP_DIR}/fakebin/terraform" <<'SH'
@@ -86,18 +90,19 @@ git init -q -b main
 git config commit.gpgsign false
 printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
 printf 'module fixture\n' > go.mod
-printf '{"scripts":{"test":"true"}}\n' > package.json
+printf '{"scripts":{"format":"true","lint":"true","test":"true"}}\n' > package.json
+printf 'lockfileVersion: "9.0"\n' > pnpm-lock.yaml
 printf '# fixture\n' > main.tf
 
 PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
 
 grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Go surface detected" "$OUT" || { cat "$OUT"; exit 1; }
-grep -q "Node/pnpm surface detected" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "Node surface detected (package.json, pnpm)" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "uv environment synced" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "go test passing" "$OUT" || { cat "$OUT"; exit 1; }
-grep -q "pnpm test passing" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "node tests passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
 
 # --- Failed-gate reporting ---------------------------------------------------
