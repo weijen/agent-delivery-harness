@@ -117,6 +117,38 @@ printf 'AllCops:\n  NewCops: enable\n' > .rubocop.yml
 [ "\${PROFILE_RUBY_LINTER:-}" = "rubocop" ] || { echo "BAD LINTER=\${PROFILE_RUBY_LINTER:-} (RuboCop must win when both configured)"; exit 43; }
 cd /; rm -rf "\$d"
 
+# --- Fixture E: Standard gem + transitive rubocop in Gemfile.lock ------------
+# Regression (issue #72): the \`standard\` gem depends transitively on rubocop,
+# so a real Standard Ruby project's Gemfile.lock always lists rubocop. A lockfile
+# rubocop match must NOT, on its own, beat an explicit Standard Ruby setup.
+e="\$(mktemp -d)"
+cd "\$e"
+printf 'source "https://rubygems.org"\ngem "standard"\ngem "rspec"\n' > Gemfile
+# No .rubocop.yml. rubocop appears ONLY transitively in the lock.
+printf 'GEM\n  specs:\n    rubocop (1.50.2)\n    standard (1.28.5)\n' > Gemfile.lock
+# shellcheck source=/dev/null
+. "$ROOT/$desc"
+[ "\${PROFILE_RUBY_LINTER:-}" = "standardrb" ] || { echo "BAD LINTER=\${PROFILE_RUBY_LINTER:-} (Standard project with transitive rubocop must stay standardrb)"; exit 44; }
+cd /; rm -rf "\$e"
+
+# --- Fixture F: rubocop gem only, no config, no standard -> rubocop ----------
+f="\$(mktemp -d)"
+cd "\$f"
+printf 'source "https://rubygems.org"\ngem "rubocop"\n' > Gemfile
+# shellcheck source=/dev/null
+. "$ROOT/$desc"
+[ "\${PROFILE_RUBY_LINTER:-}" = "rubocop" ] || { echo "BAD LINTER=\${PROFILE_RUBY_LINTER:-} (direct rubocop gem must select rubocop)"; exit 45; }
+cd /; rm -rf "\$f"
+
+# --- Fixture G: neither tool configured -> defaults to standardrb ------------
+g="\$(mktemp -d)"
+cd "\$g"
+printf 'source "https://rubygems.org"\ngem "rspec"\n' > Gemfile
+# shellcheck source=/dev/null
+. "$ROOT/$desc"
+[ "\${PROFILE_RUBY_LINTER:-}" = "standardrb" ] || { echo "BAD LINTER=\${PROFILE_RUBY_LINTER:-} (no linter configured must default to standardrb)"; exit 46; }
+cd /; rm -rf "\$g"
+
 echo "PROBE-OK"
 PROBE
 

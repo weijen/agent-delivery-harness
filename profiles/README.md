@@ -125,8 +125,12 @@ The Ruby descriptor carries **two** load-bearing variant axes plus a conditional
 typecheck slot:
 
 - **Lint/format variant.** `PROFILE_RUBY_LINTER` is `standardrb` or `rubocop`.
-  An existing RuboCop setup (`.rubocop.yml` or the `rubocop` gem) wins; otherwise
-  the descriptor prefers **Standard Ruby** for low-configuration lint+format.
+  Precedence: an explicit `.rubocop.yml` wins; else a configured Standard Ruby
+  setup (`.standard.yml` or a **direct** `standard` gem) selects `standardrb`;
+  else a `rubocop` gem (Gemfile or lockfile) selects `rubocop`; otherwise the
+  descriptor defaults to **Standard Ruby** for low-configuration lint+format.
+  Because the `standard` gem pulls in `rubocop` transitively, a lockfile-only
+  `rubocop` match must not beat an explicit Standard Ruby project (see issue #72).
   Standard Ruby is a **combined lint/format path**, so it occupies the single
   `lint` slot (no separate `format_check`); its OK message signals
   `lint+format`.
