@@ -30,15 +30,31 @@ ruby_gemfile_has() {
 		grep -Eqi "$1" "$PWD/Gemfile.lock" 2>/dev/null
 }
 
+# ruby_gemfile_direct_has <pattern>: succeeds only when the Gemfile itself (a
+# direct dependency) mentions <pattern> — it ignores Gemfile.lock, which also
+# lists transitive deps. The `standard` gem pulls in rubocop transitively, so a
+# lockfile rubocop match must not be treated as an intentional RuboCop setup.
+ruby_gemfile_direct_has() {
+	grep -Eqi "$1" "$PWD/Gemfile" 2>/dev/null
+}
+
 # --- Detection ---------------------------------------------------------------
 profile_detect() { [ -f "$PWD/Gemfile" ]; }
 
 # --- Variant detection (load-bearing) ----------------------------------------
-# Lint/format tool: an existing RuboCop setup wins (any rubocop-* extension
-# counts); otherwise prefer Standard Ruby for low-configuration lint+format
-# (per the spec's default guidance).
+# Lint/format tool precedence:
+#   1. an explicit .rubocop.yml          -> rubocop (an intentional RuboCop config wins)
+#   2. Standard configured (.standard.yml or a direct `standard` gem) -> standardrb
+#      (standard depends on rubocop transitively, so a lockfile-only rubocop
+#       match must not beat an explicit Standard Ruby setup — see issue #72)
+#   3. a rubocop gem present (Gemfile or lock) -> rubocop
+#   4. otherwise prefer Standard Ruby for low-configuration lint+format.
 PROFILE_RUBY_LINTER="standardrb"
-if [ -f "$PWD/.rubocop.yml" ] || ruby_gemfile_has '\brubocop\b'; then
+if [ -f "$PWD/.rubocop.yml" ]; then
+	PROFILE_RUBY_LINTER="rubocop"
+elif [ -f "$PWD/.standard.yml" ] || ruby_gemfile_direct_has '\bstandard\b'; then
+	PROFILE_RUBY_LINTER="standardrb"
+elif ruby_gemfile_has '\brubocop\b'; then
 	PROFILE_RUBY_LINTER="rubocop"
 fi
 
