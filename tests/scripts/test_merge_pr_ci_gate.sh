@@ -54,12 +54,14 @@ exit 1
 EOF
 chmod +x "${BIN}/gh"
 
-# run_merge SENTINEL — runs merge-pr.sh writing merges to SENTINEL (removed first);
-# prints "<rc>\n<output>". Globals consulted: FAKE_CHECKS_RC, FAKE_CHECKS_OUT.
+# run_merge SENTINEL [args...] — runs merge-pr.sh writing merges to SENTINEL
+# (removed first), forwarding any extra args to the script; prints "<rc>\n<output>".
+# Globals consulted: FAKE_CHECKS_RC, FAKE_CHECKS_OUT.
 run_merge() {
   local sentinel="$1" out rc
+  shift
   rm -f "$sentinel"
-  out="$(MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" 2>&1)" && rc=0 || rc=$?
+  out="$(MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" "$@" 2>&1)" && rc=0 || rc=$?
   printf '%s\n%s' "$rc" "$out"
 }
 
@@ -97,5 +99,25 @@ rc="${res%%$'\n'*}"
 [ "$rc" = "0" ] || fail "merge-pr.sh must succeed when CI checks are green (rc=${rc})"
 [ -f "$SENTINEL" ] || fail "merge-pr.sh must call 'gh pr merge' when CI checks are green"
 grep -q 'pr merge' "$SENTINEL" || fail "merge sentinel should record the gh pr merge call"
+
+# --- Case 5: stray positional arg (bare PR number) -> refuse, do not merge ---
+# merge-pr.sh resolves the PR from the current worktree branch, so a positional
+# arg like a bare PR number is a footgun: it does NOT select the PR, it leaks to
+# `gh pr merge`. Refuse it before any merge so a wrong PR can't be merged.
+SENTINEL="${TMP_DIR}/case5.log"
+res="$(FAKE_CHECKS_RC=0 FAKE_CHECKS_OUT='harness-smoke  pass  1m' run_merge "$SENTINEL" 73)"
+rc="${res%%$'\n'*}"; out="${res#*$'\n'}"
+[ "$rc" != "0" ] || fail "merge-pr.sh must refuse a stray positional arg (e.g. a bare PR number)"
+[ -f "$SENTINEL" ] && fail "merge-pr.sh must NOT call 'gh pr merge' when given a stray positional arg"
+printf '%s' "$out" | grep -Eiq 'positional|worktree|flag' \
+  || fail "stray-positional refusal must guide the user (worktree/flags) (got: ${out})"
+
+# --- Case 6: pass-through flags still merge when checks are green -------------
+SENTINEL="${TMP_DIR}/case6.log"
+res="$(FAKE_CHECKS_RC=0 FAKE_CHECKS_OUT='harness-smoke  pass  1m' run_merge "$SENTINEL" --squash --delete-branch)"
+rc="${res%%$'\n'*}"
+[ "$rc" = "0" ] || fail "merge-pr.sh must still merge when given pass-through flags (rc=${rc})"
+[ -f "$SENTINEL" ] || fail "merge-pr.sh must call 'gh pr merge' with pass-through flags when checks are green"
+grep -q -- '--squash' "$SENTINEL" || fail "pass-through flags should reach gh pr merge (got: $(cat "$SENTINEL"))"
 
 printf 'merge-pr ci gate passed\n'
