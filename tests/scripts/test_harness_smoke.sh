@@ -8,7 +8,7 @@ cd "$ROOT"
 [ -f .github/workflows/harness-smoke.yml ] || { echo "missing harness-smoke workflow" >&2; exit 1; }
 
 bash -n scripts/*.sh
-shellcheck scripts/*.sh
+shellcheck scripts/*.sh profiles/*.profile.sh
 
 shopt -s nullglob
 files=(.copilot/agents/*.agent.md .copilot/skills/*/SKILL.md)

@@ -57,6 +57,7 @@ new_repo() {
   local dir="${TMP_DIR}/$1"
   mkdir -p "${dir}/scripts"
   cp "${ROOT}/scripts/init.sh" "${dir}/scripts/init.sh"
+  cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"

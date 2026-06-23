@@ -34,6 +34,7 @@ fi
 
 mkdir -p "${TMP_DIR}/repo/scripts" "${TMP_DIR}/fakebin"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
+cp -R "${ROOT}/profiles" "${TMP_DIR}/repo/profiles"
 cat > "${TMP_DIR}/fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
@@ -106,6 +107,7 @@ grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
 FAILBIN="${TMP_DIR}/failbin"
 mkdir -p "${TMP_DIR}/failrepo/scripts" "$FAILBIN"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/failrepo/scripts/init.sh"
+cp -R "${ROOT}/profiles" "${TMP_DIR}/failrepo/profiles"
 cat > "${FAILBIN}/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1" in

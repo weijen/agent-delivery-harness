@@ -51,6 +51,19 @@ note_ok() {
 repo_name="$(basename "$PWD")"
 bold "==> ${repo_name} preflight"
 
+# Load the language profile descriptor(s). Python surface detection, dependency
+# sync, and quality gates are declared in profiles/<id>.profile.sh rather than
+# hard-coded here (issue #35). Go/Node/Terraform remain inline compatibility
+# paths until their own profile issues land.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROFILES_DIR="${SCRIPT_DIR}/../profiles"
+if [ ! -f "${PROFILES_DIR}/python.profile.sh" ]; then
+  red "profile descriptor missing: ${PROFILES_DIR}/python.profile.sh"
+  exit 1
+fi
+# shellcheck source=profiles/python.profile.sh
+. "${PROFILES_DIR}/python.profile.sh"
+
 # 1. Required CLIs ------------------------------------------------------------
 echo "[1/6] Required tools"
 for tool in git gh; do
@@ -103,7 +116,7 @@ fi
 # 5. Project surfaces --------------------------------------------------------
 echo "[5/6] Project surfaces"
 has_python=0 has_go=0 has_pnpm=0 has_terraform=0
-[ -f "$PWD/pyproject.toml" ] && has_python=1
+profile_detect && has_python=1
 [ -f "$PWD/go.mod" ] && has_go=1
 if [ -f "$PWD/pnpm-lock.yaml" ] || [ -f "$PWD/package.json" ]; then has_pnpm=1; fi
 if find "$PWD" -maxdepth 3 -name '*.tf' -not -path '*/.terraform/*' -print -quit | grep -q .; then has_terraform=1; fi
@@ -111,22 +124,22 @@ if find "$PWD" -maxdepth 3 -name '*.tf' -not -path '*/.terraform/*' -print -quit
 if [ "$has_python$has_go$has_pnpm$has_terraform" = "0000" ]; then
   note_ok "docs-only project surface detected"
 else
-  [ "$has_python" = "1" ] && note_ok "Python surface detected (pyproject.toml)"
+  [ "$has_python" = "1" ] && note_ok "$PROFILE_SURFACE_LABEL"
   [ "$has_go" = "1" ] && note_ok "Go surface detected (go.mod)"
   [ "$has_pnpm" = "1" ] && note_ok "Node/pnpm surface detected (package.json or pnpm-lock.yaml)"
   [ "$has_terraform" = "1" ] && note_ok "Terraform surface detected (*.tf)"
 fi
 
 if [ "$has_python" = "1" ]; then
-  if ! command -v uv >/dev/null 2>&1; then
-    note_fail "uv not installed but pyproject.toml present" "install: curl -LsSf https://astral.sh/uv/install.sh | sh"
-  elif uv sync --all-groups >/dev/null 2>&1; then
-    note_ok "uv environment synced"
+  if ! command -v "$PROFILE_TOOL_REQUIREMENTS" >/dev/null 2>&1; then
+    note_fail "$PROFILE_TOOL_MISSING" "$PROFILE_TOOL_MISSING_FIX"
+  elif profile_sync >/dev/null 2>&1; then
+    note_ok "$PROFILE_SYNC_OK"
   else
-    note_fail "uv sync failed" "inspect: uv sync --all-groups"
+    note_fail "$PROFILE_SYNC_FAIL" "$PROFILE_SYNC_FIX"
   fi
 else
-  note_warn "no pyproject.toml yet — skipping uv sync (will become a hard check once code lands)"
+  note_warn "$PROFILE_SYNC_SKIP_MSG"
 fi
 
 # 6. Quality gates (language-detected) ---------------------------------------
@@ -135,10 +148,16 @@ if [ "$fail" -ne 0 ]; then
   yellow "  ! skipping gates until earlier preflight failures are fixed"
 else
   if [ "$has_python" = "1" ]; then
-    if uv run ruff format --check . >/dev/null 2>&1; then note_ok "ruff format clean"; else note_fail "ruff format would reformat" "uv run ruff format ."; fi
-    if uv run ruff check >/dev/null 2>&1; then note_ok "ruff clean"; else note_fail "ruff failed" "uv run ruff check"; fi
-    if uv run mypy >/dev/null 2>&1;       then note_ok "mypy clean"; else note_fail "mypy failed" "uv run mypy"; fi
-    if uv run pytest -q >/dev/null 2>&1;  then note_ok "pytest passing"; else note_fail "pytest failed" "uv run pytest"; fi
+    for g in "${PROFILE_GATES[@]}"; do
+      ok_var="PROFILE_GATE_${g}_OK"
+      fail_var="PROFILE_GATE_${g}_FAIL"
+      fix_var="PROFILE_GATE_${g}_FIX"
+      if "profile_gate_${g}" >/dev/null 2>&1; then
+        note_ok "${!ok_var}"
+      else
+        note_fail "${!fail_var}" "${!fix_var}"
+      fi
+    done
   fi
 
   if [ "$has_go" = "1" ]; then
