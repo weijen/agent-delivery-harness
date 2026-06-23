@@ -85,6 +85,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / F
 | Validation plan and smoke tests | Project-specific docs under `docs/` |
 | Agent topology and prompts | Project-specific docs under `docs/` |
 | Delivery plan, RACI, risk register | Project-specific docs under `docs/` |
+| Harness evaluation strategy | [docs/evaluation/README.md](docs/evaluation/README.md) |
 | Local issue progress and Action Log | `.copilot-tracking/issues/issue-NN/progress.md` |
 | Copilot issue lifecycle and diagram | [docs/HARNESS.md](docs/HARNESS.md) |
 | Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |

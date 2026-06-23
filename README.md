@@ -9,6 +9,8 @@ deterministic quality gates, and PR closeout.
 > should live under `docs/` and be linked from the repository map.
 
 For the full Copilot issue lifecycle, see [docs/HARNESS.md](docs/HARNESS.md).
+For the harness evaluation strategy, see
+[docs/evaluation/README.md](docs/evaluation/README.md).
 
 ## Sensitivity
 

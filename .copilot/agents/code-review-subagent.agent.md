@@ -102,16 +102,16 @@ A passing build is not proof. Judge whether the sensors actually establish the c
 4. **Error handling** — Do failures at system boundaries (user input, external APIs, IO) surface to the caller, while
    internal helpers trust their inputs without speculative validation?
 5. **Security** — No obvious vulnerabilities (injection, hardcoded secrets, etc.)?
-6. **Hidden failure modes** — Apply [`find-brute-force`](.copilot/skills/find-brute-force/SKILL.md) to the diff.
+6. **Hidden failure modes** — Apply [`find-brute-force`](../skills/find-brute-force/SKILL.md) to the diff.
    Read the skill for the pattern list and how each pattern maps to CRITICAL / MAJOR / MINOR.
-7. **Duplication introduced by this change** — Apply [`find-duplicates`](.copilot/skills/find-duplicates/SKILL.md)
+7. **Duplication introduced by this change** — Apply [`find-duplicates`](../skills/find-duplicates/SKILL.md)
    to the diff. Read the skill for the clone-vs-coincidence judgement and when extraction is warranted.
-8. **Over-design introduced by this change** — Apply [`find-over-design`](.copilot/skills/find-over-design/SKILL.md)
+8. **Over-design introduced by this change** — Apply [`find-over-design`](../skills/find-over-design/SKILL.md)
    to the diff. Read the skill for the YAGNI heuristics on premature abstractions and speculative parameters.
-9. **Dead-code risk introduced by this change** — Apply [`dead-code-detection`](.copilot/skills/dead-code-detection/SKILL.md)
+9. **Dead-code risk introduced by this change** — Apply [`dead-code-detection`](../skills/dead-code-detection/SKILL.md)
    to touched symbols and paths when the diff adds, renames, routes, or removes callable code, scripts, hooks, prompts,
    agents, or config entries.
-10. **Docs drift introduced by this change** — Apply [`sync-docs`](.copilot/skills/sync-docs/SKILL.md) to touched
+10. **Docs drift introduced by this change** — Apply [`sync-docs`](../skills/sync-docs/SKILL.md) to touched
     user-facing commands, paths, lifecycle rules, agent names, skill names, setup steps, and validation gates.
 
 For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
