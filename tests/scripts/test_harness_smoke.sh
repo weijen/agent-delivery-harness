@@ -78,4 +78,34 @@ require_text "AGENTS.md" 'strict harness adherence|strictly adhere.*harness|harn
 require_text "AGENTS.md" 'Action Log' \
   "Action Log expectation in the agent map"
 
+# --- Bash instructions (#44) -------------------------------------------------
+bash_instructions=".copilot/instructions/bash.instructions.md"
+[ -f "$bash_instructions" ] || { echo "missing ${bash_instructions}" >&2; exit 1; }
+awk '
+  NR == 1 && $0 != "---" { exit 1 }
+  NR > 1 && $0 == "---" { found = 1; exit 0 }
+  END { if (!found) exit 1 }
+' "$bash_instructions" || { echo "missing/invalid frontmatter in ${bash_instructions}" >&2; exit 1; }
+
+require_text "$bash_instructions" 'applyTo:.*scripts/\*\*/\*\.sh' \
+  "applyTo glob for harness scripts"
+require_text "$bash_instructions" 'applyTo:.*tests/\*\*/\*\.sh' \
+  "applyTo glob for harness shell tests"
+require_text "$bash_instructions" 'set -euo pipefail' \
+  "strict-mode expectation"
+require_text "$bash_instructions" 'shellcheck' \
+  "shellcheck validation expectation"
+require_text "$bash_instructions" 'bash -n' \
+  "syntax-check validation expectation"
+require_text "$bash_instructions" 'trap' \
+  "trap/cleanup guidance"
+require_text "$bash_instructions" 'fake|fixture' \
+  "fake CLI fixture guidance"
+require_text "$bash_instructions" 'temp(orary)?[ -]?(repo|dir)|mktemp' \
+  "temporary repo/dir guidance"
+require_text "$bash_instructions" 'hard[ -]?fail|warning|warn' \
+  "hard-fail vs warning exit-semantics guidance"
+require_text "$bash_instructions" 'behavioral|byte-for-byte|contract' \
+  "behavioral contract test guidance"
+
 printf 'harness smoke passed\n'
