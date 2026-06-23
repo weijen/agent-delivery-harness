@@ -1,0 +1,229 @@
+# harness-contract.yml — frozen lifecycle contract for the issue-driven harness.
+#
+# This file is the MACHINE-READABLE AUTHORITY for the harness lifecycle. It is the
+# baseline that future profile / language / init.sh refactors compare against.
+# tests/scripts/test_harness_contract.sh reads this file and verifies that the
+# current scripts still expose the declared behavior.
+#
+# Rule of engagement (TDD discipline): a harness behavior change must FIRST change
+# this contract (and the sensor) intentionally, THEN change the implementation.
+# Removing a required script, lifecycle obligation, Action Log scaffold,
+# feature-list requirement, or review-gate boundary from the scripts WITHOUT an
+# intentional update here is a regression and the sensor must fail.
+#
+# Format notes for the awk-based reader in test_harness_contract.sh:
+#   * Two-space indentation, no tabs.
+#   * List items under a section are written as `- key: value` then indented
+#     `field: value` lines, OR as a single `- value` scalar.
+#   * `pattern:` / `present:` / `absent:` values are extended-regex (grep -E)
+#     fragments matched against the owning script with `grep -Eiq`.
+#   * Keep values on a single line; the reader does not handle YAML block scalars.
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# Required entrypoints. Each must exist, be executable, and parse with bash -n.
+# `role` is documentation; `path` is the test authority.
+# ---------------------------------------------------------------------------
+scripts:
+  - id: init
+    path: scripts/init.sh
+    role: Preflight environment sensor; never installs interactively.
+  - id: issue-lib
+    path: scripts/issue-lib.sh
+    role: Shared issue naming library (sourced, not executed).
+  - id: start-issue
+    path: scripts/start-issue.sh
+    role: Begin an issue in an isolated branch + worktree; scaffold tracking state.
+  - id: check-feature-list
+    path: scripts/check-feature-list.sh
+    role: Validate per-issue feature_list.json structure and completion.
+  - id: review-gate
+    path: scripts/review-gate.sh
+    role: HEAD-bound local review approval marker.
+  - id: create-pr
+    path: scripts/create-pr.sh
+    role: Sync onto main, enforce review gate, push, and open the PR.
+  - id: finish-issue
+    path: scripts/finish-issue.sh
+    role: Tear down the worktree after the PR merges.
+
+# ---------------------------------------------------------------------------
+# Lifecycle order. The harness must continue to perform these actions in this
+# sequence. `owner` ties each step to the script that performs it; `present` is a
+# regex the owner script must still contain.
+# ---------------------------------------------------------------------------
+lifecycle:
+  - id: preflight
+    owner: scripts/init.sh
+    present: preflight
+  - id: issue-lookup
+    owner: scripts/issue-lib.sh
+    present: gh issue view
+  - id: branch-worktree-creation
+    owner: scripts/start-issue.sh
+    present: git worktree add
+  - id: tracking-scaffold
+    owner: scripts/start-issue.sh
+    present: feature_list.json
+  - id: feature-list-validation
+    owner: scripts/check-feature-list.sh
+    present: feature_list.json
+  - id: review-approval
+    owner: scripts/review-gate.sh
+    present: approve
+  - id: pr-creation
+    owner: scripts/create-pr.sh
+    present: gh pr create
+  - id: pr-merge-sync
+    owner: scripts/create-pr.sh
+    present: git rebase origin/main
+  - id: closeout-worktree-cleanup
+    owner: scripts/finish-issue.sh
+    present: git worktree (remove|prune)
+
+# ---------------------------------------------------------------------------
+# Required inputs and environment flags. Each flag must still be referenced in
+# its owning script (usage string or behavior branch).
+# ---------------------------------------------------------------------------
+env_flags:
+  - name: ISSUE=
+    owner: scripts/issue-lib.sh
+    present: ISSUE=
+  - name: SLUG=
+    owner: scripts/start-issue.sh
+    present: SLUG=
+  - name: SKIP_INIT
+    owner: scripts/start-issue.sh
+    present: SKIP_INIT
+  - name: REQUIRE_FEATURES_COMPLETE
+    owner: scripts/check-feature-list.sh
+    present: REQUIRE_FEATURES_COMPLETE
+  - name: REQUIRE_AZ
+    owner: scripts/init.sh
+    present: REQUIRE_AZ
+  - name: FORCE
+    owner: scripts/finish-issue.sh
+    present: FORCE
+  - name: DELETE_BRANCH
+    owner: scripts/finish-issue.sh
+    present: DELETE_BRANCH
+
+# ---------------------------------------------------------------------------
+# Required outputs and state transitions. Each declared artifact / naming rule
+# must still be produced by its owner script.
+# ---------------------------------------------------------------------------
+state_transitions:
+  - id: branch-naming
+    owner: scripts/issue-lib.sh
+    present: feature/issue-
+  - id: worktree-naming
+    owner: scripts/issue-lib.sh
+    present: -worktrees/issue-
+  - id: feature-list-artifact
+    owner: scripts/start-issue.sh
+    present: \.copilot-tracking/issues/issue-|feature_list.json
+  - id: progress-artifact
+    owner: scripts/start-issue.sh
+    present: progress.md
+  - id: action-log-scaffold
+    owner: scripts/start-issue.sh
+    present: ^##[[:space:]]+Action Log
+  - id: review-gate-marker
+    owner: scripts/review-gate.sh
+    present: approved-head
+
+# ---------------------------------------------------------------------------
+# Hard failures (exit non-zero) and warning-only paths (warn + continue). `kind`
+# classifies each path (hard|warn) for human review. The sensor is presence-based:
+# it asserts each path's message regex still exists in its owner, so a path cannot
+# be silently DELETED. It does not detect a hard<->warn flip that preserves the
+# same message text — tightening that is intentionally left to a later revision.
+# ---------------------------------------------------------------------------
+failure_modes:
+  - id: github-auth-failure
+    kind: hard
+    owner: scripts/init.sh
+    present: gh not authenticated
+  - id: preflight-failure-aborts-start
+    kind: hard
+    owner: scripts/start-issue.sh
+    present: Preflight failed
+  - id: malformed-feature-list
+    kind: hard
+    owner: scripts/check-feature-list.sh
+    present: not valid JSON
+  - id: non-object-feature-list
+    kind: hard
+    owner: scripts/check-feature-list.sh
+    present: must be a JSON object
+  - id: passes-without-verification
+    kind: hard
+    owner: scripts/check-feature-list.sh
+    present: passes:true requires non-empty verification
+  - id: incomplete-features-hard
+    kind: hard
+    owner: scripts/check-feature-list.sh
+    present: REQUIRE_FEATURES_COMPLETE
+  - id: incomplete-features-warning
+    kind: warn
+    owner: scripts/check-feature-list.sh
+    present: warning only
+  - id: missing-jq-warning
+    kind: warn
+    owner: scripts/check-feature-list.sh
+    present: jq not installed
+  - id: dirty-worktree-refused
+    kind: hard
+    owner: scripts/finish-issue.sh
+    present: uncommitted changes
+  - id: stale-review-approval
+    kind: hard
+    owner: scripts/review-gate.sh
+    present: has not been approved
+
+# ---------------------------------------------------------------------------
+# Boundaries that MUST stay language-neutral. The listed owner scripts must not
+# hard-code any language/toolchain token from `tokens`. This protects issue
+# naming, worktree lifecycle, feature-list schema, review-gate state, and PR
+# closeout from gaining language branches as profiles land.
+# ---------------------------------------------------------------------------
+language_neutral:
+  owners:
+    - scripts/issue-lib.sh
+    - scripts/start-issue.sh
+    - scripts/check-feature-list.sh
+    - scripts/review-gate.sh
+    - scripts/create-pr.sh
+    - scripts/finish-issue.sh
+  tokens:
+    - python
+    - pyproject
+    - golang
+    - go.mod
+    - pnpm
+    - npm
+    - terraform
+    - maven
+    - gradle
+    - bundler
+    - rubocop
+    - pytest
+    - mypy
+    - ruff
+
+# ---------------------------------------------------------------------------
+# Human-review lifecycle diagram, derived from the contract above. NOT the test
+# authority — the YAML sections are. Kept here so a Mermaid view can be rendered
+# without a second source of truth.
+# ---------------------------------------------------------------------------
+mermaid: |
+  flowchart TD
+    preflight[init.sh preflight] --> lookup[issue lookup]
+    lookup --> worktree[branch + worktree]
+    worktree --> scaffold[tracking scaffold]
+    scaffold --> validate[feature-list validation]
+    validate --> review[review-gate approve]
+    review --> pr[create-pr sync + open]
+    pr --> merge[PR merge]
+    merge --> closeout[finish-issue cleanup]
