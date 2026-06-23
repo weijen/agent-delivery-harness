@@ -24,12 +24,18 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
 ## Scope Rules
 
 - Write or update tests, fixtures, smoke checks, or validation commands required by the selected feature.
-- **Load the applicable language and TDD instructions before you write or run tests.** Before writing or running any
-  Python (`.py`) test, read and follow both `.copilot/instructions/python.instructions.md` and
-  `.copilot/instructions/tdd.instructions.md` — you run in a fresh context and do not inherit the conductor's Copilot
-  instruction resolution, so treat those files as part of your contract (RED→GREEN discipline, never weaken a sensor,
-  typed assertions, etc.). The conductor should hand you the files; if they are missing from your context and the
-  feature touches `.py`, read them from the repo paths above.
+- **Load the applicable language and TDD instructions before you write or run tests (profile-aware routing).** Select
+  the instruction file that matches the files under test, by extension, under
+  `.copilot/instructions/<language>.instructions.md`: `.py` → `python`, `.go` → `go`,
+  `.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a mixed-language change, load **every**
+  applicable language instruction file. Always also follow `.copilot/instructions/tdd.instructions.md`. You run in a
+  fresh context and do not inherit the conductor's Copilot instruction resolution, so treat the applicable files as
+  part of your contract (for a Python `.py` test that means `.copilot/instructions/python.instructions.md` plus
+  `.copilot/instructions/tdd.instructions.md` — RED→GREEN discipline, never weaken a sensor, typed assertions, etc.).
+  The conductor should hand you the files; if they are missing from your context, read them from the repo paths above.
+  If a `<language>.instructions.md` file does not exist yet, fall back to the **general skill**
+  (`.copilot/skills/general/SKILL.md`) and the harness contract (plus `tdd.instructions.md`) rather than inventing
+  language conventions.
 - Run the feature's `regression_sensor` and, when a runtime boundary exists, its `e2e_sensor`.
 - Do not edit production code, prompts, docs, config, or scripts except for dedicated test or smoke assets.
 - Do not weaken, delete, or skip a failing test to make verification pass.
