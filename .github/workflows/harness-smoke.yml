@@ -20,7 +20,7 @@ jobs:
         run: bash -n scripts/*.sh
 
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/meta/*.sh
+        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/meta/*.sh profiles/*.profile.sh
 
       - name: Validate customization frontmatter
         shell: bash

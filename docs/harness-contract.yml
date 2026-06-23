@@ -60,6 +60,9 @@ lifecycle:
   - id: preflight
     owner: scripts/init.sh
     present: preflight
+  - id: profile-load
+    owner: scripts/init.sh
+    present: profiles/
   - id: issue-lookup
     owner: scripts/issue-lib.sh
     present: gh issue view
