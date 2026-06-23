@@ -142,15 +142,17 @@ fi
 
 # 5. Project surfaces --------------------------------------------------------
 echo "[5/6] Project surfaces"
-has_python=0 has_go=0 has_node=0 has_terraform=0
+has_python=0 has_go=0 has_node=0 has_ruby=0 has_terraform=0
 profile_detect && has_python=1
 [ -f "$PWD/go.mod" ] && has_go=1
 [ -f "$PWD/package.json" ] && has_node=1
+[ -f "$PWD/Gemfile" ] && has_ruby=1
 if find "$PWD" -maxdepth 3 -name '*.tf' -not -path '*/.terraform/*' -print -quit | grep -q .; then has_terraform=1; fi
 
-# The Go and Node descriptors are sourced late (step 6) so they do not clobber
-# Python's PROFILE_* before the Python gate loop runs. Extract just their surface
-# labels now via subshell sources so these report lines stay descriptor-driven.
+# The Go, Node, and Ruby descriptors are sourced late (step 6) so they do not
+# clobber Python's PROFILE_* before the Python gate loop runs. Extract just their
+# surface labels now via subshell sources so these report lines stay
+# descriptor-driven.
 go_label=""
 if [ "$has_go" = "1" ]; then
   # shellcheck disable=SC1091  # sourced in a subshell purely to read its label
@@ -163,13 +165,20 @@ if [ "$has_node" = "1" ]; then
   node_label="$(. "$PROFILES_DIR/node.profile.sh" >/dev/null 2>&1; printf '%s' "$PROFILE_SURFACE_LABEL")"
   [ -n "$node_label" ] || node_label="Node surface detected (package.json)"
 fi
+ruby_label=""
+if [ "$has_ruby" = "1" ]; then
+  # shellcheck disable=SC1091  # sourced in a subshell purely to read its label
+  ruby_label="$(. "$PROFILES_DIR/ruby.profile.sh" >/dev/null 2>&1; printf '%s' "$PROFILE_SURFACE_LABEL")"
+  [ -n "$ruby_label" ] || ruby_label="Ruby surface detected (Gemfile)"
+fi
 
-if [ "$has_python$has_go$has_node$has_terraform" = "0000" ]; then
+if [ "$has_python$has_go$has_node$has_ruby$has_terraform" = "00000" ]; then
   note_ok "docs-only project surface detected"
 else
   [ "$has_python" = "1" ] && note_ok "$PROFILE_SURFACE_LABEL"
   [ "$has_go" = "1" ] && note_ok "$go_label"
   [ "$has_node" = "1" ] && note_ok "$node_label"
+  [ "$has_ruby" = "1" ] && note_ok "$ruby_label"
   [ "$has_terraform" = "1" ] && note_ok "Terraform surface detected (*.tf)"
 fi
 
@@ -218,6 +227,18 @@ else
     fi
   fi
 
+  if [ "$has_ruby" = "1" ]; then
+    if command -v ruby >/dev/null 2>&1; then
+      # Source the Ruby descriptor now (late) so its PROFILE_* override Python's
+      # after the Python gate loop has already run, then drive the shared loop.
+      # shellcheck source=profiles/ruby.profile.sh
+      . "$PROFILES_DIR/ruby.profile.sh"
+      run_gate_loop
+    else
+      note_warn "Ruby surface detected but ruby is not installed — skipping Ruby gates" "install ruby + bundler to run the project's lint/test"
+    fi
+  fi
+
   if [ "$has_terraform" = "1" ]; then
     if command -v terraform >/dev/null 2>&1; then
       if terraform fmt -check -recursive >/dev/null 2>&1; then note_ok "terraform fmt clean"; else note_fail "terraform fmt failed" "terraform fmt -recursive"; fi
@@ -231,7 +252,7 @@ else
     fi
   fi
 
-  if [ "$has_python$has_go$has_node$has_terraform" = "0000" ]; then
+  if [ "$has_python$has_go$has_node$has_ruby$has_terraform" = "00000" ]; then
     note_warn "docs-only project — no language gates detected; run shellcheck on the harness scripts when you touch them"
   fi
 fi

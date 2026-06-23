@@ -119,6 +119,33 @@ package-manager variants:
 Like Node, the Go descriptor is sourced **late** so its `PROFILE_*` globals do
 not clobber Python's before the Python gate loop runs.
 
+## The Ruby profile (`ruby.profile.sh`)
+
+The Ruby descriptor carries **two** load-bearing variant axes plus a conditional
+typecheck slot:
+
+- **Lint/format variant.** `PROFILE_RUBY_LINTER` is `standardrb` or `rubocop`.
+  An existing RuboCop setup (`.rubocop.yml` or the `rubocop` gem) wins; otherwise
+  the descriptor prefers **Standard Ruby** for low-configuration lint+format.
+  Standard Ruby is a **combined lint/format path**, so it occupies the single
+  `lint` slot (no separate `format_check`); its OK message signals
+  `lint+format`.
+- **Test-framework variant.** `PROFILE_RUBY_TEST` is `rspec` (a `spec/` dir or
+  the `rspec` gem) or `minitest` (the standard-library default), and drives the
+  test gate command (`bundle exec rspec` vs `bundle exec rake test`).
+- **Conditional typecheck.** No type checker is required unless the project
+  explicitly configures **Sorbet** (`sorbet/config` or the gem) or **Steep**
+  (`Steepfile` or the gem); only then is a `typecheck` slot appended
+  (`bundle exec srb tc` / `bundle exec steep check`).
+- **Optional gates that SKIP.** Every gate runs through `bundle exec` and
+  returns 2 (SKIP → warn) when `ruby`/`bundler` is not installed.
+- **Framework hints.** `PROFILE_FRAMEWORKS` lists `Rails Sinatra Hanami` without
+  forcing any framework.
+
+The surface label is `Ruby surface detected (Gemfile, <linter>/<test>)`. Like Go
+and Node, the Ruby descriptor is sourced **late** so its `PROFILE_*` globals do
+not clobber Python's before the Python gate loop runs.
+
 - Prefer project-local declarations over global defaults (e.g. Node uses pnpm
   only when the project declares it; Java prefers `./mvnw`/`./gradlew`).
 - Keep descriptors `bash` 3.2-compatible and `shellcheck`-clean.
