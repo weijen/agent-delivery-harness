@@ -146,6 +146,34 @@ The surface label is `Ruby surface detected (Gemfile, <linter>/<test>)`. Like Go
 and Node, the Ruby descriptor is sourced **late** so its `PROFILE_*` globals do
 not clobber Python's before the Python gate loop runs.
 
+## The Java profile (`java.profile.sh`)
+
+The Java descriptor carries a **build-tool** variant axis and wrapper preference,
+with an empty typecheck slot and two optional quality gates:
+
+- **Build-tool variant.** `PROFILE_JAVA_BUILD` is `maven` (a `pom.xml`) or
+  `gradle` (`build.gradle` / `build.gradle.kts`). Maven **wins** when both a
+  `pom.xml` and a Gradle build file are present.
+- **Wrapper preference.** `PROFILE_JAVA_CMD` resolves to the project wrapper
+  (`./mvnw` / `./gradlew`) when one is present and executable, otherwise the
+  system `mvn` / `gradle`.
+- **No typecheck slot.** The `test` task compiles the sources, which exercises
+  the type checker — so there is no separate `typecheck` gate (empty-slot rule).
+  `test` is the always-on gate (`mvn -q test` / `gradle test`).
+- **Optional Spotless format check.** `format_check` runs Spotless
+  (`spotless:check` / `spotlessCheck`) only when it is configured in a build
+  file; otherwise the gate returns 2 (SKIP → warn).
+- **Optional lint.** `lint` runs the configured Checkstyle / PMD / SpotBugs goal
+  (priority Checkstyle > PMD > SpotBugs) when present, else SKIPs.
+- **Gates SKIP without a build tool.** Every gate returns 2 (SKIP → warn) when
+  neither the wrapper nor the system build tool is invocable.
+- **Framework hints.** `PROFILE_FRAMEWORKS` lists `Spring Boot, Quarkus` without
+  forcing either framework.
+
+The surface label is `Java surface detected (<build-file>, <build-tool>)`. Like
+the Go/Node/Ruby descriptors, the Java descriptor is sourced **late** so its
+`PROFILE_*` globals do not clobber Python's before the Python gate loop runs.
+
 - Prefer project-local declarations over global defaults (e.g. Node uses pnpm
   only when the project declares it; Java prefers `./mvnw`/`./gradlew`).
 - Keep descriptors `bash` 3.2-compatible and `shellcheck`-clean.
