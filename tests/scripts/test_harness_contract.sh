@@ -149,7 +149,10 @@ check_owner_present() {
     id="$(field "$rec" id)"; [ -n "$id" ] || id="$(field "$rec" name)"
     owner="$(field "$rec" owner)"
     present="$(field "$rec" present)"
-    [ -n "$owner" ] && [ -n "$present" ] || { fail "${section}/${id:-?}: missing owner or present in contract"; continue; }
+    if [ -z "$owner" ] || [ -z "$present" ]; then
+      fail "${section}/${id:-?}: missing owner or present in contract"
+      continue
+    fi
     case " ${declared_scripts} " in
       *" ${owner} "*) : ;;
       *) fail "${section}/${id}: owner '${owner}' is not a declared script" ;;
