@@ -23,6 +23,10 @@ review should pressure each other rather than collapse into one permissive role.
 - Does it avoid implementation details that conflict with repo conventions?
 - Does it flag missing requirements instead of guessing?
 
+The downstream decomposition of plan + clarified decisions into a one-sensor-per-feature
+`feature_list.json` is graded separately in
+[feature-breakdown-evals.md](feature-breakdown-evals.md).
+
 ### Implementation Subagent
 
 - Does it edit production assets only when the harness workflow requires that?

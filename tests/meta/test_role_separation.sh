@@ -105,6 +105,46 @@ if [ -f "$harness_doc" ]; then
 	fi
 fi
 
+# 6. The feature-granularity rule (issue #80): the conductor doctrine must define,
+#    in one place, what counts as ONE feature_list feature — the sensor-addressable
+#    split/merge rule — and HARNESS.md + AGENTS.md must echo the same rule so the
+#    three docs cannot drift apart.
+agents_md="AGENTS.md"
+[ -f "$agents_md" ] || note "missing $agents_md"
+
+if [ -f "$instructions" ]; then
+	if ! grep -Eqi 'what counts as one feature' "$instructions"; then
+		note "$instructions must define 'what counts as one feature' (the granularity rule)"
+	fi
+	# Core rule: one acceptance criterion provable by exactly one regression_sensor.
+	# Anchor to the phrase so the check tracks the granularity section, not stray
+	# occurrences of those words elsewhere in the doc.
+	if ! grep -Eqi 'exactly one[^.]*regression_sensor' "$instructions"; then
+		note "$instructions granularity rule must tie one feature to exactly one regression_sensor"
+	fi
+	# Split/merge guidance must both be present.
+	if ! grep -qi 'split' "$instructions" || ! grep -qi 'merge' "$instructions"; then
+		note "$instructions granularity rule must give the split and merge guidance"
+	fi
+fi
+
+if [ -f "$harness_doc" ]; then
+	if ! grep -Eqi 'what counts as one feature' "$harness_doc"; then
+		note "$harness_doc must echo the 'what counts as one feature' granularity rule"
+	fi
+	if ! grep -Eqi 'exactly one[^.]*regression_sensor' "$harness_doc"; then
+		note "$harness_doc must echo that one feature maps to exactly one regression_sensor"
+	fi
+fi
+
+if [ -f "$agents_md" ]; then
+	# Rule 8 (or nearby) must reference the granularity rule so the golden rules
+	# point at the single source of truth instead of restating a drifting copy.
+	if ! grep -Eqi 'what counts as one feature|granularity' "$agents_md"; then
+		note "$agents_md must reference the feature-granularity rule (single source of truth)"
+	fi
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi

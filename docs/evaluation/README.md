@@ -46,6 +46,7 @@ and have their own pages below.
 | [script-lifecycle-evals.md](script-lifecycle-evals.md) | L0 | Deterministic shell and lifecycle checks |
 | [skill-evals.md](skill-evals.md) | L1 | Skill trigger, artifact, and behavior checks |
 | [subagent-role-evals.md](subagent-role-evals.md) | L2 | Planner, implementer, tester, reviewer roles |
+| [feature-breakdown-evals.md](feature-breakdown-evals.md) | L2 | Feature decomposition granularity and sensor-addressability |
 | [trajectory-evals.md](trajectory-evals.md) | L3 | Tool path and lifecycle ordering |
 | [trace-action-log-evals.md](trace-action-log-evals.md) | L3 | Audit evidence and role attribution |
 | [outcome-evals.md](outcome-evals.md) | L4 | End-to-end issue fixtures |

@@ -42,7 +42,12 @@ sanitized, commit-safe fixture or specification.
    auto-merge as a standing practice.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
    its regression sensor, and any feature with a real runtime boundary (e.g. an external service
-   call, agent run, report generation, deployed endpoint) should name its e2e sensor.
+   call, agent run, report generation, deployed endpoint) should name its e2e sensor. **What counts
+   as one feature** — its granularity — is the single rule in
+   [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md): one
+   externally observable acceptance criterion provable by exactly one `regression_sensor` (plus an
+   `e2e_sensor` when it crosses a real runtime boundary); split when a unit needs more than one
+   independent sensor or mixes more than one concern, merge when two share one.
 9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
    coding-agent habits and personal workflow shortcuts.
 10. **Keep the issue Action Log current** in `.copilot-tracking/issues/issue-NN/progress.md` with conductor handbacks,
