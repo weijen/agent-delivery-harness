@@ -36,6 +36,30 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
 - Do not mark `passes:true` unless every declared required sensor passed for the current workspace state.
 - Do not commit, push, open PRs, or merge.
 
+## Blocking Criteria
+
+Before you mark a feature `passes:true`, **map each acceptance criterion and feature_list item to a concrete sensor** (a `regression_sensor`, and an `e2e_sensor` where a runtime boundary exists) that you actually ran on the current
+workspace state. If you cannot point at the exact sensor that proves a criterion,
+the feature does not pass.
+
+The following gaps are **BLOCKING** — return them as a handback, never as a
+silent pass:
+
+- **Missing sensor coverage** — an acceptance criterion or required behaviour has
+  no sensor mapped to it.
+- **Happy-path-only coverage** — a required failure mode (e.g. a hard-fail exit,
+  a rejected input, an enforced ordering) is only exercised on its success path,
+  so the sensor would still pass if the guard were removed. Required failure
+  modes must be proven by a negative/mutation check, not asserted by presence.
+- **Non-executable validation** — the declared validation is not runnable in this
+  workspace (missing command, manual-only step where an automatable boundary
+  exists, or a "sensor" that never actually executes the behaviour).
+
+A blocking gap may be **waived only by the conductor**, and only when the conductor
+records the explicit waiver and its **rationale in the issue Action Log**. You do
+not waive your own gaps, and you never weaken, delete, or skip a declared sensor
+to clear one — report the gap instead.
+
 ## Workflow
 
 1. Read the selected feature and implementation diff.
@@ -56,7 +80,10 @@ Return exactly these sections:
 
 - `Verification files`: tests, fixtures, or smoke assets created or modified.
 - `Commands`: commands run and pass/fail results.
-- `Pass status`: whether `passes:true` is justified for the selected feature.
+- `Pass status`: whether `passes:true` is justified for the selected feature, with the **criterion → sensor map**
+   (each acceptance criterion / feature item and the exact sensor that proves it, plus its run result). If any mapping
+   is missing, happy-path-only for a required failure mode, or non-executable, report it as **BLOCKING** here instead
+   of passing.
 - `Handback`: production fixes needed, or confirmation that the conductor can proceed to review, including Action Log
    entries the conductor should record. **Classify the handback so the conductor can route it (Loop 1):** label each
    item a **production defect** (declared sensor fails on real behaviour → conductor routes to `implementation-subagent`)
