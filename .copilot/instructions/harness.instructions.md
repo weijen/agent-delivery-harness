@@ -187,6 +187,10 @@ them. When the selected feature touches Python (`.py`):
 - to `code-review-subagent`: name `.copilot/instructions/python.instructions.md` and
   `.copilot/instructions/tdd.instructions.md` as review criteria for the Python diff.
 
+When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
+`.copilot/instructions/bash.instructions.md`: include/point to it for the implementation and test work, and name it as
+a review criterion for the shell diff.
+
 How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
 instruction to read and follow them before acting. The matching subagent templates also require reading these files
 when the work is Python, so this is a belt-and-suspenders contract: the conductor supplies them and the subagent

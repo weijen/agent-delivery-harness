@@ -90,6 +90,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / F
 | Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
 | Cross-project workflow tiers (Tier 0-3 + subagent pipeline) | [.copilot/instructions/workflow-tiers.instructions.md](.copilot/instructions/workflow-tiers.instructions.md) |
 | Python conventions (added when code lands) | [.copilot/instructions/python.instructions.md](.copilot/instructions/python.instructions.md) |
+| Bash conventions (harness scripts & shell tests) | [.copilot/instructions/bash.instructions.md](.copilot/instructions/bash.instructions.md) |
 | TDD discipline | [.copilot/instructions/tdd.instructions.md](.copilot/instructions/tdd.instructions.md) |
 | Terraform / Azure conventions | [.copilot/instructions/terraform-azure.instructions.md](.copilot/instructions/terraform-azure.instructions.md) |
 
