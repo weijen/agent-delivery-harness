@@ -69,6 +69,42 @@ if [ -f "$harness_doc" ]; then
 	done
 fi
 
+# 5. The plan -> clarify -> feature_list breakdown flow must be explicit (issue
+#    #78): the planning-subagent surfaces Open Questions and never authors the
+#    breakdown, and the lifecycle doc names the conductor as the breakdown owner
+#    with the plan -> human-input gate -> breakdown ordering.
+planner=".copilot/agents/planning-subagent.agent.md"
+[ -f "$planner" ] || note "missing $planner"
+if [ -f "$planner" ]; then
+	# The planner must require an explicit Open Questions / Needs-Human-Input section.
+	if ! grep -Eqi 'Open Questions|Needs-Human-Input' "$planner"; then
+		note "$planner must require an Open Questions / Needs-Human-Input section"
+	fi
+	# The planner must reference, and explicitly disclaim authoring, feature_list.json.
+	if ! grep -qi 'feature_list.json' "$planner"; then
+		note "$planner must reference feature_list.json to disclaim authoring it"
+	fi
+	if ! grep -Eqi '(do(es)? not|never|must not)[^.]{0,40}author[^.]{0,40}feature_list' "$planner"; then
+		note "$planner must state it does NOT author feature_list.json (the conductor owns the breakdown)"
+	fi
+fi
+
+if [ -f "$harness_doc" ]; then
+	# The lifecycle doc must name the conductor as the breakdown owner, show the
+	# plan -> human-input gate -> breakdown ordering, and describe the gate.
+	if ! grep -Eqi 'human-input gate' "$harness_doc"; then
+		note "$harness_doc must describe the human-input gate before the breakdown"
+	fi
+	if ! grep -Eqi 'conductor authors' "$harness_doc"; then
+		note "$harness_doc must name the conductor as the feature_list.json breakdown owner"
+	fi
+	# Anchor one assertion to the dedicated breakdown-flow subsection so the prose
+	# (not just the mermaid node) cannot be quietly removed.
+	if ! grep -Eqi 'plan .* clarify .* feature_list' "$harness_doc"; then
+		note "$harness_doc must document the plan -> clarify -> feature_list breakdown flow"
+	fi
+fi
+
 if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
