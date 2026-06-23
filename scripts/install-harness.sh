@@ -140,8 +140,10 @@ fi
 if [ "$MODE" != "dry" ]; then
 	mkdir -p "$TARGET_DIR"
 fi
-TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd || true)"
-[ -n "$TARGET_DIR" ] || die "target directory does not exist — create it, or re-run with --write to create it"
+if [ ! -d "$TARGET_DIR" ]; then
+	die "target directory does not exist — create it, or re-run with --write to create it"
+fi
+TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
 printf 'Target: %s\n' "$TARGET_DIR"
 case "$MODE" in
