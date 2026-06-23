@@ -98,6 +98,27 @@ Because Node's metadata would clobber the shared `PROFILE_*` globals, `init.sh`
 sources `node.profile.sh` **late** — after the Python gate loop has run — and
 reads the surface label up front via a one-shot subshell source.
 
+## The Go profile (`go.profile.sh`)
+
+The Go descriptor shows the **empty-slot** and **optional-SKIP** rules without
+package-manager variants:
+
+- **No `typecheck` slot.** `PROFILE_GATES` is
+  `(format_check lint golangci test)` — compilation via `go vet` / `go test`
+  covers type checking, so a separate typecheck slot is omitted.
+- **Single toolchain.** `PROFILE_VARIANTS` is empty; Go has one toolchain.
+- **Non-mutating format check.** `format_check` runs `gofmt -l .` (list mode) so
+  validation never rewrites files; a non-empty listing fails the gate and the FIX
+  hint points at `gofmt -w .`.
+- **Optional `golangci-lint`.** The `golangci` gate runs `golangci-lint run`
+  when the linter is installed and otherwise SKIPs (returns 2 → warn); `go vet`
+  still provides baseline static analysis.
+- **Framework hints.** `PROFILE_FRAMEWORKS` lists `Gin Echo Chi net/http`
+  without forcing any framework.
+
+Like Node, the Go descriptor is sourced **late** so its `PROFILE_*` globals do
+not clobber Python's before the Python gate loop runs.
+
 - Prefer project-local declarations over global defaults (e.g. Node uses pnpm
   only when the project declares it; Java prefers `./mvnw`/`./gradlew`).
 - Keep descriptors `bash` 3.2-compatible and `shellcheck`-clean.
