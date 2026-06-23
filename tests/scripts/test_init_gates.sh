@@ -76,6 +76,18 @@ cat > "${TMP_DIR}/fakebin/node" <<'SH'
 #!/usr/bin/env bash
 exit 0
 SH
+cat > "${TMP_DIR}/fakebin/ruby" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+cat > "${TMP_DIR}/fakebin/bundle" <<SH
+#!/usr/bin/env bash
+# Fake bundler: log every invocation so the test can assert init.sh never runs
+# \`bundle install\` (sync is declared-but-unused for the Ruby surface), and
+# succeed for \`bundle exec <tool>\`.
+printf '%s\n' "\$*" >> "${TMP_DIR}/bundle.log"
+exit 0
+SH
 cat > "${TMP_DIR}/fakebin/terraform" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
@@ -92,6 +104,8 @@ printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
 printf 'module fixture\n' > go.mod
 printf '{"scripts":{"format":"true","lint":"true","test":"true"}}\n' > package.json
 printf 'lockfileVersion: "9.0"\n' > pnpm-lock.yaml
+printf 'source "https://rubygems.org"\ngem "standard"\ngem "rspec"\n' > Gemfile
+mkdir -p spec
 printf '# fixture\n' > main.tf
 
 PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
@@ -99,10 +113,16 @@ PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
 grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Go surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Node surface detected (package.json, pnpm)" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "Ruby surface detected (Gemfile, standardrb/rspec)" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "uv environment synced" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "go test passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "node tests passing" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "rspec passing" "$OUT" || { cat "$OUT"; exit 1; }
+# AC2: init.sh must NOT run `bundle install` (sync is declared-but-unused).
+if [ -f "${TMP_DIR}/bundle.log" ] && grep -q '^install' "${TMP_DIR}/bundle.log"; then
+	echo "init.sh unexpectedly ran 'bundle install':"; cat "${TMP_DIR}/bundle.log"; exit 1
+fi
 grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
 
 # --- Failed-gate reporting ---------------------------------------------------
