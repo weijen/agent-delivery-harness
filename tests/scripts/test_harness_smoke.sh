@@ -105,7 +105,7 @@ require_text "$bash_instructions" 'temp(orary)?[ -]?(repo|dir)|mktemp' \
   "temporary repo/dir guidance"
 require_text "$bash_instructions" 'hard[ -]?fail|warning|warn' \
   "hard-fail vs warning exit-semantics guidance"
-require_text "$bash_instructions" 'behavioral|byte-for-byte|contract' \
+require_text "$bash_instructions" 'byte-for-byte|snapshot' \
   "behavioral contract test guidance"
 
 require_text "AGENTS.md" 'bash\.instructions\.md' \
