@@ -106,8 +106,11 @@ The normal path is:
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
 6. Use `implementation-subagent` for production assets only.
-7. Use `test-subagent` for tests, smoke checks, and sensor execution.
-8. Run local gates and `code-review-subagent` on the completed diff.
+7. Use `test-subagent` for tests, smoke checks, sensor execution, and product-quality blocking gate evidence from
+   [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md) before marking `passes:true`.
+8. Run local gates and `code-review-subagent` on the completed diff; the reviewer applies the product-quality
+   scorecard from [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md) during review
+   before closeout.
 9. Run `./scripts/review-gate.sh approve` for the current HEAD.
 10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
 11. Merge the PR when checks are green and findings are resolved.
@@ -157,8 +160,8 @@ one.
 | --- | --- |
 | `planning-subagent` | Researches the issue, reuses existing harness patterns first, and writes self-contained verifiable phases when planning is needed. |
 | `implementation-subagent` | Implements one selected `feature_list` item by editing production assets only. It does not write tests or mark `passes:true`. |
-| `test-subagent` | Writes or updates verification assets for one selected feature, runs declared sensors, and may mark `passes:true` only after checks pass. |
-| `code-review-subagent` | Reviews spec compliance and quality, including security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. |
+| `test-subagent` | Writes or updates verification assets for one selected feature, runs declared sensors, and applies product-quality blocking gate checks before marking `passes:true`. |
+| `code-review-subagent` | Reviews spec compliance and quality, applies the product-quality scorecard during review before closeout, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. |
 | `session-ritual.prompt.md` | A user-invoked prompt for resuming the coding-session ritual on a specific issue. |
 | Skills under `.copilot/skills/` | On-demand review, PR, security, drift, and code-quality sensors used by the conductor and review workflow. |
 
