@@ -48,8 +48,29 @@ Before you mark a feature `passes:true`, **map each acceptance criterion and fea
 workspace state. If you cannot point at the exact sensor that proves a criterion,
 the feature does not pass.
 
-The following gaps are **BLOCKING** — return them as a handback, never as a
-silent pass:
+### Product-Quality Blocking Gates
+
+Every feature must pass the **product-quality rubric** gates defined in `docs/evaluation/product-quality-rubric.md`
+before you mark `passes:true`. You must **check all product-quality gates and collect gate evidence before marking passes:true**. These gates are **BLOCKING** — a failed gate is a mandatory handback with evidence,
+expected fix direction, and the sensor or review to rerun.
+
+The four gates:
+
+1. **Spec fidelity** — the implementation delivers the acceptance criterion as written, without drift or omission.
+2. **Executable verification** — the declared `regression_sensor` and `e2e_sensor` (when applicable) exist, run, and
+   prove the criterion on the current workspace state.
+3. **Main workflow works** — the feature's primary happy path executes without error in a clean environment.
+4. **No known critical breakage** — no P0/P1 defect is known in the implemented scope (unhandled exceptions, data loss,
+   auth bypass, breaking changes to published contracts).
+
+You must report gate evidence (which gate, the sensor or check that proves it, and the result) in your Pass status
+output. A missing gate check or a failed gate is a **BLOCKING handback** — include the gate name, evidence of failure,
+the expected fix direction, and the sensor or review to rerun. Never mark `passes:true` with a failed or unchecked
+gate.
+
+### Sensor Coverage Gaps
+
+The following sensor gaps are also **BLOCKING** — return them as a handback, never as a silent pass:
 
 - **Missing sensor coverage** — an acceptance criterion or required behaviour has
   no sensor mapped to it.
@@ -75,10 +96,14 @@ to clear one — report the gap instead.
    means an e2e sensor is required; only low verification clarity with no automatable boundary may fall back to a
    documented manual check. A high usefulness score never licenses weakening or skipping a required sensor.
 3. Run the declared deterministic sensor first, then the e2e sensor when applicable.
-4. If all required sensors pass, update only that selected feature's `passes`, `verification`, and factual status fields
-   in `.copilot-tracking/issues/issue-NN/feature_list.json` when the conductor asks you to own the pass flip.
-5. Return failures with the command output summary and the production area that should be revisited.
-6. Return the substantive verification actions the conductor should record in the issue progress Action Log.
+4. **Check product-quality blocking gates** (spec fidelity, executable verification, main workflow works, no known
+   critical breakage) using the rubric in `docs/evaluation/product-quality-rubric.md`. Collect gate evidence for
+   your Pass status output.
+5. If all required sensors pass **and all product-quality gates pass**, update only that selected feature's `passes`,
+   `verification`, and factual status fields in `.copilot-tracking/issues/issue-NN/feature_list.json` when the
+   conductor asks you to own the pass flip.
+6. Return failures with the command output summary and the production area that should be revisited.
+7. Return the substantive verification actions the conductor should record in the issue progress Action Log.
 
 ## Output Format
 
@@ -86,13 +111,17 @@ Return exactly these sections:
 
 - `Verification files`: tests, fixtures, or smoke assets created or modified.
 - `Commands`: commands run and pass/fail results.
-- `Pass status`: whether `passes:true` is justified for the selected feature, with the **criterion → sensor map**
-   (each acceptance criterion / feature item and the exact sensor that proves it, plus its run result). If any mapping
-   is missing, happy-path-only for a required failure mode, or non-executable, report it as **BLOCKING** here instead
-   of passing.
+- `Pass status`: whether `passes:true` is justified for the selected feature, with:
+  - The **criterion → sensor map** (each acceptance criterion / feature item and the exact sensor that proves it,
+    plus its run result). If any mapping is missing, happy-path-only for a required failure mode, or non-executable,
+    report it as **BLOCKING** here instead of passing.
+  - **Product-quality gate results** (spec fidelity, executable verification, main workflow works, no known critical
+    breakage) with evidence for each gate (the check performed and result). A failed or unchecked gate is **BLOCKING**.
 - `Handback`: production fixes needed, or confirmation that the conductor can proceed to review, including Action Log
    entries the conductor should record. **Classify the handback so the conductor can route it (Loop 1):** label each
-   item a **production defect** (declared sensor fails on real behaviour → conductor routes to `implementation-subagent`)
-   or a **verification/sensor gap** (a sensor is missing, weak, or itself wrong → conductor routes back to you, or to
-   the conductor when a *declared* sensor must change). Never weaken, skip, or replace a declared sensor to make
-   verification pass; report the gap instead. You do not call other subagents directly — the conductor owns the loop.
+   item a **production defect** (declared sensor fails on real behaviour → conductor routes to `implementation-subagent`),
+   a **verification/sensor gap** (a sensor is missing, weak, or itself wrong → conductor routes back to you, or to
+   the conductor when a *declared* sensor must change), or a **failed product-quality gate** (gate name, evidence,
+   expected fix direction, sensor or review to rerun → conductor routes to implementation-subagent or back to you
+   depending on the gap). Never weaken, skip, or replace a declared sensor to make verification pass; report the gap
+   instead. You do not call other subagents directly — the conductor owns the loop.

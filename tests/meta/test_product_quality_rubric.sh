@@ -10,8 +10,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-# Subcommand dispatch (for future features: examples, test-subagent,
-# code-review-subagent, lifecycle-docs, evaluation-readme, all).
+# Subcommand dispatch (for future features: code-review-subagent,
+# lifecycle-docs, evaluation-readme).
 subcommand="${1:-all}"
 
 test_doc() {
@@ -144,6 +144,67 @@ test_examples() {
   return "$fail"
 }
 
+test_subagent() {
+  local fail=0
+  local note_fn="$1"
+  local agent=".copilot/agents/test-subagent.agent.md"
+
+  [ -f "$agent" ] || { "$note_fn" "missing $agent"; return 1; }
+
+  # References product-quality blocking gates or product-quality rubric.
+  if ! grep -Eqi 'product.quality.*blocking gate|blocking gate.*product.quality|product.quality.*rubric|rubric.*product.quality' "$agent"; then
+    "$note_fn" "$agent must reference product-quality blocking gates or rubric"
+  fi
+
+  # References the rubric doc path.
+  if ! grep -q 'docs/evaluation/product-quality-rubric.md' "$agent"; then
+    "$note_fn" "$agent must reference docs/evaluation/product-quality-rubric.md"
+  fi
+
+  # Requires gate evidence before passes:true.
+  if ! grep -Eqi 'gate.*evidence.*before.*pass|gate.*check.*before.*pass|check.*gate.*before.*pass' "$agent"; then
+    "$note_fn" "$agent must require gate evidence before marking passes:true"
+  fi
+
+  # Includes the four blocking gates.
+  grep -Eqi 'spec fidelity' "$agent" ||
+    "$note_fn" "$agent must reference 'spec fidelity' gate"
+  grep -Eqi 'executable verification' "$agent" ||
+    "$note_fn" "$agent must reference 'executable verification' gate"
+  grep -Eqi 'main workflow works' "$agent" ||
+    "$note_fn" "$agent must reference 'main workflow works' gate"
+  grep -Eqi 'no known critical breakage' "$agent" ||
+    "$note_fn" "$agent must reference 'no known critical breakage' gate"
+
+  # Pass status output requires blocking gate results.
+  if ! grep -Eqi 'pass.*status.*gate|gate.*result.*pass.*status|blocking.*gate.*result' "$agent"; then
+    "$note_fn" "$agent Pass status output must require blocking gate results"
+  fi
+
+  # Pass status output requires criterion-to-sensor mapping.
+  if ! grep -Eqi 'criterion.*sensor.*map|sensor.*map.*criterion|criterion.*sensor|acceptance.*criterion.*sensor' "$agent"; then
+    "$note_fn" "$agent Pass status output must require criterion-to-sensor mapping"
+  fi
+
+  # Failed gates are BLOCKING handbacks.
+  if ! grep -Eqi 'failed.*gate.*blocking|gate.*fail.*blocking|blocking.*gate.*fail' "$agent"; then
+    "$note_fn" "$agent must treat failed gates as BLOCKING handbacks"
+  fi
+
+  # Handbacks include required information.
+  if ! grep -Eqi 'handback.*gate.*evidence|handback.*gate.*fail|gate.*evidence.*handback' "$agent"; then
+    "$note_fn" "$agent handbacks must include gate failed and evidence"
+  fi
+  if ! grep -Eqi 'handback.*fix.*direction|fix.*direction.*handback|expected.*fix' "$agent"; then
+    "$note_fn" "$agent handbacks must include expected fix direction"
+  fi
+  if ! grep -Eqi 'handback.*sensor.*rerun|sensor.*rerun.*handback|review.*rerun' "$agent"; then
+    "$note_fn" "$agent handbacks must include sensor or review to rerun"
+  fi
+
+  return "$fail"
+}
+
 case "$subcommand" in
   doc)
     fail=0
@@ -159,17 +220,25 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric examples checks pass"
     ;;
+  test-subagent)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_subagent note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric test-subagent checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
     test_doc note
     test_examples note
+    test_subagent note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|all}" >&2
+    echo "usage: $0 {doc|examples|test-subagent|all}" >&2
     exit 1
     ;;
 esac
