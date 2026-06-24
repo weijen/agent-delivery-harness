@@ -84,6 +84,66 @@ test_doc() {
   return "$fail"
 }
 
+test_examples() {
+  local fail=0
+  local note_fn="$1"
+  local doc="docs/evaluation/product-quality-rubric.md"
+
+  [ -f "$doc" ] || { "$note_fn" "missing $doc"; return 1; }
+
+  # Examples or calibration section.
+  if ! grep -Eqi 'example|calibration' "$doc"; then
+    "$note_fn" "$doc must include examples or calibration section"
+  fi
+
+  # Good evaluation example.
+  if ! grep -Eqi 'good.*example|example.*good|strong.*example|example.*strong' "$doc"; then
+    "$note_fn" "$doc must include a good/strong evaluation example"
+  fi
+
+  # Bad evaluation example.
+  if ! grep -Eqi 'bad.*example|example.*bad|weak.*example|example.*weak|fail.*example|example.*fail' "$doc"; then
+    "$note_fn" "$doc must include a bad/weak/fail evaluation example"
+  fi
+
+  # Edge-case or waiver example.
+  if ! grep -Eqi 'edge.*example|example.*edge|waiver.*example|example.*waiver|needs.revision.*example|example.*needs.revision' "$doc"; then
+    "$note_fn" "$doc must include an edge-case or waiver example"
+  fi
+
+  # Examples include feature/acceptance context.
+  if ! grep -Eqi 'feature.*context|acceptance.*criteri|issue.*\#[0-9]|F[0-9]+' "$doc"; then
+    "$note_fn" "$doc examples must include feature or acceptance context"
+  fi
+
+  # Examples include sensors and results or sensor evidence.
+  if ! grep -Eqi 'sensor|test.*result|regression.*sensor|e2e.*sensor' "$doc"; then
+    "$note_fn" "$doc examples must include sensors and run results or sensor evidence"
+  fi
+
+  # Examples include blocking gate results.
+  if ! grep -Eqi 'gate.*pass|gate.*fail|gate.*result|spec fidelity.*pass|spec fidelity.*fail|executable verification.*pass|executable verification.*fail' "$doc"; then
+    "$note_fn" "$doc examples must include blocking gate results"
+  fi
+
+  # Examples include scorecard results or dimension scores.
+  if ! grep -Eqi 'scorecard.*[0-2]|dimension.*score|workflow completeness.*[0-2]|total.*score' "$doc"; then
+    "$note_fn" "$doc examples must include scorecard results or dimension scores"
+  fi
+
+  # Examples include routeable handbacks.
+  if ! grep -Eqi 'handback.*implementation|handback.*test|handback.*conductor' "$doc"; then
+    "$note_fn" "$doc examples must include routeable handbacks"
+  fi
+
+  # Calibration guidance for 0/1/2 score boundaries.
+  if ! grep -Eqi 'calibration|score.*anchor|0.*vs.*1|1.*vs.*2|distinguish.*[0-2]|boundary.*[0-2]' "$doc"; then
+    "$note_fn" "$doc must include calibration guidance for 0/1/2 score boundaries"
+  fi
+
+  return "$fail"
+}
+
 case "$subcommand" in
   doc)
     fail=0
@@ -92,16 +152,24 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric doc checks pass"
     ;;
+  examples)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_examples note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric examples checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
     test_doc note
+    test_examples note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|all}" >&2
+    echo "usage: $0 {doc|examples|all}" >&2
     exit 1
     ;;
 esac
