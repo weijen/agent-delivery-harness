@@ -205,6 +205,100 @@ test_subagent() {
   return "$fail"
 }
 
+test_code_review_subagent() {
+  local fail=0
+  local note_fn="$1"
+  local agent=".copilot/agents/code-review-subagent.agent.md"
+
+  [ -f "$agent" ] || { "$note_fn" "missing $agent"; return 1; }
+
+  # References product-quality rubric.
+  if ! grep -Eqi 'product.quality.*rubric|rubric.*product.quality' "$agent"; then
+    "$note_fn" "$agent must reference product-quality rubric"
+  fi
+
+  # References the rubric doc path.
+  if ! grep -q 'docs/evaluation/product-quality-rubric.md' "$agent"; then
+    "$note_fn" "$agent must reference docs/evaluation/product-quality-rubric.md"
+  fi
+
+  # Blocking gates in Verdict 2 / test/sensor adequacy.
+  if ! grep -Eqi 'verdict 2.*blocking gate|blocking gate.*verdict 2|test.*sensor adequacy.*blocking gate' "$agent"; then
+    "$note_fn" "$agent must place blocking gates in Verdict 2 / test/sensor adequacy"
+  fi
+
+  # Names the four blocking gates.
+  grep -Eqi 'spec fidelity' "$agent" ||
+    "$note_fn" "$agent must name 'spec fidelity' as a blocking gate"
+  grep -Eqi 'executable verification' "$agent" ||
+    "$note_fn" "$agent must name 'executable verification' as a blocking gate"
+  grep -Eqi 'main workflow works' "$agent" ||
+    "$note_fn" "$agent must name 'main workflow works' as a blocking gate"
+  grep -Eqi 'no known critical breakage' "$agent" ||
+    "$note_fn" "$agent must name 'no known critical breakage' as a blocking gate"
+
+  # Scorecard in Verdict 3 / code quality or maintainability.
+  if ! grep -Eqi 'verdict 3.*scorecard|scorecard.*verdict 3|code quality.*scorecard|maintainability.*scorecard' "$agent"; then
+    "$note_fn" "$agent must place scorecard in Verdict 3 / code quality or maintainability"
+  fi
+
+  # Names the six dimensions.
+  grep -Eqi 'workflow completeness' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'workflow completeness' dimension"
+  grep -Eqi 'failure.*edge handling|edge.*failure handling' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'failure and edge handling' dimension"
+  grep -Eqi 'state.*data coherence|data.*state coherence' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'state and data coherence' dimension"
+  grep -Eqi 'integration depth' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'integration depth' dimension"
+  grep -Eqi 'recoverability.*operability|operability.*recoverability' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'recoverability and operability' dimension"
+  grep -Eqi 'verification adequacy' "$agent" ||
+    "$note_fn" "$agent scorecard must include 'verification adequacy' dimension"
+
+  # Requires 0/1/2 scoring and FAIL/NEEDS_REVISION/PASS/STRONG_PASS interpretation.
+  if ! grep -Eqi '\b0\b.*\b1\b.*\b2\b|\b2\b.*\b1\b.*\b0\b|0/1/2' "$agent"; then
+    "$note_fn" "$agent must require 0/1/2 scoring"
+  fi
+  if ! grep -Eqi '\bFAIL\b' "$agent" || ! grep -Eqi 'NEEDS_REVISION|NEEDS REVISION' "$agent" ||
+     ! grep -Eqi '\bPASS\b' "$agent" || ! grep -Eqi 'STRONG_PASS|STRONG PASS' "$agent"; then
+    "$note_fn" "$agent must include FAIL/NEEDS_REVISION/PASS/STRONG_PASS interpretation"
+  fi
+  if ! grep -Eq '0[–-]5.*FAIL|FAIL.*0[–-]5' "$agent"; then
+    "$note_fn" "$agent must map score 0-5 to FAIL, matching the product-quality rubric"
+  fi
+  if ! grep -Eq '6[–-]8.*NEEDS_REVISION|NEEDS_REVISION.*6[–-]8|6[–-]8.*NEEDS REVISION|NEEDS REVISION.*6[–-]8' "$agent"; then
+    "$note_fn" "$agent must map score 6-8 to NEEDS_REVISION, matching the product-quality rubric"
+  fi
+  if ! grep -Eq '9[–-]10.*PASS|PASS.*9[–-]10' "$agent"; then
+    "$note_fn" "$agent must map score 9-10 to PASS, matching the product-quality rubric"
+  fi
+  if ! grep -Eq '11[–-]12.*STRONG_PASS|STRONG_PASS.*11[–-]12|11[–-]12.*STRONG PASS|STRONG PASS.*11[–-]12' "$agent"; then
+    "$note_fn" "$agent must map score 11-12 to STRONG_PASS, matching the product-quality rubric"
+  fi
+
+  # Failed blocking gates override the score.
+  if ! grep -Eqi 'failed.*gate.*override.*score|gate.*fail.*override|blocking.*gate.*override' "$agent"; then
+    "$note_fn" "$agent must state that failed blocking gates override the score"
+  fi
+  if ! grep -Eqi 'failed.*gate.*\bFAIL\b|gate.*fail.*\bFAIL\b|blocking.*gate.*\bFAIL\b' "$agent"; then
+    "$note_fn" "$agent must state that a failed blocking gate forces a FAIL verdict"
+  fi
+
+  # Routes product-quality findings to implementation-subagent, test-subagent, or conductor/human gate.
+  if ! grep -Eqi 'implementation-subagent' "$agent"; then
+    "$note_fn" "$agent must route findings to implementation-subagent"
+  fi
+  if ! grep -Eqi 'test-subagent' "$agent"; then
+    "$note_fn" "$agent must route findings to test-subagent"
+  fi
+  if ! grep -Eqi 'conductor.*human|human.*gate|conductor.*gate' "$agent"; then
+    "$note_fn" "$agent must route findings to conductor/human gate"
+  fi
+
+  return "$fail"
+}
+
 case "$subcommand" in
   doc)
     fail=0
@@ -227,18 +321,26 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric test-subagent checks pass"
     ;;
+  code-review-subagent)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_code_review_subagent note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric code-review-subagent checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
     test_doc note
     test_examples note
     test_subagent note
+    test_code_review_subagent note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|test-subagent|all}" >&2
+    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|all}" >&2
     exit 1
     ;;
 esac
