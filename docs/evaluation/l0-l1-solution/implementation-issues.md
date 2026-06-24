@@ -2,8 +2,25 @@
 
 This page enumerates the GitHub issues required to implement the L0/L1 solution
 defined in [README.md](README.md), [architecture.md](architecture.md), and
-[spec.md](spec.md). **None of these issues are open yet** — this is the planned
-backlog for review before any issue is created.
+[spec.md](spec.md). These issues are now open — see the GitHub mapping below.
+
+## GitHub Issue Mapping
+
+The backlog below (doc Issues 1–9) is tracked on GitHub as issues #61–#69:
+
+| Doc Issue | GitHub | Implementation order |
+| --- | --- | --- |
+| 1 | [#61](https://github.com/weijen/agent-delivery-harness/issues/61) | 1 |
+| 2 | [#62](https://github.com/weijen/agent-delivery-harness/issues/62) | 4 |
+| 3 | [#63](https://github.com/weijen/agent-delivery-harness/issues/63) | 2 |
+| 4 | [#64](https://github.com/weijen/agent-delivery-harness/issues/64) | 5 |
+| 5 | [#65](https://github.com/weijen/agent-delivery-harness/issues/65) | 3 |
+| 6 | [#66](https://github.com/weijen/agent-delivery-harness/issues/66) | 7 |
+| 7 | [#67](https://github.com/weijen/agent-delivery-harness/issues/67) | 6 |
+| 8 | [#68](https://github.com/weijen/agent-delivery-harness/issues/68) | 8 |
+| 9 | [#69](https://github.com/weijen/agent-delivery-harness/issues/69) | 9 |
+
+Implementation order (strict): **#61 → #63 → #65 → #62 → #64 → #67 → #66 → #68 → #69**.
 
 ## How Many Issues, And Why
 

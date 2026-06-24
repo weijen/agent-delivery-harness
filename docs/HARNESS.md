@@ -165,6 +165,27 @@ one.
 The conductor remains responsible for selecting the issue and feature, preserving scope, approving the current HEAD,
 committing, pushing, opening PRs, and merging.
 
+### Skill × subagent × stage
+
+Which skill fires, who owns it, and at which lifecycle phase:
+
+| Skill | Owner role | Stage / phase | Fires on |
+| --- | --- | --- | --- |
+| `general` | planner · implementer · tester · code reviewer | All phases (background) | Fallback coding/test/git conventions when no `<language>.instructions.md` applies |
+| `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
+| `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
+| `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
+| `dead-code-detection` | `code-review-subagent` | Review | Dead code among symbols the diff adds, renames, routes, or removes |
+| `sync-docs` | `code-review-subagent` | Review | Doc drift from touched commands, paths, agent/skill names |
+| `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
+| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Pre-commit / pre-PR diff review (every commit, every PR) |
+| `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
+| `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
+
+Planner, implementer, and tester carry no distinctive skill beyond `general`; their quality bar comes from the
+applicable `<language>.instructions.md` plus `tdd.instructions.md`, not a skill. The audit skills are concentrated in
+`code-review-subagent` so one fresh-context pass owns whole-diff quality.
+
 ### The conductor must not do feature work itself (non-delegable)
 
 When the issue workflow is active, the conductor **must not directly** write the feature's tests/sensors or its

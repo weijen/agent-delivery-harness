@@ -136,3 +136,24 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Subagent** `code-review-subagent` | Tier 3 final review pass (full mode) before PR | Conductor invokes after implementation completes |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
+
+### Skill × subagent × stage
+
+Which skill fires, who owns it, and at which lifecycle phase:
+
+| Skill | Owner role | Stage / phase | Fires on |
+| --- | --- | --- | --- |
+| `general` | planner · implementer · tester · code reviewer | All phases (background) | Fallback coding/test/git conventions when no `<language>.instructions.md` applies |
+| `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
+| `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
+| `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
+| `dead-code-detection` | `code-review-subagent` | Review | Dead code among symbols the diff adds, renames, routes, or removes |
+| `sync-docs` | `code-review-subagent` | Review | Doc drift from touched commands, paths, agent/skill names |
+| `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
+| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Pre-commit / pre-PR diff review (every commit, every PR) |
+| `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
+| `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
+
+Planner, implementer, and tester carry no distinctive skill beyond `general`; their quality bar comes from the
+applicable `<language>.instructions.md` plus `.copilot/instructions/tdd.instructions.md`, not a skill. The audit skills
+are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.
