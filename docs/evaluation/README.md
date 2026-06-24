@@ -59,6 +59,7 @@ and have their own pages below.
 | [observability-and-trace-schema.md](observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
 | [statistical-methodology.md](statistical-methodology.md) | Cross-cutting | Trials, pass@k vs pass^k, noise vs regression |
 | [evaluation-matrix.md](evaluation-matrix.md) | Cross-cutting | Shared eval schema and grader types |
+| [product-quality-rubric.md](product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
 | [research-notes.md](research-notes.md) | Cross-cutting | External grounding and open questions |
 | [l0-l1-solution/](l0-l1-solution/) | L0/L1 solution | Runnable architecture and spec for the first two layers |
 
@@ -69,7 +70,11 @@ capability, a boundary, a mode (`regression` or `capability`), a dataset, one or
 more graders, trials, and thresholds. The canonical schema lives in
 [evaluation-matrix.md](evaluation-matrix.md); the dataset lifecycle behind it
 lives in [dataset-governance.md](dataset-governance.md); the trial and threshold
-math lives in [statistical-methodology.md](statistical-methodology.md).
+math lives in [statistical-methodology.md](statistical-methodology.md). The
+coding-agent functionality product quality rubric lives in
+[product-quality-rubric.md](product-quality-rubric.md), where it frames useful,
+complete, workflow-fit agent behavior; it is not a visual, aesthetic, or
+UI-design rubric.
 
 ## Public Dataset Seeds
 
@@ -101,8 +106,10 @@ sensitivity constraints.
 7. **L4 outcome** fixtures last — most expensive, least deterministic.
 
 Cross-cutting pages (judge calibration, dataset governance, observability schema,
-statistical method, cost/efficiency) are prerequisites that the layer work pulls
-in as needed rather than a separate phase.
+statistical method, cost/efficiency, and the coding-agent functionality product
+quality rubric in [product-quality-rubric.md](product-quality-rubric.md)) are
+prerequisites that the layer work pulls in as needed rather than a separate
+phase.
 
 ## Issue Creation Guidance
 

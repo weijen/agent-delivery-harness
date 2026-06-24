@@ -11,8 +11,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 # Subcommand dispatch (for future features: code-review-subagent,
-# lifecycle-docs, evaluation-readme).
+# lifecycle-docs).
 subcommand="${1:-all}"
+
+section_has_pattern() {
+  local doc="$1"
+  local header_pattern="$2"
+  local body_pattern="$3"
+
+  awk -v header_pattern="$header_pattern" -v body_pattern="$body_pattern" '
+    /^## / {
+      in_section = ($0 ~ header_pattern)
+      next
+    }
+    in_section && $0 ~ body_pattern { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$doc"
+}
 
 test_doc() {
   local fail=0
@@ -362,6 +377,41 @@ test_lifecycle_docs() {
   return "$fail"
 }
 
+test_evaluation_readme() {
+  local fail=0
+  local note_fn="$1"
+  local doc="docs/evaluation/README.md"
+
+  [ -f "$doc" ] || { "$note_fn" "missing $doc"; return 1; }
+
+  # The overview must list the product-quality rubric as an evaluation page.
+  if ! grep -Eq '\[product-quality-rubric\.md\]\(product-quality-rubric\.md\)|\[([^]]*[Pp]roduct[ -][Qq]uality[^]]*|[^]]*[Rr]ubric[^]]*)\]\(product-quality-rubric\.md\)' "$doc"; then
+    "$note_fn" "$doc must list/link product-quality-rubric.md in the evaluation overview"
+  fi
+
+  # The rubric should be discoverable from the page list or scorecard model.
+  if ! section_has_pattern "$doc" 'Evaluation Areas|Scorecard Model' '[Pp]roduct[ -][Qq]uality.*[Rr]ubric|[Rr]ubric.*[Pp]roduct[ -][Qq]uality|product-quality-rubric\.md'; then
+    "$note_fn" "$doc must mention the product-quality rubric near Evaluation Areas or Scorecard Model"
+  fi
+
+  # Implementation sequencing should tell readers when this rubric applies.
+  if ! section_has_pattern "$doc" 'Implementation Priority' '[Pp]roduct[ -][Qq]uality.*[Rr]ubric|[Rr]ubric.*[Pp]roduct[ -][Qq]uality|product-quality-rubric\.md'; then
+    "$note_fn" "$doc must mention the product-quality rubric near Implementation Priority"
+  fi
+
+  # Keep the rubric framed around coding-agent functionality product quality.
+  if ! grep -Eqi 'coding-agent.*(functionality|functional).*product quality|(functionality|functional).*product quality.*coding-agent|agent.*functionality.*product quality|product quality.*agent.*functionality' "$doc"; then
+    "$note_fn" "$doc must frame the rubric as coding-agent functionality product quality"
+  fi
+
+  # This rubric is not a visual-design grading rubric.
+  if grep -Eqi 'visual design grading|visual-design grading|design grading|visual grading|aesthetic grading|UI design grading' "$doc"; then
+    "$note_fn" "$doc must not frame the product-quality rubric as visual design grading"
+  fi
+
+  return "$fail"
+}
+
 case "$subcommand" in
   doc)
     fail=0
@@ -398,6 +448,13 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric lifecycle docs checks pass"
     ;;
+  evaluation-readme)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_evaluation_readme note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric evaluation README checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
@@ -406,12 +463,13 @@ case "$subcommand" in
     test_subagent note
     test_code_review_subagent note
     test_lifecycle_docs note
+    test_evaluation_readme note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|all}" >&2
+    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|evaluation-readme|all}" >&2
     exit 1
     ;;
 esac
