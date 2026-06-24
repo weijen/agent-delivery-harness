@@ -299,6 +299,69 @@ test_code_review_subagent() {
   return "$fail"
 }
 
+test_lifecycle_docs() {
+  local fail=0
+  local note_fn="$1"
+  local docs=(
+    "docs/HARNESS.md"
+    ".copilot/instructions/harness.instructions.md"
+  )
+  local doc
+
+  for doc in "${docs[@]}"; do
+    [ -f "$doc" ] || { "$note_fn" "missing $doc"; fail=1; continue; }
+
+    # Both lifecycle docs must route readers to the product-quality rubric.
+    if ! grep -Eqi 'docs/evaluation/product-quality-rubric\.md|product[- ]quality rubric|product quality.*rubric|rubric.*product quality' "$doc"; then
+      "$note_fn" "$doc must reference docs/evaluation/product-quality-rubric.md or the product-quality rubric"
+    fi
+
+    # Blocking gates belong to evaluator/test-subagent lifecycle responsibilities before passes:true.
+    if ! grep -Eqi 'blocking gate' "$doc"; then
+      "$note_fn" "$doc must mention product-quality blocking gates in the lifecycle"
+    fi
+    if ! grep -Eqi 'test-subagent|Evaluator' "$doc"; then
+      "$note_fn" "$doc must preserve test-subagent/evaluator lifecycle responsibility"
+    fi
+    if ! grep -Eqi 'passes:true' "$doc"; then
+      "$note_fn" "$doc must preserve the passes:true lifecycle marker"
+    fi
+    if ! grep -Eqi '(test-subagent|Evaluator).*(blocking gate|product[- ]quality|rubric).*(passes:true|before.*pass|mark.*pass)|(blocking gate|product[- ]quality|rubric).*(test-subagent|Evaluator).*(passes:true|before.*pass|mark.*pass)' "$doc"; then
+      "$note_fn" "$doc must make blocking-gate verification a test-subagent/evaluator responsibility before passes:true"
+    fi
+
+    # The scorecard belongs to review/reviewer responsibilities before closeout.
+    if ! grep -Eqi 'scorecard|score ?card' "$doc"; then
+      "$note_fn" "$doc must mention the product-quality scorecard"
+    fi
+    if ! grep -Eqi 'code-review-subagent|Reviewer' "$doc"; then
+      "$note_fn" "$doc must preserve code-review-subagent/reviewer lifecycle responsibility"
+    fi
+    if ! grep -Eqi 'closeout|review' "$doc"; then
+      "$note_fn" "$doc must preserve review/closeout lifecycle placement"
+    fi
+    if ! grep -Eqi '(code-review-subagent|Reviewer).*(scorecard|score ?card|product[- ]quality|rubric).*(review|closeout)|(scorecard|score ?card|product[- ]quality|rubric).*(code-review-subagent|Reviewer).*(review|closeout)' "$doc"; then
+      "$note_fn" "$doc must make scorecard evaluation a code-review-subagent/reviewer responsibility before closeout/review"
+    fi
+
+    # Conductor-owned routing and role boundaries must remain explicit.
+    if ! grep -Eqi 'conductor' "$doc"; then
+      "$note_fn" "$doc must preserve conductor role text"
+    fi
+    if ! grep -Eqi 'implementation-subagent' "$doc"; then
+      "$note_fn" "$doc must preserve implementation-subagent role text"
+    fi
+    if ! grep -Eqi 'conductor.*(owns|drives|routes|selects|commits|pushes)|conductor.*must not|must not.*conductor|conductor-owned' "$doc"; then
+      "$note_fn" "$doc must keep conductor-owned routing and role boundaries explicit"
+    fi
+    if ! grep -Eqi 'role boundaries|preserve role boundaries|must not directly|non-delegable|does not implement|never writes' "$doc"; then
+      "$note_fn" "$doc must keep role boundaries explicit"
+    fi
+  done
+
+  return "$fail"
+}
+
 case "$subcommand" in
   doc)
     fail=0
@@ -328,6 +391,13 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric code-review-subagent checks pass"
     ;;
+  lifecycle-docs)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_lifecycle_docs note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric lifecycle docs checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
@@ -335,12 +405,13 @@ case "$subcommand" in
     test_examples note
     test_subagent note
     test_code_review_subagent note
+    test_lifecycle_docs note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|all}" >&2
+    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|all}" >&2
     exit 1
     ;;
 esac

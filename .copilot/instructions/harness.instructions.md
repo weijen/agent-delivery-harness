@@ -94,11 +94,8 @@ active exec-plan under `docs/exec-plans/active/` once those are introduced.
   - **Generator** (`implementation-subagent`) implements only that selected feature's production
     assets, reports substantive implementation actions for the issue progress Action Log, and must not write tests or
     mark `passes:true`.
-  - **Evaluator** (`test-subagent`) writes/runs the selected feature's sensors and may mark that
-    feature `passes:true` only after the declared checks pass; it reports substantive verification actions for the
-    issue progress Action Log.
-  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code
-    quality before closeout and reports substantive review findings or approvals for the issue progress Action Log.
+  - **Evaluator** (`test-subagent`) writes/runs the selected feature's sensors, applies the product-quality blocking gate checks in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md), and may mark that feature `passes:true` only after the declared checks and gate evidence pass; it reports substantive verification actions for the issue progress Action Log.
+  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md) during review before closeout, and reports substantive review findings or approvals for the issue progress Action Log.
 
 #### What counts as one feature (granularity rule)
 
@@ -150,7 +147,7 @@ Action Log):
 3. **`implementation-subagent` makes the minimal production change** to satisfy that sensor; it does not touch tests
    or `passes:true`.
 4. **`test-subagent` verifies GREEN** and updates completion status — it runs the declared `regression_sensor` and
-   any `e2e_sensor`, and only then may flip `passes:true`.
+   any `e2e_sensor`, records product-quality blocking gate evidence, and only then may flip `passes:true`.
 5. **Conductor commits/pushes** the result and records the handbacks.
 
 If a step fails, the conductor routes the handback to the owning subagent (production defect →
