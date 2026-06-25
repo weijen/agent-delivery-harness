@@ -82,8 +82,12 @@ human-readable companion to the GitHub issue. Standard contents:
   and update it at milestones.
 - `progress.md` — running log: what changed, which features flipped, commit shas, next feature to pick.
 
-The pushed, project-wide counterparts are `docs/IMPLEMENTATION-STATUS.md` (status) and the
-active exec-plan under `docs/exec-plans/active/` once those are introduced.
+The pushed, project-wide counterpart is `docs/PROGRESS.md` (repo-wide status), alongside the
+active exec-plan under `docs/exec-plans/active/` once introduced. **`docs/PROGRESS.md` and this
+per-issue `.copilot-tracking/issues/issue-NN/progress.md` are two separate docs and must stay
+separate**: `docs/PROGRESS.md` is repo-wide, tracked, and pushed; the per-issue `progress.md` is a
+local, gitignored Action Log for a single issue. Do not merge them, and do not "fix" the
+similar names by collapsing one into the other.
 
 ## 3. Implement one feature (TDD, incremental)
 
@@ -291,7 +295,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
      is **visibly non-compliant**, because it hides the required subagent handoff and means the non-delegable
      role-separation rule (§3) was skipped.
 4. When the issue's features are all `passes:true`, bring the repo-wide
-   `docs/IMPLEMENTATION-STATUS.md` (once introduced) to its **final** form as part of the
+   `docs/PROGRESS.md` to its **final** form as part of the
    branch — **inside the PR, never as a post-merge commit on `main`**. Once the PR is open you
    already know its number, so write the closed state directly (e.g. "Issue-NN complete — PR
    #NN"); do **not** write "pending"/"closeout pending" wording that forces a follow-up edit
@@ -350,8 +354,12 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
 
    Loop until no Critical/Major/High remains and Medium items are fixed or explicitly deferred.
    Only then proceed.
-6. `docs/IMPLEMENTATION-STATUS.md` (once introduced) is in its final closed form on the branch
-   (per §5) — committed here, so the merge needs no follow-up edit. Only then open the PR.
+6. `docs/PROGRESS.md` is in its final closed form on the branch (per §5) — committed
+   here, so the merge needs no follow-up edit. This is enforced deterministically: the
+   `review-gate.sh status-doc` gate (run via the `review-gate.sh check` call inside
+   `./scripts/create-pr.sh`) **fails closed** unless `docs/PROGRESS.md` changed in
+   `main...HEAD`. **Every change must update `docs/PROGRESS.md` — there is no opt-out**,
+   because it is the running log the next agent reads first. Only then open the PR.
 
 Skipping this gate is a process violation even when the four computational gates are green —
 the inferential sensors catch what the deterministic ones cannot. If you find yourself about

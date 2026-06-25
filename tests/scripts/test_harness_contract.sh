@@ -203,6 +203,17 @@ while IFS= read -r owner; do
   done <<< "$neutral_tokens"
 done <<< "$neutral_owners"
 
+# --- 5. No stale IMPLEMENTATION-STATUS references in tracked files -----------
+# The repo-wide status doc is named docs/PROGRESS.md everywhere (issue #84). Any
+# surviving IMPLEMENTATION-STATUS reference reintroduces the naming split.
+stale_status_refs="$(git -C "$ROOT" grep -I -l "IMPLEMENTATION-STATUS" -- . ':!tests/scripts/test_harness_contract.sh' 2>/dev/null || true)"
+if [ -n "$stale_status_refs" ]; then
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    fail "stale IMPLEMENTATION-STATUS reference in tracked file: ${f} (use docs/PROGRESS.md)"
+  done <<< "$stale_status_refs"
+fi
+
 # --- Result ------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
   printf '\n%d harness-contract violation(s).\n' "$fails" >&2

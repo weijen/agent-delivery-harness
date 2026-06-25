@@ -5,6 +5,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+# This sensor exercises the approval-marker behavior. Because `check`/`create-pr.sh`
+# now also enforce the status-doc gate (no opt-out), every feature commit below
+# updates docs/PROGRESS.md so the gate is satisfied and only the approval logic is
+# under test.
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
@@ -54,7 +59,9 @@ setup_origin_main() {
   cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/origin-work/scripts/review-gate.sh"
   printf '.copilot-tracking/\n' > "${TMP_DIR}/origin-work/.gitignore"
   printf 'initial\n' > "${TMP_DIR}/origin-work/README.md"
-  git -C "${TMP_DIR}/origin-work" add .gitignore README.md scripts/create-pr.sh scripts/review-gate.sh
+  mkdir -p "${TMP_DIR}/origin-work/docs"
+  printf '# Progress\n\nbaseline\n' > "${TMP_DIR}/origin-work/docs/PROGRESS.md"
+  git -C "${TMP_DIR}/origin-work" add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/review-gate.sh
   git -C "${TMP_DIR}/origin-work" commit -q -m "initial"
   git clone -q --bare "${TMP_DIR}/origin-work" "${TMP_DIR}/origin.git"
   git -C "${TMP_DIR}/origin-work" remote add origin "${TMP_DIR}/origin.git"
@@ -82,7 +89,19 @@ git config user.email "harness-test@example.invalid"
 
 printf '.copilot-tracking/\n' > .gitignore
 printf 'initial\n' > README.md
-git add .gitignore README.md scripts/create-pr.sh scripts/review-gate.sh
+mkdir -p docs
+printf '# Progress\n\nbaseline\n' > docs/PROGRESS.md
+git add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/review-gate.sh
+# Baseline commit on a local `main` ref — the status-doc gate's diff base when no
+# origin/main exists yet (Phase A). Feature commits below modify docs/PROGRESS.md.
+base_tree="$(git write-tree)"
+base_commit="$(printf 'baseline\n' | git commit-tree "$base_tree")"
+git branch -f main "$base_commit"
+git update-ref refs/heads/feature/review-gate "$base_commit"
+git reset -q --hard "$base_commit"
+
+printf '# Progress\n\ninitial feature work\n' > docs/PROGRESS.md
+git add docs/PROGRESS.md
 make_commit "initial"
 
 if ./scripts/review-gate.sh check >/tmp/review-gate-check.out 2>&1; then
@@ -115,7 +134,8 @@ setup_origin_main
 
 git reset -q --hard origin/main
 printf 'feature\n' > feature.txt
-git add feature.txt
+printf '# Progress\n\nphase B feature\n' > docs/PROGRESS.md
+git add feature.txt docs/PROGRESS.md
 make_commit "feature commit"
 approved_head="$(git rev-parse HEAD)"
 ./scripts/review-gate.sh approve >/tmp/review-gate-approved-feature.out
