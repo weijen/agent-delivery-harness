@@ -57,7 +57,7 @@ EOF
 }
 
 setup_origin_main() {
-  mkdir -p "${TMP_DIR}/origin-work/scripts/docs" "${TMP_DIR}/origin-work/docs"
+  mkdir -p "${TMP_DIR}/origin-work/scripts" "${TMP_DIR}/origin-work/docs"
   git init -q -b main "${TMP_DIR}/origin-work"
   git -C "${TMP_DIR}/origin-work" config user.name "Harness Test"
   git -C "${TMP_DIR}/origin-work" config user.email "harness-test@example.invalid"

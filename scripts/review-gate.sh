@@ -35,6 +35,8 @@ status_doc_gate() {
   fi
 
   local base=""
+  # origin/main is the load-bearing base (create-pr.sh fetches it before the
+  # post-sync check); local main is only an offline backstop.
   if git rev-parse --verify -q origin/main >/dev/null 2>&1; then
     base="origin/main"
   elif git rev-parse --verify -q main >/dev/null 2>&1; then
