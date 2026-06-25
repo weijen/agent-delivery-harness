@@ -59,15 +59,19 @@ Check that blocked or repeated-failure situations are logged before escalation.
 
 Use sanitized fixture Action Logs:
 
-```yaml
-id: action-log-001
-target: progress.md
-fixture: tests/evals/fixtures/action-logs/missing-review-handback.md
-expected:
-  pass: false
-  missing:
-    - code_review_verdict
-    - review_gate_approval_sha
+```json
+{
+  "id": "action-log-001",
+  "target": "progress.md",
+  "fixture": "tests/evals/fixtures/action-logs/missing-review-handback.md",
+  "expected": {
+    "pass": false,
+    "missing": [
+      "code_review_verdict",
+      "review_gate_approval_sha"
+    ]
+  }
+}
 ```
 
 The structured event vocabulary these fixtures assert against is defined once in

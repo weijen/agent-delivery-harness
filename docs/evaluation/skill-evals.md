@@ -21,6 +21,12 @@ Skills under `.copilot/skills/`, especially:
 
 ## Eval Categories
 
+Each skill should have its own evaluation profile. A profile defines the skill's
+intended boundary, the observable signals available for that skill, the graders
+that are trusted for the current maturity level, and the signals that are
+explicitly deferred. Do not assume one generic skill score applies across
+`code-review`, `create-pr`, `security-audit`, and documentation sync skills.
+
 ### Trigger Evals
 
 Use prompt sets with:
@@ -54,6 +60,114 @@ For review and audit skills, check verdict quality:
 Behavior evals that depend on an LLM judge must calibrate that judge against
 human labels using [judge-evaluation.md](judge-evaluation.md), otherwise the
 verdict quality score is itself unverified.
+
+### Deferred Signals
+
+Some signals are useful for later product or trajectory evaluation, but are out
+of scope for the first L1 skill slice:
+
+- Developer feedback such as thumbs-up/down reactions, comment dismissal,
+  suggestion acceptance, and comment resolution
+- Time-to-resolution or developer productivity metrics
+- Downstream fix success after another agent or developer implements a review
+  comment
+- End-to-end repair loops that require implementer, tester, and lifecycle trace
+  evidence
+
+These signals may become report-only inputs for L3 trajectory or L4 outcome
+evals. They must not be used as L1 blocking criteria until the product telemetry,
+role attribution, and human-label calibration are defined.
+
+## Skill Evaluation Profiles
+
+Each mature skill gets a dedicated profile before it can become a stable eval
+target. The profile records the skill boundary, the observable signals available
+today, the graders trusted at each maturity level, and the signals intentionally
+deferred to later layers. Add new skill profiles as sibling sections so each
+skill can evolve its own evaluation contract without forcing one generic score
+across unrelated skill types.
+
+### Code Review Skill Evaluation Profile
+
+#### Skill Boundary
+
+The `code-review` skill reviews changed code and reports correctness, security,
+performance, maintainability, and testing findings. L1 evaluates the standalone
+skill output. It does not evaluate whether another agent later implements the
+feedback correctly, whether a developer accepts a suggestion, or whether the PR
+eventually merges.
+
+#### In-Scope Signals
+
+The initial profile separates routing, artifact quality, and bounded review
+behavior:
+
+| Boundary | Observable signal | Initial grader | Blocking status |
+| --- | --- | --- | --- |
+| `skill-trigger` | Skill-selection telemetry, command route, or stable proxy artifact | Expected skill equals observed skill; report true positives, false positives, true negatives, and false negatives | Report-only until observation is stable |
+| `skill-artifact` | Structured review artifact with `skill_id`, findings, severities, evidence, recommendations, and summary counts | Schema, required fields, severity enum, summary consistency, and redaction checks | Candidate for blocking after schema stabilizes |
+| `skill-behavior` | Structured findings against seeded bug fixtures | Narrow fixture grader for expected issue type, severity band, evidence specificity, actionability, and false positives | Report-only until fixture labels and any judge are calibrated |
+
+#### Artifact Contract
+
+A structured `code-review` artifact should include:
+
+- `skill_id` set to `code-review`
+- Findings with severity, category, file path, evidence, and recommendation
+- Summary counts that match the finding list
+- Redaction status for secrets, local-only paths, tenant IDs, subscription IDs,
+  and private URLs
+- Assumptions or context gaps when the review cannot verify a claim
+
+The artifact grader can become deterministic once the schema is stable. It does
+not prove review quality; it proves the review output is inspectable, safe to
+store, and ready for behavior grading.
+
+#### Seeded Behavior Fixtures
+
+Behavior fixtures should use small diffs with known issues and reviewed labels.
+Initial fixture categories can include:
+
+- Missing authorization or access checks
+- SQL injection or unsanitized input
+- N+1 query or obvious performance regression
+- Off-by-one or incorrect boolean logic
+- Swallowed exception or missing error propagation
+- Missing regression test for changed behavior
+- Harness lifecycle mistakes such as stale review approval or weak sensors
+
+For each fixture, labels should identify the expected issue type, acceptable
+severity band, required evidence, and whether false positives are allowed. The
+first behavior evals should remain report-only until labels and graders are
+stable.
+
+#### Out-of-Scope Signals
+
+For `code-review`, do not use these signals in the L1 score:
+
+- Suggestion acceptance or one-click fix adoption
+- Developer reactions, comment dismissal, or comment resolution
+- Time-to-resolution or review-time savings
+- Downstream fix success after an implementer acts on a finding
+- End-to-end repair loops that require implementer, tester, or trajectory
+  evidence
+
+Those signals measure workflow adoption or multi-agent repair effectiveness.
+They belong in future L3 trajectory or L4 outcome evals, not in the standalone
+L1 skill boundary.
+
+#### Promotion Rules
+
+The `code-review` profile can promote individual eval categories independently:
+
+- Trigger evals can become blocking only after skill-selection observation is
+  stable and the positive, negative, contextual, and ambiguous strata are
+  reviewed.
+- Artifact evals can become blocking only after the structured schema and
+  redaction checks are stable.
+- Behavior evals remain report-only until seeded fixture labels are reviewed,
+  false-positive and false-negative thresholds are explicit, and any rubric or
+  LLM judge is calibrated against human labels.
 
 ## Dataset Shape
 

@@ -47,19 +47,23 @@ These concrete orderings are the highest-value trajectory checks:
 
 ## Dataset Shape
 
-```yaml
-id: create-pr-trajectory-001
-target: scripts/create-pr.sh
-mode: in_order
-input: fixture_issue_worktree
-expected_steps:
-  - review_gate_check_before_sync
-  - fetch_origin_main
-  - rebase_origin_main
-  - review_gate_check_after_rebase
-  - gh_pr_create
-forbidden_steps:
-  - push_without_review_check
+```json
+{
+  "id": "create-pr-trajectory-001",
+  "target": "scripts/create-pr.sh",
+  "mode": "in_order",
+  "input": "fixture_issue_worktree",
+  "expected_steps": [
+    "review_gate_check_before_sync",
+    "fetch_origin_main",
+    "rebase_origin_main",
+    "review_gate_check_after_rebase",
+    "gh_pr_create"
+  ],
+  "forbidden_steps": [
+    "push_without_review_check"
+  ]
+}
 ```
 
 For subagent workflows, the trace may be an Action Log or structured event log

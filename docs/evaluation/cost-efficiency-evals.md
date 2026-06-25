@@ -143,61 +143,72 @@ spans should include:
 
 ## Dataset Shape
 
-```yaml
-id: outcome-cost-001
-target: end-to-end-issue-fixture
-fixture: tests/evals/fixtures/issues/small-feature
-mode: regression
-quality_gate:
-  required_outcome: pass
-  required_lifecycle_gates:
-    - tests_passed
-    - review_completed
-    - required_approvals_observed
-trials: 5
-metric: cost_per_successful_outcome
-baseline:
-  model_version: gpt-example-2026-06-01
-  tool_versions:
-    copilot: 1.2.3
-  trace_schema_version: 1
-  price_schedule_version: 2026-06
-  median:
-    input_tokens: 18000
-    output_tokens: 4000
-    turns: 22
-    tool_calls: 31
-    latency_seconds: 420
-    useful_action_ratio: 0.55
-  p95:
-    input_tokens: 23000
-    output_tokens: 5200
-    turns: 28
-    tool_calls: 40
-    latency_seconds: 650
-  variance_band:
-    total_tokens_pct: 12
-    turns_pct: 10
-    latency_pct: 18
-thresholds:
-  max_token_increase_pct: 25
-  max_turn_increase_pct: 25
-  min_useful_action_ratio: 0.45
-  max_critical_quality_drop: 0
-report:
-  - tokens
-  - cost_per_successful_outcome
-  - turns
-  - tool_calls
-  - latency_seconds
-  - latency_p95
-  - useful_action_ratio
-  - redundant_action_count
-  - backtrack_count
-  - required_verification_actions
-  - model_version
-  - tool_versions
-  - trace_schema_version
+```json
+{
+  "id": "outcome-cost-001",
+  "target": "end-to-end-issue-fixture",
+  "fixture": "tests/evals/fixtures/issues/small-feature",
+  "mode": "regression",
+  "quality_gate": {
+    "required_outcome": "pass",
+    "required_lifecycle_gates": [
+      "tests_passed",
+      "review_completed",
+      "required_approvals_observed"
+    ]
+  },
+  "trials": 5,
+  "metric": "cost_per_successful_outcome",
+  "baseline": {
+    "model_version": "gpt-example-2026-06-01",
+    "tool_versions": {
+      "copilot": "1.2.3"
+    },
+    "trace_schema_version": 1,
+    "price_schedule_version": "2026-06",
+    "median": {
+      "input_tokens": 18000,
+      "output_tokens": 4000,
+      "turns": 22,
+      "tool_calls": 31,
+      "latency_seconds": 420,
+      "useful_action_ratio": 0.55
+    },
+    "p95": {
+      "input_tokens": 23000,
+      "output_tokens": 5200,
+      "turns": 28,
+      "tool_calls": 40,
+      "latency_seconds": 650
+    },
+    "variance_band": {
+      "total_tokens_pct": 12,
+      "turns_pct": 10,
+      "latency_pct": 18
+    }
+  },
+  "thresholds": {
+    "max_token_increase_pct": 25,
+    "max_turn_increase_pct": 25,
+    "min_useful_action_ratio": 0.45,
+    "max_critical_quality_drop": 0
+  },
+  "report": [
+    "tokens",
+    "cost_per_successful_outcome",
+    "turns",
+    "tool_calls",
+    "latency_seconds",
+    "latency_p95",
+    "useful_action_ratio",
+    "redundant_action_count",
+    "backtrack_count",
+    "required_verification_actions",
+    "model_version",
+    "tool_versions",
+    "trace_schema_version"
+  ]
+}
 ```
 
 Do not let one small fixture represent the whole harness. Baselines should be

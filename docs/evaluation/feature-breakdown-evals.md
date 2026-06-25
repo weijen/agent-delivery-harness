@@ -56,18 +56,22 @@ For a given issue + `feature_list.json`:
 
 Use synthetic but realistic issue → breakdown pairs, including deliberately bad breakdowns:
 
-```yaml
-id: feature-breakdown-001
-target: feature_list.json
-capability: one_concern_per_feature
-boundary: subagent-role
-mode: capability
-input_fixture: tests/evals/fixtures/feature-breakdown/bundled-two-concerns.feature_list.json
-expected:
-  verdict: NEEDS_REVISION
-  must_detect:
-    - feature_bundles_two_concerns
-    - missing_second_sensor
+```json
+{
+  "id": "feature-breakdown-001",
+  "target": "feature_list.json",
+  "capability": "one_concern_per_feature",
+  "boundary": "subagent-role",
+  "mode": "capability",
+  "input_fixture": "tests/evals/fixtures/feature-breakdown/bundled-two-concerns.feature_list.json",
+  "expected": {
+    "verdict": "NEEDS_REVISION",
+    "must_detect": [
+      "feature_bundles_two_concerns",
+      "missing_second_sensor"
+    ]
+  }
+}
 ```
 
 Each fixture pairs an issue summary (the acceptance criteria) with a candidate

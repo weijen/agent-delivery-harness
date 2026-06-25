@@ -52,16 +52,20 @@ The downstream decomposition of plan + clarified decisions into a one-sensor-per
 
 Use synthetic but realistic cases:
 
-```yaml
-id: reviewer-001
-target: code-review-subagent
-input_fixture: tests/evals/fixtures/presence-only-contract-test.diff
-expected:
-  verdict: NEEDS_REVISION
-  minimum_severity: MAJOR
-  must_detect:
-    - behavior_not_verified
-    - hard_warn_semantics_missing
+```json
+{
+  "id": "reviewer-001",
+  "target": "code-review-subagent",
+  "input_fixture": "tests/evals/fixtures/presence-only-contract-test.diff",
+  "expected": {
+    "verdict": "NEEDS_REVISION",
+    "minimum_severity": "MAJOR",
+    "must_detect": [
+      "behavior_not_verified",
+      "hard_warn_semantics_missing"
+    ]
+  }
+}
 ```
 
 Each case should include enough context for a fair verdict: objective,

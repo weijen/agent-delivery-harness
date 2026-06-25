@@ -90,16 +90,17 @@ docs/evaluation/l0-l1-solution/
   spec.md
 
 tests/evals/
+  bin/
+    run-evals.sh
+    validate-manifest.sh
   manifests/
-    l0/*.yml
-    l1/*.yml
+    l0/*.json
+    l1/*.json
   fixtures/
     l0/
     l1/
   scorecards/
     .gitkeep
-
-scripts/run-evals.sh
 ```
 
 `tests/evals/scorecards/` is for local generated output and should not commit

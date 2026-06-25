@@ -10,29 +10,36 @@ specific harness boundary rather than a vague whole-system concern.
 
 Each eval should define:
 
-```yaml
-id: subagent-review-001
-target: code-review-subagent
-capability: blocks_missing_behavioral_sensor
-boundary: subagent-role
-mode: regression
-dataset: tests/evals/code-review-subagent/missing-sensor.jsonl
-grader:
-  deterministic:
-    - output_schema_valid
-    - verdict_is_blocking
-  rubric:
-    - finding_is_specific
-    - finding_is_actionable
-    - cites_relevant_behavior
-threshold:
-  pass_rate: 1.0
-  critical_false_negative_rate: 0.0
-trials: 1
-artifacts:
-  keep_trace: true
-  keep_output: true
-owner: harness-evaluation
+```json
+{
+  "id": "subagent-review-001",
+  "target": "code-review-subagent",
+  "capability": "blocks_missing_behavioral_sensor",
+  "boundary": "subagent-role",
+  "mode": "regression",
+  "dataset": "tests/evals/code-review-subagent/missing-sensor.jsonl",
+  "grader": {
+    "deterministic": [
+      "output_schema_valid",
+      "verdict_is_blocking"
+    ],
+    "rubric": [
+      "finding_is_specific",
+      "finding_is_actionable",
+      "cites_relevant_behavior"
+    ]
+  },
+  "threshold": {
+    "pass_rate": 1.0,
+    "critical_false_negative_rate": 0.0
+  },
+  "trials": 1,
+  "artifacts": {
+    "keep_trace": true,
+    "keep_output": true
+  },
+  "owner": "harness-evaluation"
+}
 ```
 
 The `trials` field is `1` for deterministic checks and higher for any eval whose
@@ -181,16 +188,20 @@ Future evaluation issues should include:
 When an eval adapts a public benchmark, keep the matrix `dataset` field pointed
 at the local versioned fixture path and add source metadata beside it:
 
-```yaml
-dataset: tests/evals/fixtures/issues/swebench-lite-sympy-20590/
-source_dataset:
-  name: SWE-bench Lite
-  url: https://github.com/SWE-bench/SWE-bench
-  source_id: sympy__sympy-20590
-  local_modifications:
-    - reduced_to_single_acceptance_criterion
-    - replaced_external_network_with_fake_cli
-  use: seed
+```json
+{
+  "dataset": "tests/evals/fixtures/issues/swebench-lite-sympy-20590/",
+  "source_dataset": {
+    "name": "SWE-bench Lite",
+    "url": "https://github.com/SWE-bench/SWE-bench",
+    "source_id": "sympy__sympy-20590",
+    "local_modifications": [
+      "reduced_to_single_acceptance_criterion",
+      "replaced_external_network_with_fake_cli"
+    ],
+    "use": "seed"
+  }
+}
 ```
 
 Use `use: seed` when the public task was adapted into a local fixture,

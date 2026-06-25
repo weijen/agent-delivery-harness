@@ -37,33 +37,46 @@ The implementation should use this layout when eval code is added:
 
 ```text
 tests/evals/
+  bin/
+    run-evals.sh
+    validate-manifest.sh
   manifests/
-    l0/
-      harness-contract.yml
-      lifecycle-order.yml
-      review-gate.yml
-    l1/
-      code-review-trigger.yml
-      create-pr-artifact.yml
+    script-lifecycle/
+      harness-contract.json
+      lifecycle-order.json
+      review-gate.json
+    skill-trigger/
+      code-review.json
+    skill-artifact/
+      create-pr.json
   fixtures/
-    l0/
+    script-lifecycle/
       harness-contract/
       lifecycle-order/
       review-gate/
-    l1/
-      code-review-trigger/
+    skill-trigger/
+      code-review/
         prompts.csv
         README.md
-      create-pr-artifact/
+    skill-artifact/
+      create-pr/
         expected-schema.yml
         README.md
   baselines/
     README.md
   scorecards/
     .gitkeep
-
-scripts/run-evals.sh
 ```
+
+Manifests are JSON (`*.json`), validated with `jq`. Eval tooling (the runner and
+the manifest validator) lives under `tests/evals/bin/`, keeping `scripts/` for
+harness lifecycle entrypoints.
+
+Directory names should describe the evaluated boundary or capability, not the
+abstract layer label. Keep `L0` and `L1` in manifest metadata and scorecards;
+use functional paths such as `script-lifecycle/`, `skill-trigger/`, and
+`skill-artifact/` so the repository layout remains understandable without
+remembering the layer taxonomy.
 
 Generated scorecards are local artifacts and should not be committed. Approved
 baselines, when introduced, must live under `tests/evals/baselines/` with
@@ -74,38 +87,42 @@ dataset version, fixture hash, runner version, and approval rationale.
 Each eval case is declared by a manifest. Manifests are the source of truth for
 target, capability, fixture, grader, runtime, and blocking policy.
 
-```yaml
-id: l0-review-gate-freshness
-schema_version: 1
-layer: L0
-target: scripts/review-gate.sh
-capability: blocks_stale_review_approval
-boundary: script-lifecycle
-mode: regression
-maturity: blocking
-fixture:
-  path: tests/evals/fixtures/l0/review-gate/
-  version: 1
-  hash: <sha256>
-measurement:
-  label: stale approval is rejected
-  prediction: exit code, stderr, and git/PR side effects
-  observable_signal:
-    - exit_code
-    - stderr_regex
-    - git_remote_state
-grader:
-  type: shell
-  command: tests/scripts/test_review_gate.sh
-decision_rule:
-  metric: exact_pass
-  threshold: 1.0
-trials: 1
-runtime:
-  local: required
-  github_actions: required
-  azure: not_required
-owner: harness-evaluation
+```json
+{
+  "id": "l0-review-gate-freshness",
+  "schema_version": 1,
+  "layer": "L0",
+  "target": "scripts/review-gate.sh",
+  "capability": "blocks_stale_review_approval",
+  "boundary": "script-lifecycle",
+  "mode": "regression",
+  "maturity": "blocking",
+  "fixture": {
+    "path": "tests/evals/fixtures/script-lifecycle/review-gate/",
+    "version": 1,
+    "hash": "<sha256>"
+  },
+  "measurement": {
+    "label": "stale approval is rejected",
+    "prediction": "exit code, stderr, and git/PR side effects",
+    "observable_signal": ["exit_code", "stderr_regex", "git_remote_state"]
+  },
+  "grader": {
+    "type": "shell",
+    "command": "tests/scripts/test_review_gate.sh"
+  },
+  "decision_rule": {
+    "metric": "exact_pass",
+    "threshold": 1.0
+  },
+  "trials": 1,
+  "runtime": {
+    "local": "required",
+    "github_actions": "required",
+    "azure": "not_required"
+  },
+  "owner": "harness-evaluation"
+}
 ```
 
 Required fields:
@@ -120,13 +137,18 @@ Required fields:
 | `boundary` | `script-lifecycle`, `skill-trigger`, `skill-artifact`, or `skill-behavior`. |
 | `mode` | `regression` or `capability`. |
 | `maturity` | `blocking`, `report_only`, or `experimental`. |
-| `fixture` | Path, version, and hash for reproducibility. |
+| `fixture` | Reproducibility metadata, **one of**: `builder_version` (runtime-generated fixture) **XOR** `path` + `hash` (static dataset). `version` optional. |
 | `measurement` | Label, prediction, and observable signal. |
 | `grader` | Deterministic command/schema check or calibrated rubric. |
 | `decision_rule` | Metric and threshold. |
 | `trials` | `1` for deterministic; fixed `k` for nondeterministic. |
 | `runtime` | Local, GitHub Actions, and optional Azure policy. |
 | `owner` | Maintainer group or area. |
+
+The `fixture` field is a `oneOf`: a **runtime-generated** fixture declares
+`builder_version` (and omits `path`/`hash`, since an L0 sensor that builds a temp
+repo at runtime has no static directory to hash); a **static dataset** fixture
+declares both `path` and `hash`. Declaring neither shape, or both, is invalid.
 
 ## L0 Specification
 
@@ -215,6 +237,12 @@ Allowed L1 signals, in order of preference:
 
 If none of these exists, the case remains `experimental` and cannot block.
 
+L1 does not use developer adoption signals or downstream repair loops in this
+slice. Suggestion acceptance, thumbs-up/down feedback, comment resolution,
+time-to-resolution, and repair success after an implementer acts on a review
+comment are useful future signals, but they depend on product telemetry or
+multi-role agent trajectories outside the L0/L1 boundary.
+
 ### L1 Dataset Design
 
 Each mature skill dataset must be stratified. The minimum first-pass dataset for
@@ -295,9 +323,9 @@ machine-readable contract; summaries are secondary human artifacts.
   "runtime": "local",
   "runner_version": "0.1.0",
   "suite": "l0-l1",
-  "manifest_path": "tests/evals/manifests/l0/review-gate.yml",
+  "manifest_path": "tests/evals/manifests/script-lifecycle/review-gate.json",
   "manifest_version": 1,
-  "fixture_path": "tests/evals/fixtures/l0/review-gate/",
+  "fixture_path": "tests/evals/fixtures/script-lifecycle/review-gate/",
   "fixture_version": 1,
   "fixture_hash": "<sha256>",
   "dataset_version": null,

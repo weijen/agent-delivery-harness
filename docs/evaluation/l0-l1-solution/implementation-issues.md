@@ -87,7 +87,7 @@ Phases: **1–2** framework foundation · **3–4** L0 · **5–7** deterministi
 
 ### Issue 2 — Local runner + scorecard schema + redaction gate
 
-- **Target**: `scripts/run-evals.sh` and the scorecard JSON schema.
+- **Target**: `tests/evals/bin/run-evals.sh` and the scorecard JSON schema.
 - **Capability**: The runner executes selected manifests and emits a case-level
   scorecard reproducible from commit, manifest, fixture, runner, and tool
   versions.

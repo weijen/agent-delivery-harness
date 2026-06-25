@@ -78,20 +78,24 @@ re-baselining; that is the most common way to misread an upgrade.
 
 ## Dataset And Reporting Shape
 
-```yaml
-id: subagent-review-reliability-001
-mode: regression
-trials: 5
-metric: pass_hat_k
-baseline:
-  pass_rate: 1.0
-  variance_band: 0.0
-report:
-  - pass_rate
-  - critical_false_negative_rate
-  - confidence_interval
-  - model_version
-  - tool_versions
+```json
+{
+  "id": "subagent-review-reliability-001",
+  "mode": "regression",
+  "trials": 5,
+  "metric": "pass_hat_k",
+  "baseline": {
+    "pass_rate": 1.0,
+    "variance_band": 0.0
+  },
+  "report": [
+    "pass_rate",
+    "critical_false_negative_rate",
+    "confidence_interval",
+    "model_version",
+    "tool_versions"
+  ]
+}
 ```
 
 ## Public Dataset Baselines

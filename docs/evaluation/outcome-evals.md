@@ -22,23 +22,32 @@ main checkout as the mutable fixture.
 
 Example fixture:
 
-```yaml
-id: outcome-docs-001
-description: Add a docs page and validate links
-initial_repo:
-  files:
-    README.md: "# Demo"
-issue:
-  title: "Add usage notes"
-  acceptance_criteria:
-    - "docs/usage.md exists"
-    - "README links to docs/usage.md"
-expected:
-  files:
-    - docs/usage.md
-  sensors:
-    - link check
-    - shell parse check if scripts touched
+```json
+{
+  "id": "outcome-docs-001",
+  "description": "Add a docs page and validate links",
+  "initial_repo": {
+    "files": {
+      "README.md": "# Demo"
+    }
+  },
+  "issue": {
+    "title": "Add usage notes",
+    "acceptance_criteria": [
+      "docs/usage.md exists",
+      "README links to docs/usage.md"
+    ]
+  },
+  "expected": {
+    "files": [
+      "docs/usage.md"
+    ],
+    "sensors": [
+      "link check",
+      "shell parse check if scripts touched"
+    ]
+  }
+}
 ```
 
 ## Public Dataset Seeds

@@ -106,15 +106,17 @@ The local fixture id is what eval scorecards should reference.
 
 ## Dataset Shape
 
-```yaml
-id: dataset-code-review-missing-test
-version: 3
-type: diff-fixture
-path: tests/evals/fixtures/diffs/missing-test/
-capability: blocks_behavior_change_without_test
-labels_reviewed_by: 2
-contains_secrets: false
-derived_from: issue-21-failure
+```json
+{
+  "id": "dataset-code-review-missing-test",
+  "version": 3,
+  "type": "diff-fixture",
+  "path": "tests/evals/fixtures/diffs/missing-test/",
+  "capability": "blocks_behavior_change_without_test",
+  "labels_reviewed_by": 2,
+  "contains_secrets": false,
+  "derived_from": "issue-21-failure"
+}
 ```
 
 ## Initial Issues To Create Later
