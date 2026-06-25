@@ -7,7 +7,8 @@
 #   1. `review-gate.sh status-doc` exits non-zero with a clear message when
 #      docs/PROGRESS.md is unchanged in <base>...HEAD.
 #   2. It exits zero when docs/PROGRESS.md changed on the branch.
-#   3. STATUS_DOC_OPTIONAL=1 skips the gate and surfaces the override reason.
+#   3. There is NO escape hatch: the gate still fails closed even when
+#      STATUS_DOC_OPTIONAL=1 is set (every change must update docs/PROGRESS.md).
 #   4. The `check` path also runs status-doc (so create-pr.sh enforces it).
 #   5. E2E: ./scripts/create-pr.sh blocks without a docs/PROGRESS.md edit and
 #      passes with one (deterministic enforcement on the mandatory path).
@@ -99,13 +100,13 @@ fi
 grep -q "docs/PROGRESS.md" /tmp/status-doc-unchanged.out \
   || fail "status-doc failure did not mention docs/PROGRESS.md"
 
-# --- 3. STATUS_DOC_OPTIONAL=1 skips and surfaces the override reason ----------
-if ! STATUS_DOC_OPTIONAL=1 STATUS_DOC_REASON="infra-only branch" \
+# --- 3. No escape hatch: STATUS_DOC_OPTIONAL=1 must NOT bypass the gate -------
+if STATUS_DOC_OPTIONAL=1 STATUS_DOC_REASON="should be ignored" \
     ./scripts/review-gate.sh status-doc >/tmp/status-doc-optional.out 2>&1; then
-  fail "STATUS_DOC_OPTIONAL=1 did not skip the status-doc gate"
+  fail "STATUS_DOC_OPTIONAL=1 was honored — the gate must have no override"
 fi
-grep -q "infra-only branch" /tmp/status-doc-optional.out \
-  || fail "override reason was not surfaced in status-doc output"
+grep -q "docs/PROGRESS.md" /tmp/status-doc-optional.out \
+  || fail "status-doc failure (with env set) did not mention docs/PROGRESS.md"
 
 # --- 4. check path also runs status-doc --------------------------------------
 ./scripts/review-gate.sh approve >/dev/null

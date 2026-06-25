@@ -16,8 +16,8 @@
 > **How to update it.** When you close an issue, add/extend the relevant entry
 > under *Delivered* (newest first), refresh *Snapshot* and *Next up*, and commit
 > it on the issue branch. The `review-gate.sh status-doc` gate enforces that this
-> file changed on the branch before a PR opens (override: `STATUS_DOC_OPTIONAL=1`
-> with a `STATUS_DOC_REASON` for branches with genuinely no repo-wide status).
+> file changed on the branch before a PR opens — **every change must update it,
+> there is no opt-out** (it is what the next agent reads first).
 
 _Last updated: 2026-06-25 (issue #84)._
 
@@ -66,8 +66,8 @@ _Last updated: 2026-06-25 (issue #84)._
 - **#84 — Unify repo-wide status doc as `docs/PROGRESS.md` + enforce it.**
   Renamed the status doc everywhere, declared it separate from the per-issue
   local `progress.md`, added a `review-gate.sh status-doc` gate (fails closed
-  unless `docs/PROGRESS.md` changed in `main...HEAD`; `STATUS_DOC_OPTIONAL=1`
-  override), and seeded this file.
+  unless `docs/PROGRESS.md` changed in `main...HEAD`, no opt-out), and seeded
+  this file.
 - **#82 — Functionality product-quality rubric** for coding-agent work
   (`docs/evaluation/product-quality-rubric.md`), wired into tester and reviewer
   gates.

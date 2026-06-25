@@ -358,8 +358,8 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    here, so the merge needs no follow-up edit. This is enforced deterministically: the
    `review-gate.sh status-doc` gate (run via the `review-gate.sh check` call inside
    `./scripts/create-pr.sh`) **fails closed** unless `docs/PROGRESS.md` changed in
-   `main...HEAD`. Branches with no repo-wide status to record may set `STATUS_DOC_OPTIONAL=1`
-   (with a `STATUS_DOC_REASON`, surfaced in the output). Only then open the PR.
+   `main...HEAD`. **Every change must update `docs/PROGRESS.md` — there is no opt-out**,
+   because it is the running log the next agent reads first. Only then open the PR.
 
 Skipping this gate is a process violation even when the four computational gates are green —
 the inferential sensors catch what the deterministic ones cannot. If you find yourself about

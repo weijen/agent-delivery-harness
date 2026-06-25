@@ -15,24 +15,21 @@ Commands:
   check       Require the recorded approval to match the current HEAD, and that
               the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
   status-doc  Require docs/PROGRESS.md to have changed in <base>...HEAD.
-              Override on legitimately-exempt branches with STATUS_DOC_OPTIONAL=1
-              (surface a STATUS_DOC_REASON so the exemption is auditable).
+              Every change must update the repo-wide status doc — there is no
+              opt-out. docs/PROGRESS.md is what the next agent reads first.
 EOF
 }
 
 # status_doc_gate — fail closed unless docs/PROGRESS.md changed on the branch.
 #
 # The repo-wide, pushed status doc must be updated as part of the branch before a
-# PR opens (harness.instructions.md §6). We prove that deterministically by
-# diffing it over <base>...HEAD, where <base> is origin/main, else main.
+# PR opens (harness.instructions.md §6) — it is the running log the next agent
+# reads first, so every change must touch it. We prove that deterministically by
+# diffing it over <base>...HEAD, where <base> is origin/main, else main. There is
+# deliberately no override: an opt-out would let the one thing the next agent
+# relies on silently rot.
 status_doc_gate() {
   local doc="docs/PROGRESS.md"
-
-  if [ "${STATUS_DOC_OPTIONAL:-}" = "1" ]; then
-    green "✓ status-doc gate skipped (STATUS_DOC_OPTIONAL=1)"
-    echo "  reason: ${STATUS_DOC_REASON:-<none given>}"
-    return 0
-  fi
 
   local base=""
   # origin/main is the load-bearing base (create-pr.sh fetches it before the
@@ -45,7 +42,7 @@ status_doc_gate() {
 
   if [ -z "$base" ]; then
     red "✗ status-doc: cannot find a main base (origin/main or main) to diff against."
-    echo "  Fetch main, or set STATUS_DOC_OPTIONAL=1 (with a STATUS_DOC_REASON) to exempt this branch."
+    echo "  Fetch main so the branch diff can be computed."
     exit 1
   fi
 
@@ -55,8 +52,8 @@ status_doc_gate() {
   fi
 
   red "✗ status-doc: ${doc} was not updated on this branch (${base}...HEAD)."
-  echo "  Update ${doc} with this issue's repo-wide status before opening the PR,"
-  echo "  or set STATUS_DOC_OPTIONAL=1 (with a STATUS_DOC_REASON) to exempt this branch."
+  echo "  Update ${doc} with this change's repo-wide status before opening the PR —"
+  echo "  it is the running log the next agent reads first, so every change must touch it."
   exit 1
 }
 
