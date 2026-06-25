@@ -22,11 +22,15 @@ REQUIRED_FILES=(
 	.copilot/instructions/harness.instructions.md
 	.copilot/instructions/python.instructions.md
 	.copilot/agents/planning-subagent.agent.md
+	.copilot/skills/code-review/SKILL.md
+	.copilot/prompts/session-ritual.prompt.md
 	.github/workflows/harness-smoke.yml
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
+	docs/evaluation/product-quality-rubric.md
+	docs/evaluation/README.md
 )
 
 # --- Case (a): script shape (executable, parses, shellcheck-clean) ------------

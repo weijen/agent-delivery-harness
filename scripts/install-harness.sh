@@ -31,11 +31,15 @@ HARNESS_ASSETS=(
 	tests/meta
 	.copilot/instructions
 	.copilot/agents
+	.copilot/skills
+	.copilot/prompts
 	.github/workflows/harness-smoke.yml
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
+	docs/evaluation/product-quality-rubric.md
+	docs/evaluation/README.md
 )
 
 usage() {
@@ -49,8 +53,9 @@ Usage: install-harness.sh <target-dir> [--write|--update]
   --update      overwrite a differing asset after showing the diff
 
 Copies the real harness assets verbatim (scripts/, profiles/, tests/scripts,
-tests/meta, .copilot/instructions, .copilot/agents, the smoke workflow, and the
-lifecycle docs). Never touches the target project's own non-harness files.
+tests/meta, .copilot/instructions, .copilot/agents, .copilot/skills,
+.copilot/prompts, the smoke workflow, and the lifecycle docs). Never touches the
+target project's own non-harness files.
 USAGE
 }
 
