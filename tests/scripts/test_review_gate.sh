@@ -5,6 +5,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+# This sensor exercises the approval-marker behavior only; its synthetic branches
+# deliberately never touch the repo-wide status doc, so exempt them from the
+# status-doc gate that `check`/`create-pr.sh` now enforce.
+export STATUS_DOC_OPTIONAL=1
+export STATUS_DOC_REASON="review-gate approval-marker test (no status doc in scope)"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
