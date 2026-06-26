@@ -196,7 +196,8 @@ coarse pass/fail row per shell file.
 - L0 manifests use `blocking: true` and default to `trials: 1`.
 - L0 graders must be deterministic: shell, schema, filesystem, or git-state.
 - L0 does not use Azure, live GitHub auth, live web calls, or LLM calls.
-- External tools must be faked on `PATH` where possible.
+- L0 fixtures must isolate external state so results do not depend on the
+  developer machine.
 - Expected results must include observable state, not only text presence.
 - A flaky L0 result is an eval bug and must be fixed, not averaged.
 
