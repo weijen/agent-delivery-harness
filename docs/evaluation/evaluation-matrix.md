@@ -16,8 +16,11 @@ Each eval should define:
   "target": "code-review-subagent",
   "capability": "blocks_missing_behavioral_sensor",
   "boundary": "subagent-role",
-  "mode": "regression",
-  "dataset": "tests/evals/code-review-subagent/missing-sensor.jsonl",
+  "fixture": {
+    "type": "static",
+    "path": "tests/evals/fixtures/subagents/code-review/missing-sensor/"
+  },
+  "expected_outcome": "blocking_finding",
   "grader": {
     "deterministic": [
       "output_schema_valid",
@@ -29,22 +32,42 @@ Each eval should define:
       "cites_relevant_behavior"
     ]
   },
+  "blocking": false,
+  "trials": 3,
   "threshold": {
     "pass_rate": 1.0,
     "critical_false_negative_rate": 0.0
-  },
-  "trials": 1,
-  "artifacts": {
-    "keep_trace": true,
-    "keep_output": true
-  },
-  "owner": "harness-evaluation"
+  }
 }
 ```
 
 The `trials` field is `1` for deterministic checks and higher for any eval whose
 target is nondeterministic; see [statistical-methodology.md](statistical-methodology.md)
 for how to set it and how to read `pass@k` versus `pass^k`.
+
+The core manifest stays intentionally small for L0 and L1. It declares the case
+identity, target, capability, fixture, expected outcome, grader, and blocking
+policy. Runner-specific output policy, ownership metadata, runtime selection,
+and trace expectations belong in suite configuration or scorecards unless a
+specific L1 grader needs them as fixture data.
+
+### Field Reference
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `id` | Yes | Stable case identifier. Keep it unique and do not reuse it when the capability changes meaning. |
+| `schema_version` | Yes | Manifest schema version. Increment only when the manifest format changes. |
+| `target` | Yes | The script, skill, subagent, prompt, or schema being evaluated. Use paths for repo files and prefixes such as `skill:` when the target is logical. |
+| `capability` | Yes | The single behavior this case proves. Phrase it as one observable obligation, not a broad quality area. |
+| `boundary` | Yes | The harness responsibility area the case protects, such as `script-lifecycle`, `skill-behavior`, or `subagent-role`. |
+| `fixture` | Yes | Reproducible input for the case. Use `type: static` with a checked-in `path`, or `type: generated` with a deterministic builder. |
+| `expected_outcome` | Yes | Ground truth the grader should prove, such as `reject`, `allow`, `blocking_finding`, or `valid_artifact`. Actual predictions belong in scorecards. |
+| `grader` | Yes | The deterministic command, schema check, rubric, or hybrid grader that turns fixture output into pass/fail evidence. |
+| `blocking` | Yes | Whether failure should fail the local or CI run. Use `false` for report-only L1 capability tracking until the case is stable. |
+| `trials` | No | Number of repeated runs for nondeterministic targets. Omit for deterministic L0 cases, which default to `1`. |
+| `threshold` | No | Metric thresholds for nondeterministic or hybrid graders, such as pass rate or critical false-negative rate. |
+| `source_dataset` | No | Provenance for public benchmark fixtures adapted into local, versioned cases. Blocking applies to the local fixture. |
+| `contract_refs` | No | References to harness lifecycle or role-boundary obligations when the case claims coverage of a specific contract item. |
 
 ## Required Dimensions
 
@@ -87,13 +110,27 @@ The category of harness responsibility:
 - `cost-efficiency`
 - `end-to-end-fixture`
 
-### Mode
+### Fixture
 
-Use `regression` when a behavior is already required and should stay green. Use
-`capability` when the behavior is desired but not yet reliably achieved.
+The reproducible input for the eval case. Static fixtures point at a checked-in
+path. Generated fixtures name the deterministic builder command or script that
+creates the temporary case state.
 
-Regression evals should block relevant changes. Capability evals should produce
-tracked scores and become regression evals once they are stable.
+### Expected Outcome
+
+The ground truth the grader must prove, such as `reject`, `allow`,
+`blocking_finding`, or `valid_artifact`. Manifests declare expected outcomes;
+scorecards record actual predictions after the runner executes the case.
+
+### Blocking
+
+Use `blocking: true` when a failed eval should fail the local or CI run. Use
+`blocking: false` for report-only capability tracking until the fixture, grader,
+and threshold are stable enough to gate changes.
+
+The older `regression` and `capability` language is still useful for planning,
+but the first manifest schema uses the explicit `blocking` field because it is
+the decision the runner must enforce.
 
 ## Grader Types
 
@@ -172,7 +209,7 @@ Future evaluation issues should include:
 
 ## Capability
 
-## Dataset / Fixtures
+## Fixtures
 
 ## Graders
 
@@ -185,12 +222,15 @@ Future evaluation issues should include:
 
 ## Public Dataset Field Guidance
 
-When an eval adapts a public benchmark, keep the matrix `dataset` field pointed
+When an eval adapts a public benchmark, keep the manifest `fixture.path` pointed
 at the local versioned fixture path and add source metadata beside it:
 
 ```json
 {
-  "dataset": "tests/evals/fixtures/issues/swebench-lite-sympy-20590/",
+  "fixture": {
+    "type": "static",
+    "path": "tests/evals/fixtures/issues/swebench-lite-sympy-20590/"
+  },
   "source_dataset": {
     "name": "SWE-bench Lite",
     "url": "https://github.com/SWE-bench/SWE-bench",

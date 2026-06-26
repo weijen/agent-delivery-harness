@@ -93,11 +93,11 @@ the manifest validator) lives under `tests/evals/bin/`, keeping `scripts/` for
 harness lifecycle entrypoints.
 
 The layout is target-first. Harness script evals live under `scripts/`; skill
-evals live under `skills/<skill-id>/`. Keep `L0` and `L1` in manifest metadata
-and scorecards, and use the manifest `boundary` field for classifications such
+evals live under `skills/<skill-id>/`. Keep L0 and L1 in the manifest path or
+suite selection, and use the manifest `boundary` field for classifications such
 as `script-lifecycle`, `skill-trigger`, `skill-artifact`, and `skill-behavior`.
-This keeps the repository layout understandable without remembering the layer
-taxonomy.
+This keeps each manifest small and avoids duplicating layer metadata that the
+runner can infer from where the case is selected.
 
 Small, public-safe, PR-blocking fixtures live in this tree. Large, sensitive, or
 model-driven datasets may live in an external registry and be referenced by
@@ -110,70 +110,51 @@ dataset version, fixture hash, runner version, and approval rationale.
 ## Manifest Schema
 
 Each eval case is declared by a manifest. Manifests are the source of truth for
-target, capability, fixture, grader, runtime, and blocking policy.
+target, capability, fixture, expected outcome, grader, and blocking policy.
 
 ```json
 {
   "id": "l0-review-gate-freshness",
   "schema_version": 1,
-  "layer": "L0",
   "target": "scripts/review-gate.sh",
   "capability": "blocks_stale_review_approval",
   "boundary": "script-lifecycle",
-  "mode": "regression",
-  "maturity": "blocking",
   "fixture": {
-    "path": "tests/evals/fixtures/scripts/review-gate/",
-    "version": 1,
-    "hash": "<sha256>"
+    "type": "generated",
+    "builder": "tests/scripts/test_review_gate.sh",
+    "builder_version": 1
   },
-  "measurement": {
-    "label": "stale approval is rejected",
-    "prediction": "exit code, stderr, and git/PR side effects",
-    "observable_signal": ["exit_code", "stderr_regex", "git_remote_state"]
-  },
+  "expected_outcome": "reject",
   "grader": {
     "type": "shell",
     "command": "tests/scripts/test_review_gate.sh"
   },
-  "decision_rule": {
-    "metric": "exact_pass",
-    "threshold": 1.0
-  },
-  "trials": 1,
-  "runtime": {
-    "local": "required",
-    "github_actions": "required",
-    "azure": "not_required"
-  },
-  "owner": "harness-evaluation"
+  "blocking": true
 }
 ```
 
-Required fields:
+Field reference:
 
-| Field | Requirement |
+| Field | Required | Meaning |
 | --- | --- |
-| `id` | Stable and unique. Do not reuse for a changed capability. |
-| `schema_version` | Manifest schema version. |
-| `layer` | `L0` or `L1`. |
-| `target` | Script path or skill id. |
-| `capability` | One behavior under test. |
-| `boundary` | `script-lifecycle`, `skill-trigger`, `skill-artifact`, or `skill-behavior`. |
-| `mode` | `regression` or `capability`. |
-| `maturity` | `blocking`, `report_only`, or `experimental`. |
-| `fixture` | Reproducibility metadata, **one of**: `builder_version` (runtime-generated fixture) **XOR** `path` + `hash` (static dataset). `version` optional. |
-| `measurement` | Label, prediction, and observable signal. |
-| `grader` | Deterministic command/schema check or calibrated rubric. |
-| `decision_rule` | Metric and threshold. |
-| `trials` | `1` for deterministic; fixed `k` for nondeterministic. |
-| `runtime` | Local, GitHub Actions, and optional Azure policy. |
-| `owner` | Maintainer group or area. |
+| `id` | Yes | Stable case identifier. Keep it unique and do not reuse it when the capability changes meaning. |
+| `schema_version` | Yes | Manifest schema version. Increment only when the manifest format changes. |
+| `target` | Yes | The script, skill, subagent, prompt, or schema being evaluated. Use repo paths for files and logical ids such as `skill:code-review` for non-file targets. |
+| `capability` | Yes | The single behavior this case proves. Phrase it as one observable obligation, not a broad quality area. |
+| `boundary` | Yes | The harness responsibility area the case protects, such as `script-lifecycle`, `skill-behavior`, or `subagent-role`. |
+| `fixture` | Yes | Reproducible input for the case. Use `type: generated` with a deterministic builder, or `type: static` with a checked-in path. |
+| `expected_outcome` | Yes | Ground truth the grader should prove, such as `reject`, `allow`, `blocking_finding`, or `valid_artifact`. Actual predictions belong in scorecards. |
+| `grader` | Yes | The deterministic command, schema check, rubric, or hybrid grader that turns fixture output into pass/fail evidence. |
+| `blocking` | Yes | Whether failure should fail the local or CI run. Use `false` for report-only L1 capability tracking until the case is stable. |
+| `trials` | No | Number of repeated runs for nondeterministic L1 targets. Omit for deterministic L0 cases, which default to `1`. |
+| `threshold` | No | Metric thresholds for nondeterministic or hybrid graders, such as pass rate or critical false-negative rate. |
+| `source_dataset` | No | Provenance for public benchmark fixtures adapted into local, versioned cases. Blocking applies to the local fixture. |
+| `contract_refs` | No | References to harness lifecycle or role-boundary obligations when the case claims coverage of a specific contract item. |
 
-The `fixture` field is a `oneOf`: a **runtime-generated** fixture declares
-`builder_version` (and omits `path`/`hash`, since an L0 sensor that builds a temp
-repo at runtime has no static directory to hash); a **static dataset** fixture
-declares both `path` and `hash`. Declaring neither shape, or both, is invalid.
+The `fixture` field is a `oneOf`: a generated fixture declares `type:
+generated` and `builder`, while a static fixture declares `type: static` and
+`path`. Declaring neither shape, or both, is invalid. Static fixture `hash`
+values become required only for approved baselines.
 
 ## L0 Specification
 
@@ -212,7 +193,7 @@ coarse pass/fail row per shell file.
 
 ### L0 Rules
 
-- L0 manifests use `mode: regression`, `maturity: blocking`, and `trials: 1`.
+- L0 manifests use `blocking: true` and default to `trials: 1`.
 - L0 graders must be deterministic: shell, schema, filesystem, or git-state.
 - L0 does not use Azure, live GitHub auth, live web calls, or LLM calls.
 - External tools must be faked on `PATH` where possible.
@@ -366,12 +347,9 @@ machine-readable contract; summaries are secondary human artifacts.
   "results": [
     {
       "case_id": "l0-review-gate-stale-head",
-      "layer": "L0",
       "target": "scripts/review-gate.sh",
       "capability": "blocks_stale_review_approval",
       "boundary": "script-lifecycle",
-      "mode": "regression",
-      "maturity": "blocking",
       "label": "reject",
       "prediction": "reject",
       "observable_signal": ["exit_code", "stderr_regex", "head_sha"],

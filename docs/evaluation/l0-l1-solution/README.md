@@ -109,8 +109,8 @@ tests/evals/
     .gitkeep
 ```
 
-The layout is target-first. `L0`/`L1` remain manifest and scorecard metadata;
-directory names use readable targets such as `scripts/` and
+The layout is target-first. L0/L1 selection comes from the manifest path or
+suite configuration; directory names use readable targets such as `scripts/` and
 `skills/<skill-id>/`.
 
 `tests/evals/scorecards/` is for local generated output and should not commit

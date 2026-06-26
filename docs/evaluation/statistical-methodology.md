@@ -29,8 +29,8 @@ These two metrics answer opposite questions and must not be confused:
   every time? This is the metric that matters for anything the harness gates on.
 
 For a quality gate, reliability is what counts. A reviewer that catches a missing
-test 8 times out of 10 is not a gate. Report pass^k for regression-mode evals and
-pass@k only for capability-mode exploration.
+test 8 times out of 10 is not a gate. Report pass^k for blocking evals and
+pass@k only for report-only capability exploration.
 
 ## Choosing Trial Counts
 
@@ -81,7 +81,7 @@ re-baselining; that is the most common way to misread an upgrade.
 ```json
 {
   "id": "subagent-review-reliability-001",
-  "mode": "regression",
+  "blocking": false,
   "trials": 5,
   "metric": "pass_hat_k",
   "baseline": {

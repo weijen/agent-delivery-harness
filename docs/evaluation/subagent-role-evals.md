@@ -56,7 +56,14 @@ Use synthetic but realistic cases:
 {
   "id": "reviewer-001",
   "target": "code-review-subagent",
-  "input_fixture": "tests/evals/fixtures/presence-only-contract-test.diff",
+   "capability": "blocks_unverified_behavior_change",
+   "boundary": "subagent-role",
+   "fixture": {
+      "type": "static",
+      "path": "tests/evals/fixtures/presence-only-contract-test.diff"
+   },
+   "expected_outcome": "needs_revision",
+   "blocking": false,
   "expected": {
     "verdict": "NEEDS_REVISION",
     "minimum_severity": "MAJOR",

@@ -13,8 +13,9 @@ comparisons.
 
 Azure is an execution and reporting layer, not the definition of correctness.
 Every Azure-backed eval must still point back to the same fields described in
-[evaluation-matrix.md](evaluation-matrix.md): target, capability, boundary, mode,
-dataset, grader, trials, threshold, artifacts, and owner.
+[evaluation-matrix.md](evaluation-matrix.md): target, capability, boundary,
+fixture, expected outcome, grader, blocking policy, and any optional trials,
+thresholds, source-dataset metadata, or contract references.
 
 Use this split:
 

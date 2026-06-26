@@ -65,9 +65,10 @@ and have their own pages below.
 
 ## Scorecard Model
 
-Every eval, regardless of layer, is described by the same fields: a target, a
-capability, a boundary, a mode (`regression` or `capability`), a dataset, one or
-more graders, trials, and thresholds. The canonical schema lives in
+Every eval, regardless of layer, is described by the same core fields: a target,
+a capability, a boundary, a fixture, an expected outcome, one or more graders,
+and a blocking policy. Trials, thresholds, source-dataset metadata, and contract
+references are optional fields for cases that need them. The canonical schema lives in
 [evaluation-matrix.md](evaluation-matrix.md); the dataset lifecycle behind it
 lives in [dataset-governance.md](dataset-governance.md); the trial and threshold
 math lives in [statistical-methodology.md](statistical-methodology.md). The

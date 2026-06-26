@@ -38,7 +38,8 @@ Scope is L0/L1 only. L2–L5 stay out of scope per the solution boundary; these
 issues only preserve forward compatibility with their future scorecard needs.
 
 Each issue below carries the matrix fields: target, capability, boundary,
-grader, mode/blocking, tier/runtime, fixtures, dependencies, and acceptance.
+fixture, expected outcome, grader, blocking policy, optional trials/thresholds,
+dependencies, and acceptance.
 
 ## Summary
 
@@ -69,22 +70,21 @@ Phases: **1–2** framework foundation · **3–4** L0 · **5–7** deterministi
 - **Boundary**: `eval-framework`.
 - **Grader**: deterministic schema/lint check; invalid manifests yield status
   `invalid_manifest`.
-- **Mode / blocking**: regression / blocking.
+- **Blocking**: true.
 - **Tier / runtime**: A / local + GitHub Actions.
 - **Fixtures**: a valid manifest sample plus malformed manifests (missing
-  `measurement`, missing `observable_signal`, bad `maturity`).
+  `expected_outcome`, missing `fixture`, bad `blocking`).
 - **Dependencies**: none.
 - **Acceptance**:
   - `tests/evals/manifests/scripts/`, `tests/evals/manifests/skills/`,
     `tests/evals/fixtures/scripts/`, `tests/evals/fixtures/skills/`,
     `scorecards/`, and `baselines/` directories exist per the target-first spec
     layout.
-  - Schema requires `id`, `layer`, `target`, `capability`, `boundary`, `mode`,
-    `maturity`, `measurement`, `grader`, `decision_rule`, `trials`, `runtime`,
-    `owner`.
-  - Validator distinguishes runtime-generated fixtures (record a
-    `fixture.builder_version`) from static datasets (`fixture.path` + `hash`), so
-    L0 sensors that build temp repos at runtime are not forced to hash a
+  - Schema requires `id`, `schema_version`, `target`, `capability`, `boundary`,
+    `fixture`, `expected_outcome`, `grader`, and `blocking`.
+  - Validator distinguishes generated fixtures (`fixture.type: generated` plus a
+    builder) from static fixtures (`fixture.type: static` plus a path), so L0
+    sensors that build temp repos at runtime are not forced to hash a
     non-existent directory.
 
 ### Issue 2 — Local runner + scorecard schema + redaction gate
@@ -96,7 +96,7 @@ Phases: **1–2** framework foundation · **3–4** L0 · **5–7** deterministi
 - **Boundary**: `eval-framework`.
 - **Grader**: deterministic — scorecard is schema-valid; `redaction.checked` is
   true and fails closed if a secret or environment identifier is detected.
-- **Mode / blocking**: regression / blocking.
+- **Blocking**: true.
 - **Tier / runtime**: A / local + GitHub Actions.
 - **Fixtures**: a trivial pass manifest and a trivial fail manifest.
 - **Dependencies**: Issue 1.

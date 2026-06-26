@@ -147,8 +147,12 @@ spans should include:
 {
   "id": "outcome-cost-001",
   "target": "end-to-end-issue-fixture",
-  "fixture": "tests/evals/fixtures/issues/small-feature",
-  "mode": "regression",
+  "fixture": {
+    "type": "static",
+    "path": "tests/evals/fixtures/issues/small-feature"
+  },
+  "expected_outcome": "pass",
+  "blocking": true,
   "quality_gate": {
     "required_outcome": "pass",
     "required_lifecycle_gates": [

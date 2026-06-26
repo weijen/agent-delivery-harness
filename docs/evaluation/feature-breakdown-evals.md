@@ -37,10 +37,10 @@ artifact rather than by re-running a subagent.
 | `runtime_boundary_named` | Any item crossing a real runtime boundary also names an `e2e_sensor`. |
 | `split_merge_applied` | A candidate needing more than one sensor is split; two criteria sharing one sensor are merged. |
 
-`boundary`: `subagent-role` (decomposition is a conductor/planner responsibility). `mode`:
-start as `capability` (tracked), promote `feature_decomposition_is_sensor_addressable` and
-`no_shared_sensor_across_features` to `regression` once the fixtures are stable, because they are
-mostly deterministic.
+`boundary`: `subagent-role` (decomposition is a conductor/planner responsibility). Start with
+`blocking: false` for tracked capability scoring, then promote
+`feature_decomposition_is_sensor_addressable` and `no_shared_sensor_across_features` to
+`blocking: true` once the fixtures are stable, because they are mostly deterministic.
 
 ## Role Questions
 
@@ -62,8 +62,12 @@ Use synthetic but realistic issue → breakdown pairs, including deliberately ba
   "target": "feature_list.json",
   "capability": "one_concern_per_feature",
   "boundary": "subagent-role",
-  "mode": "capability",
-  "input_fixture": "tests/evals/fixtures/feature-breakdown/bundled-two-concerns.feature_list.json",
+  "fixture": {
+    "type": "static",
+    "path": "tests/evals/fixtures/feature-breakdown/bundled-two-concerns.feature_list.json"
+  },
+  "expected_outcome": "needs_revision",
+  "blocking": false,
   "expected": {
     "verdict": "NEEDS_REVISION",
     "must_detect": [
