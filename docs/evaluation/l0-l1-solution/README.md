@@ -94,14 +94,24 @@ tests/evals/
     run-evals.sh
     validate-manifest.sh
   manifests/
-    l0/*.json
-    l1/*.json
+    scripts/
+      review-gate.json
+    skills/
+      code-review/
+        trigger.json
   fixtures/
-    l0/
-    l1/
+    scripts/
+      review-gate/
+    skills/
+      code-review/
+        trigger/
   scorecards/
     .gitkeep
 ```
+
+The layout is target-first. `L0`/`L1` remain manifest and scorecard metadata;
+directory names use readable targets such as `scripts/` and
+`skills/<skill-id>/`.
 
 `tests/evals/scorecards/` is for local generated output and should not commit
 run-specific scorecards. Stable baseline files, when introduced, must live under

@@ -41,27 +41,47 @@ tests/evals/
     run-evals.sh
     validate-manifest.sh
   manifests/
-    script-lifecycle/
+    scripts/
       harness-contract.json
       lifecycle-order.json
       review-gate.json
-    skill-trigger/
-      code-review.json
-    skill-artifact/
-      create-pr.json
+      feature-list.json
+      issue-scaffold.json
+    skills/
+      code-review/
+        trigger.json
+        artifact.json
+        behavior.json
+      create-pr/
+        trigger.json
+        artifact.json
+      security-audit/
+        trigger.json
+        behavior.json
   fixtures/
-    script-lifecycle/
+    scripts/
       harness-contract/
       lifecycle-order/
       review-gate/
-    skill-trigger/
+      feature-list/
+      issue-scaffold/
+    skills/
       code-review/
-        prompts.csv
-        README.md
-    skill-artifact/
+        trigger/
+          prompts.csv
+          README.md
+        artifact/
+          expected-schema.yml
+        behavior/
+          seeded-bugs/
+          README.md
       create-pr/
-        expected-schema.yml
-        README.md
+        trigger/
+          prompts.csv
+          README.md
+        artifact/
+          expected-schema.yml
+          README.md
   baselines/
     README.md
   scorecards/
@@ -72,11 +92,16 @@ Manifests are JSON (`*.json`), validated with `jq`. Eval tooling (the runner and
 the manifest validator) lives under `tests/evals/bin/`, keeping `scripts/` for
 harness lifecycle entrypoints.
 
-Directory names should describe the evaluated boundary or capability, not the
-abstract layer label. Keep `L0` and `L1` in manifest metadata and scorecards;
-use functional paths such as `script-lifecycle/`, `skill-trigger/`, and
-`skill-artifact/` so the repository layout remains understandable without
-remembering the layer taxonomy.
+The layout is target-first. Harness script evals live under `scripts/`; skill
+evals live under `skills/<skill-id>/`. Keep `L0` and `L1` in manifest metadata
+and scorecards, and use the manifest `boundary` field for classifications such
+as `script-lifecycle`, `skill-trigger`, `skill-artifact`, and `skill-behavior`.
+This keeps the repository layout understandable without remembering the layer
+taxonomy.
+
+Small, public-safe, PR-blocking fixtures live in this tree. Large, sensitive, or
+model-driven datasets may live in an external registry and be referenced by
+logical dataset name, version, and hash.
 
 Generated scorecards are local artifacts and should not be committed. Approved
 baselines, when introduced, must live under `tests/evals/baselines/` with
@@ -98,7 +123,7 @@ target, capability, fixture, grader, runtime, and blocking policy.
   "mode": "regression",
   "maturity": "blocking",
   "fixture": {
-    "path": "tests/evals/fixtures/script-lifecycle/review-gate/",
+    "path": "tests/evals/fixtures/scripts/review-gate/",
     "version": 1,
     "hash": "<sha256>"
   },
@@ -323,9 +348,9 @@ machine-readable contract; summaries are secondary human artifacts.
   "runtime": "local",
   "runner_version": "0.1.0",
   "suite": "l0-l1",
-  "manifest_path": "tests/evals/manifests/script-lifecycle/review-gate.json",
+  "manifest_path": "tests/evals/manifests/scripts/review-gate.json",
   "manifest_version": 1,
-  "fixture_path": "tests/evals/fixtures/script-lifecycle/review-gate/",
+  "fixture_path": "tests/evals/fixtures/scripts/review-gate/",
   "fixture_version": 1,
   "fixture_hash": "<sha256>",
   "dataset_version": null,

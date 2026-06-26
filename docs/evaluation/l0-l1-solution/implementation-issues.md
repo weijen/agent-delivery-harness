@@ -75,8 +75,10 @@ Phases: **1–2** framework foundation · **3–4** L0 · **5–7** deterministi
   `measurement`, missing `observable_signal`, bad `maturity`).
 - **Dependencies**: none.
 - **Acceptance**:
-  - `tests/evals/manifests/{l0,l1}/` and `fixtures/`, `scorecards/`, `baselines/`
-    directories exist per the spec layout.
+  - `tests/evals/manifests/scripts/`, `tests/evals/manifests/skills/`,
+    `tests/evals/fixtures/scripts/`, `tests/evals/fixtures/skills/`,
+    `scorecards/`, and `baselines/` directories exist per the target-first spec
+    layout.
   - Schema requires `id`, `layer`, `target`, `capability`, `boundary`, `mode`,
     `maturity`, `measurement`, `grader`, `decision_rule`, `trials`, `runtime`,
     `owner`.
@@ -214,7 +216,7 @@ Phases: **1–2** framework foundation · **3–4** L0 · **5–7** deterministi
 - **Grader**: n/a (dataset deliverable); labels require human review.
 - **Mode / blocking**: capability / report-only.
 - **Tier / runtime**: B / Azure (consumed nightly).
-- **Fixtures**: `tests/evals/fixtures/l1/code-review-trigger/prompts.csv` with
+- **Fixtures**: `tests/evals/fixtures/skills/code-review/trigger/prompts.csv` with
   explicit/implicit/contextual positives, negative controls, and ambiguous
   strata; governance fields (`id`, `stratum`, `label`, `expected_signal`,
   `source`, `version`, `sensitivity`); synthetic, no secrets.
