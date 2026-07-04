@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "description": "Frozen trace schema v1 contract for the agent-delivery-harness (issue #92). Machine-readable authority for the span vocabulary prose-described in docs/evaluation/observability-and-trace-schema.md. Parsed with jq by tests/scripts/test_trace_schema.sh and future validators (issue #97).",
+  "notes": {
+    "field_names": "Span attributes are flat dotted keys (e.g. \"harness.issue\", \"gen_ai.tool.name\") following OpenTelemetry GenAI naming, jq-addressable as .[\"harness.issue\"]. No nested objects.",
+    "timestamp_format": "timestamp is an ISO 8601 UTC string, e.g. 2026-07-04T12:00:00Z (shell: date -u +%Y-%m-%dT%H:%M:%SZ).",
+    "extra_fields": "Unknown extra fields are allowed on a span (open-world for additions); the closed enums and required-field sets below are frozen.",
+    "schema_version_per_span": "Every span line carries schema_version so a trace surviving a harness upgrade mid-issue remains interpretable line by line.",
+    "harness_version": "harness.version is the git SHA of the harness scripts in use; mandatory on every span to enable before/after harness comparisons."
+  },
+  "span_types": ["agent", "model", "tool", "lifecycle"],
+  "required_common": ["schema_version", "timestamp", "span", "harness.issue", "harness.version"],
+  "required_by_span": {
+    "agent": ["gen_ai.operation.name", "gen_ai.agent.name"],
+    "model": ["gen_ai.request.model", "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens"],
+    "tool": ["gen_ai.tool.name"],
+    "lifecycle": ["harness.lifecycle_step"]
+  },
+  "lifecycle_steps": [
+    "preflight",
+    "worktree_create",
+    "plan_handback",
+    "feature_start",
+    "red_handback",
+    "impl_handback",
+    "green_handback",
+    "review_verdict",
+    "review_gate_approve",
+    "pr_create",
+    "pr_merge",
+    "finish",
+    "deviation"
+  ],
+  "optional_fields": {
+    "harness.feature_id": "string; feature id from feature_list.json",
+    "harness.outcome": "enum: pass | fail | blocked",
+    "harness.review_gate_sha": "string; commit SHA approved at the review gate",
+    "gen_ai.operation.name": "string; also allowed on non-agent spans"
+  },
+  "trace_file": {
+    "path": ".copilot-tracking/issues/issue-NN/trace.jsonl",
+    "format": "append-only JSONL, one span object per line",
+    "visibility": "local-only, never committed; covered by the existing .gitignore rule .copilot-tracking/issues/issue-*/"
+  },
+  "redaction": {
+    "rule": "Redact secrets, tokens, .env content, and customer-supplied sensitive data before a span is written.",
+    "authorities": [
+      "docs/evaluation/security-evals.md",
+      "docs/evaluation/dataset-governance.md"
+    ]
+  }
+}

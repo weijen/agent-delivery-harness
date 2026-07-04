@@ -114,7 +114,8 @@ phase.
 
 ## Issue Creation Guidance
 
-Each page lists an "Initial Issues To Create Later" section. When turning a page
+Each page lists either an "Initial Issues To Create Later" section or, once its
+issues exist, a pointer to the created workstream issues. When turning a page
 into issues:
 
 - Keep one capability per issue where possible.

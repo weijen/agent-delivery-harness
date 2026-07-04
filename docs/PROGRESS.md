@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-06-25 (issue #84)._
+_Last updated: 2026-07-04 (issue #92)._
 
 ---
 
@@ -40,11 +40,14 @@ _Last updated: 2026-06-25 (issue #84)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 31 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 33 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
+- **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
+  `test_trace_schema.sh` freeze the deep-trace span vocabulary (no emitter yet;
+  that is #93–#94).
 
 ## Next up
 
@@ -55,12 +58,30 @@ _Last updated: 2026-06-25 (issue #84)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **In flight:** #84 — unify the status-doc name on `docs/PROGRESS.md` and
-  enforce it via the `review-gate.sh status-doc` sensor (this change).
+- **Deep-tracing workstream (open issues #93–#99):** trace-lib.sh emitter +
+  redaction (#93), lifecycle/tool spans from harness scripts (#94), agent-span
+  conventions for conductor/subagent handbacks (#95), optional Claude Code
+  hooks adapter (#96), trace validator + consistency sensor (#97), per-issue
+  trace report + cross-run scorecard keyed by `harness.version` (#98),
+  failure-mode taxonomy + replay fixtures (#99). Carry-overs from the #92
+  review: value-type validation belongs to #97; span-linkage fields
+  (`span_id`/`parent_span_id`) must be frozen before the emitter lands.
+- **In flight:** #92 delivered by this branch; #93 is next.
 
 ---
 
 ## Delivered (newest first)
+
+### Deep tracing
+- **#92 — Trace schema v1 frozen as a machine-checkable contract.**
+  `docs/evaluation/trace-schema.v1.json` (4 span types, 13-step lifecycle
+  vocabulary, mandatory `schema_version` + `harness.version`, per-type OTel
+  GenAI fields, trace-file contract at
+  `.copilot-tracking/issues/issue-NN/trace.jsonl`, redaction-by-reference),
+  guarded by `test_trace_schema.sh` (contract-driven jq accept/reject filter,
+  earmarked for reuse by the #97 validator) and
+  `test_trace_schema_docs.sh` (observability page defers to the contract; no
+  competing vocabulary can drift).
 
 ### Lifecycle hardening — naming + verify gate
 - **#84 — Unify repo-wide status doc as `docs/PROGRESS.md` + enforce it.**
