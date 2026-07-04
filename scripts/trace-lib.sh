@@ -45,14 +45,28 @@ trace_warn() {
 #   - AWS access key ids AKIA[0-9A-Z]{16}
 #   - Bearer <token>
 #   - generic secret/token/password/passwd/api_key/apikey/credential
-#     key=value or key:value (case-insensitive; value masked, key kept)
+#     JSON pairs ("key":"value") and embedded key=value shapes
+#     (case-insensitive; value masked, key kept)
+#   - uppercase env-style keys ending in SECRET/TOKEN/PASSWORD/ACCESS_KEY/
+#     API_KEY(S)=value (uppercase-only, so lowercase gen_ai.usage.*_tokens
+#     stays safe)
+#   - hyphen-tolerant header shapes (X-Api-Key: value)
+# JSON-safety invariant (loop-2 hardening): value matching is quoted-string
+# shaped. The ':'-separated generic rule only masks inside a quoted JSON
+# string value ("key":"value"), and the '='/header rules only fire on shapes
+# that cannot occur in JSON structure (jq -c never emits '=' or a space-free
+# 'word: ' outside string values), so redaction can never truncate an
+# unquoted JSON number (e.g. gen_ai.usage.token_total=42) or break a line.
 trace_redact() {
   sed -E \
     -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
     -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
     -e 's/AKIA[0-9A-Z]{16}/[REDACTED]/g' \
     -e 's/[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+=-]+/Bearer [REDACTED]/g' \
-    -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"? *[=:] *"?)[^"[:space:]]+/\1\2[REDACTED]/g'
+    -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"[[:space:]]*:[[:space:]]*")[^"]*/\1\2[REDACTED]/g' \
+    -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"[:space:]]+/\1\2[REDACTED]/g' \
+    -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"[:space:]]+/\1[REDACTED]/g' \
+    -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"[:space:]]+/\1[REDACTED]/g'
 }
 
 # Unique-per-call span id: 8 random bytes as hex, with a pid/time fallback
@@ -111,6 +125,24 @@ trace_span() {
       trace_warn "trace_span: malformed argument '${kv}' (expected key=value) — span dropped"
       return 0
     fi
+  done
+
+  # Reserved-key protection (loop-2 hardening): the auto-stamped identity
+  # fields cannot be spoofed by a caller. Each reserved key is dropped with
+  # a warning and the span is still emitted with the remaining legitimate
+  # attributes. parent_span_id is intentionally NOT reserved (caller-winnable).
+  local -a attrs=()
+  local key
+  for kv in "$@"; do
+    key="${kv%%=*}"
+    case "$key" in
+      span|schema_version|timestamp|harness.issue|harness.version|span_id)
+        trace_warn "trace_span: reserved key '${key}' cannot be overridden — attribute dropped"
+        ;;
+      *)
+        attrs+=("$kv")
+        ;;
+    esac
   done
 
   if ! command -v jq >/dev/null 2>&1; then
@@ -190,7 +222,7 @@ trace_span() {
                then ($v | tonumber)
                else $v
                end) })
-    ' "$@" 2>/dev/null)" || {
+    ' ${attrs[@]+"${attrs[@]}"} 2>/dev/null)" || {
     trace_warn "trace_span: jq failed to serialize the span — span dropped"
     return 0
   }

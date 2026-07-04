@@ -28,6 +28,11 @@
 #      fields (gen_ai.usage.*) serialize as JSON numbers, harness.issue is
 #      auto-stamped as a number, and every other value — including
 #      digits-only free text like a short SHA — stays a JSON string.
+#   8. Reserved-key protection (issue #93 loop-2 review hardening): caller
+#      key=value pairs must not overwrite the auto-stamped fields (span,
+#      schema_version, timestamp, harness.issue, harness.version, span_id) —
+#      reserved keys are dropped with a warning, the span is still written
+#      with the remaining attributes, and parent_span_id stays caller-winnable.
 #
 # Redaction and failure-isolation behaviors are covered by their own sensors
 # (test_trace_lib_redaction.sh, test_trace_lib_isolation.sh) — this sensor is
@@ -253,5 +258,42 @@ check_stamps "TRACE_ISSUE override" "$override_line" 12
   || fail "TRACE_ISSUE override must not write into the branch-resolved issue-07 trace"
 jq -e '.["harness.issue"] == 7' "$TRACE_FILE" >/dev/null \
   || fail "branch-name resolution (feature/issue-NN-*) must stamp harness.issue=7 on every issue-07 line"
+
+# --- 8. Reserved-key protection (issue #93 loop-2 review hardening) --------------
+# A caller must not be able to spoof the auto-stamped identity fields. Pinned
+# contract (the SAFER of the two candidates): each reserved key (span,
+# schema_version, timestamp, harness.issue, harness.version, span_id) is
+# dropped with a trace-lib warning on stderr, the span is STILL written
+# carrying the remaining legitimate attributes, and parent_span_id is NOT
+# reserved (caller-winnable, section 6).
+RESERVED_ERR="${TMP_DIR}/reserved.err"
+trace_span tool \
+  "span=telemetry" \
+  "schema_version=99" \
+  "timestamp=1999-01-01T00:00:00Z" \
+  "harness.issue=99" \
+  "harness.version=deadbee" \
+  "span_id=forced-span-id" \
+  "parent_span_id=rk-parent-01" \
+  "gen_ai.tool.name=git" 2> "$RESERVED_ERR" \
+  || fail "trace_span with reserved-key overrides returned non-zero"
+[ "$(line_count "$TRACE_FILE")" = "8" ] \
+  || fail "reserved-key call must still append exactly one span with the legit attrs (got $(line_count "$TRACE_FILE") lines)"
+reserved_line="$(nth_line "$TRACE_FILE" 8)"
+printf '%s\n' "$reserved_line" | jq -e '
+    (.span == "tool")
+    and (.schema_version == 1)
+    and (.["gen_ai.tool.name"] == "git")
+    and (.parent_span_id == "rk-parent-01")
+    and (.span_id != "forced-span-id")
+  ' >/dev/null \
+  || fail "reserved keys (span/schema_version/timestamp/harness.issue/harness.version/span_id) must be dropped — auto-stamps win, span still written with legit attrs, parent_span_id caller-winnable: ${reserved_line}"
+check_stamps "reserved-key span" "$reserved_line" 7
+[ "$(printf '%s\n' "$reserved_line" | jq -r '.timestamp')" != "1999-01-01T00:00:00Z" ] \
+  || fail "reserved timestamp override must not land on the span: ${reserved_line}"
+validate_span "$reserved_line" \
+  || fail "reserved-key span rejected by the contract-driven jq filter: ${reserved_line}"
+grep -q 'trace-lib' "$RESERVED_ERR" \
+  || fail "dropping reserved keys must emit a trace-lib warning on stderr (got: $(cat "$RESERVED_ERR"))"
 
 printf 'trace-lib core emission contract honored\n'

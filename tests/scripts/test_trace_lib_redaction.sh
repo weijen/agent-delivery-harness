@@ -24,6 +24,12 @@
 #      containing the lowercase substring "akiaish" is untouched, and the key
 #      literally named gen_ai.usage.output_tokens is not mangled by the
 #      `token` pattern (innocent lines carry no [REDACTED] at all).
+#   5. Loop-2 review hardening (issue #93): (a) a numeric gen_ai.usage.* key
+#      whose leaf STARTS with "token" (gen_ai.usage.token_total=42) must not
+#      be corrupted by the token pattern into invalid JSON — the on-disk line
+#      stays valid and schema-valid with the number intact; (b) env-style
+#      (AWS_SECRET_ACCESS_KEY=...) and header-style (X-Api-Key: ...) synthetic
+#      secret values must be redacted.
 #
 # Mutation hook: set TRACE_LIB_UNDER_TEST=<path> to point the sensor at an
 # alternate copy of trace-lib.sh (e.g. one whose trace_redact is a no-op) and
@@ -97,6 +103,8 @@ PASSWORD_SECRET='hunter2-synthetic'
 APIKEY_SECRET='synthkey-0451-abcdef'
 SECRET_SECRET='swordfish-synthetic'
 TOKEN_SECRET='tok-synthetic-2718281828'
+AWS_SK_SECRET='wJalrSYNTHETICSYNTHETICSYNTHETIC'
+XAPI_SECRET='synthetic-api-key-value-0001'
 
 # --- Fixture: throwaway git repo faking an issue-07 worktree ---------------------
 REPO="${TMP_DIR}/myrepo"
@@ -221,5 +229,48 @@ for i in 5 6; do
     fail "innocent line ${i} was wrongly redacted: $(nth_line "$TRACE_FILE" "$i")"
   fi
 done
+
+# --- 5. Loop-2 review hardening (issue #93) ---------------------------------------
+# 5a. Numeric coercion x token-keyword: gen_ai.usage.token_total=42 serializes
+# as an unquoted JSON number whose key leaf starts with "token"; the generic
+# token pattern must not turn the bare number into invalid JSON. The on-disk
+# line must stay valid JSON, pass the #92 filter, and keep all three numbers.
+trace_span model "gen_ai.request.model=m" \
+  "gen_ai.usage.input_tokens=1" "gen_ai.usage.output_tokens=1" \
+  "gen_ai.usage.token_total=42" \
+  || fail "trace_span (gen_ai.usage.token_total) returned non-zero"
+[ "$(line_count "$TRACE_FILE")" = "7" ] \
+  || fail "gen_ai.usage.token_total call must append exactly one line (got $(line_count "$TRACE_FILE"))"
+token_total_line="$(nth_line "$TRACE_FILE" 7)"
+printf '%s\n' "$token_total_line" | jq empty 2>/dev/null \
+  || fail "numeric gen_ai.usage.token_total was corrupted into invalid JSON on disk (token pattern x numeric coercion): ${token_total_line}"
+validate_span "$token_total_line" \
+  || fail "gen_ai.usage.token_total line rejected by the #92 contract-driven jq filter: ${token_total_line}"
+printf '%s\n' "$token_total_line" | jq -e '
+    (.["gen_ai.usage.token_total"] == 42)
+    and (.["gen_ai.usage.input_tokens"] == 1)
+    and (.["gen_ai.usage.output_tokens"] == 1)
+  ' >/dev/null \
+  || fail "innocent numeric gen_ai.usage.* values (token_total=42, input/output=1) were mangled: ${token_total_line}"
+if printf '%s\n' "$token_total_line" | grep -qF '[REDACTED]'; then
+  fail "innocent gen_ai.usage.token_total line was wrongly redacted: ${token_total_line}"
+fi
+
+# 5b. Env-style and header-style synthetic secret values must be redacted.
+trace_span tool "gen_ai.tool.name=env" \
+  "aws.env=AWS_SECRET_ACCESS_KEY=${AWS_SK_SECRET}" \
+  "http.header=X-Api-Key: ${XAPI_SECRET}" \
+  || fail "trace_span (AWS_SECRET_ACCESS_KEY/X-Api-Key secrets) returned non-zero"
+[ "$(line_count "$TRACE_FILE")" = "8" ] \
+  || fail "env/header secret call must append exactly one line (got $(line_count "$TRACE_FILE"))"
+assert_absent "AWS_SECRET_ACCESS_KEY env-style" "$AWS_SK_SECRET"
+assert_absent "X-Api-Key header-style" "$XAPI_SECRET"
+header_line="$(nth_line "$TRACE_FILE" 8)"
+printf '%s\n' "$header_line" | grep -qF '[REDACTED]' \
+  || fail "env/header secret line carries no [REDACTED] marker: ${header_line}"
+printf '%s\n' "$header_line" | jq empty 2>/dev/null \
+  || fail "env/header secret line is no longer valid JSON after redaction: ${header_line}"
+validate_span "$header_line" \
+  || fail "env/header secret line rejected by the #92 contract-driven jq filter: ${header_line}"
 
 printf 'trace-lib redaction contract honored\n'
