@@ -74,6 +74,13 @@ jq -e --argjson want "$required_common_backstop" \
   '(.required_common | type) == "array" and (($want - .required_common) | length == 0)' "$CONTRACT" >/dev/null \
   || fail "contract .required_common must include schema_version, timestamp, span, harness.issue, harness.version"
 
+# Span linkage fields (issue #93, feature trace-schema-linkage-fields): the v1
+# contract must declare span_id/parent_span_id as optional fields so the
+# trace-lib emitter can stamp span linkage without a schema bump.
+jq -e '(.optional_fields | type) == "object" and (.optional_fields | has("span_id") and has("parent_span_id"))' \
+  "$CONTRACT" >/dev/null \
+  || fail "contract .optional_fields must include the span linkage fields span_id and parent_span_id"
+
 # --- 3. jq validation filter: contract-driven span accept/reject -------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
@@ -122,6 +129,10 @@ must_accept "tool" \
   '{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"tool","harness.issue":92,"harness.version":"0f3c1a2","gen_ai.tool.name":"git"}'
 must_accept "lifecycle" \
   '{"schema_version":1,"timestamp":"2026-07-04T12:00:03Z","span":"lifecycle","harness.issue":92,"harness.version":"0f3c1a2","harness.lifecycle_step":"review_gate_approve"}'
+# Span linkage (issue #93): optional span_id/parent_span_id ride the open-world
+# extra-fields rule, so a span carrying both must stay accepted.
+must_accept "tool with span linkage fields" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:08Z","span":"tool","harness.issue":93,"harness.version":"0f3c1a2","gen_ai.tool.name":"git","span_id":"20260704T120008-a1b2c3","parent_span_id":"20260704T120000-9f8e7d"}'
 
 # Reject: each frozen failure mode must be refused.
 must_reject "missing schema_version" \
