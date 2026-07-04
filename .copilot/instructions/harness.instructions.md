@@ -170,9 +170,9 @@ emission point — three of the four subagents have no shell — and each subage
 payload line the conductor feeds in verbatim. One invocation is single-source by construction: it writes the agent
 span first, then the derived Action Log line in `progress.md` from the same arguments —
 never hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
-attributing `<role>` to the role that produced the event (the mapping below covers every required handback signal;
-script-emitted lifecycle/tool spans — preflight, review-gate, PR create/merge/finish — are already traced and are not
-duplicated here):
+attributing `<role>` to the role that produced the event. The mapping below covers every required handback signal;
+the other six lifecycle steps of the frozen enum — `preflight`, `worktree_create`, `review_gate_approve`,
+`pr_create`, `pr_merge`, `finish` — are emitted by the lifecycle scripts themselves and are not duplicated here:
 
 - `feature_start` — the conductor selects the next `passes:false` feature (role `conductor`).
 - `plan_handback` — `planning-subagent` returns its plan (or the human gate resolves it).

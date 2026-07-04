@@ -275,7 +275,10 @@ contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluatio
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the
 derived Action Log line in the worktree `progress.md` — single-source from the same arguments, so the machine-readable
-trace and the human-readable Action Log cannot disagree. Never hand-author the span/log-line pair separately. Full
+trace and the human-readable Action Log stay in step by construction. (Tracing can still degrade by design — trace-lib
+is warn-never-fail, so a span may be dropped while the Action Log line lands; the helper warns when that happens, and
+the trace ↔ Action Log consistency sensor catches any divergence post-hoc.) Never hand-author the span/log-line pair
+separately. Full
 conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule) live in
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 

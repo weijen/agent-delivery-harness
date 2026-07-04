@@ -55,6 +55,19 @@
 #     helper must ALSO redact the Action Log line (secret shapes such as
 #     ghp_… become [REDACTED] in progress.md, even though progress.md is
 #     gitignored).
+#   - Loop-2 hardening (pinned by the negative cases below):
+#       * feature_id is a single token matching [A-Za-z0-9._-]+ ('-'
+#         included); whitespace or ']' would corrupt the bullet shape and
+#         tuple parsing → validation failure, nothing written.
+#       * The summary is one-line by contract: embedded newlines/CRs are
+#         flattened to spaces before EITHER artifact is rendered (one span,
+#         one bullet, identical flattened text).
+#       * Span-drop visibility: trace-lib is warn-never-fail, so when the
+#         span write is dropped (e.g. unappendable trace file) while
+#         progress.md IS writable, the helper warns 'span was dropped' on
+#         stderr, STILL appends the Action Log line, and exits 0. The
+#         ORPHAN wording is snapshot-gated — it may only appear when a
+#         span verifiably landed, so the span-drop path never claims one.
 #
 # Fixture style follows test_trace_review_gate.sh: throwaway MAIN repo +
 # linked feature/issue-NN-* worktrees, helper invoked FROM THE WORKTREE
@@ -338,11 +351,39 @@ fi
 if run_hb "$WTA" "${TMP_DIR}/a9.out" conductor feature_start log-handback-helper; then
   cat "${TMP_DIR}/a9.out"; fail "missing outcome/summary args must hard-fail (usage error)"
 fi
+# feature_id shape (loop-2 hardening): a single [A-Za-z0-9._-]+ token only —
+# whitespace or ']' would corrupt the '- [role] step id outcome — summary'
+# bullet shape and the span/log tuple parsing.
+if run_hb "$WTA" "${TMP_DIR}/a10.out" conductor feature_start "two words" pass "oops"; then
+  cat "${TMP_DIR}/a10.out"; fail "feature_id containing a space must hard-fail (single-token shape)"
+fi
+if run_hb "$WTA" "${TMP_DIR}/a11.out" conductor feature_start "bad]id" pass "oops"; then
+  cat "${TMP_DIR}/a11.out"; fail "feature_id containing ']' must hard-fail (would corrupt the bullet shape)"
+fi
 
 [ "$(line_count "$TRACE_A")" = "5" ] \
   || fail "validation failures must write NO span (expected 5 lines, got $(line_count "$TRACE_A"))"
 [ "$(cksum "$PROG_A")" = "$prog_sum_before" ] \
   || fail "validation failures must write NO Action Log line (progress.md changed)"
+
+# ============================================================================
+# 5b. Newline-containing summary (loop-2 hardening): flattened to spaces —
+#     ONE span and ONE single-line bullet, identical flattened text.
+# ============================================================================
+prog_before_nl="$(line_count "$PROG_A")"
+run_hb "$WTA" "${TMP_DIR}/a12.out" \
+  implementation-subagent impl_handback log-handback-helper pass \
+  $'first line\nsecond line' \
+  || { cat "${TMP_DIR}/a12.out"; fail "newline-containing summary must still exit 0 (flattened, not rejected)"; }
+[ "$(line_count "$TRACE_A")" = "6" ] \
+  || fail "newline-summary call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+a12="$(nth_line "$TRACE_A" 6)"
+check_agent_span "newline-flatten" "$a12" implementation-subagent impl_handback \
+  log-handback-helper pass "first line second line" 13
+[ "$(line_count "$PROG_A")" = "$((prog_before_nl + 1))" ] \
+  || fail "newline-containing summary must append exactly ONE flattened progress.md line (before=${prog_before_nl}, after=$(line_count "$PROG_A"))"
+expect_bullet "newline-flatten" "$PROG_A" \
+  "- [implementation-subagent] impl_handback log-handback-helper pass — first line second line"
 
 # ============================================================================
 # 6. Append failure — progress.md MISSING: validate-then-span-then-log means
@@ -415,5 +456,32 @@ expect_bullet "no-trace-lib" "${R2}/.copilot-tracking/issues/issue-21/progress.m
   "- [planning-subagent] plan_handback - pass — plan drafted, two open questions"
 [ ! -e "${R2}/.copilot-tracking/issues/issue-21/trace.jsonl" ] \
   || fail "trace-lib absent: no trace file may be created"
+
+# ============================================================================
+# 9. Span DROPPED by trace-lib while progress.md is writable (loop-2
+#    hardening): trace.jsonl is made unappendable (a directory squats on the
+#    path), so trace_span warn-drops. The helper must surface it — stderr
+#    contains 'span was dropped' — still append the Action Log line, and
+#    exit 0. The ORPHAN wording is snapshot-gated: no span landed, so it
+#    must NOT appear.
+# ============================================================================
+WTD="${TMP_DIR}/wt-issue-16"
+git -C "$MAIN" worktree add -q -b feature/issue-16-spandrop "$WTD"
+scaffold_progress "$WTD" 16
+mkdir -p "${MAIN}/.copilot-tracking/issues/issue-16/trace.jsonl"
+[ -d "${MAIN}/.copilot-tracking/issues/issue-16/trace.jsonl" ] \
+  || fail "fixture bug: issue-16 trace.jsonl must be a directory (unappendable)"
+
+run_hb "$WTD" "${TMP_DIR}/d1.out" \
+  test-subagent green_handback log-handback-helper pass "verified with dropped span" \
+  || { cat "${TMP_DIR}/d1.out"; fail "span-drop path must exit 0 (tracing degrades, the Action Log never does)"; }
+grep -qi 'span was dropped' "${TMP_DIR}/d1.out" \
+  || { cat "${TMP_DIR}/d1.out"; fail "span-drop path must warn 'span was dropped' on stderr (silent drop forbidden)"; }
+grep -qi 'orphan' "${TMP_DIR}/d1.out" \
+  && { cat "${TMP_DIR}/d1.out"; fail "span-drop path must NOT claim an ORPHAN span (snapshot-gated wording: no span landed)"; }
+expect_bullet "span-drop" "${WTD}/.copilot-tracking/issues/issue-16/progress.md" \
+  "- [test-subagent] green_handback log-handback-helper pass — verified with dropped span"
+[ -d "${MAIN}/.copilot-tracking/issues/issue-16/trace.jsonl" ] \
+  || fail "span-drop fixture: the unappendable trace.jsonl directory must be untouched"
 
 printf 'log-handback single-source handback contract honored\n'

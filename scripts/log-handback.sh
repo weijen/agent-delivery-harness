@@ -92,8 +92,16 @@ case "$OUTCOME" in
   *) usage; fail "unknown outcome '${OUTCOME}' (expected pass|fail|blocked)" ;;
 esac
 
-[ -n "$FEATURE_ID" ] || fail "feature_id must be non-empty (use '-' when no feature applies)"
+# feature_id is a single token: letters/digits/dot/underscore/hyphen (the
+# literal '-' placeholder is covered by the class). Whitespace, ']', em-dashes
+# and similar would corrupt the '- [role] step id outcome — summary' line shape.
+[[ "$FEATURE_ID" =~ ^[A-Za-z0-9._-]+$ ]] \
+  || fail "invalid feature_id '${FEATURE_ID}' (expected a token of [A-Za-z0-9._-], or '-' when no feature applies)"
 [ -n "$SUMMARY" ] || fail "summary must be non-empty"
+# The span summary and the Action Log bullet are one-line by contract:
+# flatten any embedded newlines to spaces before either artifact is rendered.
+SUMMARY="${SUMMARY//$'\r'/ }"
+SUMMARY="${SUMMARY//$'\n'/ }"
 
 # --- 2. Emit the agent span first (plan D3 ordering) --------------------------
 # Guarded source: a missing trace-lib.sh degrades tracing but must never lose
@@ -107,7 +115,26 @@ else
   warn "scripts/trace-lib.sh not found — agent span skipped, Action Log line still recorded"
 fi
 
+# trace_span is warn-and-return-0 by contract (#93 plan D2), so a dropped
+# span would otherwise be silent here. Snapshot the trace file around the
+# call and warn explicitly when no span landed, so the caller knows the
+# Action Log line has no matching span (the consistency sensor catches the
+# divergence post-hoc; exit semantics are unchanged).
+SPAN_WRITTEN=0
 if [ "$HAVE_TRACE_LIB" = "1" ]; then
+  # Resolve the same trace file trace_span will target, via the lib's own
+  # helpers so the two paths cannot disagree. Unresolvable → the span will
+  # be dropped anyway; leave TRACE_FILE empty.
+  TRACE_FILE=""
+  if MAIN_ROOT="$(trace__main_root 2>/dev/null)" \
+    && SPAN_ISSUE="$(trace__resolve_issue 2>/dev/null)"; then
+    TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-$(printf '%02d' "$SPAN_ISSUE")/trace.jsonl"
+  fi
+  SPANS_BEFORE=0
+  if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
+    SPANS_BEFORE="$(wc -l < "$TRACE_FILE" | tr -d '[:space:]')"
+  fi
+
   # Token passthrough: forward each env var independently, only when it is a
   # pure decimal integer (omit, never fake — plan D5).
   TOKEN_ARGS=()
@@ -125,6 +152,16 @@ if [ "$HAVE_TRACE_LIB" = "1" ]; then
     "harness.outcome=${OUTCOME}" \
     "harness.summary=${SUMMARY}" \
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"}
+
+  SPANS_AFTER=0
+  if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
+    SPANS_AFTER="$(wc -l < "$TRACE_FILE" | tr -d '[:space:]')"
+  fi
+  if [ -n "$TRACE_FILE" ] && [ "$SPANS_AFTER" -gt "$SPANS_BEFORE" ]; then
+    SPAN_WRITTEN=1
+  else
+    warn "agent span was dropped by trace-lib — Action Log line has no matching span"
+  fi
 fi
 
 # --- 3. Append the derived Action Log line (hard-fails, plan D4) --------------
@@ -141,9 +178,10 @@ redact_line() {
   fi
 }
 
-# The append-failure message names the orphan span only when one was written.
+# The append-failure message names the orphan span only when one was
+# verifiably written (the snapshot above), not merely when the lib loaded.
 append_fail() {
-  if [ "$HAVE_TRACE_LIB" = "1" ]; then
+  if [ "$SPAN_WRITTEN" = "1" ]; then
     fail "$* — the agent span already written to trace.jsonl is now an ORPHAN (no matching Action Log line)"
   else
     fail "$*"
