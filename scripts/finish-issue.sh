@@ -47,8 +47,9 @@ fi
 # Terminal `finish` lifecycle span via a stage-tracked EXIT trap (plan D3).
 # It fires AFTER `git worktree remove` — the span survives teardown only
 # because trace-lib pins the trace file to the MAIN checkout root (plan D1).
-# TRACE_STAGE names the last stage reached (completion_check|worktree_remove|
-# branch_delete|done); refusals before the completion check emit nothing.
+# TRACE_STAGE names the last stage reached (completion_check|trace_gate|
+# worktree_remove|branch_delete|done); refusals before the completion check
+# emit nothing.
 TRACE_STAGE=""
 TRACE_T0=0
 WORKTREE_REMOVED=false
@@ -129,6 +130,34 @@ echo "  worktree: ${WORKTREE_DIR}"
 TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="completion_check"
 check_feature_completion
+
+# --- Two-phase trace gate (issue #103, feature trace-gate-two-phase) ---------
+# Run the trace gate BEFORE teardown, mirroring the REQUIRE_FEATURES_COMPLETE
+# pattern: warn-only by default (findings print, teardown proceeds); under
+# REQUIRE_TRACE_CONSISTENCY=1 findings turn into a refusal BEFORE
+# worktree_remove, leaving the worktree intact. TRACE_ISSUE is already
+# exported above, so the gate resolves the right issue from the main
+# checkout. A missing review-gate.sh degrades to a warn-and-skip — the gate
+# never breaks teardown on a checkout that predates the trace tooling.
+TRACE_STAGE="trace_gate"
+if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+  if ! "${SCRIPT_DIR}/review-gate.sh" trace; then
+    if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
+      red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
+      echo "  Resolve the findings above (or unset the flag) and re-run:"
+    else
+      # Warn-only without the flag, so a non-zero exit here is unexpected
+      # (a broken gate, not a policy block) — say so honestly (loop-2 F4).
+      red "✗ trace gate failed unexpectedly (it is warn-only without REQUIRE_TRACE_CONSISTENCY=1)."
+      echo "  Inspect the output above, then re-run:"
+    fi
+    echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
+    echo "  The worktree is left intact."
+    exit 1
+  fi
+else
+  yellow "⚠ trace gate skipped: scripts/review-gate.sh not found"
+fi
 
 TRACE_STAGE="worktree_remove"
 if [ ! -e "$WORKTREE_DIR" ]; then

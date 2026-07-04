@@ -1,20 +1,28 @@
 #!/usr/bin/env bash
 # validate-trace.sh — standalone, report-only trace validator (issue #97:
 # features validate-trace-schema-core, validate-trace-completeness,
-# validate-trace-redaction-audit, validate-trace-sanity-flags).
+# validate-trace-redaction-audit, validate-trace-sanity-flags; reworked in
+# issue #103, feature validate-trace-single-pass: all jq-side checks run as
+# ONE jq program over the whole file, so the jq process count is O(1) —
+# independent of trace length — instead of ~5 forks per line).
 #
 # Checks a per-issue trace.jsonl against the frozen v1 trace schema contract
 # (docs/evaluation/trace-schema.v1.json), line by line:
 #
-#   invalid_json      the line does not parse as JSON;
+#   invalid_json      the line does not parse as ONE JSON value (JSONL
+#                     semantics under the single-pass parser: a line holding
+#                     multiple concatenated values, trailing garbage, or no
+#                     value at all is invalid_json);
 #   schema_violation  the lifted #92 presence/enum filter rejects the span
 #                     (required common fields, span-type vocabulary, per-type
 #                     required fields, lifecycle-step enum);
 #   type_violation    a known key carries the wrong JSON type. Known-key type
 #                     map (plan D2): NUMBERS for gen_ai.usage.*,
 #                     harness.exit_status, harness.duration_ms,
-#                     harness.incomplete_count, harness.issue, schema_version;
-#                     STRINGS for everything else. A digits-only string on a
+#                     harness.incomplete_count, harness.issue, schema_version,
+#                     and (issue #103 trace-gate counts, matching trace-lib's
+#                     exact-key numeric list) harness.violation_count /
+#                     harness.warning_count; STRINGS for everything else. A digits-only string on a
 #                     numeric key is a violation; a number on a string key
 #                     likewise. "Looks numeric" is never "must be a number":
 #                     digits-only strings on string keys (e.g.
@@ -30,7 +38,16 @@
 #                     oracle — one redaction policy, never a forked pattern
 #                     list; plan D4) would ALTER the line: a secret-shaped
 #                     token survived on disk. Audited on every line
-#                     regardless of finish state.
+#                     regardless of finish state. Batched (#103): the WHOLE
+#                     file round-trips through trace_redact once and the
+#                     comparison is per line in bash — 1 spawn instead of N;
+#   redaction_audit_error
+#                     (issue #103) trace_redact itself FAILED at runtime: the
+#                     auditor broke, which is NOT the same as a secret on
+#                     disk. Still fail-closed — every audited line is flagged
+#                     as a violation (exit 1) — but under a DISTINCT rule
+#                     name so operators can tell "the auditor broke" from
+#                     "a secret survived".
 #
 # Whole-trace pass (plan D3):
 #   completeness      runs ONLY when the trace carries a `finish` lifecycle
@@ -160,16 +177,31 @@ else
 fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# --- Per-line jq filters -------------------------------------------------------
+# --- Single-pass jq program (issue #103, feature validate-trace-single-pass) -----
+# ONE jq invocation classifies every line (invalid_json → schema_violation →
+# type_violation first-failing-rule-wins, plus the independent
+# failure_mode_violation and jq_skipped_pass checks) AND folds in the
+# whole-trace passes (finish detection + finished-run completeness), so the
+# jq process count is constant regardless of trace length.
+#
+# Output protocol (parsed by the bash loop below):
+#   VIOLATION/WARNING finding lines  — passed through verbatim;
+#   ::total <N>                       — line count (spans read);
+#   ::finish true|false               — `finish` lifecycle step present;
+#   ::missing <step>                  — one per missing contract step
+#                                       (emitted only when finish is present).
+# Findings carry line numbers, rule names, and contract step names ONLY —
+# never attribute values or line content.
+SINGLE_PASS_FILTER="${TMP_DIR}/validate-single-pass.jq"
+cat > "$SINGLE_PASS_FILTER" <<'JQ'
 # ============================================================================
-# TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
-# Usage: jq -e --slurpfile contract docs/evaluation/trace-schema.v1.json \
-#            -f validate-span.jq  <<< "$one_span_json_line"
-# A span line is valid iff the filter outputs true (jq -e exit 0). A non-JSON
-# line fails jq parsing itself (non-zero exit), which is also a rejection.
+# TRACE SPAN VALIDATION FILTER (self-contained; lifted unchanged from #92 via
+# the #97 per-line validator — the def body below is the original filter text
+# verbatim, byte-equivalent to the block previously shipped as
+# validate-span.jq and diffable against test_trace_schema.sh; only the
+# def wrapper is new, `.` is the decoded span)
 # ============================================================================
-SCHEMA_FILTER="${TMP_DIR}/validate-span.jq"
-cat > "$SCHEMA_FILTER" <<'JQ'
+def schema_valid:
 $contract[0] as $c
 | . as $span
 | (($span | type) == "object")
@@ -179,16 +211,17 @@ $contract[0] as $c
   and (if $span.span == "lifecycle"
        then (($c.lifecycle_steps // []) | index($span["harness.lifecycle_step"]) != null)
        else true
-       end)
-JQ
+       end);
 
 # Known-key type map (plan D2, additive to the lifted filter so the block
 # above stays diffable against test_trace_schema.sh). Numeric keys must be
-# JSON numbers; every other key must be a JSON string.
-TYPE_FILTER="${TMP_DIR}/validate-types.jq"
-cat > "$TYPE_FILTER" <<'JQ'
+# JSON numbers; every other key must be a JSON string. Body lifted from the
+# #97 validate-types.jq, extended in #103 with the trace-gate count keys
+# (keep in step with trace-lib.sh's exact-key numeric list).
+def types_valid:
 ["harness.exit_status", "harness.duration_ms", "harness.incomplete_count",
- "harness.issue", "schema_version"] as $numeric_keys
+ "harness.issue", "schema_version",
+ "harness.violation_count", "harness.warning_count"] as $numeric_keys
 | to_entries
 | all(.[];
     .key as $k
@@ -196,144 +229,146 @@ cat > "$TYPE_FILTER" <<'JQ'
     | if $is_numeric
       then (.value | type) == "number"
       else (.value | type) == "string"
-      end)
-JQ
+      end);
 
 # Failure-mode closed enum (issue #99, feature failure-mode-span-plumbing):
 # when a span carries harness.failure_mode, its value must be in the
 # contract's closed failure_modes enum. Kept OUTSIDE the lifted #92 filter
 # above (that block stays byte-diffable against test_trace_schema.sh) and
-# reported under the distinct rule name failure_mode_violation.
-FAILURE_MODE_FILTER="${TMP_DIR}/validate-failure-mode.jq"
-cat > "$FAILURE_MODE_FILTER" <<'JQ'
+# reported under the distinct rule name failure_mode_violation. Body
+# verbatim from the #97 validate-failure-mode.jq.
+def failure_mode_valid:
 $contract[0] as $c
 | . as $span
 | if (($span | type) == "object") and ($span | has("harness.failure_mode"))
   then (($c.failure_modes // []) | index($span["harness.failure_mode"]) != null)
   else true
-  end
-JQ
-
-# --- Per-line validation pass ----------------------------------------------------
-# One finding per line, first failing rule wins:
-# invalid_json → schema_violation → type_violation. Findings carry the line
-# number and rule name ONLY — never the offending value.
-check_line() {
-  local line="$1" n="$2"
-  case "$line" in
-    *[![:space:]]*) ;;
-    *)
-      printf 'VIOLATION line %d: invalid_json\n' "$n"
-      return 1
-      ;;
-  esac
-  if ! printf '%s\n' "$line" | jq empty >/dev/null 2>&1; then
-    printf 'VIOLATION line %d: invalid_json\n' "$n"
-    return 1
-  fi
-  if ! printf '%s\n' "$line" \
-    | jq -e --slurpfile contract "$CONTRACT" -f "$SCHEMA_FILTER" >/dev/null 2>&1; then
-    printf 'VIOLATION line %d: schema_violation\n' "$n"
-    return 1
-  fi
-  if ! printf '%s\n' "$line" | jq -e -f "$TYPE_FILTER" >/dev/null 2>&1; then
-    printf 'VIOLATION line %d: type_violation\n' "$n"
-    return 1
-  fi
-  return 0
-}
-
-# Failure-mode enum check (issue #99): independent of check_line so it fires
-# on any parseable line carrying the key, and reported under its own rule
-# name. Unparseable lines are already flagged invalid_json by check_line.
-# The finding NEVER echoes the offending value.
-check_line_failure_mode() {
-  local line="$1" n="$2"
-  if ! printf '%s\n' "$line" | jq empty >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! printf '%s\n' "$line" \
-    | jq -e --slurpfile contract "$CONTRACT" -f "$FAILURE_MODE_FILTER" >/dev/null 2>&1; then
-    printf 'VIOLATION line %d: failure_mode_violation\n' "$n"
-    return 1
-  fi
-  return 0
-}
-
-# Redaction audit (plan D4): round-trip the line through trace_redact; any
-# alteration means a secret-shaped token survived on disk. Independent of
-# check_line so a leak on a schema-invalid line is still reported, and it
-# runs on every line regardless of finish state. The finding NEVER echoes
-# the line content. A filter failure is treated as a leak (fail closed).
-check_line_redaction() {
-  local line="$1" n="$2" redacted=""
-  if ! redacted="$(printf '%s\n' "$line" | trace_redact 2>/dev/null)"; then
-    redacted=""
-  fi
-  if [ "$redacted" != "$line" ]; then
-    printf 'VIOLATION line %d: redaction_leak\n' "$n"
-    return 1
-  fi
-  return 0
-}
+  end;
 
 # Sanity flag (plan D8, validator side): a pass-outcome check-feature-list
 # tool span carrying harness.warning=jq_skipped is a pass with no validation
 # behind it — worth a WARNING, never a violation (exit unaffected).
-check_line_jq_skipped() {
-  local line="$1" n="$2"
-  if printf '%s\n' "$line" | jq -e '
-      (type == "object")
-      and (.span == "tool")
-      and (.["gen_ai.tool.name"] == "check-feature-list")
-      and (.["harness.outcome"] == "pass")
-      and (.["harness.warning"] == "jq_skipped")' >/dev/null 2>&1; then
-    printf 'WARNING line %d: jq_skipped_pass\n' "$n"
-    return 1
-  fi
-  return 0
-}
+def jq_skipped_pass:
+  (type == "object")
+  and (.span == "tool")
+  and (.["gen_ai.tool.name"] == "check-feature-list")
+  and (.["harness.outcome"] == "pass")
+  and (.["harness.warning"] == "jq_skipped");
+
+[inputs] as $lines
+| ($lines | length) as $total
+# Per-line findings. One PRIMARY finding per line, first failing rule wins:
+# invalid_json → schema_violation → type_violation; the failure-mode enum
+# check and the jq_skipped sanity flag stay independent (they fire on any
+# parseable line, in addition to a primary finding).
+| [ range(0; $total) as $i
+    | ($i + 1) as $n
+    | $lines[$i] as $line
+    | [ $line | fromjson? ] as $parsed
+    | if ($parsed | length) == 0
+      then "VIOLATION line \($n): invalid_json"
+      else $parsed[0] as $span
+      | ( if ($span | schema_valid | not)
+          then "VIOLATION line \($n): schema_violation"
+          elif ($span | types_valid | not)
+          then "VIOLATION line \($n): type_violation"
+          else empty
+          end ),
+        ( if ($span | failure_mode_valid | not)
+          then "VIOLATION line \($n): failure_mode_violation"
+          else empty
+          end ),
+        ( if ($span | jq_skipped_pass)
+          then "WARNING line \($n): jq_skipped_pass"
+          else empty
+          end )
+      end
+  ] as $findings
+# Whole-trace pass (plan D3), folded in: finish detection + finished-run
+# lifecycle completeness, counting harness.lifecycle_step across ALL span
+# types. Unparseable lines are ignored here (already flagged per line).
+| [ $lines[] | fromjson? | .["harness.lifecycle_step"]? // empty | strings ] as $steps
+| (($steps | index("finish")) != null) as $finished
+| ( if $finished
+    then ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)
+    else []
+    end ) as $missing
+| $findings[],
+  "::total \($total)",
+  "::finish \($finished)",
+  ( $missing[] | "::missing \(.)" )
+JQ
 
 total=0
 violations=0
 warnings=0
-while IFS= read -r line || [ -n "$line" ]; do
-  total=$((total + 1))
-  if ! check_line "$line" "$total"; then
-    violations=$((violations + 1))
-  fi
-  if ! check_line_failure_mode "$line" "$total"; then
-    violations=$((violations + 1))
-  fi
-  if ! check_line_redaction "$line" "$total"; then
-    violations=$((violations + 1))
-  fi
-  if ! check_line_jq_skipped "$line" "$total"; then
-    warnings=$((warnings + 1))
-  fi
-done < "$TRACE_FILE"
-
-# --- Whole-trace pass: finished-run lifecycle completeness (plan D3) --------------
-# Only a finished run (a `finish` lifecycle step anywhere in the trace) is
-# held to completeness: every non-deviation contract step must appear at
-# least once, counting harness.lifecycle_step across ALL span types.
-# An unfinished trace skips the pass with an informational note (never a
-# violation). Unparseable lines are ignored here (already flagged per line).
-finish_present="$(jq -nRr '
-  [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings]
-  | index("finish") != null
-' < "$TRACE_FILE")"
-if [ "$finish_present" = "true" ]; then
-  missing_steps="$(jq -nRr --slurpfile contract "$CONTRACT" '
-    [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings] as $steps
-    | ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)[]
-  ' < "$TRACE_FILE")"
-  if [ -n "$missing_steps" ]; then
-    while IFS= read -r step; do
-      printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+finish_present="false"
+missing_steps=()
+if ! single_pass_out="$(jq -nRr --slurpfile contract "$CONTRACT" \
+    -f "$SINGLE_PASS_FILTER" < "$TRACE_FILE")"; then
+  red "error: the single-pass jq classification failed to run" >&2
+  exit 2
+fi
+while IFS= read -r out_line; do
+  case "$out_line" in
+    '::total '*)   total="${out_line#'::total '}" ;;
+    '::finish '*)  finish_present="${out_line#'::finish '}" ;;
+    '::missing '*) missing_steps+=("${out_line#'::missing '}") ;;
+    'VIOLATION '*)
+      printf '%s\n' "$out_line"
       violations=$((violations + 1))
-    done <<< "$missing_steps"
-  fi
+      ;;
+    'WARNING '*)
+      printf '%s\n' "$out_line"
+      warnings=$((warnings + 1))
+      ;;
+  esac
+done <<< "$single_pass_out"
+
+# --- Redaction audit (plan D4, batched in #103) -----------------------------------
+# trace_redact is bash (the library oracle cannot move into jq), so it is
+# batched instead: the WHOLE file round-trips through trace_redact ONCE and
+# the per-line comparison happens in bash — one spawn instead of one per
+# line. Any altered line means a secret-shaped token survived on disk
+# (redaction_leak). Runs on every line regardless of finish state; a leak on
+# a schema-invalid line is still reported. Findings NEVER echo line content.
+#
+# Fail closed, distinctly (issue #103): a trace_redact RUNTIME FAILURE flags
+# every audited line as redaction_audit_error — still a violation (exit 1),
+# but never conflated with redaction_leak ("the auditor broke" is not
+# "a secret survived").
+REDACTED_FILE="${TMP_DIR}/redacted.jsonl"
+if ! trace_redact < "$TRACE_FILE" > "$REDACTED_FILE" 2>/dev/null; then
+  n=1
+  while [ "$n" -le "$total" ]; do
+    printf 'VIOLATION line %d: redaction_audit_error\n' "$n"
+    violations=$((violations + 1))
+    n=$((n + 1))
+  done
+else
+  n=0
+  while IFS= read -r orig_line || [ -n "$orig_line" ]; do
+    n=$((n + 1))
+    redacted_line=""
+    IFS= read -r redacted_line <&4 || true
+    if [ "$redacted_line" != "$orig_line" ]; then
+      printf 'VIOLATION line %d: redaction_leak\n' "$n"
+      violations=$((violations + 1))
+    fi
+  done < "$TRACE_FILE" 4< "$REDACTED_FILE"
+fi
+
+# --- Whole-trace report: finished-run lifecycle completeness (plan D3) ------------
+# Computed inside the single jq pass above; reported here. Only a finished
+# run (a `finish` lifecycle step anywhere in the trace) is held to
+# completeness: every non-deviation contract step must appear at least once.
+# An unfinished trace skips the pass with an informational note (never a
+# violation).
+if [ "$finish_present" = "true" ]; then
+  for step in ${missing_steps[@]+"${missing_steps[@]}"}; do
+    printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+    violations=$((violations + 1))
+  done
 else
   printf 'NOTE: unfinished run — completeness pass skipped\n'
 fi

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #99)._
+_Last updated: 2026-07-04 (issue #103)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #99)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 62 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 66 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,21 +66,30 @@ _Last updated: 2026-07-04 (issue #99)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open: #103, #104):** consistency sensor + gate
-  wiring (#103), cross-run scorecard keyed by `harness.version` (#104,
-  input contract frozen as `docs/evaluation/trace-summary.v1.json`).
-  Carry-overs for #103 from the #97 review: collapse the validator's
-  per-line forks into one jq program before gate wiring; distinct
-  redaction_audit_error rule; optional non-negative duration guards; #103
-  also lifts the trace↔Action-Log detector from
-  `tests/meta/test_trace_action_log_consistency.sh`.
-- **In flight:** #99 delivered by this branch; #103 is next.
+- **Deep-tracing workstream (open: #104):** cross-run scorecard keyed by
+  `harness.version` (#104, input contract frozen as
+  `docs/evaluation/trace-summary.v1.json`) — the final workstream issue.
+  Future flag flip: promote the trace gate to blocking by setting
+  REQUIRE_TRACE_CONSISTENCY=1 in doctrine/CI once live-run findings stay
+  quiet (phase-two promotion recorded in harness-contract.yml).
+- **In flight:** #103 delivered by this branch; #104 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#103 — Trace consistency checker + two-phase gate.**
+  `scripts/check-trace-consistency.sh` lifts the #95 trace↔Action-Log
+  multiset detector (parity sensor-held to the meta oracle) and adds
+  unverified_feature_pass, marker-only review_sha_mismatch, and
+  pr_mismatch with scan-and-skip NOTEs; issue-mode resolution falls back
+  to the worktree tracking dir so the checks bite on real layouts.
+  `review-gate.sh trace` wraps validator + checker into the lifecycle:
+  warn-only default, blocking under REQUIRE_TRACE_CONSISTENCY=1 (finish
+  refuses before teardown, worktree intact), and the gate traces itself.
+  The validator was rebuilt single-pass first (1 jq fork vs ~5/line) with
+  the distinct redaction_audit_error rule — closing all #97 carry-overs.
 - **#99 — Failure-mode taxonomy + first replay fixture.**
   Eight failure modes frozen as a closed enum in schema v1 (optional
   `harness.failure_mode`), prose authority with real workstream anchors and
