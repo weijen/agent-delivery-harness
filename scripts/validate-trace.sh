@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# validate-trace.sh — standalone, report-only trace validator (issue #97,
-# feature validate-trace-schema-core).
+# validate-trace.sh — standalone, report-only trace validator (issue #97:
+# features validate-trace-schema-core, validate-trace-completeness,
+# validate-trace-redaction-audit).
 #
 # Checks a per-issue trace.jsonl against the frozen v1 trace schema contract
 # (docs/evaluation/trace-schema.v1.json), line by line:
@@ -18,11 +19,28 @@
 #                     likewise. "Looks numeric" is never "must be a number":
 #                     digits-only strings on string keys (e.g.
 #                     harness.require_complete "1", harness.review_gate_sha
-#                     "1234567") are legal real-emitter output.
+#                     "1234567") are legal real-emitter output;
+#   redaction_leak    trace_redact (scripts/trace-lib.sh, reused as the audit
+#                     oracle — one redaction policy, never a forked pattern
+#                     list; plan D4) would ALTER the line: a secret-shaped
+#                     token survived on disk. Audited on every line
+#                     regardless of finish state.
+#
+# Whole-trace pass (plan D3):
+#   completeness      runs ONLY when the trace carries a `finish` lifecycle
+#                     step (a finished run): every non-deviation contract
+#                     lifecycle step must appear at least once, counting
+#                     harness.lifecycle_step across ALL span types
+#                     (log-handback rides steps on agent spans). Duplicates
+#                     are legal. Each missing step yields
+#                         VIOLATION completeness: missing lifecycle step <step>
+#                     (no line number — whole-trace finding). An unfinished
+#                     trace skips this pass entirely.
 #
 # Findings go to STDOUT, one per line:  VIOLATION line <N>: <rule>
-# Findings never echo attribute VALUES (line numbers and rule names only —
-# the report must not re-leak what redaction keeps out of circulation).
+# Findings never echo attribute VALUES or line content (line numbers, rule
+# names, and contract step names only — the report must not re-leak what
+# redaction keeps out of circulation).
 # The report ends with a summary tail:  <N> span(s), <V> violation(s)
 #
 # Usage:
@@ -33,8 +51,7 @@
 #       validates the given file directly
 #
 # Report-only: never called by lifecycle scripts here (gate wiring is #103).
-# Later #97 features add whole-trace passes (completeness, redaction audit,
-# sanity flags) at the marked seam below.
+# The later #97 sanity-flags feature hooks in at the marked seam below.
 #
 # Exit codes: 0 no violations · 1 ≥1 violation · 2 usage/environment error
 
@@ -47,6 +64,13 @@ yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
+
+# trace_redact is the redaction-audit oracle (plan D4): reuse the library
+# filter rather than forking its pattern list.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
 
 CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
 
@@ -72,6 +96,10 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 if [ ! -f "$CONTRACT" ]; then
   red "error: trace schema contract not found: ${CONTRACT}" >&2
+  exit 2
+fi
+if ! declare -F trace_redact >/dev/null 2>&1; then
+  red "error: scripts/trace-lib.sh (trace_redact) is required for the redaction audit" >&2
   exit 2
 fi
 
@@ -174,6 +202,23 @@ check_line() {
   return 0
 }
 
+# Redaction audit (plan D4): round-trip the line through trace_redact; any
+# alteration means a secret-shaped token survived on disk. Independent of
+# check_line so a leak on a schema-invalid line is still reported, and it
+# runs on every line regardless of finish state. The finding NEVER echoes
+# the line content. A filter failure is treated as a leak (fail closed).
+check_line_redaction() {
+  local line="$1" n="$2" redacted=""
+  if ! redacted="$(printf '%s\n' "$line" | trace_redact 2>/dev/null)"; then
+    redacted=""
+  fi
+  if [ "$redacted" != "$line" ]; then
+    printf 'VIOLATION line %d: redaction_leak\n' "$n"
+    return 1
+  fi
+  return 0
+}
+
 total=0
 violations=0
 while IFS= read -r line || [ -n "$line" ]; do
@@ -181,17 +226,37 @@ while IFS= read -r line || [ -n "$line" ]; do
   if ! check_line "$line" "$total"; then
     violations=$((violations + 1))
   fi
+  if ! check_line_redaction "$line" "$total"; then
+    violations=$((violations + 1))
+  fi
 done < "$TRACE_FILE"
 
+# --- Whole-trace pass: finished-run lifecycle completeness (plan D3) --------------
+# Only a finished run (a `finish` lifecycle step anywhere in the trace) is
+# held to completeness: every non-deviation contract step must appear at
+# least once, counting harness.lifecycle_step across ALL span types.
+# Unparseable lines are ignored here (already flagged per line above).
+missing_steps="$(jq -nRr --slurpfile contract "$CONTRACT" '
+  [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings] as $steps
+  | if ($steps | index("finish")) == null
+    then empty
+    else ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)[]
+    end
+' < "$TRACE_FILE")"
+if [ -n "$missing_steps" ]; then
+  while IFS= read -r step; do
+    printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+    violations=$((violations + 1))
+  done <<< "$missing_steps"
+fi
+
 # --- Whole-trace passes (seam for later #97 features) ----------------------------
-# Phase 2: required-span completeness for a finished run.
-# Phase 3: redaction audit.
 # Phase 4: sanity flags (jq_skipped pass spans, trace-file location warning).
 
 # --- Report tail + exit semantics (plan D5/D6) ------------------------------------
 printf '%d span(s), %d violation(s)\n' "$total" "$violations"
 if [ "$violations" -gt 0 ]; then
-  red "✗ trace failed schema/type validation: ${TRACE_FILE}"
+  red "✗ trace failed validation: ${TRACE_FILE}"
   exit 1
 fi
-green "✓ trace conforms to schema v1 (presence, enums, value types): ${TRACE_FILE}"
+green "✓ trace conforms to schema v1 (presence, enums, value types, completeness, redaction): ${TRACE_FILE}"
