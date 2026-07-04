@@ -88,6 +88,10 @@ validate_file() {
 # duration with the D4 numeric typing.
 check_lifecycle_metrics() {
   local label="$1" line="$2" want_outcome="$3"
+  local want_status="non-zero"
+  if [ "$want_outcome" = "pass" ]; then
+    want_status="0"
+  fi
   printf '%s\n' "$line" | jq -e --arg outcome "$want_outcome" '
       (.["harness.outcome"] == $outcome)
       and ((.["harness.exit_status"] | type) == "number")
@@ -98,7 +102,7 @@ check_lifecycle_metrics() {
       and ((.["harness.duration_ms"] | type) == "number")
       and (.["harness.duration_ms"] >= 0)
     ' >/dev/null \
-    || fail "${label}: span must carry harness.outcome=${want_outcome}, numeric harness.exit_status ($([ "$want_outcome" = pass ] && printf '0' || printf 'non-zero')) and numeric harness.duration_ms >= 0: ${line}"
+    || fail "${label}: span must carry harness.outcome=${want_outcome}, numeric harness.exit_status (${want_status}) and numeric harness.duration_ms >= 0: ${line}"
 }
 
 # --- Fixture helpers (test_lifecycle_order.sh style) ----------------------------

@@ -217,10 +217,17 @@ idx_check="$(jq -n 'first(inputs | select(.value.span == "tool" and .value["gen_
   < <(jq -c '.' "$TRACE" | jq -c -n '[inputs] | to_entries[]'))"
 idx_approve="$(jq -n 'first(inputs | select(.value.span == "lifecycle" and .value["harness.lifecycle_step"] == "review_gate_approve") | .key)' \
   < <(jq -c '.' "$TRACE" | jq -c -n '[inputs] | to_entries[]'))"
-[ -n "$idx_wt" ] && [ "$idx_wt" != "null" ] || fail "worktree_create span not found for position check"
-[ -n "$idx_check" ] && [ "$idx_check" != "null" ] || fail "no check-feature-list tool span found in the trajectory"
-[ -n "$idx_approve" ] && [ "$idx_approve" != "null" ] || fail "review_gate_approve span not found for position check"
-[ "$idx_check" -gt "$idx_wt" ] && [ "$idx_check" -lt "$idx_approve" ] \
-  || fail "the check-feature-list tool span must appear between worktree_create (line-idx ${idx_wt}) and review_gate_approve (line-idx ${idx_approve}); found at line-idx ${idx_check}"
+if [ -z "$idx_wt" ] || [ "$idx_wt" = "null" ]; then
+  fail "worktree_create span not found for position check"
+fi
+if [ -z "$idx_check" ] || [ "$idx_check" = "null" ]; then
+  fail "no check-feature-list tool span found in the trajectory"
+fi
+if [ -z "$idx_approve" ] || [ "$idx_approve" = "null" ]; then
+  fail "review_gate_approve span not found for position check"
+fi
+if [ "$idx_check" -le "$idx_wt" ] || [ "$idx_check" -ge "$idx_approve" ]; then
+  fail "the check-feature-list tool span must appear between worktree_create (line-idx ${idx_wt}) and review_gate_approve (line-idx ${idx_approve}); found at line-idx ${idx_check}"
+fi
 
 printf 'lifecycle e2e ordered-span trajectory honored\n'

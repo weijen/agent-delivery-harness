@@ -197,8 +197,9 @@ now_out="$(
   printf '%s %s' "$t1" "$t2"
 )" || fail "trace-lib.sh must define a trace_now_ms function (millisecond clock helper, plan Phase 1)"
 read -r t1 t2 <<< "$now_out"
-[[ "$t1" =~ ^[0-9]+$ ]] && [[ "$t2" =~ ^[0-9]+$ ]] \
-  || fail "trace_now_ms must print a bare integer, got '${t1}' / '${t2}'"
+if ! [[ "$t1" =~ ^[0-9]+$ ]] || ! [[ "$t2" =~ ^[0-9]+$ ]]; then
+  fail "trace_now_ms must print a bare integer, got '${t1}' / '${t2}'"
+fi
 # Epoch milliseconds are 13 digits in this era; 10 digits would mean seconds.
 [ "${#t1}" -ge 13 ] \
   || fail "trace_now_ms must return MILLISECONDS since epoch (>= 13 digits), got '${t1}' — looks like seconds"
