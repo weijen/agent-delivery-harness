@@ -71,4 +71,7 @@ Return exactly these sections:
   the selected feature, the exact files/lines changed, what the change does and does not cover, the sensor that
   should now pass, and any remaining `Plan first` or `Defer` items you intentionally left for the conductor to route.
   You stay production-only and route through the conductor — you do not call `test-subagent` or `code-review-subagent`
-  directly.
+  directly. End the handback with the structured payload line the conductor feeds **verbatim** to
+  `scripts/log-handback.sh`: `[<role>] <step> <feature_id> <outcome> — <summary>` — role `implementation-subagent`,
+  step `impl_handback`, the feature id, outcome `pass|fail|blocked`, and a one-line summary. Include token counts
+  only when the runtime actually displayed them — never estimate or invent counts.

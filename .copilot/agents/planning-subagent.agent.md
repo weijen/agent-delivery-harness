@@ -253,6 +253,10 @@ before authoring `feature_list.json`. Write "None" only when no decision is outs
   and the human-input gate. Anything that would block the breakdown belongs in the Open Questions section.
 - Hand back a concise Action Log entry for the conductor to record in the issue `progress.md`; do not edit
   `progress.md` yourself because your write scope remains limited to `.copilot-tracking/plans/`.
+- End every handback with the structured payload line the conductor feeds **verbatim** to `scripts/log-handback.sh`:
+  `[<role>] <step> <feature_id> <outcome> — <summary>` — role `planning-subagent`, step `plan_handback`, the feature
+  id (or `-` when the plan covers the whole issue), outcome `pass|fail|blocked`, and a one-line summary. Include
+  token counts only when the runtime actually displayed them — never estimate or invent counts.
 - Each phase must be self-contained — no red/green cycles spanning multiple phases
 - Do NOT implement anything — only research and plan
 - Do NOT include code blocks unless the approach is non-obvious or complex

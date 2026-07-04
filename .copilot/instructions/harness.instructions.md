@@ -18,8 +18,10 @@ Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model
 - **OpenAI/Codex** — repo as system of record, AGENTS.md as a map, enforce invariants not
   implementations, garbage collection of drift.
 
-If you deviate from the harness path, stop, report the deviation in the issue progress Action Log, and recover by
-returning to the required lifecycle step before continuing.
+If you deviate from the harness path, stop, and
+record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
+conventions in §3) so the agent span and the Action Log entry are written together, then recover by returning to the
+required lifecycle step before continuing.
 
 ## 0. Project shape (read this once)
 
@@ -145,18 +147,45 @@ and report the blocker** — do not silently absorb the implementation or test r
 For each selected `passes:false` feature, the conductor drives this exact sequence (it must appear, in order, in the
 Action Log):
 
-1. **Conductor selects** one `passes:false` feature and prepares context (changed files, declared sensors).
+1. **Conductor selects** one `passes:false` feature and prepares context (changed files, declared sensors), recording
+   the selection as a `feature_start` agent span via `scripts/log-handback.sh` (see the agent-span conventions below).
 2. **`test-subagent` creates/validates the RED sensor** — the smallest failing test/sensor that expresses the
    feature, confirmed to fail for the right reason.
 3. **`implementation-subagent` makes the minimal production change** to satisfy that sensor; it does not touch tests
    or `passes:true`.
 4. **`test-subagent` verifies GREEN** and updates completion status — it runs the declared `regression_sensor` and
    any `e2e_sensor`, records product-quality blocking gate evidence, and only then may flip `passes:true`.
-5. **Conductor commits/pushes** the result and records the handbacks.
+5. **Conductor commits/pushes** the result and records the handbacks with `scripts/log-handback.sh` per the
+   agent-span conventions below.
 
 If a step fails, the conductor routes the handback to the owning subagent (production defect →
 `implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
 itself.
+
+#### Agent-span conventions (single-source with the Action Log)
+
+Every conductor decision and subagent handback is recorded by the conductor running `scripts/log-handback.sh`
+(`<role> <lifecycle_step> <feature_id> <outcome> <summary...>`) from the issue worktree. The conductor is the sole
+emission point — three of the four subagents have no shell — and each subagent ends its handback with the structured
+payload line the conductor feeds in verbatim. One invocation is single-source by construction: it writes the agent
+span first, then the derived Action Log line in `progress.md` from the same arguments —
+never hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
+attributing `<role>` to the role that produced the event. The mapping below covers every required handback signal;
+the other six lifecycle steps of the frozen enum — `preflight`, `worktree_create`, `review_gate_approve`,
+`pr_create`, `pr_merge`, `finish` — are emitted by the lifecycle scripts themselves and are not duplicated here:
+
+- `feature_start` — the conductor selects the next `passes:false` feature (role `conductor`).
+- `plan_handback` — `planning-subagent` returns its plan (or the human gate resolves it).
+- `red_handback` / `green_handback` — `test-subagent` returns the RED sensor or the GREEN verification result.
+- `impl_handback` — `implementation-subagent` returns its production change.
+- `review_verdict` — `code-review-subagent` returns its verdict (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
+- `deviation` — stop/report/recover: record the deviation with `scripts/log-handback.sh` (step `deviation`,
+  `<feature_id|->`, outcome `blocked`) before continuing recovery; a rejected alternative during a feature is the
+  same call attributed to the deciding role.
+
+**Token usage — omit, never fake.** Export `TRACE_INPUT_TOKENS` / `TRACE_OUTPUT_TOKENS` so the helper forwards
+`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` only when the runtime actually displayed real counts;
+never estimate or invent token counts — an absent field is correct, a fabricated one is not.
 
 #### Grading-driven revision loops (conductor-owned)
 

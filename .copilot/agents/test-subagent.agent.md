@@ -124,4 +124,9 @@ Return exactly these sections:
    the conductor when a *declared* sensor must change), or a **failed product-quality gate** (gate name, evidence,
    expected fix direction, sensor or review to rerun → conductor routes to implementation-subagent or back to you
    depending on the gap). Never weaken, skip, or replace a declared sensor to make verification pass; report the gap
-   instead. You do not call other subagents directly — the conductor owns the loop.
+   instead. You do not call other subagents directly — the conductor owns the loop. End the handback with the
+  structured payload line the conductor feeds **verbatim** to `scripts/log-handback.sh`:
+  `[<role>] <step> <feature_id> <outcome> — <summary>` — role `test-subagent`, step `red_handback` (RED sensor
+  authored/validated) or `green_handback` (GREEN verification and pass flip), the feature id, outcome
+  `pass|fail|blocked`, and a one-line summary. Include token counts only when the runtime actually displayed them —
+  never estimate or invent counts.
