@@ -1,13 +1,25 @@
 # Observability And Trace Schema
 
+## The Contract Is The Authority
+
+The frozen, machine-checkable trace schema v1 contract lives in
+[trace-schema.v1.json](trace-schema.v1.json). That file is the single
+vocabulary authority: span types, required fields, the closed lifecycle-step
+enumeration, optional fields, the trace-file path contract, and the redaction
+rule are all defined there, and sensors/validators read it with `jq`. This
+page is explanatory only — it motivates the design and shows how evals consume
+the schema, but it never redefines the vocabulary. When prose and contract
+disagree, the contract wins.
+
 ## Purpose
 
 Trajectory evals, trace and Action Log evals, and cost/efficiency evals all read
 the same thing: a record of what the harness did during an issue. If every eval
 invents its own ad-hoc format, the evals cannot share tooling and the traces
-cannot be inspected with standard tools. This page defines one trace schema,
+cannot be inspected with standard tools. This page explains the trace schema,
 aligned with the OpenTelemetry GenAI semantic conventions, that all of those
-evals consume.
+evals consume; the normative definition is
+[trace-schema.v1.json](trace-schema.v1.json).
 
 ## Why Align With OpenTelemetry GenAI
 
@@ -32,13 +44,29 @@ Model the run as a tree of spans:
 - **Model span** — one per LLM call, with token usage.
 - **Tool span** — one per tool or command invocation (git, `gh`, shell, file
   edit, web fetch).
-- **Lifecycle span** — harness-specific steps (preflight, branch creation,
-  review-gate approval, PR creation, finish).
+- **Lifecycle span** — harness-specific steps (e.g. review-gate approval, PR
+  creation). The closed 13-step enumeration lives only in
+  [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
+
+## Mandatory Common Fields
+
+Every span line, regardless of span type, carries the mandatory common fields
+defined in the contract's `required_common` list. Two of them deserve
+explanation:
+
+- `schema_version` — each span states which schema version it conforms to, so
+  a trace that survives a harness upgrade mid-issue stays interpretable line
+  by line.
+- `harness.version` — the git SHA of the harness scripts in use. Recording it
+  on every span is what makes cross-harness-version comparison possible:
+  before/after evals can attribute a behavior change to a specific harness
+  revision instead of guessing.
 
 ## Conventional Attributes
 
 Follow GenAI-style attribute names where they exist, and namespace
-harness-specific ones under `harness.*`:
+harness-specific ones under `harness.*`. Illustrative examples (the complete
+per-span required and optional field sets are in the contract):
 
 | Field | Example | Source |
 | --- | --- | --- |
@@ -49,6 +77,7 @@ harness-specific ones under `harness.*`:
 | `gen_ai.usage.output_tokens` | `4000` | GenAI convention |
 | `gen_ai.tool.name` | `git`, `gh`, `shell` | GenAI convention |
 | `harness.issue` | `21` | Harness-specific |
+| `harness.version` | harness git SHA | Harness-specific |
 | `harness.feature_id` | `frames-extract-01` | Harness-specific |
 | `harness.lifecycle_step` | `review_gate_approve` | Harness-specific |
 | `harness.review_gate_sha` | commit SHA | Harness-specific |
@@ -73,11 +102,15 @@ audit, and cost evals at once.
 
 ## Trace Shape
 
+Illustrative only — required fields per span type are defined in
+[trace-schema.v1.json](trace-schema.v1.json). Note every line carries the
+mandatory common fields, including `schema_version` and `harness.version`:
+
 ```jsonl
-{"span":"agent","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.issue":21,"harness.outcome":"pass"}
-{"span":"lifecycle","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"abc123"}
-{"span":"tool","gen_ai.tool.name":"gh","harness.lifecycle_step":"pr_create"}
-{"span":"model","gen_ai.request.model":"<model>","gen_ai.usage.input_tokens":18000,"gen_ai.usage.output_tokens":4000}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":21,"harness.version":"<git-sha>","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:05:00Z","span":"lifecycle","harness.issue":21,"harness.version":"<git-sha>","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"abc123"}
+{"schema_version":1,"timestamp":"2026-07-04T12:06:00Z","span":"tool","harness.issue":21,"harness.version":"<git-sha>","gen_ai.tool.name":"gh","harness.lifecycle_step":"pr_create"}
+{"schema_version":1,"timestamp":"2026-07-04T12:07:00Z","span":"model","harness.issue":21,"harness.version":"<git-sha>","gen_ai.request.model":"<model>","gen_ai.usage.input_tokens":18000,"gen_ai.usage.output_tokens":4000}
 ```
 
 ## Public Trace Examples
@@ -105,17 +138,23 @@ views of the same run. The Action Log stays the primary human artifact; the trac
 is the machine-readable projection that evals parse. Where practical, generate
 the trace and the Action Log from the same events so they cannot disagree.
 
-## Initial Issues To Create Later
+## Workstream Issues
 
-1. Define the local trace file format and field names aligned with the GenAI
-   conventions.
-2. Emit agent, model, tool, and lifecycle spans during an issue run.
-3. Add secret redaction to the trace writer.
-4. Point trajectory, trace, and cost evals at the shared trace schema.
+The issues sketched in earlier drafts of this page now exist as the deep-trace
+workstream, issues #92–#99: #92 froze the schema v1 contract
+([trace-schema.v1.json](trace-schema.v1.json)) and repointed this page at it;
+the follow-on issues cover span emission, redaction, validation (#97), and
+pointing the trajectory, trace, and cost evals at the shared schema. See the
+GitHub issue tracker for the live list.
 
 ## Acceptance Criteria
 
+- [trace-schema.v1.json](trace-schema.v1.json) is the single vocabulary
+  authority; this page and the evals defer to it and carry no second
+  competing copy.
 - A single trace per issue powers trajectory, trace, and cost evals.
 - Field names follow the OpenTelemetry GenAI conventions where they exist.
+- Every span carries the mandatory common fields, including `schema_version`
+  and `harness.version`.
 - Traces never contain secrets or customer-supplied sensitive data.
 - The structured trace and the Action Log are consistent with each other.
