@@ -272,6 +272,13 @@ local-only, gitignored, and never committed. Tracing never blocks the lifecycle:
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
 
+Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
+conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the
+derived Action Log line in the worktree `progress.md` — single-source from the same arguments, so the machine-readable
+trace and the human-readable Action Log cannot disagree. Never hand-author the span/log-line pair separately. Full
+conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule) live in
+[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
+
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.

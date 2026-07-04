@@ -26,6 +26,11 @@ From the conductor:
 - Review mode: `full` or `concise`
 
 Return any substantive review action or verdict that the conductor should record in the issue progress Action Log.
+End every review handback (the `Action Log` field of your output) with the structured payload line the conductor
+feeds **verbatim** to `scripts/log-handback.sh`: `[<role>] <step> <feature_id> <outcome> — <summary>` — role
+`code-review-subagent`, step `review_verdict`, the feature id (or `-` for a closeout diff), outcome
+`pass|fail|blocked` (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`), and a one-line summary. Include token counts
+only when the runtime actually displayed them — never estimate or invent counts.
 
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
