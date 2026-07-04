@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #94)._
+_Last updated: 2026-07-04 (issue #95)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #94)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 44 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 48 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,20 +66,32 @@ _Last updated: 2026-07-04 (issue #94)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open issues #95–#99):** agent-span conventions
-  for conductor/subagent handbacks (#95), optional Claude Code hooks adapter
-  (#96), trace validator + consistency sensor (#97), per-issue trace report +
-  cross-run scorecard keyed by `harness.version` (#98), failure-mode taxonomy
-  + replay fixtures (#99). Carry-overs for #97: value-type validation (#92
-  review) and a `jq_skipped` honesty attr for check-feature-list's jq-less
-  pass path (#94 review).
-- **In flight:** #94 delivered by this branch; #95 is next.
+- **Deep-tracing workstream (open: #96–#99, #103, #104):** optional Claude
+  Code hooks adapter (#96), trace validator core (#97), per-issue trace
+  report (#98), failure-mode taxonomy + replay fixtures (#99), consistency
+  sensor + gate wiring (#103, split from #97), cross-run scorecard keyed by
+  `harness.version` (#104, split from #98). Issues resized to 2–5 features
+  each after the #94 retrospective. Carry-overs for #97: value-type
+  validation (#92 review), `jq_skipped` honesty attr (#94 review), and the
+  live trace↔Action-Log detector reference implementation now in
+  `tests/meta/test_trace_action_log_consistency.sh` (#95).
+- **In flight:** #95 delivered by this branch; #96 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#95 — Agent-span conventions + single-source handback helper.**
+  `scripts/log-handback.sh`: conductor-invoked helper that validates closed
+  role/step/outcome enums, emits the `agent` span, then appends the derived
+  Action Log bullet — span and log line from one invocation, one redaction
+  policy, span-drop warned explicitly, token fields omit-never-fake.
+  Doctrine in harness.instructions.md §3 (conductor is the sole emitter;
+  seven agent steps + six script steps partition the frozen 13-step enum);
+  the four subagent files end handbacks with the verbatim payload line; a
+  fixture-based meta sensor detects log-without-span / span-without-log
+  drift (reference detector for #103). Four features, all mutation-proven.
 - **#94 — Lifecycle and tool spans from all six harness scripts.**
   start-issue, check-feature-list, review-gate, create-pr, merge-pr, and
   finish-issue emit schema-v1 spans via stage-tracked EXIT traps (outcome,
