@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #96)._
+_Last updated: 2026-07-04 (issue #97)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #96)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 52 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 56 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,20 +66,31 @@ _Last updated: 2026-07-04 (issue #96)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open: #97–#99, #103, #104):** trace validator
-  core (#97), per-issue trace report (#98), failure-mode taxonomy + replay
-  fixtures (#99), consistency sensor + gate wiring (#103), cross-run
-  scorecard keyed by `harness.version` (#104). Carry-overs for #97:
-  value-type validation (#92 review), `jq_skipped` honesty attr (#94
-  review), live trace↔Action-Log detector reference in
-  `tests/meta/test_trace_action_log_consistency.sh` (#95).
-- **In flight:** #96 delivered by this branch; #97 is next.
+- **Deep-tracing workstream (open: #98, #99, #103, #104):** per-issue trace
+  report (#98), failure-mode taxonomy + replay fixtures (#99), consistency
+  sensor + gate wiring (#103), cross-run scorecard keyed by
+  `harness.version` (#104). Carry-overs for #103 from the #97 review:
+  collapse the validator's per-line forks into one jq program before gate
+  wiring; distinct redaction_audit_error rule; optional non-negative
+  duration guards in lifecycle scripts. #103 also lifts the trace↔Action-Log
+  detector from `tests/meta/test_trace_action_log_consistency.sh`.
+- **In flight:** #97 delivered by this branch; #98 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#97 — Report-only trace validator (`scripts/validate-trace.sh`).**
+  Lifts the #92 contract filter byte-for-byte and adds what it couldn't
+  check: a known-key value-type map (string token counts / banana-typed
+  schema_version now rejected), finish-gated lifecycle completeness across
+  all span types, a per-line redaction audit with `trace_redact` as the
+  sole oracle (fail-closed, findings never echo content), exit-neutral
+  sanity warnings (`jq_skipped_pass`, unexpected location) and the
+  `harness.warning=jq_skipped` honesty attr in check-feature-list. Exit
+  0/1/2; gate wiring deferred to #103. Dogfooded against the real
+  issue-96 (finished, 39 spans) and issue-97 traces — both validate clean.
 - **#96 — Opt-in Claude Code runtime adapter (hooks).**
   `scripts/claude-code-trace-hook.sh`: guard chain (jq → JSON → trace-lib →
   issue context → event dispatch) with subshell containment so the hook can
