@@ -32,6 +32,59 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break the check.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'check-feature-list: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# Exactly ONE tool span per invocation (plan D2: the lifecycle vocabulary is
+# frozen — feature-list validation is a tool span, never a lifecycle span),
+# emitted from a stage-tracked EXIT trap (plan D3) so every path — pass,
+# warn-only, hard fail, structural fail — carries the real exit status and
+# duration without touching any exit site.
+TRACE_STAGE=""
+TRACE_T0=0
+incomplete_count=""
+TRACE_WARNING=""
+trace__check_exit() {
+  local rc=$?
+  if [ "$TRACE_STAGE" = "check" ]; then
+    local outcome=pass
+    if [ "$rc" -ne 0 ]; then
+      outcome=fail
+    fi
+    local -a attrs=(
+      "gen_ai.tool.name=check-feature-list"
+      "harness.outcome=${outcome}"
+      "harness.exit_status=${rc}"
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
+      "harness.require_complete=${REQUIRE_FEATURES_COMPLETE:-0}"
+    )
+    if [ -n "$incomplete_count" ]; then
+      attrs+=("harness.incomplete_count=${incomplete_count}")
+    fi
+    if [ -n "$TRACE_WARNING" ]; then
+      attrs+=("harness.warning=${TRACE_WARNING}")
+    fi
+    trace_span tool "${attrs[@]}"
+  fi
+  exit "$rc"
+}
+trap trace__check_exit EXIT
+
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
 for arg in "$@"; do
@@ -45,6 +98,12 @@ if [ -z "$NUM_ARG" ]; then
   exit 1
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
+
+# The issue number arrives as an argument — export it so trace-lib resolution
+# works from any branch or CWD (plan D6), and enter the traced stage.
+export TRACE_ISSUE="$ISSUE_NUM"
+TRACE_T0="$(trace_now_ms)"
+TRACE_STAGE="check"
 
 if ! command -v jq >/dev/null 2>&1; then
   yellow "  ! jq not installed — skipping feature-list check"
@@ -109,6 +168,7 @@ if [ "$incomplete_count" -gt 0 ]; then
     echo "  Set each completed feature to passes:true before finishing, or unset REQUIRE_FEATURES_COMPLETE for warning mode."
     exit 1
   fi
+  TRACE_WARNING="incomplete_features"
   yellow "  ! ${incomplete_count} incomplete feature_list items remain (warning only)."
   echo "    → Set REQUIRE_FEATURES_COMPLETE=1 to make this a hard gate."
   exit 0
