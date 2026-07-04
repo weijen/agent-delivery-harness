@@ -181,6 +181,13 @@ Reporting never gates: exit codes are `0` whenever a report is produced and
 unparseable lines are skipped and counted, with a pointer to
 `validate-trace.sh`.
 
+Across runs, `scripts/trace-scorecard.sh` (issue #104) aggregates the emitted
+`trace-summary.json` files into a cross-run scorecard keyed by attributed
+`harness.version` — written to `tests/evals/scorecards/trace-scorecard.json`
+under the versioned contract in
+[trace-scorecard.v1.json](trace-scorecard.v1.json) — so two harness versions
+can be compared over their runs.
+
 ## Workstream Issues
 
 The issues sketched in earlier drafts of this page now exist as the deep-trace
