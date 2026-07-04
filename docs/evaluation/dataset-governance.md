@@ -99,6 +99,8 @@ The local fixture id is what eval scorecards should reference.
 
 - Maintain a failure corpus: every real harness failure becomes a labeled dataset
   item and, where possible, a mutation in [mutation-evals.md](mutation-evals.md).
+  Trace-shaped failures enter the corpus via `scripts/sanitize-trace.sh` as
+  human-reviewed fixtures under `tests/evals/fixtures/traces/`.
 - Periodically review failures for recurring patterns and group them into a
   lightweight failure taxonomy (for example: wrong trigger, weak sensor accepted,
   missing test, unsafe action, reasoning loop).
