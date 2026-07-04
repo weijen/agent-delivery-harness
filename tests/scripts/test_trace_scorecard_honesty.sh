@@ -26,6 +26,14 @@
 #      (reporting is not gating).
 #   4. Malformed summary JSON: skipped-with-note, never a crash — same
 #      inputs.skipped listing ({summary_file, reason}), exit stays 0.
+#   4b. REAL producer token shape (Loop-2 review finding): trace-report.sh
+#      emits tokens as {input_tokens, output_tokens, by_role, by_feature}
+#      (see tok_buckets in scripts/trace-report.sh), NOT the plan-draft
+#      {input, output}. A run carrying the real shape must sum into its
+#      bucket under the scorecard's canonical {input, output} keys with the
+#      REAL numbers — dropping the input_tokens/output_tokens fallback
+#      fabricates {0, 0} zeros (mutation-proven: deleting the fallback from
+#      a scratch copy of the script makes exactly this leg fail).
 #   5. Zero summaries (conductor-resolved Open Question 2 = A): exit 0 with
 #      an empty-but-valid scorecard (by_version [], summaries_found 0,
 #      skipped []). Pinned here as a REGRESSION leg — scorecard-core may
@@ -78,11 +86,13 @@ command -v jq >/dev/null 2>&1 \
 #   issue-23  versions [wX, wY], NO trace        → "mixed" bucket, no guessing
 #   issue-24  summary_schema_version 2           → skipped-with-note
 #   issue-25  malformed JSON                     → skipped-with-note, no crash
+#   issue-26  version wZ, REAL producer tokens   → bucket sums the real
+#             {input_tokens, output_tokens, ...}   numbers, never zeros
 FX_ROOT="${TMP_DIR}/fixture-root"
 ISSUES_DIR="${FX_ROOT}/.copilot-tracking/issues"
 mkdir -p "${ISSUES_DIR}/issue-20" "${ISSUES_DIR}/issue-21" \
   "${ISSUES_DIR}/issue-22" "${ISSUES_DIR}/issue-23" \
-  "${ISSUES_DIR}/issue-24" "${ISSUES_DIR}/issue-25"
+  "${ISSUES_DIR}/issue-24" "${ISSUES_DIR}/issue-25" "${ISSUES_DIR}/issue-26"
 
 # write_summary <issue> <versions-json> <tokens-json> <schema-version>
 write_summary() {
@@ -113,6 +123,19 @@ write_summary 22 '["wY"]' 'null' 1
 write_summary 23 '["wX", "wY"]' 'null' 1   # multi-version, NO sibling trace
 write_summary 24 '["vTWO"]' 'null' 2       # unknown major — must be skipped
 printf '{ this is not JSON at all\n' > "${ISSUES_DIR}/issue-25/trace-summary.json"
+# The REAL shape trace-report.sh emits (input_tokens/output_tokens + buckets),
+# verbatim structure from its tok_buckets emission — not the plan draft.
+write_summary 26 '["wZ"]' '{
+    "input_tokens": 700,
+    "output_tokens": 70,
+    "by_role": {
+      "conductor": {"input_tokens": 400, "output_tokens": 40},
+      "unattributed": {"input_tokens": 300, "output_tokens": 30}
+    },
+    "by_feature": {
+      "feat-z": {"input_tokens": 700, "output_tokens": 70}
+    }
+  }' 1
 
 # --- Run: exit 0 despite skip-worthy inputs (reporting is not gating) ----------
 rc=0
@@ -144,6 +167,20 @@ jq -e '
   and ($b.token_coverage == {"runs_with_tokens": 0, "of": 1})
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "wY bucket wrong — no run carried tokens so tokens must be null (never {input 0, output 0}) with token_coverage {0, of 1}: $(jq -c '.by_version[] | select(.harness_version == "wY") | {runs, tokens, token_coverage}' "$SCORECARD" 2>/dev/null)"
+
+# --- 1c. REAL producer token shape: real sums, never fabricated zeros -----------
+# trace-report.sh emits {input_tokens, output_tokens, by_role, by_feature};
+# the scorecard must normalize to canonical {input, output} with the REAL
+# numbers. {input: 0, output: 0} here means the producer-key fallback was
+# dropped and zeros were fabricated from present-but-differently-keyed data.
+jq -e '
+  (.by_version[] | select(.harness_version == "wZ")) as $b
+  | $b.runs == 1
+  and ($b.tokens.input == 700)
+  and ($b.tokens.output == 70)
+  and ($b.token_coverage == {"runs_with_tokens": 1, "of": 1})
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "wZ bucket wrong — a summary carrying the REAL trace-report.sh token shape {input_tokens 700, output_tokens 70, by_role, by_feature} must sum to tokens {input 700, output 70} with coverage {1, of 1}; zeros here are fabricated from data that exists under the producer's keys: $(jq -c '.by_version[] | select(.harness_version == "wZ") | {runs, tokens, token_coverage}' "$SCORECARD" 2>/dev/null)"
 
 # --- 2. Mixed bucket: visible, honest, counted nowhere else ---------------------
 jq -e '
@@ -184,10 +221,10 @@ jq -e '
   || fail "issue-25 (malformed JSON) must appear in inputs.skipped as {summary_file, reason} with a non-empty reason — unreadable input is reported, never silently dropped: $(jq -c '.inputs.skipped' "$SCORECARD" 2>/dev/null)"
 
 # --- summaries_found counts AGGREGATED summaries only ---------------------------
-jq -e '.inputs.summaries_found == 4' "$SCORECARD" >/dev/null 2>&1 \
-  || fail "inputs.summaries_found must be 4 (issues 20-23 aggregated; 24 and 25 are skipped, not found-and-counted): $(jq -c '.inputs.summaries_found' "$SCORECARD" 2>/dev/null)"
-jq -e '([.by_version[].runs] | add) == 4' "$SCORECARD" >/dev/null 2>&1 \
-  || fail "bucket runs must sum to 4 — every aggregated run in exactly one bucket, skipped files in none: $(jq -c '[.by_version[] | {harness_version, runs}]' "$SCORECARD" 2>/dev/null)"
+jq -e '.inputs.summaries_found == 5' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "inputs.summaries_found must be 5 (issues 20-23 and 26 aggregated; 24 and 25 are skipped, not found-and-counted): $(jq -c '.inputs.summaries_found' "$SCORECARD" 2>/dev/null)"
+jq -e '([.by_version[].runs] | add) == 5' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "bucket runs must sum to 5 — every aggregated run in exactly one bucket, skipped files in none: $(jq -c '[.by_version[] | {harness_version, runs}]' "$SCORECARD" 2>/dev/null)"
 
 # --- 5. Regression pin: zero summaries → empty-but-valid, exit 0 ----------------
 EMPTY_ROOT="${TMP_DIR}/empty-root"

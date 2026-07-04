@@ -19,9 +19,11 @@
 #     "last_seen_in_trace") — never the summary's sort order, which is
 #     meaningless for git SHAs, and never simply the last line (trailing
 #     version-less spans are ignored);
-#   * multiple elements and no readable trace → no guessing: the run lands in
-#     the synthetic "mixed" bucket (attribution "unresolved_mixed"; full
-#     semantics land with feature scorecard-honesty, plan Phase 2).
+#   * unattributable runs — multiple elements with no readable trace, or a
+#     run that recorded no harness.version at all — are never guessed: they
+#     land in the visible synthetic "mixed" bucket (attribution
+#     "unresolved_mixed"). A non-array harness_versions is a malformed
+#     summary and is skipped-with-note instead.
 #
 # Missing/broken inputs are reported, never repaired (plan D4, feature
 # scorecard-honesty):
@@ -156,7 +158,17 @@ for issue_dir in "${ISSUES_DIR}"/issue-*/; do
         "unknown summary_schema_version major (${schema_major}) — this consumer understands trace-summary major 1 only"
       continue
     fi
-    nver="$(jq -r '.harness_versions // [] | length' "$summary_file")"
+    # Type guard: harness_versions must be an array (trace-summary v1). A
+    # non-array value is a malformed summary — skipped-with-note, never fed
+    # into the attribution logic (a string's jq `length` is its character
+    # count, which would silently misroute the run to the peek/mixed paths).
+    hv_type="$(jq -r '.harness_versions | type' "$summary_file")"
+    if [ "$hv_type" != "array" ]; then
+      skip_summary "$summary_file" \
+        "invalid harness_versions: expected an array (trace-summary v1), got ${hv_type}"
+      continue
+    fi
+    nver="$(jq -r '.harness_versions | length' "$summary_file")"
     ver=""
     attr=""
     if [ "$nver" -eq 1 ]; then
@@ -176,8 +188,10 @@ for issue_dir in "${ISSUES_DIR}"/issue-*/; do
         attr="unresolved_mixed"
       fi
     else
-      # Multi-version without a readable trace (or no version at all):
-      # never guess — synthetic "mixed" bucket (plan D1 case 3).
+      # Unattributable run: multi-version without a readable trace (plan D1
+      # case 3), or a run that recorded no harness.version at all
+      # (harness_versions []). Never guess — the visible synthetic "mixed"
+      # bucket holds every run that cannot be attributed to a single version.
       ver="mixed"
       attr="unresolved_mixed"
     fi
