@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+# trace-report.sh — per-issue trace run report (issue #98, feature
+# trace-report-core, plan Phase 1).
+#
+# Turns a per-issue trace.jsonl into a readable markdown run report on
+# STDOUT: span counts by type, per-lifecycle-stage table (span count +
+# summed harness.duration_ms), tool-call table keyed on gen_ai.tool.name,
+# whole-run first-to-last timestamp elapsed, and the final outcome from the
+# finish lifecycle span.
+#
+# Division of labor (plan D1): validation is validate-trace.sh's job. This
+# report never re-implements schema/type/redaction/completeness checks.
+# Unparseable lines (non-JSON, or JSON-non-object) are skipped and COUNTED
+# (`invalid lines: <N>`), with a pointer to ./scripts/validate-trace.sh.
+# A type-violating-but-parseable span still aggregates — the report is not
+# a validator.
+#
+# Two clocks, reported separately and labeled (plan D3 — never blended):
+#   clock A  per-stage summed harness.duration_ms (script-measured work);
+#            a stage whose spans carry no duration reports n/a, never a
+#            fabricated 0 (absence semantics, plan D5);
+#   clock B  first-to-last timestamp elapsed in seconds (whole-run wall
+#            clock, includes agent thinking time between spans).
+#
+# JSON-first architecture (plan D2): a single jq pass builds the summary
+# object; the markdown is rendered FROM that object, so the human report
+# and the machine summary can never disagree. The object is also written to
+# <trace dir>/trace-summary.json (idempotent overwrite, never append —
+# feature trace-report-summary-json) under the versioned trace-summary.v1
+# contract documented in docs/evaluation/trace-summary.v1.json (#104's
+# input contract).
+#
+# Loop/retry indicators (feature trace-report-loop-indicators, plan D4 —
+# deterministic-only doctrine per docs/evaluation/cost-efficiency-evals.md):
+#   loop_indicators  exact-repeat groups; identity = the full span object
+#                    MINUS the volatile fields span_id, parent_span_id,
+#                    timestamp, harness.duration_ms, harness.version (loop
+#                    detection is within-run thrash — a harness upgrade
+#                    mid-burst must neither split a group nor produce
+#                    duplicate signatures; cross-run version comparison is
+#                    #104's job); threshold count >= 3;
+#                    signature = span/(tool|step)/outcome[/stage];
+#   red_reentry      harness.feature_id values with a red_handback AFTER an
+#                    earlier green_handback in file order, counting
+#                    harness.lifecycle_step across ALL span types;
+#   deviations       {count, feature_ids} for harness.lifecycle_step ==
+#                    "deviation" across ALL span types.
+# Quiet is empty, not null (plan D5): [] / count 0 mean the detectors ran
+# and found nothing.
+#
+# Usage:
+#   ./scripts/trace-report.sh <issue-number>
+#       reports on <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl
+#   ./scripts/trace-report.sh <path/to/trace.jsonl>
+#       reports on the given file directly
+#
+# Report-only: never called by lifecycle scripts here (gate wiring is #103).
+#
+# Exit codes: 0 report produced (regardless of run health — reporting is
+# not gating, plan D7) · 2 usage/environment error. Never 1.
+
+set -euo pipefail
+
+red() { printf '\033[31m%s\033[0m\n' "$*"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/issue-lib.sh
+source "${SCRIPT_DIR}/issue-lib.sh"
+
+usage() {
+  {
+    echo "usage: ./scripts/trace-report.sh <issue-number|trace-path>"
+    echo "  <issue-number>  reports on <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl"
+    echo "  <trace-path>    reports on the given trace.jsonl file directly"
+    echo "exit codes: 0 report produced, 2 usage/environment error"
+  } >&2
+}
+
+# --- Environment preconditions (exit 2: the report could not run) ------------
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 2
+fi
+ARG="$1"
+
+if ! command -v jq >/dev/null 2>&1; then
+  red "error: jq is required to build a trace report" >&2
+  exit 2
+fi
+
+# --- Resolve the trace file (CLI parity with validate-trace.sh, plan D7) -----
+TRACE_FILE=""
+case "$ARG" in
+  */* | *.jsonl)
+    # Path mode: the argument names a trace file explicitly.
+    TRACE_FILE="$ARG"
+    ;;
+  *)
+    # Issue-number mode: resolve the main-checkout trace path.
+    if ! ISSUE_NUM="$(issue_parse_number "$ARG" 2>/dev/null)"; then
+      usage
+      exit 2
+    fi
+    if ! MAIN_ROOT="$(issue_main_root 2>/dev/null)"; then
+      red "error: cannot resolve the main checkout root (not inside a git repo?)" >&2
+      exit 2
+    fi
+    ISSUE_PAD="$(printf '%02d' "$ISSUE_NUM")"
+    TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-${ISSUE_PAD}/trace.jsonl"
+    ;;
+esac
+
+if [ ! -f "$TRACE_FILE" ]; then
+  red "error: trace file not found: ${TRACE_FILE}" >&2
+  usage
+  exit 2
+fi
+if [ ! -r "$TRACE_FILE" ]; then
+  # Environment error, not run health: the report could not read its input
+  # (exit 2 preserves the 0-report / 2-usage-env / never-1 contract).
+  red "error: trace file exists but is not readable: ${TRACE_FILE}" >&2
+  exit 2
+fi
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# --- Pass 1: build the internal summary object (jq, JSON-first — plan D2) ----
+# Every number the markdown shows is computed here, from spans on disk.
+# Skip-and-count: a line that does not parse as a JSON object is excluded
+# from every aggregate and counted in span_counts.invalid_lines. Absence
+# semantics (plan D5): a missing measurement is null, never 0; a measured
+# zero stays 0; `tokens` is null until model spans exist (feature
+# trace-report-robustness-honesty owns the token buckets).
+SUMMARY_FILTER="${TMP_DIR}/build-summary.jq"
+cat > "$SUMMARY_FILTER" <<'JQ'
+def sum_duration:
+  [.[] | .["harness.duration_ms"]? | numbers]
+  | if length == 0 then null else add end;
+
+# Token honesty (feature trace-report-robustness-honesty, plan D5):
+# measured from MODEL spans ONLY — gen_ai.usage.* on an agent span is
+# handback passthrough metadata, never a measurement source — and only from
+# model spans that actually CARRY a usage number: a model span without
+# gen_ai.usage.* contributes nothing (no fabricated 0 buckets), and when no
+# model span carries usage, tokens stays null. Attribution is span-own (the
+# model span's OWN gen_ai.agent.name / harness.feature_id; no parent-chain
+# reconstruction in v1); unresolvable buckets land under "unattributed",
+# never silently dropped or zeroed.
+def tok_sums:
+  { input_tokens:  ([.[] | .["gen_ai.usage.input_tokens"]?  | numbers] | add // 0),
+    output_tokens: ([.[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0) };
+def bucket_key(k):
+  (.[k]? | if type == "string" then . else "unattributed" end);
+def tok_buckets(keyf):
+  group_by(keyf) | map({ key: (.[0] | keyf), value: tok_sums }) | from_entries;
+
+# Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are normalized
+# before parsing so sub-second precision never nulls the elapsed clock.
+def ts_secs:
+  sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+
+[inputs] as $lines
+| [$lines[] | fromjson? | select(type == "object")] as $spans
+| (($lines | length) - ($spans | length)) as $invalid
+| [$spans[] | .timestamp? | strings] as $ts
+| [$spans[] | select(.["harness.lifecycle_step"] == "finish")] as $finishes
+| [$spans[]
+   | select(.span == "model")
+   | select(((.["gen_ai.usage.input_tokens"]?  | type) == "number")
+            or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+| {
+    summary_schema_version: 1,
+    trace_file: $trace_file,
+    issue:
+      ([$spans[] | .["harness.issue"]? | numbers]
+       | if length == 0 then null else .[0] end),
+    harness_versions:
+      ([$spans[] | .["harness.version"]? | strings] | unique),
+    span_counts: {
+      total: ($spans | length),
+      invalid_lines: $invalid,
+      by_type:
+        (reduce ($spans[] | .span? | strings) as $t ({}; .[$t] = ((.[$t] // 0) + 1)))
+    },
+    wall_clock:
+      (if ($ts | length) == 0 then null
+       else
+         (($ts | min | ts_secs)) as $a
+         | (($ts | max | ts_secs)) as $b
+         | { first_timestamp: ($ts | min),
+             last_timestamp: ($ts | max),
+             elapsed_seconds:
+               (if $a == null or $b == null then null else ($b - $a) end) }
+       end),
+    stages:
+      ([$spans[] | select((.["harness.lifecycle_step"]? | type) == "string")]
+       | group_by(.["harness.lifecycle_step"])
+       | map({ step: .[0]["harness.lifecycle_step"],
+               spans: length,
+               duration_ms: sum_duration })),
+    tools:
+      ([$spans[] | select((.["gen_ai.tool.name"]? | type) == "string")]
+       | group_by(.["gen_ai.tool.name"])
+       | map({ name: .[0]["gen_ai.tool.name"],
+               calls: length,
+               fail_calls: ([.[] | select(.["harness.outcome"] == "fail")] | length),
+               duration_ms: sum_duration })),
+    finished: (($finishes | length) > 0),
+    final_outcome:
+      (if ($finishes | length) > 0
+       then ($finishes[-1]["harness.outcome"]? // null)
+       else null
+       end),
+    tokens:
+      (if ($tok_models | length) == 0 then null
+       else
+         (($tok_models | tok_sums)
+          + { by_role:    ($tok_models | tok_buckets(bucket_key("gen_ai.agent.name"))),
+              by_feature: ($tok_models | tok_buckets(bucket_key("harness.feature_id"))) })
+       end),
+    loop_indicators:
+      ([$spans[]
+        | del(.span_id, .parent_span_id, .timestamp,
+              .["harness.duration_ms"], .["harness.version"])]
+       | group_by(.)
+       | map(select(length >= 3))
+       | map({
+           signature:
+             (.[0]
+              | [ (.span // "unknown"),
+                  (.["gen_ai.tool.name"] // .["harness.lifecycle_step"] // empty),
+                  (.["harness.outcome"] // empty),
+                  (.["harness.stage"] // empty) ]
+              | join("/")),
+           count: length })
+       | sort_by(.signature)),
+    red_reentry:
+      ((reduce $spans[] as $sp ({greens: [], reentry: []};
+          ($sp["harness.feature_id"]? // null) as $fid
+          | if $fid == null then .
+            elif $sp["harness.lifecycle_step"]? == "green_handback"
+              then .greens += [$fid]
+            elif ($sp["harness.lifecycle_step"]? == "red_handback")
+                 and (.greens | index($fid) != null)
+                 and (.reentry | index($fid) == null)
+              then .reentry += [$fid]
+            else .
+            end))
+       .reentry),
+    deviations:
+      ([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] as $devs
+       | { count: ($devs | length),
+           feature_ids:
+             ([$devs[] | .["harness.feature_id"]? | strings] | unique) })
+  }
+JQ
+
+SUMMARY_JSON="${TMP_DIR}/trace-summary.json"
+# shellcheck disable=SC2094 # $TRACE_FILE is read-only here; the write goes to $SUMMARY_JSON (a different file)
+jq -nR --arg trace_file "$TRACE_FILE" -f "$SUMMARY_FILTER" \
+  < "$TRACE_FILE" > "$SUMMARY_JSON"
+
+# --- Emit the versioned summary (feature trace-report-summary-json) ----------
+# Writes <trace dir>/trace-summary.json beside the trace — the stable pickup
+# path #104 consumes, under the trace-summary.v1 contract
+# (docs/evaluation/trace-summary.v1.json). Idempotent: the file is
+# overwritten whole on every run, never appended (exactly one JSON
+# document). Local-only: the trace dir is covered by the
+# .copilot-tracking/issues/issue-*/ gitignore rule.
+emit_summary_file() {
+  local summary_json="$1" trace_file="$2"
+  local out_file
+  out_file="$(dirname "$trace_file")/trace-summary.json"
+  cp "$summary_json" "$out_file"
+}
+emit_summary_file "$SUMMARY_JSON" "$TRACE_FILE"
+
+# --- Pass 2: render markdown FROM the summary object (plan D2) ---------------
+RENDER_FILTER="${TMP_DIR}/render-markdown.jq"
+cat > "$RENDER_FILTER" <<'JQ'
+def na: if . == null then "n/a" else tostring end;
+. as $s
+| ([$s.span_counts.by_type | to_entries[] | "\(.key): \(.value)"]
+   | if length == 0 then "" else " (" + join(", ") + ")" end) as $by_type
+| [
+    "# Trace report: \($s.trace_file)",
+    "",
+    "- spans aggregated: \($s.span_counts.total)\($by_type)",
+    "- invalid lines: \($s.span_counts.invalid_lines) (skipped, not aggregated — run ./scripts/validate-trace.sh for details)",
+    (if $s.wall_clock == null
+     then "- first-to-last timestamp elapsed: n/a (no timestamps)"
+     else "- first-to-last timestamp elapsed: \($s.wall_clock.elapsed_seconds | na) seconds (\($s.wall_clock.first_timestamp) → \($s.wall_clock.last_timestamp); wall clock, includes agent thinking time between spans)"
+     end),
+    "",
+    "## Lifecycle stages",
+    "",
+    "Stage durations are per-stage summed duration_ms (script-measured work; n/a when the stage's spans carry no harness.duration_ms).",
+    "",
+    "| step | spans | summed duration_ms |",
+    "| --- | --- | --- |",
+    ($s.stages[] | "| \(.step) | \(.spans) | \(.duration_ms | na) |"),
+    "",
+    "## Tool calls",
+    "",
+    "| tool (gen_ai.tool.name) | calls | fail calls | summed duration_ms |",
+    "| --- | --- | --- | --- |",
+    ($s.tools[] | "| \(.name) | \(.calls) | \(.fail_calls) | \(.duration_ms | na) |"),
+    "",
+    "## Loop indicators",
+    "",
+    "Deterministic exact-repeat detectors only (identity = span minus span_id/parent_span_id/timestamp/duration_ms/harness.version; groups of three or more repeats flag).",
+    "",
+    (if ($s.loop_indicators | length) == 0
+     then "- repeated identical spans: none"
+     else ($s.loop_indicators[] | "- repeated identical span \(.signature) — count \(.count)")
+     end),
+    ("- RED re-entry features: "
+     + (if ($s.red_reentry | length) == 0 then "none" else ($s.red_reentry | join(", ")) end)),
+    ("- deviations: \($s.deviations.count)"
+     + (if ($s.deviations.feature_ids | length) == 0
+        then " (none)"
+        else " (" + ($s.deviations.feature_ids | join(", ")) + ")"
+        end)),
+    "",
+    (if $s.tokens == null
+     then "Tokens: n/a (no model spans carrying token usage — token data unavailable)"
+     else
+       ("## Tokens",
+        "",
+        "- input_tokens: \($s.tokens.input_tokens) · output_tokens: \($s.tokens.output_tokens) (measured from model spans only)",
+        ($s.tokens.by_role | to_entries[]
+         | "- by role — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"),
+        ($s.tokens.by_feature | to_entries[]
+         | "- by feature — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"))
+     end),
+    "",
+    (if $s.finished
+     then "Final outcome: \($s.final_outcome | na)"
+     else "Final outcome: n/a (unfinished run — no finish lifecycle span)"
+     end)
+  ]
+| .[]
+JQ
+
+jq -r -f "$RENDER_FILTER" < "$SUMMARY_JSON"
+
+# Report produced → exit 0, regardless of run health (plan D7).
+exit 0
