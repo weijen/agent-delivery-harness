@@ -38,27 +38,103 @@ fi
 
 # --- Event handlers ----------------------------------------------------------
 
-# PreToolUse — STUB for feature claude-hook-tool-spans (issue #96, feature 2):
-# will write trace_now_ms to a tool_use_id-keyed state file under the
-# per-issue tracking dir so PostToolUse can derive harness.duration_ms
-# (plan D5). Until then: silent success, no state written.
+# Hard cap for harness.args_summary (feature claude-hook-tool-spans, C1):
+# 200 characters TOTAL including the literal `...` truncation marker. A size
+# control only — trace-lib's trace_redact on the fully-serialized line stays
+# the redaction boundary.
+HOOK_ARGS_SUMMARY_CAP=200
+
+# Duration-correlation state file path (plan D5, tool-span sensor C2):
+# <main root>/.copilot-tracking/issues/issue-NN/.hook-state/<session_id>-<tool_use_id>
+# Requires trace-lib to be sourced (uses trace__main_root and
+# trace__resolve_issue). Prints the path; returns 1 when the payload lacks a
+# session_id/tool_use_id pair (older Claude Code) or the repo context is
+# unresolvable — callers then omit duration, never fake it.
+hook__state_file() {
+  local payload="$1"
+  local sid="" tuid="" main_root="" issue_num="" issue_pad=""
+  sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
+  tuid="$(printf '%s' "$payload" | jq -r '.tool_use_id // empty' 2>/dev/null || true)"
+  if [ -z "$sid" ] || [ -z "$tuid" ]; then
+    return 1
+  fi
+  # Filename-safe: collapse anything exotic to '_' before building a path.
+  sid="$(printf '%s' "$sid" | tr -c 'A-Za-z0-9._-' '_')"
+  tuid="$(printf '%s' "$tuid" | tr -c 'A-Za-z0-9._-' '_')"
+  main_root="$(trace__main_root)" || return 1
+  issue_num="$(trace__resolve_issue)" || return 1
+  issue_pad="$(printf '%02d' "$issue_num" 2>/dev/null)" || return 1
+  printf '%s' "${main_root}/.copilot-tracking/issues/issue-${issue_pad}/.hook-state/${sid}-${tuid}"
+}
+
+# PreToolUse — duration correlation start (plan D5, C2): record trace_now_ms
+# in the tool_use_id-keyed state file. Never appends a trace line; every
+# failure degrades to silent omission.
 hook__on_pre_tool_use() {
+  local payload="$1"
+  local state_file="" state_dir=""
+  state_file="$(hook__state_file "$payload")" || return 0
+  state_dir="$(dirname "$state_file")"
+  mkdir -p "$state_dir" 2>/dev/null || return 0
+  trace_now_ms > "$state_file" 2>/dev/null || true
   return 0
 }
 
-# PostToolUse — emit one schema-valid `tool` span. This feature
-# (claude-hook-noop-guard) pins only the minimal emission boundary:
-# gen_ai.tool.name from the payload's .tool_name. Feature 2
-# (claude-hook-tool-spans) owns the full field contract (args summary cap,
-# exit status, duration correlation).
+# PostToolUse — emit one schema-valid `tool` span (sensor conventions C1–C4):
+#   gen_ai.tool.name        payload .tool_name (required; absent → no span)
+#   gen_ai.operation.name   execute_tool
+#   harness.args_summary    jq -c .tool_input, hard-capped per C1
+#   harness.outcome         pass/fail ONLY from tool_response.is_error (C3);
+#                           anything ambiguous → key omitted
+#   harness.duration_ms     Pre/Post state-file correlation (C2); the
+#                           consumed state file is deleted; no correlation →
+#                           key omitted — omit, never fake.
 hook__on_post_tool_use() {
   local payload="$1"
-  local tool_name=""
+  local tool_name="" summary="" outcome="" state_file=""
+  local start_ms="" end_ms=""
+  local -a attrs=()
+
   tool_name="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   [ -n "$tool_name" ] || return 0
-  trace_span tool \
-    "gen_ai.tool.name=${tool_name}" \
+  attrs=(
+    "gen_ai.tool.name=${tool_name}"
     "gen_ai.operation.name=execute_tool"
+  )
+
+  # C1 — args summary: compact tool_input, hard-capped BEFORE trace_span
+  # (size control; trace_redact on the serialized line stays the redaction
+  # boundary).
+  summary="$(printf '%s' "$payload" | jq -c '.tool_input // empty' 2>/dev/null || true)"
+  if [ -n "$summary" ]; then
+    if [ "${#summary}" -gt "$HOOK_ARGS_SUMMARY_CAP" ]; then
+      summary="${summary:0:HOOK_ARGS_SUMMARY_CAP-3}..."
+    fi
+    attrs+=("harness.args_summary=${summary}")
+  fi
+
+  # C3 — outcome only when the payload clearly indicates it.
+  outcome="$(printf '%s' "$payload" | jq -r '
+      if .tool_response.is_error? == true then "fail"
+      elif .tool_response.is_error? == false then "pass"
+      else "" end' 2>/dev/null || true)"
+  case "$outcome" in
+    pass|fail) attrs+=("harness.outcome=${outcome}") ;;
+    *) ;;
+  esac
+
+  # C2 — duration from a correlated PreToolUse; consume + delete the state.
+  if state_file="$(hook__state_file "$payload")" && [ -f "$state_file" ]; then
+    start_ms="$(cat "$state_file" 2>/dev/null || true)"
+    rm -f "$state_file" 2>/dev/null || true
+    end_ms="$(trace_now_ms)"
+    if [[ "$start_ms" =~ ^[0-9]+$ ]] && [[ "$end_ms" =~ ^[0-9]+$ ]] \
+        && [ "$end_ms" -ge "$start_ms" ]; then
+      attrs+=("harness.duration_ms=$((end_ms - start_ms))")
+    fi
+  fi
+
+  trace_span tool "${attrs[@]}"
   return 0
 }
 
