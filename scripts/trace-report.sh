@@ -128,11 +128,26 @@ def sum_duration:
   [.[] | .["harness.duration_ms"]? | numbers]
   | if length == 0 then null else add end;
 
+# Token honesty (feature trace-report-robustness-honesty, plan D5):
+# measured from MODEL spans ONLY — gen_ai.usage.* on an agent span is
+# handback passthrough metadata, never a measurement source. Attribution is
+# span-own (the model span's OWN gen_ai.agent.name / harness.feature_id; no
+# parent-chain reconstruction in v1); unresolvable buckets land under
+# "unattributed", never silently dropped or zeroed.
+def tok_sums:
+  { input_tokens:  ([.[] | .["gen_ai.usage.input_tokens"]?  | numbers] | add // 0),
+    output_tokens: ([.[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0) };
+def bucket_key(k):
+  (.[k]? | if type == "string" then . else "unattributed" end);
+def tok_buckets(keyf):
+  group_by(keyf) | map({ key: (.[0] | keyf), value: tok_sums }) | from_entries;
+
 [inputs] as $lines
 | [$lines[] | fromjson? | select(type == "object")] as $spans
 | (($lines | length) - ($spans | length)) as $invalid
 | [$spans[] | .timestamp? | strings] as $ts
 | [$spans[] | select(.["harness.lifecycle_step"] == "finish")] as $finishes
+| [$spans[] | select(.span == "model")] as $models
 | {
     summary_schema_version: 1,
     trace_file: $trace_file,
@@ -176,7 +191,13 @@ def sum_duration:
        then ($finishes[-1]["harness.outcome"]? // null)
        else null
        end),
-    tokens: null,
+    tokens:
+      (if ($models | length) == 0 then null
+       else
+         (($models | tok_sums)
+          + { by_role:    ($models | tok_buckets(bucket_key("gen_ai.agent.name"))),
+              by_feature: ($models | tok_buckets(bucket_key("harness.feature_id"))) })
+       end),
     loop_indicators:
       ([$spans[]
         | del(.span_id, .parent_span_id, .timestamp, .["harness.duration_ms"])]
@@ -279,6 +300,18 @@ def na: if . == null then "n/a" else tostring end;
         then " (none)"
         else " (" + ($s.deviations.feature_ids | join(", ")) + ")"
         end)),
+    "",
+    (if $s.tokens == null
+     then "Tokens: n/a (no model spans — token data unavailable)"
+     else
+       ("## Tokens",
+        "",
+        "- input_tokens: \($s.tokens.input_tokens) · output_tokens: \($s.tokens.output_tokens) (measured from model spans only)",
+        ($s.tokens.by_role | to_entries[]
+         | "- by role — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"),
+        ($s.tokens.by_feature | to_entries[]
+         | "- by feature — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"))
+     end),
     "",
     (if $s.finished
      then "Final outcome: \($s.final_outcome | na)"
