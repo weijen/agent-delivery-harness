@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # validate-trace.sh — standalone, report-only trace validator (issue #97:
 # features validate-trace-schema-core, validate-trace-completeness,
-# validate-trace-redaction-audit).
+# validate-trace-redaction-audit, validate-trace-sanity-flags).
 #
 # Checks a per-issue trace.jsonl against the frozen v1 trace schema contract
 # (docs/evaluation/trace-schema.v1.json), line by line:
@@ -37,11 +37,23 @@
 #                     (no line number — whole-trace finding). An unfinished
 #                     trace skips this pass entirely.
 #
+# Sanity flags (#94-review carry-overs, plan D8/D9 — WARNINGs, never
+# violations, exit code unaffected):
+#   WARNING line <N>: jq_skipped_pass   a check-feature-list tool span with
+#                                       harness.outcome=pass and
+#                                       harness.warning=jq_skipped — a pass
+#                                       with no validation behind it;
+#   WARNING: unexpected trace location  path mode only: the trace does not
+#                                       live at the contract location
+#                                       .copilot-tracking/issues/issue-NN/trace.jsonl.
+# An unfinished run gets an informational NOTE (completeness pass skipped).
+#
 # Findings go to STDOUT, one per line:  VIOLATION line <N>: <rule>
 # Findings never echo attribute VALUES or line content (line numbers, rule
 # names, and contract step names only — the report must not re-leak what
 # redaction keeps out of circulation).
-# The report ends with a summary tail:  <N> span(s), <V> violation(s)
+# The report ends with a summary tail:
+#   <N> span(s), <V> violation(s), <W> warning(s)
 #
 # Usage:
 #   ./scripts/validate-trace.sh <issue-number>
@@ -51,7 +63,6 @@
 #       validates the given file directly
 #
 # Report-only: never called by lifecycle scripts here (gate wiring is #103).
-# The later #97 sanity-flags feature hooks in at the marked seam below.
 #
 # Exit codes: 0 no violations · 1 ≥1 violation · 2 usage/environment error
 
@@ -105,10 +116,12 @@ fi
 
 # --- Resolve the trace file (plan D7 CLI shape) -------------------------------
 TRACE_FILE=""
+PATH_MODE=0
 case "$ARG" in
   */* | *.jsonl)
     # Path mode: the argument names a trace file explicitly.
     TRACE_FILE="$ARG"
+    PATH_MODE=1
     ;;
   *)
     # Issue-number mode: resolve the main-checkout trace path.
@@ -219,8 +232,26 @@ check_line_redaction() {
   return 0
 }
 
+# Sanity flag (plan D8, validator side): a pass-outcome check-feature-list
+# tool span carrying harness.warning=jq_skipped is a pass with no validation
+# behind it — worth a WARNING, never a violation (exit unaffected).
+check_line_jq_skipped() {
+  local line="$1" n="$2"
+  if printf '%s\n' "$line" | jq -e '
+      (type == "object")
+      and (.span == "tool")
+      and (.["gen_ai.tool.name"] == "check-feature-list")
+      and (.["harness.outcome"] == "pass")
+      and (.["harness.warning"] == "jq_skipped")' >/dev/null 2>&1; then
+    printf 'WARNING line %d: jq_skipped_pass\n' "$n"
+    return 1
+  fi
+  return 0
+}
+
 total=0
 violations=0
+warnings=0
 while IFS= read -r line || [ -n "$line" ]; do
   total=$((total + 1))
   if ! check_line "$line" "$total"; then
@@ -229,32 +260,55 @@ while IFS= read -r line || [ -n "$line" ]; do
   if ! check_line_redaction "$line" "$total"; then
     violations=$((violations + 1))
   fi
+  if ! check_line_jq_skipped "$line" "$total"; then
+    warnings=$((warnings + 1))
+  fi
 done < "$TRACE_FILE"
 
 # --- Whole-trace pass: finished-run lifecycle completeness (plan D3) --------------
 # Only a finished run (a `finish` lifecycle step anywhere in the trace) is
 # held to completeness: every non-deviation contract step must appear at
 # least once, counting harness.lifecycle_step across ALL span types.
-# Unparseable lines are ignored here (already flagged per line above).
-missing_steps="$(jq -nRr --slurpfile contract "$CONTRACT" '
-  [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings] as $steps
-  | if ($steps | index("finish")) == null
-    then empty
-    else ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)[]
-    end
+# An unfinished trace skips the pass with an informational note (never a
+# violation). Unparseable lines are ignored here (already flagged per line).
+finish_present="$(jq -nRr '
+  [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings]
+  | index("finish") != null
 ' < "$TRACE_FILE")"
-if [ -n "$missing_steps" ]; then
-  while IFS= read -r step; do
-    printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
-    violations=$((violations + 1))
-  done <<< "$missing_steps"
+if [ "$finish_present" = "true" ]; then
+  missing_steps="$(jq -nRr --slurpfile contract "$CONTRACT" '
+    [inputs | fromjson? | .["harness.lifecycle_step"]? // empty | strings] as $steps
+    | ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)[]
+  ' < "$TRACE_FILE")"
+  if [ -n "$missing_steps" ]; then
+    while IFS= read -r step; do
+      printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+      violations=$((violations + 1))
+    done <<< "$missing_steps"
+  fi
+else
+  printf 'NOTE: unfinished run — completeness pass skipped\n'
 fi
 
-# --- Whole-trace passes (seam for later #97 features) ----------------------------
-# Phase 4: sanity flags (jq_skipped pass spans, trace-file location warning).
+# --- Whole-trace pass: trace-file location sanity (plan D9) -----------------------
+# Path mode only: warn when the trace does not live at the contract location
+# .copilot-tracking/issues/issue-NN/trace.jsonl (issue-number mode constructs
+# that path, so the check is trivially satisfied there). A WARNING, never a
+# violation — the exit code is unaffected.
+if [ "$PATH_MODE" = "1" ]; then
+  ABS_TRACE="$TRACE_FILE"
+  case "$ABS_TRACE" in
+    /*) ;;
+    *)  ABS_TRACE="$(pwd)/$ABS_TRACE" ;;
+  esac
+  if ! [[ "$ABS_TRACE" =~ \.copilot-tracking/issues/issue-[0-9][0-9]+/trace\.jsonl$ ]]; then
+    printf 'WARNING: unexpected trace location\n'
+    warnings=$((warnings + 1))
+  fi
+fi
 
 # --- Report tail + exit semantics (plan D5/D6) ------------------------------------
-printf '%d span(s), %d violation(s)\n' "$total" "$violations"
+printf '%d span(s), %d violation(s), %d warning(s)\n' "$total" "$violations" "$warnings"
 if [ "$violations" -gt 0 ]; then
   red "✗ trace failed validation: ${TRACE_FILE}"
   exit 1
