@@ -28,6 +28,17 @@
 # them as JSON numbers) ONLY when each is a pure decimal integer; unset or
 # non-numeric values simply omit the key (never an error).
 #
+# Failure-mode passthrough (issue #99, feature failure-mode-span-plumbing —
+# mirrors the token passthrough): TRACE_FAILURE_MODE is forwarded as
+# harness.failure_mode (JSON string) ONLY when its value is a member of the
+# contract's closed failure_modes enum (docs/evaluation/trace-schema.v1.json;
+# a mirrored fallback list covers checkouts where the contract file is not
+# readable). Unset → key absent. Out-of-enum → key omitted with a stderr
+# warning, call still exits 0 (omit, never fake, never hard-fail). The
+# passthrough attaches on ANY lifecycle step — the deviation/failure
+# convention is prose in docs/evaluation/failure-mode-taxonomy.md, not a
+# gate here. The Action Log bullet format is unchanged.
+#
 # Failure semantics (plan D4, conductor-resolved):
 #   * Bad role/step/outcome or missing args → non-zero exit, nothing written.
 #   * Validate first, THEN span, THEN log line. If the Action Log append
@@ -144,6 +155,45 @@ if [ "$HAVE_TRACE_LIB" = "1" ]; then
   if [[ "${TRACE_OUTPUT_TOKENS:-}" =~ ^[0-9]+$ ]]; then
     TOKEN_ARGS+=("gen_ai.usage.output_tokens=${TRACE_OUTPUT_TOKENS}")
   fi
+
+  # Failure-mode passthrough (issue #99): forward TRACE_FAILURE_MODE as
+  # harness.failure_mode only when it is a member of the contract's closed
+  # failure_modes enum; out-of-enum → omit + warn (never fake, never fail).
+  # The enum is read from the contract with jq when available; otherwise the
+  # mirrored frozen v1 list below keeps the passthrough working in stripped
+  # checkouts (scripts-only fixtures) without weakening the closed set.
+  failure_mode_valid() {
+    local mode="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+    local enum="" m
+    if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
+      enum="$(jq -r '(.failure_modes // [])[]' "$contract" 2>/dev/null || true)"
+    fi
+    if [ -z "$enum" ]; then
+      enum='missing-context
+brittle-tool-interface
+weak-sensor
+token-thrash
+premature-termination
+permission-friction
+flaky-environment
+role-violation'
+    fi
+    while IFS= read -r m; do
+      if [ "$m" = "$mode" ]; then
+        return 0
+      fi
+    done <<< "$enum"
+    return 1
+  }
+  FM_ARGS=()
+  if [ -n "${TRACE_FAILURE_MODE:-}" ]; then
+    if failure_mode_valid "${TRACE_FAILURE_MODE}"; then
+      FM_ARGS+=("harness.failure_mode=${TRACE_FAILURE_MODE}")
+    else
+      warn "TRACE_FAILURE_MODE '${TRACE_FAILURE_MODE}' is not in the contract's closed failure_modes enum — harness.failure_mode omitted (omit, never fake)"
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -151,7 +201,8 @@ if [ "$HAVE_TRACE_LIB" = "1" ]; then
     "harness.feature_id=${FEATURE_ID}" \
     "harness.outcome=${OUTCOME}" \
     "harness.summary=${SUMMARY}" \
-    ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"}
+    ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
+    ${FM_ARGS[@]+"${FM_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

@@ -20,6 +20,12 @@
 #                     digits-only strings on string keys (e.g.
 #                     harness.require_complete "1", harness.review_gate_sha
 #                     "1234567") are legal real-emitter output;
+#   failure_mode_violation
+#                     (issue #99, feature failure-mode-span-plumbing) the span
+#                     carries harness.failure_mode but its value is not a
+#                     member of the contract's closed failure_modes enum. A
+#                     DISTINCT rule: the lifted #92 filter stays lifted
+#                     verbatim (it checks #92-era presence/enums only);
 #   redaction_leak    trace_redact (scripts/trace-lib.sh, reused as the audit
 #                     oracle — one redaction policy, never a forked pattern
 #                     list; plan D4) would ALTER the line: a secret-shaped
@@ -144,7 +150,14 @@ if [ ! -f "$TRACE_FILE" ]; then
   exit 2
 fi
 
-TMP_DIR="$(mktemp -d)"
+# mktemp when available; a mkdir fallback keeps the validator usable in
+# minimal environments (e.g. sensor-pinned PATHs) without weakening cleanup.
+if command -v mktemp >/dev/null 2>&1; then
+  TMP_DIR="$(mktemp -d)"
+else
+  TMP_DIR="${TMPDIR:-/tmp}/validate-trace.$$.${RANDOM}"
+  mkdir -p "$TMP_DIR"
+fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # --- Per-line jq filters -------------------------------------------------------
@@ -186,6 +199,21 @@ cat > "$TYPE_FILTER" <<'JQ'
       end)
 JQ
 
+# Failure-mode closed enum (issue #99, feature failure-mode-span-plumbing):
+# when a span carries harness.failure_mode, its value must be in the
+# contract's closed failure_modes enum. Kept OUTSIDE the lifted #92 filter
+# above (that block stays byte-diffable against test_trace_schema.sh) and
+# reported under the distinct rule name failure_mode_violation.
+FAILURE_MODE_FILTER="${TMP_DIR}/validate-failure-mode.jq"
+cat > "$FAILURE_MODE_FILTER" <<'JQ'
+$contract[0] as $c
+| . as $span
+| if (($span | type) == "object") and ($span | has("harness.failure_mode"))
+  then (($c.failure_modes // []) | index($span["harness.failure_mode"]) != null)
+  else true
+  end
+JQ
+
 # --- Per-line validation pass ----------------------------------------------------
 # One finding per line, first failing rule wins:
 # invalid_json → schema_violation → type_violation. Findings carry the line
@@ -210,6 +238,23 @@ check_line() {
   fi
   if ! printf '%s\n' "$line" | jq -e -f "$TYPE_FILTER" >/dev/null 2>&1; then
     printf 'VIOLATION line %d: type_violation\n' "$n"
+    return 1
+  fi
+  return 0
+}
+
+# Failure-mode enum check (issue #99): independent of check_line so it fires
+# on any parseable line carrying the key, and reported under its own rule
+# name. Unparseable lines are already flagged invalid_json by check_line.
+# The finding NEVER echoes the offending value.
+check_line_failure_mode() {
+  local line="$1" n="$2"
+  if ! printf '%s\n' "$line" | jq empty >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! printf '%s\n' "$line" \
+    | jq -e --slurpfile contract "$CONTRACT" -f "$FAILURE_MODE_FILTER" >/dev/null 2>&1; then
+    printf 'VIOLATION line %d: failure_mode_violation\n' "$n"
     return 1
   fi
   return 0
@@ -255,6 +300,9 @@ warnings=0
 while IFS= read -r line || [ -n "$line" ]; do
   total=$((total + 1))
   if ! check_line "$line" "$total"; then
+    violations=$((violations + 1))
+  fi
+  if ! check_line_failure_mode "$line" "$total"; then
     violations=$((violations + 1))
   fi
   if ! check_line_redaction "$line" "$total"; then
