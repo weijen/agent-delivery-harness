@@ -17,8 +17,9 @@ separate from replaceable language support and project-specific conventions:
   behavior is frozen in the machine-readable contract
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
   `tests/scripts/test_harness_contract.sh`. The owner scripts
-  (`scripts/issue-lib.sh`, `start-issue.sh`, `check-feature-list.sh`,
-  `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`, `finish-issue.sh`) must stay
+  (`scripts/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
+  `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`,
+  `finish-issue.sh`) must stay
   language-neutral.
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
   that teach `init.sh` how to detect a project surface and run its gates. The

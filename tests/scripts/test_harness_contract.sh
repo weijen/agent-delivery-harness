@@ -124,7 +124,8 @@ for required in \
   scripts/review-gate.sh \
   scripts/create-pr.sh \
   scripts/merge-pr.sh \
-  scripts/finish-issue.sh; do
+  scripts/finish-issue.sh \
+  scripts/trace-lib.sh; do
   case " ${declared_scripts} " in
     *" ${required} "*) : ;;
     *) fail "contract no longer declares required script: ${required}" ;;
@@ -147,6 +148,13 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:
 # sensor even though section 3 would then no longer check it.
 grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]]*$' "$CONTRACT" \
   || fail "contract no longer declares the breakdown-ownership lifecycle obligation"
+
+# --- 2d. Trace-lib registration backstop (issue #93) -------------------------
+# scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
+# lifecycle scripts. The required-script backstop above forces the contract to
+# keep declaring it in the scripts list (section 1 then enforces that it
+# exists, is executable, and parses with bash -n), and section 4 asserts it
+# stays inside the language-neutral boundary alongside the other owners.
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
@@ -187,6 +195,12 @@ neutral_owners="$(parse_nested_list language_neutral owners)"
 neutral_tokens="$(parse_nested_list language_neutral tokens)"
 [ -n "$neutral_owners" ] || fail "language_neutral.owners is empty in the contract"
 [ -n "$neutral_tokens" ] || fail "language_neutral.tokens is empty in the contract"
+
+# Trace-lib language-neutral backstop (issue #93): the tracing primitive must
+# stay inside the language-neutral boundary so it never grows language
+# branches; the owners loop below then applies the token guard to it.
+printf '%s\n' "$neutral_owners" | grep -qx 'scripts/trace-lib.sh' \
+  || fail "language_neutral.owners no longer includes scripts/trace-lib.sh (issue #93 tracing primitive)"
 
 while IFS= read -r owner; do
   [ -n "$owner" ] || continue
