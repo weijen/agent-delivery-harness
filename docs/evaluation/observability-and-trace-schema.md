@@ -92,6 +92,13 @@ Sensitive values (secrets, tokens, customer data) must be redacted before a span
 is written; see [security-evals.md](security-evals.md) and
 [dataset-governance.md](dataset-governance.md).
 
+Deviation/failure spans may additionally carry the optional
+`harness.failure_mode` attribute (issue #99), whose value is constrained to
+the closed `failure_modes` enum in the contract. What each mode means, how the
+attribute is attached, and the human-gated governance around it live in
+[failure-mode-taxonomy.md](failure-mode-taxonomy.md); the contract remains the
+authority for the enum membership.
+
 ## How The Evals Consume This Schema
 
 - [trajectory-evals.md](trajectory-evals.md) match on the ordered sequence of

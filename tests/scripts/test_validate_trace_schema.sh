@@ -33,6 +33,10 @@
 #          with rule names  type_violation | schema_violation | invalid_json
 #          (schema_violation = lifted-#92-filter reject; type_violation =
 #          known-key type-map breach; invalid_json = unparseable line);
+#          issue #99 (feature failure-mode-span-plumbing) adds the distinct
+#          rule  failure_mode_violation  — a span carrying
+#          harness.failure_mode whose value is not in the contract's closed
+#          failure_modes enum (the lifted #92 filter stays lifted verbatim);
 #        * findings NEVER echo the flagged attribute VALUE (line numbers,
 #          rule names, and key names only — a report must not re-leak what
 #          redaction was supposed to keep out of circulation);
@@ -278,6 +282,25 @@ write_case "${CASES}/non_json_line.jsonl" "$PREFIX" \
   'SENTINEL_9f3a this line is not JSON {'
 expect_violation "non-JSON line" \
   "${CASES}/non_json_line.jsonl" 2 invalid_json SENTINEL_9f3a
+
+# --- 3b. harness.failure_mode closed enum (issue #99, feature -------------------
+#     failure-mode-span-plumbing). The lifted #92 filter stays lifted verbatim
+#     (it checks presence + enums of #92-era fields only), so the validator
+#     needs a DISTINCT per-line rule: when a span carries harness.failure_mode,
+#     its value must be a member of the contract's closed failure_modes enum,
+#     else a finding with the PINNED rule name failure_mode_violation (same
+#     no-value-leak report discipline as every other rule). A valid enum
+#     member — on any span type — stays clean.
+write_case "${CASES}/oov_failure_mode.jsonl" "$PREFIX" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":42,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"deviation","harness.outcome":"blocked","harness.failure_mode":"banana"}'
+expect_violation "out-of-enum harness.failure_mode" \
+  "${CASES}/oov_failure_mode.jsonl" 2 failure_mode_violation banana
+
+write_case "${CASES}/valid_failure_mode.jsonl" "$PREFIX" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":42,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"deviation","harness.outcome":"blocked","harness.failure_mode":"token-thrash"}' \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"lifecycle","harness.issue":42,"harness.version":"abc1234","harness.lifecycle_step":"deviation","harness.failure_mode":"flaky-environment"}'
+expect_clean "enum-member harness.failure_mode values (agent and lifecycle deviation spans) are not violations" \
+  "${CASES}/valid_failure_mode.jsonl"
 
 # --- 4. Known-string fields must NOT be flagged ----------------------------------
 # Digits-only strings on keys OUTSIDE the numeric map are the real emitters'

@@ -24,6 +24,11 @@
 #      (.copilot-tracking/issues/issue-NN/trace.jsonl) and references the
 #      redaction authorities (security-evals.md, dataset-governance.md), and
 #      that .gitignore still carries the covering local-only rule.
+#   5. (issue #99, feature failure-mode-taxonomy-contract) Asserts the contract
+#      freezes the eight-mode failure taxonomy as a closed .failure_modes enum,
+#      declares harness.failure_mode in .optional_fields, and that the prose
+#      authority docs/evaluation/failure-mode-taxonomy.md names every enum
+#      member and states the human-gated / non-goals governance stance.
 #
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 
@@ -81,6 +86,24 @@ jq -e '(.optional_fields | type) == "object" and (.optional_fields | has("span_i
   "$CONTRACT" >/dev/null \
   || fail "contract .optional_fields must include the span linkage fields span_id and parent_span_id"
 
+# Failure-mode taxonomy (issue #99, feature failure-mode-taxonomy-contract):
+# the contract must freeze the eight-mode failure vocabulary as a closed
+# top-level enum (mirroring lifecycle_steps) and declare harness.failure_mode
+# as an optional field whose description points at that enum. Backstop list is
+# hardcoded here (sorted, order-insensitive compare) so a contract edit cannot
+# silently shrink the taxonomy.
+expected_failure_modes='["brittle-tool-interface","flaky-environment","missing-context","permission-friction","premature-termination","role-violation","token-thrash","weak-sensor"]'
+jq -e --argjson want "$expected_failure_modes" \
+  '(.failure_modes // [] | sort) == $want' "$CONTRACT" >/dev/null \
+  || fail "contract .failure_modes must be exactly the 8 frozen failure modes: missing-context, brittle-tool-interface, weak-sensor, token-thrash, premature-termination, permission-friction, flaky-environment, role-violation"
+
+jq -e '(.optional_fields | type) == "object" and (.optional_fields | has("harness.failure_mode"))' \
+  "$CONTRACT" >/dev/null \
+  || fail "contract .optional_fields must include harness.failure_mode"
+jq -e '.optional_fields["harness.failure_mode"] | (type == "string") and contains("failure_modes")' \
+  "$CONTRACT" >/dev/null \
+  || fail "optional_fields entry harness.failure_mode must reference the closed failure_modes enum"
+
 # --- 3. jq validation filter: contract-driven span accept/reject -------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
@@ -133,6 +156,13 @@ must_accept "lifecycle" \
 # extra-fields rule, so a span carrying both must stay accepted.
 must_accept "tool with span linkage fields" \
   '{"schema_version":1,"timestamp":"2026-07-04T12:00:08Z","span":"tool","harness.issue":93,"harness.version":"0f3c1a2","gen_ai.tool.name":"git","span_id":"20260704T120008-a1b2c3","parent_span_id":"20260704T120000-9f8e7d"}'
+# Failure mode (issue #99): optional harness.failure_mode rides the open-world
+# extra-fields rule, so a deviation-context agent span carrying it must stay
+# accepted. Enum ENFORCEMENT of the value is the standalone validator's job
+# (feature failure-mode-span-plumbing) — this schema filter stays
+# presence/enum-of-existing-fields only, so no must_reject is pinned here.
+must_accept "deviation agent span with harness.failure_mode" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:09Z","span":"agent","harness.issue":99,"harness.version":"0f3c1a2","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent","harness.failure_mode":"token-thrash"}'
 
 # Reject: each frozen failure mode must be refused.
 must_reject "missing schema_version" \
@@ -158,6 +188,27 @@ jq -e '[.. | strings | select(contains("dataset-governance.md"))] | length > 0' 
 
 grep -qF '.copilot-tracking/issues/issue-*/' "${ROOT}/.gitignore" \
   || fail ".gitignore no longer carries the .copilot-tracking/issues/issue-*/ local-only rule covering trace.jsonl"
+
+# --- 5. Failure-mode taxonomy doc (issue #99) ---------------------------------
+# docs/evaluation/failure-mode-taxonomy.md is the prose authority for the
+# eight-mode enum: it must name every frozen enum member verbatim (iterated
+# from the hardcoded backstop, not the contract, so a shrunken contract cannot
+# also shrink this check) and state the governance stance — human-gated,
+# with explicit non-goals (no automated harness mutation).
+TAXONOMY_DOC="${ROOT}/docs/evaluation/failure-mode-taxonomy.md"
+if [ -f "$TAXONOMY_DOC" ]; then
+  while IFS= read -r mode; do
+    [ -n "$mode" ] || continue
+    grep -qF -- "$mode" "$TAXONOMY_DOC" \
+      || fail "failure-mode-taxonomy.md does not name the frozen failure mode '${mode}'"
+  done < <(jq -r '.[]' <<< "$expected_failure_modes")
+  grep -qiE 'non-goals' "$TAXONOMY_DOC" \
+    || fail "failure-mode-taxonomy.md must carry an explicit non-goals statement"
+  grep -qiE 'human[- ]gated' "$TAXONOMY_DOC" \
+    || fail "failure-mode-taxonomy.md must state the human-gated governance stance"
+else
+  fail "taxonomy doc not found at docs/evaluation/failure-mode-taxonomy.md"
+fi
 
 # --- Result ------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

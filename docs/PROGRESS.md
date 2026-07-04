@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #98)._
+_Last updated: 2026-07-04 (issue #99)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #98)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 60 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 62 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,21 +66,32 @@ _Last updated: 2026-07-04 (issue #98)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open: #99, #103, #104):** failure-mode taxonomy
-  + replay fixtures (#99), consistency sensor + gate wiring (#103),
-  cross-run scorecard keyed by `harness.version` (#104, input contract now
-  frozen as `docs/evaluation/trace-summary.v1.json`). Carry-overs for #103
-  from the #97 review: collapse the validator's per-line forks into one jq
-  program before gate wiring; distinct redaction_audit_error rule; optional
-  non-negative duration guards. #103 also lifts the trace↔Action-Log
-  detector from `tests/meta/test_trace_action_log_consistency.sh`.
-- **In flight:** #98 delivered by this branch; #99 is next.
+- **Deep-tracing workstream (open: #103, #104):** consistency sensor + gate
+  wiring (#103), cross-run scorecard keyed by `harness.version` (#104,
+  input contract frozen as `docs/evaluation/trace-summary.v1.json`).
+  Carry-overs for #103 from the #97 review: collapse the validator's
+  per-line forks into one jq program before gate wiring; distinct
+  redaction_audit_error rule; optional non-negative duration guards; #103
+  also lifts the trace↔Action-Log detector from
+  `tests/meta/test_trace_action_log_consistency.sh`.
+- **In flight:** #99 delivered by this branch; #103 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#99 — Failure-mode taxonomy + first replay fixture.**
+  Eight failure modes frozen as a closed enum in schema v1 (optional
+  `harness.failure_mode`), prose authority with real workstream anchors and
+  the human-gated governance stance; `TRACE_FAILURE_MODE` passthrough on
+  handback spans (contract-read enum, fallback parity sensor-pinned);
+  `failure_mode_violation` validator rule; `scripts/sanitize-trace.sh`
+  (decode-aware path scrub, fail-closed audits) turned the real issue-97
+  trace into the first committed replay fixture (37 spans incl. a genuine
+  deviation, human-reviewed, provenance recorded); failure-review ritual
+  template closes the human-run observe→diagnose loop. Non-goals restated:
+  no automated harness mutation.
 - **#98 — Per-issue trace report (`scripts/trace-report.sh`).**
   JSON-first: one jq pass builds the versioned summary object
   (`trace-summary.v1`, emitted idempotently beside the trace as the #104

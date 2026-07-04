@@ -39,6 +39,19 @@
 #     Each is forwarded independently and ONLY when it is a pure decimal
 #     integer; unset or non-numeric → the key is ABSENT (omit, never fake;
 #     a non-numeric value is not an error — the call still succeeds).
+#   - Failure-mode passthrough (issue #99, feature failure-mode-span-plumbing,
+#     convention PINNED HERE — mirrors the token passthrough):
+#       TRACE_FAILURE_MODE → harness.failure_mode (JSON string)
+#     Forwarded ONLY when the value is a member of the contract's closed
+#     failure_modes enum (docs/evaluation/trace-schema.v1.json). Unset →
+#     key ABSENT. Out-of-enum → key OMITTED, stderr warning naming the
+#     failure mode env/attribute, call still exits 0 (omit, never fake,
+#     never hard-fail — soft input, unlike role/step/outcome).
+#     PINNED: the passthrough attaches on ANY lifecycle step when set —
+#     the deviation/failure convention is prose in
+#     docs/evaluation/failure-mode-taxonomy.md; enforcement stays soft
+#     (open-world optional field, no step gate). The Action Log bullet
+#     format (D3) is UNCHANGED by the failure mode.
 #   - Failure semantics (conductor-resolved: hard-fail on the Action Log):
 #       * Validation failures (bad role/step/outcome, missing args) →
 #         non-zero exit, NO span written, NO log line written.
@@ -184,7 +197,8 @@ expect_bullet() {
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rm cp mv cat sed awk tr cut grep printf head tail sort jq date od wc cksum
 
-unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_INPUT_TOKENS TRACE_OUTPUT_TOKENS 2>/dev/null || true
+unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_INPUT_TOKENS TRACE_OUTPUT_TOKENS \
+  TRACE_FAILURE_MODE 2>/dev/null || true
 
 # --- Fixture: MAIN repo + linked issue worktrees ---------------------------------
 MAIN="${TMP_DIR}/main-repo"
@@ -485,5 +499,111 @@ expect_bullet "span-drop" "${WTD}/.copilot-tracking/issues/issue-16/progress.md"
   "- [test-subagent] green_handback log-handback-helper pass — verified with dropped span"
 [ -d "${MAIN}/.copilot-tracking/issues/issue-16/trace.jsonl" ] \
   || fail "span-drop fixture: the unappendable trace.jsonl directory must be untouched"
+
+# ============================================================================
+# 10. TRACE_FAILURE_MODE passthrough (issue #99, feature
+#     failure-mode-span-plumbing). See the pinned convention in the header:
+#     enum-valid value → harness.failure_mode lands as a JSON string on the
+#     span; unset → key absent; out-of-enum → key omitted + stderr warning,
+#     exit 0; attaches on ANY step (soft convention, no step gate); the
+#     Action Log bullet format is unchanged.
+# ============================================================================
+run_hb_fm() { # like run_hb but with TRACE_FAILURE_MODE exported
+  local wt="$1" out="$2" mode="$3"; shift 3
+  (cd "$wt" && TRACE_FAILURE_MODE="$mode" PATH="$BIN" ./scripts/log-handback.sh "$@") > "$out" 2>&1
+}
+
+# 10a. Valid mode on a deviation handback → span carries harness.failure_mode.
+run_hb_fm "$WTA" "${TMP_DIR}/f1.out" token-thrash \
+  conductor deviation - blocked "same files re-read in a loop, no convergence" \
+  || { cat "${TMP_DIR}/f1.out"; fail "deviation handback with TRACE_FAILURE_MODE=token-thrash must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "7" ] \
+  || fail "failure-mode deviation call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+f1="$(nth_line "$TRACE_A" 7)"
+check_agent_span "failure-mode deviation" "$f1" conductor deviation - blocked \
+  "same files re-read in a loop, no convergence" 13
+printf '%s\n' "$f1" | jq -e '.["harness.failure_mode"] == "token-thrash"' >/dev/null \
+  || fail "TRACE_FAILURE_MODE=token-thrash on a deviation must land as harness.failure_mode=\"token-thrash\" (JSON string): ${f1}"
+expect_bullet "failure-mode deviation" "$PROG_A" \
+  "- [conductor] deviation - blocked — same files re-read in a loop, no convergence"
+
+# 10b. Out-of-enum mode → key OMITTED, stderr warning naming the failure
+#      mode, call still exits 0 (omit, never fake, never hard-fail).
+run_hb_fm "$WTA" "${TMP_DIR}/f2.out" banana \
+  conductor deviation - blocked "deviation with a bogus failure mode" \
+  || { cat "${TMP_DIR}/f2.out"; fail "out-of-enum TRACE_FAILURE_MODE=banana must NOT fail the call (omit, never fake)"; }
+[ "$(line_count "$TRACE_A")" = "8" ] \
+  || fail "bogus-failure-mode call must still append exactly one span (got $(line_count "$TRACE_A") lines)"
+f2="$(nth_line "$TRACE_A" 8)"
+check_agent_span "bogus failure mode" "$f2" conductor deviation - blocked \
+  "deviation with a bogus failure mode" 13
+printf '%s\n' "$f2" | jq -e 'has("harness.failure_mode") | not' >/dev/null \
+  || fail "out-of-enum TRACE_FAILURE_MODE=banana must OMIT harness.failure_mode (never fake, never forward): ${f2}"
+grep -qiE 'failure[_ -]mode' "${TMP_DIR}/f2.out" \
+  || { cat "${TMP_DIR}/f2.out"; fail "out-of-enum TRACE_FAILURE_MODE must warn on stderr naming the failure mode (silent omit forbidden)"; }
+
+# 10c. Env unset → key absent (control for 10a).
+run_hb "$WTA" "${TMP_DIR}/f3.out" \
+  conductor deviation - blocked "deviation without a failure mode" \
+  || { cat "${TMP_DIR}/f3.out"; fail "deviation handback without TRACE_FAILURE_MODE must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "9" ] \
+  || fail "no-failure-mode deviation call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+f3="$(nth_line "$TRACE_A" 9)"
+printf '%s\n' "$f3" | jq -e 'has("harness.failure_mode") | not' >/dev/null \
+  || fail "TRACE_FAILURE_MODE unset → harness.failure_mode must be ABSENT: ${f3}"
+
+# 10d. Valid mode on a NON-deviation step attaches too (pinned soft rule:
+#      the deviation convention is prose, not a passthrough gate).
+run_hb_fm "$WTA" "${TMP_DIR}/f4.out" weak-sensor \
+  test-subagent green_handback log-handback-helper pass "green despite a sensor that did not bite" \
+  || { cat "${TMP_DIR}/f4.out"; fail "TRACE_FAILURE_MODE on a non-deviation step must not fail the call (soft convention, no step gate)"; }
+[ "$(line_count "$TRACE_A")" = "10" ] \
+  || fail "non-deviation failure-mode call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+f4="$(nth_line "$TRACE_A" 10)"
+printf '%s\n' "$f4" | jq -e '.["harness.failure_mode"] == "weak-sensor"' >/dev/null \
+  || fail "TRACE_FAILURE_MODE=weak-sensor must attach on ANY step when set (pinned soft rule): ${f4}"
+
+# ============================================================================
+# 11. Contract-read enum branch + fallback/contract parity (loop-2 review
+#     majors). Sections 10a–10d ran with NO contract file in the fixture, so
+#     they only prove the MIRRORED FALLBACK branch. This section pins:
+#     11a. the contract-READ branch is live: with a contract present at
+#          <script_dir>/../docs/evaluation/trace-schema.v1.json whose
+#          failure_modes DIVERGES from the mirrored fallback (a synthetic
+#          9th mode), the divergent mode must be accepted — only the jq
+#          branch can do that;
+#     11b. static parity: the helper's mirrored fallback list must equal the
+#          REAL contract's failure_modes exactly (sorted compare), so enum
+#          drift between contract and fallback fails a sensor.
+# ============================================================================
+# 11a. Divergent contract in the worktree (script dir is ${WTA}/scripts, so
+#      the helper resolves ${WTA}/docs/evaluation/trace-schema.v1.json).
+mkdir -p "${WTA}/docs/evaluation"
+jq '.failure_modes += ["test-only-mode"]' "$CONTRACT" \
+  > "${WTA}/docs/evaluation/trace-schema.v1.json" \
+  || fail "fixture bug: could not derive the divergent 9-mode contract"
+
+run_hb_fm "$WTA" "${TMP_DIR}/f5.out" test-only-mode \
+  conductor deviation - blocked "deviation carrying a contract-only mode" \
+  || { cat "${TMP_DIR}/f5.out"; fail "TRACE_FAILURE_MODE=test-only-mode with a contract declaring it must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "11" ] \
+  || fail "contract-branch call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+f5="$(nth_line "$TRACE_A" 11)"
+printf '%s\n' "$f5" | jq -e '.["harness.failure_mode"] == "test-only-mode"' >/dev/null \
+  || fail "contract-READ branch is dead: a mode present ONLY in the contract (test-only-mode) was not forwarded — the helper is deciding from the mirrored fallback even when the contract is readable: ${f5}"
+rm -rf "${WTA}/docs"
+
+# 11b. Static parity: extract the mirrored fallback block (the enum='...'
+#      literal) from the helper source and compare it, sorted, against the
+#      real contract's failure_modes.
+fallback_list="$(sed -n "/enum='/,/'/p" "$HELPER" \
+  | sed -E "s/^[[:space:]]*enum='//; s/'[[:space:]]*$//" \
+  | sed '/^[[:space:]]*$/d')"
+[ -n "$fallback_list" ] \
+  || fail "could not extract the mirrored fallback enum list (enum='...') from scripts/log-handback.sh — keep the fallback extractable so parity stays sensor-checkable"
+contract_modes_sorted="$(jq -r '(.failure_modes // [])[]' "$CONTRACT" | sort)"
+fallback_sorted="$(printf '%s\n' "$fallback_list" | sort)"
+[ "$fallback_sorted" = "$contract_modes_sorted" ] \
+  || fail "mirrored fallback enum in scripts/log-handback.sh differs from the contract's failure_modes — fallback==contract is pinned (fallback: $(printf '%s' "$fallback_list" | tr '\n' ','); contract: $(printf '%s' "$contract_modes_sorted" | tr '\n' ','))"
 
 printf 'log-handback single-source handback contract honored\n'
