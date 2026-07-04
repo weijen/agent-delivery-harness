@@ -22,11 +22,27 @@
 #   clock B  first-to-last timestamp elapsed in seconds (whole-run wall
 #            clock, includes agent thinking time between spans).
 #
-# JSON-first architecture (plan D2): a single jq pass builds an internal
-# summary object; the markdown is rendered FROM that object, so the human
-# report and the machine summary can never disagree. The on-disk
-# trace-summary.json emission and its v1 contract belong to feature
-# trace-report-summary-json — see the emit_summary_file seam below.
+# JSON-first architecture (plan D2): a single jq pass builds the summary
+# object; the markdown is rendered FROM that object, so the human report
+# and the machine summary can never disagree. The object is also written to
+# <trace dir>/trace-summary.json (idempotent overwrite, never append —
+# feature trace-report-summary-json) under the versioned trace-summary.v1
+# contract documented in docs/evaluation/trace-summary.v1.json (#104's
+# input contract).
+#
+# Loop/retry indicators (feature trace-report-loop-indicators, plan D4 —
+# deterministic-only doctrine per docs/evaluation/cost-efficiency-evals.md):
+#   loop_indicators  exact-repeat groups; identity = the full span object
+#                    MINUS the volatile fields span_id, parent_span_id,
+#                    timestamp, harness.duration_ms; threshold count >= 3;
+#                    signature = span/(tool|step)/outcome[/stage];
+#   red_reentry      harness.feature_id values with a red_handback AFTER an
+#                    earlier green_handback in file order, counting
+#                    harness.lifecycle_step across ALL span types;
+#   deviations       {count, feature_ids} for harness.lifecycle_step ==
+#                    "deviation" across ALL span types.
+# Quiet is empty, not null (plan D5): [] / count 0 mean the detectors ran
+# and found nothing.
 #
 # Usage:
 #   ./scripts/trace-report.sh <issue-number>
@@ -103,9 +119,9 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 # Every number the markdown shows is computed here, from spans on disk.
 # Skip-and-count: a line that does not parse as a JSON object is excluded
 # from every aggregate and counted in span_counts.invalid_lines. Absence
-# semantics (plan D5): a missing measurement is null, never 0; `tokens` and
-# the loop/deviation sections stay null/absent until their features
-# (trace-report-loop-indicators, trace-report-robustness-honesty) land.
+# semantics (plan D5): a missing measurement is null, never 0; a measured
+# zero stays 0; `tokens` is null until model spans exist (feature
+# trace-report-robustness-honesty owns the token buckets).
 SUMMARY_FILTER="${TMP_DIR}/build-summary.jq"
 cat > "$SUMMARY_FILTER" <<'JQ'
 def sum_duration:
@@ -120,6 +136,11 @@ def sum_duration:
 | {
     summary_schema_version: 1,
     trace_file: $trace_file,
+    issue:
+      ([$spans[] | .["harness.issue"]? | numbers]
+       | if length == 0 then null else .[0] end),
+    harness_versions:
+      ([$spans[] | .["harness.version"]? | strings] | unique),
     span_counts: {
       total: ($spans | length),
       invalid_lines: $invalid,
@@ -155,7 +176,40 @@ def sum_duration:
        then ($finishes[-1]["harness.outcome"]? // null)
        else null
        end),
-    tokens: null
+    tokens: null,
+    loop_indicators:
+      ([$spans[]
+        | del(.span_id, .parent_span_id, .timestamp, .["harness.duration_ms"])]
+       | group_by(.)
+       | map(select(length >= 3))
+       | map({
+           signature:
+             (.[0]
+              | [ (.span // "unknown"),
+                  (.["gen_ai.tool.name"] // .["harness.lifecycle_step"] // empty),
+                  (.["harness.outcome"] // empty),
+                  (.["harness.stage"] // empty) ]
+              | join("/")),
+           count: length })
+       | sort_by(.signature)),
+    red_reentry:
+      ((reduce $spans[] as $sp ({greens: [], reentry: []};
+          ($sp["harness.feature_id"]? // null) as $fid
+          | if $fid == null then .
+            elif $sp["harness.lifecycle_step"]? == "green_handback"
+              then .greens += [$fid]
+            elif ($sp["harness.lifecycle_step"]? == "red_handback")
+                 and (.greens | index($fid) != null)
+                 and (.reentry | index($fid) == null)
+              then .reentry += [$fid]
+            else .
+            end))
+       .reentry),
+    deviations:
+      ([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] as $devs
+       | { count: ($devs | length),
+           feature_ids:
+             ([$devs[] | .["harness.feature_id"]? | strings] | unique) })
   }
 JQ
 
@@ -164,15 +218,18 @@ SUMMARY_JSON="${TMP_DIR}/trace-summary.json"
 jq -nR --arg trace_file "$TRACE_FILE" -f "$SUMMARY_FILTER" \
   < "$TRACE_FILE" > "$SUMMARY_JSON"
 
-# --- Seam: on-disk summary emission (feature trace-report-summary-json) ------
-# The versioned trace-summary.v1 file contract (written next to the trace,
-# consumed by #104) is pinned by that feature's sensor; until it lands this
-# seam stays a no-op so the core report emits markdown only.
+# --- Emit the versioned summary (feature trace-report-summary-json) ----------
+# Writes <trace dir>/trace-summary.json beside the trace — the stable pickup
+# path #104 consumes, under the trace-summary.v1 contract
+# (docs/evaluation/trace-summary.v1.json). Idempotent: the file is
+# overwritten whole on every run, never appended (exactly one JSON
+# document). Local-only: the trace dir is covered by the
+# .copilot-tracking/issues/issue-*/ gitignore rule.
 emit_summary_file() {
   local summary_json="$1" trace_file="$2"
-  # Intentionally disabled: feature trace-report-summary-json will write
-  # "$(dirname "$trace_file")/trace-summary.json" from "$summary_json".
-  : "$summary_json" "$trace_file"
+  local out_file
+  out_file="$(dirname "$trace_file")/trace-summary.json"
+  cp "$summary_json" "$out_file"
 }
 emit_summary_file "$SUMMARY_JSON" "$TRACE_FILE"
 
@@ -206,6 +263,22 @@ def na: if . == null then "n/a" else tostring end;
     "| tool (gen_ai.tool.name) | calls | fail calls | summed duration_ms |",
     "| --- | --- | --- | --- |",
     ($s.tools[] | "| \(.name) | \(.calls) | \(.fail_calls) | \(.duration_ms | na) |"),
+    "",
+    "## Loop indicators",
+    "",
+    "Deterministic exact-repeat detectors only (identity = span minus span_id/parent_span_id/timestamp/duration_ms; groups of three or more repeats flag).",
+    "",
+    (if ($s.loop_indicators | length) == 0
+     then "- repeated identical spans: none"
+     else ($s.loop_indicators[] | "- repeated identical span \(.signature) — count \(.count)")
+     end),
+    ("- RED re-entry features: "
+     + (if ($s.red_reentry | length) == 0 then "none" else ($s.red_reentry | join(", ")) end)),
+    ("- deviations: \($s.deviations.count)"
+     + (if ($s.deviations.feature_ids | length) == 0
+        then " (none)"
+        else " (" + ($s.deviations.feature_ids | join(", ")) + ")"
+        end)),
     "",
     (if $s.finished
      then "Final outcome: \($s.final_outcome | na)"
