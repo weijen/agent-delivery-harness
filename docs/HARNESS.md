@@ -289,7 +289,10 @@ trace simply lacks those spans and everything else is unchanged.
 The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
 progress.md ↔ feature list ↔ review-gate marker honesty) and emits one `review-gate.trace` tool span per run with
-numeric aggregated finding counts.
+numeric aggregated finding counts. The consistency half is live on real runs: in issue-number mode the checker reads
+the main-root trace and falls back to the invoking worktree's toplevel tracking dir for `progress.md` /
+`feature_list.json` (where `log-handback.sh` and the start-issue scaffold actually write them) when the main-root
+copies are absent.
 
 ## Review Gate
 

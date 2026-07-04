@@ -54,6 +54,16 @@
 # review-gate.trace span is emitted, and the contract has no trace-gate
 # entries.
 #
+# Loop-2 addition (#103 review F1, 2026-07-04): fixture F4 — the REAL
+# layout, where progress.md/feature_list.json live only in the WORKTREE
+# tracking dir (start-issue scaffolds them there; the main root holds only
+# trace.jsonl). The gate's consistency half must be LIVE there: findings
+# from the worktree-local progress.md are surfaced and the output carries
+# NO "consistency half skipped" note. RED against the shipped gate (the
+# checker's issue mode exited 2 on the real layout, so the gate skipped
+# the consistency half — exactly what the F1/F2/F3 main-root fixtures
+# masked).
+#
 # Exit codes: 0 trace-gate contract honored · 1 a contract obligation regressed.
 
 set -euo pipefail
@@ -288,6 +298,32 @@ rc="$(run_in "$F3" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/finish-issue.
   || fail "finish, blocking flag: trace findings must refuse the finish under REQUIRE_TRACE_CONSISTENCY=1, got exit 0 (output: $(tr '\n' '|' < "$OUT"))"
 [ -d "${F3}-worktrees/issue-82" ] \
   || fail "finish, blocking flag: the worktree must be LEFT INTACT when the gate blocks (refusal happens before worktree_remove)"
+
+# ============================================================================
+# Fixture F4 (issue 83): REAL layout — worktree-local artifacts, consistency
+# half LIVE (loop-2 review F1)
+# ============================================================================
+F4="${TMP_DIR}/f83"
+make_gate_fixture "$F4" 83
+WT4="${F4}-worktrees/issue-83"
+# Strip the main-root copies make_gate_fixture planted: live runs keep only
+# trace.jsonl at the main root; progress.md/feature_list.json are the
+# start-issue-scaffolded WORKTREE ones.
+rm "${F4}/.copilot-tracking/issues/issue-83/progress.md" \
+   "${F4}/.copilot-tracking/issues/issue-83/feature_list.json"
+[ -f "${WT4}/.copilot-tracking/issues/issue-83/progress.md" ] \
+  || hard_fail "F4 setup: start-issue did not scaffold the worktree progress.md"
+# Consistency-only finding in the WORKTREE progress.md.
+printf -- '- [conductor] feature_start feat-a pass — hand-written claim, no span\n' \
+  >> "${WT4}/.copilot-tracking/issues/issue-83/progress.md"
+rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh trace)"
+[ "$rc" = "0" ] \
+  || fail "real layout: warn-only default must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+if grep -q 'consistency half skipped' "$OUT"; then
+  fail "real layout: the consistency half must be LIVE when artifacts are worktree-local — 'consistency half skipped' means the checker never saw the real layout (output: $(tr '\n' '|' < "$OUT"))"
+fi
+grep -q 'log_without_span' "$OUT" \
+  || fail "real layout: the worktree-local progress.md finding (log_without_span) must be surfaced by the gate (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
 # 4. Contract presence backstop (docs/harness-contract.yml)

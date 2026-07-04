@@ -68,10 +68,15 @@
 #
 # Artifact resolution:
 #   ./scripts/check-trace-consistency.sh <issue-number>
-#       artifacts live in <main root>/.copilot-tracking/issues/issue-NN/
-#       (trace.jsonl, progress.md, feature_list.json; main root resolved via
-#       the shared git common dir, like validate-trace); marker at
+#       trace.jsonl lives at <main root>/.copilot-tracking/issues/issue-NN/
+#       (main root resolved via the shared git common dir, like
+#       validate-trace); marker at
 #       <main root>/.copilot-tracking/review-gate/approved-head.
+#       progress.md + feature_list.json resolve from the main-root issue dir
+#       when present, FALLING BACK to the invoking worktree's toplevel
+#       tracking dir otherwise (#103 loop-2 F1) — the real layout, where
+#       log-handback.sh writes progress at the worktree toplevel and the
+#       main root holds only the trace.
 #   ./scripts/check-trace-consistency.sh <path/to/trace.jsonl>
 #       progress.md and feature_list.json are SIBLINGS of the named trace
 #       (hermetic L0 fixtures); when the trace lives at a contract-shaped
@@ -149,8 +154,7 @@ if [ ! -f "$TRACE_FILE" ]; then
 fi
 
 ISSUE_DIR="$(cd "$(dirname "$TRACE_FILE")" && pwd)"
-PROGRESS_FILE="${ISSUE_DIR}/progress.md"
-FEATURE_LIST_FILE="${ISSUE_DIR}/feature_list.json"
+ARTIFACT_DIR="$ISSUE_DIR"
 if [ -z "$MARKER_FILE" ]; then
   # Path mode: the marker is resolvable only when the trace sits at a
   # contract-shaped path; otherwise the rule skips with a NOTE below.
@@ -158,6 +162,24 @@ if [ -z "$MARKER_FILE" ]; then
     MARKER_FILE="${BASH_REMATCH[1]}/.copilot-tracking/review-gate/approved-head"
   fi
 fi
+
+# Real-layout fallback (#103 loop-2 review F1): on live runs the main root
+# holds only trace.jsonl — log-handback.sh writes progress.md (and the
+# scaffold puts feature_list.json) in the INVOKING worktree's toplevel
+# tracking dir. In issue-number mode, when the main-root progress.md is
+# absent, resolve progress.md AND feature_list.json from the invoking
+# worktree's toplevel (log-handback's resolution pattern); the trace and
+# the review-gate marker stay at the main root.
+if [ -n "${ISSUE_PAD:-}" ] && [ ! -f "${ARTIFACT_DIR}/progress.md" ]; then
+  if WT_TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    WT_CANDIDATE="${WT_TOPLEVEL}/.copilot-tracking/issues/issue-${ISSUE_PAD}"
+    if [ -f "${WT_CANDIDATE}/progress.md" ]; then
+      ARTIFACT_DIR="$WT_CANDIDATE"
+    fi
+  fi
+fi
+PROGRESS_FILE="${ARTIFACT_DIR}/progress.md"
+FEATURE_LIST_FILE="${ARTIFACT_DIR}/feature_list.json"
 
 if [ ! -f "$PROGRESS_FILE" ]; then
   red "error: progress.md not found next to the trace: ${PROGRESS_FILE}" >&2
@@ -308,10 +330,13 @@ else
 fi
 
 # --- State: pr_mismatch (scan-and-skip) ----------------------------------------
-# The first …/pull/<N> reference in progress.md is the claim; the pr_create
-# span's harness.pr_number is the evidence. Either side absent → NOTE skip.
+# The LAST …/pull/<N> reference in progress.md is the claim (#103 loop-2 F5:
+# closeout lines come last; earlier prose may cite other PRs, e.g. "split
+# from …/pull/55"); the pr_create span's harness.pr_number is the evidence.
+# Either side absent → NOTE skip. The greedy `.*` prefix makes POSIX
+# leftmost-longest matching select the last occurrence.
 progress_content="$(cat "$PROGRESS_FILE")"
-if [[ "$progress_content" =~ /pull/([0-9]+) ]]; then
+if [[ "$progress_content" =~ .*/pull/([0-9]+) ]]; then
   pr_progress_number="${BASH_REMATCH[1]}"
   if [ -z "$pr_span_number" ]; then
     printf 'NOTE: pr_mismatch check skipped (no pr_create span in trace)\n'

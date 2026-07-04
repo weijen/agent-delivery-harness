@@ -59,9 +59,21 @@
 #      comparison breaks this sensor even if the meta test still passes.
 #   6. CLI family: no args -> exit 2 + usage on stderr; nonexistent trace
 #      path -> exit 2.
+#   7. (#103 loop-2 review F6) Corrupt-line tolerance: ONE non-JSON line
+#      inserted into an otherwise consistent trace -> the consistency pass
+#      still RUNS (no crash, no exit 2), the corrupt line is IGNORED (it is
+#      validate-trace.sh's invalid_json to report, not a consistency
+#      finding), and findings on the parseable spans are unaffected: the
+#      consistent pair stays exit 0 / zero findings, and the same corrupt
+#      trace with the case-2 rogue bullet still reports exactly the
+#      log_without_span tuple. Regression protection for the documented
+#      fromjson? tolerance deviation in the lifted detector.
 #
 # RED status at authoring time: scripts/check-trace-consistency.sh does not
 # exist — every leg fails at the presence gate.
+# Loop-2 note (2026-07-04, honest status): leg 7 was authored GREEN — the
+# fromjson? tolerance had already landed with the gate wiring; the leg pins
+# it against regression (e.g. a revert to the oracle's parse-strict jq).
 #
 # Exit codes: 0 consistency-core contract honored · 1 a contract obligation regressed.
 
@@ -280,6 +292,34 @@ rc="$(run_checker)"
 rc="$(run_checker "${TMP_DIR}/does-not-exist/trace.jsonl")"
 [ "$rc" = "2" ] \
   || fail "missing trace file: expected exit 2 (environment error), got ${rc}"
+
+# --- 7. Corrupt-line tolerance (loop-2 review F6) ----------------------------------
+# One non-JSON line spliced into the middle of the consistent case-1 trace.
+mkdir -p "${TMP_DIR}/case7"
+{
+  head -n 1 "${TMP_DIR}/case1/trace.jsonl"
+  printf 'CORRUPT_FIXTURE_LINE not json {\n'
+  tail -n +2 "${TMP_DIR}/case1/trace.jsonl"
+} > "${TMP_DIR}/case7/trace.jsonl"
+cp "${TMP_DIR}/case1/progress.md" "${TMP_DIR}/case7/progress.md"
+[ "$(wc -l < "${TMP_DIR}/case7/trace.jsonl" | tr -d '[:space:]')" = "3" ] \
+  || hard_fail "case7 fixture: expected 3 lines (2 spans + 1 corrupt) — sensor bug"
+
+rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
+[ "$rc" = "0" ] \
+  || fail "corrupt tolerance: a non-JSON trace line must not crash or fail the consistency pass (invalid_json is validate-trace's finding) — expected exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+if grep -q '^VIOLATION ' "$OUT"; then
+  fail "corrupt tolerance: the corrupt line must be IGNORED — zero consistency findings expected on the consistent pair (stdout: $(tr '\n' '|' < "$OUT"))"
+fi
+
+# Same corrupt trace + the case-2 rogue bullet: parseable-span findings
+# must be unaffected by the corrupt neighbor.
+cp "${TMP_DIR}/case2/progress.md" "${TMP_DIR}/case7/progress.md"
+rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
+[ "$rc" = "1" ] \
+  || fail "corrupt tolerance: findings on parseable spans must be unaffected — expected exit 1 with the rogue bullet, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
+grep -Fq 'VIOLATION consistency: log_without_span [test-subagent] green_handback demo-feature pass' "$OUT" \
+  || fail "corrupt tolerance: the log_without_span tuple must still be reported exactly alongside a corrupt line (stdout: $(tr '\n' '|' < "$OUT"))"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

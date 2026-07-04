@@ -51,13 +51,38 @@
 #      pinned pr_mismatch. (S1 is the match->clean side.)
 #   S5 progress.md with NO PR reference -> NOTE naming pr_mismatch, no
 #      pr_mismatch VIOLATION, exit 0 (everything else consistent).
+#   S6/S7 (#103 loop-2 review F1, blocking) REAL-LAYOUT issue mode: on live
+#      runs progress.md and feature_list.json live in the WORKTREE tracking
+#      dir (log-handback.sh writes progress at the invoking worktree's
+#      TOPLEVEL; the main root holds only trace.jsonl). Pinned fallback
+#      resolution: in issue-number mode, when the MAIN-root progress.md is
+#      ABSENT the checker resolves progress.md and feature_list.json from
+#      the INVOKING worktree's toplevel tracking dir (log-handback's
+#      resolution pattern) instead of exiting 2. Fixture shaped like
+#      reality: MAIN repo tracking dir with trace.jsonl ONLY, linked git
+#      worktree holding progress.md + feature_list.json, checker invoked in
+#      issue mode FROM the worktree. S6: consistent pair -> exit 0 (NOT the
+#      exit-2 skip), zero VIOLATIONs. S7: worktree feature_list gains an
+#      unbacked passes:true -> exit 1 + unverified_feature_pass — proves
+#      the rules actually RAN against the worktree-local artifacts.
+#   S8 (#103 loop-2 review F5) TWO PR references in progress.md: an early
+#      prose mention of another PR (…/pull/55, "split from") plus the later
+#      real closeout line (PR: …/pull/123), pr_create span at 123. Pinned
+#      honest rule: the LAST /pull/<N> reference wins (closest to closeout)
+#      -> exit 0, no spurious pr_mismatch.
 #
 # Every mutated fixture stays CORE-consistent (agent spans paired with
 # Action Log bullets, in-enum roles) so state findings are attributable to
-# the state rules alone and clean legs can assert exit 0.
+# the state rules alone and clean legs can assert exit 0. S1–S5 and S8 are
+# plain non-git dirs (the marker-only pin); S6/S7 alone use a real
+# MAIN+worktree pair because issue mode's main-root resolution is git-based
+# by design.
 #
 # RED status at authoring time: scripts/check-trace-consistency.sh does not
 # exist — every leg fails at the presence gate.
+# Loop-2 RED additions (2026-07-04): S6/S7 fail against the shipped checker
+# (issue mode exits 2 when main-root progress.md is absent); S8 fails
+# (first-match regex picks pull/55 and misfires pr_mismatch).
 #
 # Exit codes: 0 state-rules contract honored · 1 a contract obligation regressed.
 
@@ -205,6 +230,81 @@ grep -Eq '^NOTE:.*pr_mismatch' "$OUT" \
   || fail "S5 absent PR: a NOTE line naming pr_mismatch is required (scan-and-skip pinned; stdout: $(tr '\n' '|' < "$OUT"))"
 if grep -q 'VIOLATION consistency: pr_mismatch' "$OUT"; then
   fail "S5 absent PR: skip must NEVER be reported as a pr_mismatch violation (stdout: $(tr '\n' '|' < "$OUT"))"
+fi
+
+# ============================================================================
+# S6/S7. Real-layout issue mode: worktree-local progress.md + feature_list
+# (loop-2 review F1, blocking). Main-root tracking dir holds ONLY
+# trace.jsonl; the linked worktree holds progress.md and feature_list.json.
+# ============================================================================
+RMAIN="${TMP_DIR}/real-main"
+mkdir -p "$RMAIN"
+git -C "$RMAIN" init -q -b main
+git -C "$RMAIN" config user.name "Harness Test"
+git -C "$RMAIN" config user.email "harness-test@example.invalid"
+printf '.copilot-tracking/\n' > "${RMAIN}/.gitignore"
+printf 'fixture\n' > "${RMAIN}/README.md"
+git -C "$RMAIN" add .gitignore README.md
+git -C "$RMAIN" commit -q -m initial
+RWT="${TMP_DIR}/real-wt-issue-91"
+git -C "$RMAIN" worktree add -q -b feature/issue-91-fixture "$RWT"
+
+# Main root: trace ONLY (what live runs actually have there).
+mkdir -p "${RMAIN}/.copilot-tracking/issues/issue-91"
+cat > "${RMAIN}/.copilot-tracking/issues/issue-91/trace.jsonl" <<'TRACE'
+{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":91,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+TRACE
+[ ! -f "${RMAIN}/.copilot-tracking/issues/issue-91/progress.md" ] \
+  || hard_fail "S6 fixture: main-root progress.md must be ABSENT — sensor bug"
+
+# Worktree: progress.md + feature_list.json (where log-handback puts them).
+mkdir -p "${RWT}/.copilot-tracking/issues/issue-91"
+{
+  printf '# Issue 91 progress\n\nStatus: in progress.\n\n## Action Log\n\n'
+  printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
+} > "${RWT}/.copilot-tracking/issues/issue-91/progress.md"
+printf '{"issue":91,"features":[{"id":"feat-a","title":"A","passes":true}]}\n' \
+  > "${RWT}/.copilot-tracking/issues/issue-91/feature_list.json"
+
+run_checker_in() { # run_checker_in <dir> <args...>
+  local dir="$1" rc=0; shift
+  (cd "$dir" && "$CHECKER" "$@") >"$OUT" 2>"$ERR" || rc=$?
+  printf '%s' "$rc"
+}
+
+# --- S6. Consistent worktree-local pair -> checks RUN, exit 0 ----------------------
+rc="$(run_checker_in "$RWT" 91)"
+[ "$rc" != "2" ] \
+  || fail "S6 real layout: issue mode must FALL BACK to the worktree toplevel tracking dir when main-root progress.md is absent (log-handback's resolution pattern), not exit 2 (stderr: $(tr '\n' '|' < "$ERR"))"
+[ "$rc" = "0" ] \
+  || fail "S6 real layout: consistent worktree-local artifacts must exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+if grep -q '^VIOLATION ' "$OUT"; then
+  fail "S6 real layout: zero VIOLATIONs expected on the consistent pair (stdout: $(tr '\n' '|' < "$OUT"))"
+fi
+
+# --- S7. Worktree feature_list mutation -> rules ran on worktree artifacts ---------
+printf '{"issue":91,"features":[{"id":"feat-a","title":"A","passes":true},{"id":"feat-b","title":"B","passes":true}]}\n' \
+  > "${RWT}/.copilot-tracking/issues/issue-91/feature_list.json"
+rc="$(run_checker_in "$RWT" 91)"
+[ "$rc" = "1" ] \
+  || fail "S7 real layout: an unbacked passes:true in the WORKTREE feature_list must exit 1 (rules must run on worktree-local artifacts), got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
+grep -Fq 'VIOLATION consistency: unverified_feature_pass feat-b' "$OUT" \
+  || fail "S7 real layout: pinned finding 'VIOLATION consistency: unverified_feature_pass feat-b' missing — worktree feature_list.json was not read (stdout: $(tr '\n' '|' < "$OUT"))"
+
+# ============================================================================
+# S8. Two PR references: the LAST /pull/<N> wins (loop-2 review F5)
+# ============================================================================
+mk_state_case s8 false "$APPROVED_SHA" absent
+{
+  printf '# Issue 77 progress\n\nSplit from https://github.com/acme/widgets/pull/55 (prior art).\n\nStatus: closing out.\n\nPR: https://github.com/acme/widgets/pull/123\n\n'
+  printf '## Action Log\n\n'
+  printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
+} > "${TMP_DIR}/s8/.copilot-tracking/issues/issue-77/progress.md"
+rc="$(run_checker "$(trace_path s8)")"
+[ "$rc" = "0" ] \
+  || fail "S8 two PR refs: the LAST /pull/<N> reference (123, the closeout line) must win over the early prose mention (55) — expected exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
+if grep -q 'VIOLATION consistency: pr_mismatch' "$OUT"; then
+  fail "S8 two PR refs: spurious pr_mismatch — first-match scanning misfires on prose PR mentions (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
 # --- Result -------------------------------------------------------------------------

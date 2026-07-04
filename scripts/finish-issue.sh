@@ -142,8 +142,15 @@ check_feature_completion
 TRACE_STAGE="trace_gate"
 if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
   if ! "${SCRIPT_DIR}/review-gate.sh" trace; then
-    red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
-    echo "  Resolve the findings above (or unset the flag) and re-run:"
+    if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
+      red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
+      echo "  Resolve the findings above (or unset the flag) and re-run:"
+    else
+      # Warn-only without the flag, so a non-zero exit here is unexpected
+      # (a broken gate, not a policy block) — say so honestly (loop-2 F4).
+      red "✗ trace gate failed unexpectedly (it is warn-only without REQUIRE_TRACE_CONSISTENCY=1)."
+      echo "  Inspect the output above, then re-run:"
+    fi
     echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
     echo "  The worktree is left intact."
     exit 1

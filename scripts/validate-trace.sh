@@ -9,7 +9,10 @@
 # Checks a per-issue trace.jsonl against the frozen v1 trace schema contract
 # (docs/evaluation/trace-schema.v1.json), line by line:
 #
-#   invalid_json      the line does not parse as JSON;
+#   invalid_json      the line does not parse as ONE JSON value (JSONL
+#                     semantics under the single-pass parser: a line holding
+#                     multiple concatenated values, trailing garbage, or no
+#                     value at all is invalid_json);
 #   schema_violation  the lifted #92 presence/enum filter rejects the span
 #                     (required common fields, span-type vocabulary, per-type
 #                     required fields, lifecycle-step enum);
