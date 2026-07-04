@@ -138,14 +138,56 @@ hook__on_post_tool_use() {
   return 0
 }
 
-# Stop / SubagentStop — STUB for feature claude-hook-stop-spans (issue #96,
-# feature 3): will emit an `agent` span (gen_ai.agent.name = $2) and, when
-# the payload's transcript_path is readable and carries model + both token
-# counts, a `model` span (plan D4 — omit, never fake). Until then: silent
-# success, nothing emitted.
+# Stop / SubagentStop — spans per stop-span sensor conventions S1–S4
+# (plan D4, single-model-span-v1). Stateless: no .hook-state reads/writes.
+#   S1. ALWAYS one `agent` span: gen_ai.operation.name=invoke_agent,
+#       gen_ai.agent.name = $2 ("claude-code" | "claude-code-subagent").
+#   S2. ONE `model` span ONLY when the payload's transcript_path is a
+#       readable JSONL whose LAST .type=="assistant" entry carries
+#       .message.model (non-empty string) AND numeric
+#       .message.usage.input_tokens/.output_tokens. No fallback scan to
+#       earlier entries; trace-lib types the gen_ai.usage.* values as
+#       JSON numbers.
+#   S3. Anything degraded or partial → agent span only, zero fake keys.
 hook__on_stop() {
-  # Args (reserved for feature 3): $1 payload, $2 agent name
-  # ("claude-code" | "claude-code-subagent").
+  local payload="$1" agent_name="$2"
+  local transcript="" extracted=""
+  local model="" in_tokens="" out_tokens=""
+
+  trace_span agent \
+    "gen_ai.operation.name=invoke_agent" \
+    "gen_ai.agent.name=${agent_name}"
+
+  transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+  if [ -z "$transcript" ] || [ ! -f "$transcript" ] || [ ! -r "$transcript" ]; then
+    return 0
+  fi
+  # Slurp the transcript: any non-JSON line fails the whole jq run (garbage
+  # file → honest omission). The filter prints model/in/out as one TSV line
+  # only when the LAST assistant entry carries all three required fields.
+  extracted="$(jq -rs '
+      [ .[] | select((type == "object") and (.type == "assistant")) ] | last
+      | if (. != null)
+          and ((.message.model? | type) == "string")
+          and (.message.model != "")
+          and ((.message.usage.input_tokens? | type) == "number")
+          and ((.message.usage.output_tokens? | type) == "number")
+        then [ .message.model,
+               (.message.usage.input_tokens | tostring),
+               (.message.usage.output_tokens | tostring) ] | @tsv
+        else empty
+        end' "$transcript" 2>/dev/null || true)"
+  [ -n "$extracted" ] || return 0
+  IFS=$'\t' read -r model in_tokens out_tokens <<< "$extracted" || true
+  if [ -z "$model" ] \
+      || ! [[ "$in_tokens" =~ ^[0-9]+$ ]] \
+      || ! [[ "$out_tokens" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+  trace_span model \
+    "gen_ai.request.model=${model}" \
+    "gen_ai.usage.input_tokens=${in_tokens}" \
+    "gen_ai.usage.output_tokens=${out_tokens}"
   return 0
 }
 
