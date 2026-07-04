@@ -27,11 +27,67 @@ red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break PR creation. The
+# script runs inside the issue worktree, so trace-lib resolves the issue from
+# the feature/issue-NN-* branch and pins the trace to the MAIN root (plan D1).
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'create-pr: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# Exactly ONE pr_create lifecycle terminal span per invocation via a
+# stage-tracked EXIT trap (plan D3). TRACE_STAGE names the last stage reached
+# (preconditions|review_gate|rebase|post_sync_gate|push|pr_create|done); it is
+# only set once we are past the on-main refusal, where a feature branch —
+# and therefore a resolvable issue — exists, so that refusal emits nothing.
+TRACE_STAGE=""
+TRACE_T0=0
+pr_number=""
+trace__create_pr_exit() {
+  local rc=$?
+  if [ -n "$TRACE_STAGE" ]; then
+    local outcome=pass
+    if [ "$rc" -ne 0 ]; then
+      outcome=fail
+    fi
+    local -a attrs=(
+      "harness.lifecycle_step=pr_create"
+      "harness.outcome=${outcome}"
+      "harness.exit_status=${rc}"
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
+      "harness.stage=${TRACE_STAGE}"
+      "harness.branch=${branch:-}"
+    )
+    if [ -n "$pr_number" ]; then
+      attrs+=("harness.pr_number=${pr_number}")
+    fi
+    trace_span lifecycle "${attrs[@]}"
+  fi
+  exit "$rc"
+}
+trap trace__create_pr_exit EXIT
+
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
   red "✗ Refusing to open a PR from '${branch}'. Switch to your feature branch first."
   exit 1
 fi
+TRACE_T0="$(trace_now_ms)"
+TRACE_STAGE="preconditions"
 if [ -n "$(git status --porcelain)" ]; then
   red "✗ Working tree is dirty. Commit or stash before syncing onto main."
   git status --short
@@ -39,9 +95,11 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 # --- 1. Review approval gate ------------------------------------------------
+TRACE_STAGE="review_gate"
 "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 
 # --- 2. Sync onto the latest main -------------------------------------------
+TRACE_STAGE="rebase"
 bold "==> Syncing ${branch} onto latest origin/main"
 git fetch origin main
 if ! git rebase origin/main; then
@@ -55,9 +113,11 @@ fi
 green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
 
 # --- 3. Review approval for the final HEAD ----------------------------------
+TRACE_STAGE="post_sync_gate"
 "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 
 # --- 4. Push (the issue branch is single-owner; rebase rewrote local history) -
+TRACE_STAGE="push"
 bold "==> Pushing ${branch}"
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
   git push --force-with-lease origin "$branch"
@@ -67,6 +127,7 @@ fi
 green "✓ Pushed"
 
 # --- 5. Open the PR (if one doesn't already exist) --------------------------
+TRACE_STAGE="pr_create"
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 if [ -n "$pr_number" ]; then
   green "✓ PR #${pr_number} already exists — re-synced and pushed."
@@ -81,4 +142,5 @@ else
   pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 fi
 
+TRACE_STAGE="done"
 green "✓ PR #${pr_number} is open."

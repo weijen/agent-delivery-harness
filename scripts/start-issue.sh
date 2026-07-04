@@ -29,6 +29,52 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break the lifecycle.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'start-issue: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# Terminal span via a stage-tracked EXIT trap (plan D3): once the script has
+# reached the worktree stage, every exit path — success, reuse, or a failed
+# `git worktree add` — emits exactly one worktree_create lifecycle span with
+# the real exit status and duration, without touching any exit site.
+TRACE_STAGE=""
+TRACE_WT_T0=0
+WORKTREE_REUSED=false
+SCAFFOLDED=false
+trace__start_issue_exit() {
+  local rc=$?
+  if [ "$TRACE_STAGE" = "worktree_create" ]; then
+    local outcome=pass
+    [ "$rc" -eq 0 ] || outcome=fail
+    trace_span lifecycle \
+      "harness.lifecycle_step=worktree_create" \
+      "harness.outcome=${outcome}" \
+      "harness.exit_status=${rc}" \
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_WT_T0 ))" \
+      "harness.branch=${BRANCH:-}" \
+      "harness.worktree=${WORKTREE_DIR:-}" \
+      "harness.base_ref=${base_ref:-}" \
+      "harness.worktree_reused=${WORKTREE_REUSED}" \
+      "harness.scaffolded=${SCAFFOLDED}"
+  fi
+  exit "$rc"
+}
+trap trace__start_issue_exit EXIT
+
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
 for arg in "$@"; do
@@ -43,6 +89,10 @@ if [ -z "$NUM_ARG" ]; then
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
 
+# start-issue runs from the main checkout on branch main, so branch/worktree
+# issue resolution cannot work — export the parsed number (plan D6).
+export TRACE_ISSUE="$ISSUE_NUM"
+
 ROOT="$(issue_repo_root)"
 cd "$ROOT"
 
@@ -53,14 +103,33 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
 fi
 
 # --- 1. Preflight (init.sh) -------------------------------------------------
+TRACE_T0="$(trace_now_ms)"
 if [ "${SKIP_INIT:-0}" = "1" ]; then
   bold "==> Skipping init.sh (SKIP_INIT=1)"
+  trace_span lifecycle \
+    "harness.lifecycle_step=preflight" \
+    "harness.outcome=pass" \
+    "harness.exit_status=0" \
+    "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))" \
+    "harness.preflight_skipped=true"
 else
   bold "==> Running preflight (./scripts/init.sh)"
-  if ! "${ROOT}/scripts/init.sh"; then
+  preflight_rc=0
+  "${ROOT}/scripts/init.sh" || preflight_rc=$?
+  if [ "$preflight_rc" -ne 0 ]; then
+    trace_span lifecycle \
+      "harness.lifecycle_step=preflight" \
+      "harness.outcome=fail" \
+      "harness.exit_status=${preflight_rc}" \
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
     red "✗ Preflight failed — fix the environment before starting an issue."
     exit 1
   fi
+  trace_span lifecycle \
+    "harness.lifecycle_step=preflight" \
+    "harness.outcome=pass" \
+    "harness.exit_status=0" \
+    "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
 fi
 
 # --- 2. Resolve naming ------------------------------------------------------
@@ -70,7 +139,10 @@ echo "  branch:   ${BRANCH}"
 echo "  worktree: ${WORKTREE_DIR}"
 
 # --- 3. Create worktree + branch (non-destructive) --------------------------
+TRACE_WT_T0="$(trace_now_ms)"
+TRACE_STAGE="worktree_create"
 if [ -e "$WORKTREE_DIR" ]; then
+  WORKTREE_REUSED=true
   green "✓ Worktree already exists — reusing it (no changes made)."
   echo
   echo "  cd ${WORKTREE_DIR}"
@@ -92,6 +164,7 @@ green "✓ Worktree created at ${WORKTREE_DIR} (base: ${base_ref})"
 
 # --- 4. Scaffold per-issue tracking (gitignored) ----------------------------
 if [ ! -d "$TRACKING_DIR" ]; then
+  SCAFFOLDED=true
   mkdir -p "$TRACKING_DIR"
   cat > "${TRACKING_DIR}/feature_list.json" <<JSON
 {

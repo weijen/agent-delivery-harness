@@ -6,6 +6,72 @@ set -euo pipefail
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break the gate. The script
+# runs inside the issue worktree, so trace-lib resolves the issue from the
+# feature/issue-NN-* branch and pins the trace file to the MAIN root (plan D1).
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'review-gate: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# One span per gate operation, emitted from a stage-tracked EXIT trap (plan
+# D3): approve → review_gate_approve lifecycle span; check / status-doc →
+# tool spans carrying the failing sub-gate in harness.stage. Usage errors and
+# help set no TRACE_CMD, so they emit nothing (not gate operations).
+TRACE_CMD=""
+TRACE_T0=0
+TRACE_STAGE=""
+trace__gate_exit() {
+  local rc=$?
+  if [ -n "$TRACE_CMD" ]; then
+    local outcome=pass
+    if [ "$rc" -ne 0 ]; then
+      outcome=fail
+    fi
+    local -a attrs=(
+      "harness.outcome=${outcome}"
+      "harness.exit_status=${rc}"
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
+    )
+    case "$TRACE_CMD" in
+      approve)
+        trace_span lifecycle \
+          "harness.lifecycle_step=review_gate_approve" \
+          "harness.review_gate_sha=${head_sha:-}" \
+          "${attrs[@]}"
+        ;;
+      check)
+        if [ -n "${approved_sha:-}" ]; then
+          attrs+=("harness.review_gate_sha=${approved_sha}")
+        fi
+        if [ "$outcome" = "fail" ] && [ -n "$TRACE_STAGE" ]; then
+          attrs+=("harness.stage=${TRACE_STAGE}")
+        fi
+        trace_span tool "gen_ai.tool.name=review-gate.check" "${attrs[@]}"
+        ;;
+      status-doc)
+        trace_span tool "gen_ai.tool.name=review-gate.status-doc" "${attrs[@]}"
+        ;;
+    esac
+  fi
+  exit "$rc"
+}
+trap trace__gate_exit EXIT
+
 usage() {
   cat <<'EOF'
 Usage: ./scripts/review-gate.sh approve|check|status-doc
@@ -30,6 +96,8 @@ EOF
 # relies on silently rot.
 status_doc_gate() {
   local doc="docs/PROGRESS.md"
+  # Any failure below is a status-doc failure from the caller's perspective.
+  TRACE_STAGE="status_doc"
 
   local base=""
   # origin/main is the load-bearing base (create-pr.sh fetches it before the
@@ -65,18 +133,24 @@ command="${1:-}"
 
 case "$command" in
   approve)
+    TRACE_CMD="approve"
+    TRACE_T0="$(trace_now_ms)"
     mkdir -p "$marker_dir"
     printf '%s\n' "$head_sha" > "$marker_file"
     green "✓ review approved for current HEAD ${head_sha}"
     ;;
   check)
+    TRACE_CMD="check"
+    TRACE_T0="$(trace_now_ms)"
     if [ ! -f "$marker_file" ]; then
+      TRACE_STAGE="no_marker"
       red "✗ current HEAD has not been approved by the review gate."
       echo "  Run review, resolve findings, then: ./scripts/review-gate.sh approve"
       exit 1
     fi
     approved_sha="$(tr -d '[:space:]' < "$marker_file")"
     if [ "$approved_sha" != "$head_sha" ]; then
+      TRACE_STAGE="stale_head"
       red "✗ current HEAD has not been approved by the review gate."
       echo "  approved: ${approved_sha:-<empty>}"
       echo "  current:  ${head_sha}"
@@ -87,6 +161,8 @@ case "$command" in
     status_doc_gate
     ;;
   status-doc)
+    TRACE_CMD="status-doc"
+    TRACE_T0="$(trace_now_ms)"
     status_doc_gate
     ;;
   -h|--help|help)

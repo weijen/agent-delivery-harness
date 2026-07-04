@@ -26,6 +26,54 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break teardown.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'finish-issue: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# Terminal `finish` lifecycle span via a stage-tracked EXIT trap (plan D3).
+# It fires AFTER `git worktree remove` — the span survives teardown only
+# because trace-lib pins the trace file to the MAIN checkout root (plan D1).
+# TRACE_STAGE names the last stage reached (completion_check|worktree_remove|
+# branch_delete|done); refusals before the completion check emit nothing.
+TRACE_STAGE=""
+TRACE_T0=0
+WORKTREE_REMOVED=false
+BRANCH_DELETED=false
+trace__finish_exit() {
+  local rc=$?
+  if [ -n "$TRACE_STAGE" ]; then
+    local outcome=pass
+    if [ "$rc" -ne 0 ]; then
+      outcome=fail
+    fi
+    trace_span lifecycle \
+      "harness.lifecycle_step=finish" \
+      "harness.outcome=${outcome}" \
+      "harness.exit_status=${rc}" \
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))" \
+      "harness.stage=${TRACE_STAGE}" \
+      "harness.branch=${BRANCH:-}" \
+      "harness.worktree_removed=${WORKTREE_REMOVED}" \
+      "harness.branch_deleted=${BRANCH_DELETED}"
+  fi
+  exit "$rc"
+}
+trap trace__finish_exit EXIT
+
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
 for arg in "$@"; do
@@ -39,6 +87,10 @@ if [ -z "$NUM_ARG" ]; then
   exit 1
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
+
+# finish-issue runs from the main checkout on branch main, so branch/worktree
+# issue resolution cannot work — export the parsed number (plan D6).
+export TRACE_ISSUE="$ISSUE_NUM"
 
 ROOT="$(issue_repo_root)"
 cd "$ROOT"
@@ -74,8 +126,11 @@ bold "==> Finishing issue ${ISSUE_NUM}"
 echo "  branch:   ${BRANCH}"
 echo "  worktree: ${WORKTREE_DIR}"
 
+TRACE_T0="$(trace_now_ms)"
+TRACE_STAGE="completion_check"
 check_feature_completion
 
+TRACE_STAGE="worktree_remove"
 if [ ! -e "$WORKTREE_DIR" ]; then
   green "✓ No worktree at ${WORKTREE_DIR} — nothing to remove."
   git worktree prune
@@ -88,6 +143,7 @@ else
     echo "    FORCE=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
     exit 1
   fi
+  WORKTREE_REMOVED=true
   green "✓ Removed worktree ${WORKTREE_DIR}"
 fi
 
@@ -95,9 +151,11 @@ git worktree prune
 green "✓ Pruned stale worktree metadata"
 
 # --- Optional branch deletion ----------------------------------------------
+TRACE_STAGE="branch_delete"
 if [ "${DELETE_BRANCH:-0}" = "1" ]; then
   if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
     if git branch -d "$BRANCH" 2>/dev/null; then
+      BRANCH_DELETED=true
       green "✓ Deleted local branch ${BRANCH}"
     else
       red "✗ Branch ${BRANCH} is not fully merged — not deleting."
@@ -112,3 +170,4 @@ else
   echo "Local branch ${BRANCH} kept. Delete it with:"
   echo "  DELETE_BRANCH=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
 fi
+TRACE_STAGE="done"

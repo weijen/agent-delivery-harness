@@ -156,6 +156,51 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]
 # exists, is executable, and parses with bash -n), and section 4 asserts it
 # stays inside the language-neutral boundary alongside the other owners.
 
+# --- 2e. Trace-emission backstop (issue #94) ----------------------------------
+# The six lifecycle scripts each emit schema-v1 trace spans via trace-lib.sh
+# (guarded source + trace_span calls). Two layers, mirroring 2b/2c:
+#   (a) script-side presence backstop: every instrumented owner must still
+#       reference trace_span AND trace-lib.sh — deleting the instrumentation
+#       from a script fails this sensor even if the YAML entry is deleted too;
+#   (b) the contract must declare a trace_emission section listing all six
+#       owners (each entry's present: regex is enforced by section 3's
+#       check_owner_present) and pin the schema authority
+#       docs/evaluation/trace-schema.v1.json.
+te_required=(
+  scripts/start-issue.sh
+  scripts/check-feature-list.sh
+  scripts/review-gate.sh
+  scripts/create-pr.sh
+  scripts/merge-pr.sh
+  scripts/finish-issue.sh
+)
+for owner in "${te_required[@]}"; do
+  abs="${ROOT}/${owner}"
+  if [ ! -f "$abs" ]; then
+    fail "trace_emission/${owner}: instrumented script missing"
+    continue
+  fi
+  grep -Eq 'trace_span' "$abs" \
+    || fail "trace_emission/${owner}: no trace_span reference — trace emission removed (issue #94)"
+  grep -Eq 'trace-lib\.sh' "$abs" \
+    || fail "trace_emission/${owner}: no trace-lib.sh sourcing reference (issue #94)"
+done
+
+if grep -Eq '^trace_emission:' "$CONTRACT"; then
+  te_owners="$(parse_records trace_emission | while IFS= read -r rec; do
+    [ -n "$rec" ] && field "$rec" owner
+  done)"
+  for owner in "${te_required[@]}"; do
+    printf '%s\n' "$te_owners" | grep -qx "$owner" \
+      || fail "trace_emission: contract does not declare owner ${owner} (issue #94)"
+  done
+  awk '/^trace_emission:/{f=1;next} /^[A-Za-z_]+:/{f=0} f' "$CONTRACT" \
+    | grep -q 'docs/evaluation/trace-schema.v1.json' \
+    || fail "trace_emission: contract section does not reference the schema authority docs/evaluation/trace-schema.v1.json (issue #94)"
+else
+  fail "contract no longer declares the trace_emission section (issue #94)"
+fi
+
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
 check_owner_present() {
@@ -189,6 +234,7 @@ check_owner_present lifecycle
 check_owner_present env_flags
 check_owner_present state_transitions
 check_owner_present failure_modes
+check_owner_present trace_emission
 
 # --- 4. Language-neutral boundary -------------------------------------------
 neutral_owners="$(parse_nested_list language_neutral owners)"

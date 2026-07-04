@@ -26,6 +26,58 @@ red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Tracing (issue #94, plan D5) --------------------------------------------
+# Guarded source: a missing trace-lib.sh must never break the merge gate. The
+# script runs inside the issue worktree, so trace-lib resolves the issue from
+# the feature/issue-NN-* branch and pins the trace to the MAIN root (plan D1).
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+if ! declare -F trace_span >/dev/null 2>&1; then
+  TRACE_NOOP_WARNED=0
+  trace_span() {
+    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
+      printf 'merge-pr: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
+      TRACE_NOOP_WARNED=1
+    fi
+    return 0
+  }
+  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+fi
+
+# Exactly ONE pr_merge lifecycle terminal span per invocation via a
+# stage-tracked EXIT trap (plan D3). TRACE_STAGE names the last stage reached
+# (resolve_pr|ci_checks|merge|done); it is only set once the stray-positional-
+# arg refusal has passed, so that usage refusal emits nothing.
+TRACE_STAGE=""
+TRACE_T0=0
+pr_number=""
+trace__merge_pr_exit() {
+  local rc=$?
+  if [ -n "$TRACE_STAGE" ]; then
+    local outcome=pass
+    if [ "$rc" -ne 0 ]; then
+      outcome=fail
+    fi
+    local -a attrs=(
+      "harness.lifecycle_step=pr_merge"
+      "harness.outcome=${outcome}"
+      "harness.exit_status=${rc}"
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
+      "harness.stage=${TRACE_STAGE}"
+    )
+    if [ -n "$pr_number" ]; then
+      attrs+=("harness.pr_number=${pr_number}")
+    fi
+    trace_span lifecycle "${attrs[@]}"
+  fi
+  exit "$rc"
+}
+trap trace__merge_pr_exit EXIT
+
 # --- 0. Reject stray positional args ----------------------------------------
 # This script resolves the target PR from the CURRENT worktree branch (below),
 # so a non-flag positional arg — e.g. a bare PR number like `73` — never selects
@@ -46,6 +98,8 @@ for arg in "$@"; do
 done
 
 # --- 1. Resolve the PR ------------------------------------------------------
+TRACE_T0="$(trace_now_ms)"
+TRACE_STAGE="resolve_pr"
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 if [ -z "$pr_number" ]; then
   red "✗ No open PR found for this branch. Open one first: ./scripts/create-pr.sh --title \"…\""
@@ -53,6 +107,7 @@ if [ -z "$pr_number" ]; then
 fi
 
 # --- 2. Gate on green CI ----------------------------------------------------
+TRACE_STAGE="ci_checks"
 bold "==> Verifying CI checks for PR #${pr_number}"
 checks_out="$(gh pr checks "$pr_number" 2>&1)" && checks_rc=0 || checks_rc=$?
 if [ "$checks_rc" -ne 0 ]; then
@@ -72,6 +127,8 @@ fi
 green "✓ CI checks are green for PR #${pr_number}"
 
 # --- 3. Merge ---------------------------------------------------------------
+TRACE_STAGE="merge"
 bold "==> Merging PR #${pr_number}"
 gh pr merge "$pr_number" "$@"
+TRACE_STAGE="done"
 green "✓ PR #${pr_number} merged."
