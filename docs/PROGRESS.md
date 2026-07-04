@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #93)._
+_Last updated: 2026-07-04 (issue #94)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #93)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 36 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 44 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -53,7 +53,9 @@ _Last updated: 2026-07-04 (issue #93)._
   `.copilot-tracking/issues/issue-NN/trace.jsonl` with auto-stamps, built-in
   JSON-safe redaction, reserved-key protection, and warn-only error paths;
   guarded by `test_trace_lib.sh`, `test_trace_lib_redaction.sh`,
-  `test_trace_lib_isolation.sh`. Nothing calls it yet; wiring is #94–#95.
+  `test_trace_lib_isolation.sh`. All six lifecycle scripts now emit
+  lifecycle/tool spans through it (frozen in the `trace_emission` contract
+  section); agent-span conventions are #95.
 
 ## Next up
 
@@ -64,20 +66,30 @@ _Last updated: 2026-07-04 (issue #93)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open issues #94–#99):** lifecycle/tool spans from
-  harness scripts (#94), agent-span conventions for conductor/subagent
-  handbacks (#95), optional Claude Code hooks adapter (#96), trace validator +
-  consistency sensor (#97), per-issue trace report + cross-run scorecard keyed
-  by `harness.version` (#98), failure-mode taxonomy + replay fixtures (#99).
-  Carry-over from the #92 review: value-type validation belongs to #97
-  (span-linkage fields were frozen in #93).
-- **In flight:** #93 delivered by this branch; #94 is next.
+- **Deep-tracing workstream (open issues #95–#99):** agent-span conventions
+  for conductor/subagent handbacks (#95), optional Claude Code hooks adapter
+  (#96), trace validator + consistency sensor (#97), per-issue trace report +
+  cross-run scorecard keyed by `harness.version` (#98), failure-mode taxonomy
+  + replay fixtures (#99). Carry-overs for #97: value-type validation (#92
+  review) and a `jq_skipped` honesty attr for check-feature-list's jq-less
+  pass path (#94 review).
+- **In flight:** #94 delivered by this branch; #95 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#94 — Lifecycle and tool spans from all six harness scripts.**
+  start-issue, check-feature-list, review-gate, create-pr, merge-pr, and
+  finish-issue emit schema-v1 spans via stage-tracked EXIT traps (outcome,
+  numeric exit_status/duration_ms, failure-stage attrs) with zero behavior
+  change; refusal/usage paths emit nothing; the finish span survives worktree
+  teardown because trace-lib now pins the trace file to the main-checkout
+  root. The e2e sensor drives a full scripted lifecycle and pins the ordered
+  span sequence (first trajectory fixture); the `trace_emission`
+  harness-contract section freezes per-script span obligations. Seven new
+  mutation-proven sensors.
 - **#93 — `scripts/trace-lib.sh` span emitter with built-in redaction.**
   Sourceable `trace_span` library: schema-v1 JSONL to the per-issue
   `trace.jsonl` with auto-stamped `schema_version`/`timestamp`/
