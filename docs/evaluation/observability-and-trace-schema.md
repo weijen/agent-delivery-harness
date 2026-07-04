@@ -143,6 +143,18 @@ views of the same run. The Action Log stays the primary human artifact; the trac
 is the machine-readable projection that evals parse. Where practical, generate
 the trace and the Action Log from the same events so they cannot disagree.
 
+## Validating A Trace
+
+`scripts/validate-trace.sh` (issue #97) is the standalone, report-only
+validator for this contract. Run it locally with an issue number (it resolves
+the per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
+checks every span line against [trace-schema.v1.json](trace-schema.v1.json)
+(field presence, closed enums, and value types), requires all non-exceptional
+lifecycle steps for a finished run, audits redaction on the file as written,
+and reports sanity warnings. Exit codes: `0` no violations, `1` violations
+found, `2` usage or environment error. It runs without network access and is
+not wired into lifecycle gates (that wiring is issue #103).
+
 ## Workstream Issues
 
 The issues sketched in earlier drafts of this page now exist as the deep-trace

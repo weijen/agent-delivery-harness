@@ -106,6 +106,9 @@ TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="check"
 
 if ! command -v jq >/dev/null 2>&1; then
+  # D8 (#94-review carry-over via #97): the jq-less skip is a pass-shaped
+  # outcome with no validation behind it — the EXIT-trap span must say so.
+  TRACE_WARNING="jq_skipped"
   yellow "  ! jq not installed — skipping feature-list check"
   exit 0
 fi
