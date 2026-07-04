@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #103)._
+_Last updated: 2026-07-04 (issue #104)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #103)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 66 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 70 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,19 +66,31 @@ _Last updated: 2026-07-04 (issue #103)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open: #104):** cross-run scorecard keyed by
-  `harness.version` (#104, input contract frozen as
-  `docs/evaluation/trace-summary.v1.json`) — the final workstream issue.
-  Future flag flip: promote the trace gate to blocking by setting
-  REQUIRE_TRACE_CONSISTENCY=1 in doctrine/CI once live-run findings stay
-  quiet (phase-two promotion recorded in harness-contract.yml).
-- **In flight:** #103 delivered by this branch; #104 is next.
+- **Deep-tracing workstream: COMPLETE** (issues #92–#99, #103, #104 all
+  delivered). Remaining follow-ups recorded for later: promote the trace
+  gate to blocking (REQUIRE_TRACE_CONSISTENCY=1) once live findings stay
+  quiet — first close the finish-time main-checkout skip and revisit the
+  pr_mismatch last-ref heuristic; extend trace-summary to v1.x when
+  review-verdict and per-feature metrics are wanted in the scorecard.
+- **In flight:** #104 delivered by this branch — the workstream capstone.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#104 — Cross-run scorecard keyed by harness version (workstream capstone).**
+  `scripts/trace-scorecard.sh` aggregates per-issue trace summaries into
+  `tests/evals/scorecards/trace-scorecard.json` (frozen
+  `trace-scorecard.v1.json` contract, gitignored artifact, byte-identical
+  reruns) with honest attribution (single version direct; multi-version by
+  the trace's last version-carrying span — the sorted summary list cannot
+  recover last-seen; unattributable runs land in a visible mixed bucket)
+  and honest metrics (token coverage denominators, n/a never 0,
+  red-reentry-free explicitly not "first-pass green", deferred metrics
+  declared not fabricated; #62 mapping documented, not forked). The
+  capstone dogfood produced the first full comparison table: 8 traced runs
+  across 8 harness versions.
 - **#103 — Trace consistency checker + two-phase gate.**
   `scripts/check-trace-consistency.sh` lifts the #95 trace↔Action-Log
   multiset detector (parity sensor-held to the meta oracle) and adds

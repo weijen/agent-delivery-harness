@@ -263,6 +263,11 @@ steps.
 
 - Efficiency is read from the same trace as trajectory and trace evals; the
   schema is shared in [observability-and-trace-schema.md](observability-and-trace-schema.md).
+- Cross-run cost and efficiency metrics (tool calls, deviations, tokens with
+  honest coverage) are aggregated per harness version by
+  `scripts/trace-scorecard.sh` into `tests/evals/scorecards/trace-scorecard.json`
+  — the cross-run metrics artifact, under the versioned contract in
+  [trace-scorecard.v1.json](trace-scorecard.v1.json).
 - Cost baselines follow the trial and baseline rules in
   [statistical-methodology.md](statistical-methodology.md).
 - Azure Machine Learning is the preferred managed runtime for scheduled cost,
