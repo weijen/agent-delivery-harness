@@ -247,6 +247,34 @@ while IFS= read -r tline; do
     || fail "no-model markdown: a line mentioning tokens must declare the data unavailable, got: ${tline}"
 done < <(grep -Ei 'token' "$OUT" || true)
 
+# --- 2c. Model span WITHOUT gen_ai.usage.*: still null, no fabricated 0 buckets -----
+# Loop-2 reported sensor gap: a parseable model span that carries no usage
+# numbers is not a token measurement (the report is not a validator — it
+# aggregates the span elsewhere, but it must NOT conjure
+# {input_tokens:0, output_tokens:0, by_role/by_feature zero buckets} from
+# it). No usage-carrying model span in the trace => tokens == null.
+USAGELESS_DIR="${TMP_DIR}/usageless-model"
+mkdir -p "$USAGELESS_DIR"
+{
+  printf '%s\n' "{${C},\"timestamp\":\"2026-07-04T16:30:00Z\",\"span\":\"lifecycle\",\"harness.lifecycle_step\":\"preflight\",\"harness.duration_ms\":50}"
+  # model span, schema-odd (no gen_ai.usage.*) but parseable; attribution
+  # fields present so a fabricated bucket would be visibly wrong, not empty
+  printf '%s\n' "{${C},\"timestamp\":\"2026-07-04T16:31:00Z\",\"span\":\"model\",\"gen_ai.request.model\":\"example-model\",\"gen_ai.agent.name\":\"planner\",\"harness.feature_id\":\"feat-x\"}"
+  printf '%s\n' "{${C},\"timestamp\":\"2026-07-04T16:32:00Z\",\"span\":\"lifecycle\",\"harness.lifecycle_step\":\"finish\",\"harness.outcome\":\"pass\",\"harness.duration_ms\":5}"
+} > "${USAGELESS_DIR}/trace.jsonl"
+expect_ok "usage-less model span trace" "${USAGELESS_DIR}/trace.jsonl"
+S="${USAGELESS_DIR}/trace-summary.json"
+if [ -f "$S" ]; then
+  expect_json "a model span WITHOUT gen_ai.usage.* is not a measurement — tokens must stay null, never fabricated zero buckets" \
+    "$S" '.tokens == null and has("tokens")'
+  expect_json "the usage-less model span still aggregates elsewhere (by_type counts it)" \
+    "$S" '.span_counts.by_type.model == 1'
+fi
+while IFS= read -r tline; do
+  printf '%s\n' "$tline" | grep -Eiq 'unavailable|no token data|n/a' \
+    || fail "usage-less model markdown: a line mentioning tokens must declare the data unavailable, got: ${tline}"
+done < <(grep -Ei 'token' "$OUT" || true)
+
 # --- 3. Unfinished run ------------------------------------------------------------
 UNFIN_DIR="${TMP_DIR}/unfinished"
 mkdir -p "$UNFIN_DIR"

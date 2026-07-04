@@ -34,7 +34,11 @@
 # deterministic-only doctrine per docs/evaluation/cost-efficiency-evals.md):
 #   loop_indicators  exact-repeat groups; identity = the full span object
 #                    MINUS the volatile fields span_id, parent_span_id,
-#                    timestamp, harness.duration_ms; threshold count >= 3;
+#                    timestamp, harness.duration_ms, harness.version (loop
+#                    detection is within-run thrash — a harness upgrade
+#                    mid-burst must neither split a group nor produce
+#                    duplicate signatures; cross-run version comparison is
+#                    #104's job); threshold count >= 3;
 #                    signature = span/(tool|step)/outcome[/stage];
 #   red_reentry      harness.feature_id values with a red_handback AFTER an
 #                    earlier green_handback in file order, counting
@@ -111,6 +115,12 @@ if [ ! -f "$TRACE_FILE" ]; then
   usage
   exit 2
 fi
+if [ ! -r "$TRACE_FILE" ]; then
+  # Environment error, not run health: the report could not read its input
+  # (exit 2 preserves the 0-report / 2-usage-env / never-1 contract).
+  red "error: trace file exists but is not readable: ${TRACE_FILE}" >&2
+  exit 2
+fi
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -130,10 +140,13 @@ def sum_duration:
 
 # Token honesty (feature trace-report-robustness-honesty, plan D5):
 # measured from MODEL spans ONLY — gen_ai.usage.* on an agent span is
-# handback passthrough metadata, never a measurement source. Attribution is
-# span-own (the model span's OWN gen_ai.agent.name / harness.feature_id; no
-# parent-chain reconstruction in v1); unresolvable buckets land under
-# "unattributed", never silently dropped or zeroed.
+# handback passthrough metadata, never a measurement source — and only from
+# model spans that actually CARRY a usage number: a model span without
+# gen_ai.usage.* contributes nothing (no fabricated 0 buckets), and when no
+# model span carries usage, tokens stays null. Attribution is span-own (the
+# model span's OWN gen_ai.agent.name / harness.feature_id; no parent-chain
+# reconstruction in v1); unresolvable buckets land under "unattributed",
+# never silently dropped or zeroed.
 def tok_sums:
   { input_tokens:  ([.[] | .["gen_ai.usage.input_tokens"]?  | numbers] | add // 0),
     output_tokens: ([.[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0) };
@@ -142,12 +155,20 @@ def bucket_key(k):
 def tok_buckets(keyf):
   group_by(keyf) | map({ key: (.[0] | keyf), value: tok_sums }) | from_entries;
 
+# Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are normalized
+# before parsing so sub-second precision never nulls the elapsed clock.
+def ts_secs:
+  sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+
 [inputs] as $lines
 | [$lines[] | fromjson? | select(type == "object")] as $spans
 | (($lines | length) - ($spans | length)) as $invalid
 | [$spans[] | .timestamp? | strings] as $ts
 | [$spans[] | select(.["harness.lifecycle_step"] == "finish")] as $finishes
-| [$spans[] | select(.span == "model")] as $models
+| [$spans[]
+   | select(.span == "model")
+   | select(((.["gen_ai.usage.input_tokens"]?  | type) == "number")
+            or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
 | {
     summary_schema_version: 1,
     trace_file: $trace_file,
@@ -165,8 +186,8 @@ def tok_buckets(keyf):
     wall_clock:
       (if ($ts | length) == 0 then null
        else
-         (($ts | min | (try fromdateiso8601 catch null))) as $a
-         | (($ts | max | (try fromdateiso8601 catch null))) as $b
+         (($ts | min | ts_secs)) as $a
+         | (($ts | max | ts_secs)) as $b
          | { first_timestamp: ($ts | min),
              last_timestamp: ($ts | max),
              elapsed_seconds:
@@ -192,15 +213,16 @@ def tok_buckets(keyf):
        else null
        end),
     tokens:
-      (if ($models | length) == 0 then null
+      (if ($tok_models | length) == 0 then null
        else
-         (($models | tok_sums)
-          + { by_role:    ($models | tok_buckets(bucket_key("gen_ai.agent.name"))),
-              by_feature: ($models | tok_buckets(bucket_key("harness.feature_id"))) })
+         (($tok_models | tok_sums)
+          + { by_role:    ($tok_models | tok_buckets(bucket_key("gen_ai.agent.name"))),
+              by_feature: ($tok_models | tok_buckets(bucket_key("harness.feature_id"))) })
        end),
     loop_indicators:
       ([$spans[]
-        | del(.span_id, .parent_span_id, .timestamp, .["harness.duration_ms"])]
+        | del(.span_id, .parent_span_id, .timestamp,
+              .["harness.duration_ms"], .["harness.version"])]
        | group_by(.)
        | map(select(length >= 3))
        | map({
@@ -287,7 +309,7 @@ def na: if . == null then "n/a" else tostring end;
     "",
     "## Loop indicators",
     "",
-    "Deterministic exact-repeat detectors only (identity = span minus span_id/parent_span_id/timestamp/duration_ms; groups of three or more repeats flag).",
+    "Deterministic exact-repeat detectors only (identity = span minus span_id/parent_span_id/timestamp/duration_ms/harness.version; groups of three or more repeats flag).",
     "",
     (if ($s.loop_indicators | length) == 0
      then "- repeated identical spans: none"
@@ -302,7 +324,7 @@ def na: if . == null then "n/a" else tostring end;
         end)),
     "",
     (if $s.tokens == null
-     then "Tokens: n/a (no model spans — token data unavailable)"
+     then "Tokens: n/a (no model spans carrying token usage — token data unavailable)"
      else
        ("## Tokens",
         "",

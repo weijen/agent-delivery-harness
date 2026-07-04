@@ -7,11 +7,17 @@
 # Deterministic-only doctrine (plan D4, cost-efficiency-evals.md): without
 # purpose tags, only exact-identity counters are allowed. Pinned here:
 #
-#   1. REPEATED-IDENTICAL-SPAN identity (pinned precisely):
+#   1. REPEATED-IDENTICAL-SPAN identity (pinned precisely; loop-2 conductor
+#      decision on the issue-96 review finding):
 #      the full span object MINUS the volatile fields
-#          span_id, parent_span_id, timestamp, harness.duration_ms
-#      — everything else (including harness.feature_id) participates, so a
-#      RED-re-entry feature's routine handbacks never masquerade as a burst.
+#          span_id, parent_span_id, timestamp, harness.duration_ms,
+#          harness.version
+#      — harness.version is EXCLUDED from identity: loop detection is
+#      within-run thrash, version comparison is #104's cross-run job, and a
+#      harness upgrade mid-burst must neither split the burst nor produce
+#      duplicate signatures. Everything else (including harness.feature_id)
+#      participates, so a RED-re-entry feature's routine handbacks never
+#      masquerade as a burst.
 #      Groups with count >= 3 are reported (conductor-resolved threshold;
 #      issue-96's legitimate double review-gate.check must stay quiet, and
 #      a count of exactly 3 must flag — >= not >).
@@ -180,6 +186,48 @@ else
     "$LOOPY_SUMMARY" >/dev/null 2>&1 \
     || fail "loopy JSON: deviations must roll up across span types — count 2, feature_ids [dev-feat-a, dev-feat-b] (got: $(jq -c '.deviations' "$LOOPY_SUMMARY" 2>/dev/null))"
 fi
+
+# --- Version-split fixture: the reviewer's issue-96 reproduction -------------------
+# 6 spans identical except the volatile fields, split 3+3 across TWO
+# harness.version values (a harness upgrade mid-burst — the real issue-96
+# dogfood shape). With harness.version excluded from identity this is ONE
+# group of 6: the burst is not fragmented by the upgrade and no duplicate
+# signature rows appear.
+VSPLIT_DIR="${TMP_DIR}/version-split"
+mkdir -p "$VSPLIT_DIR"
+VSPLIT="${VSPLIT_DIR}/trace.jsonl"
+{
+  n=0
+  for ver in verOLD verOLD verOLD verNEW verNEW verNEW; do
+    n=$((n + 1))
+    printf '%s\n' "{\"schema_version\":1,\"harness.issue\":98,\"harness.version\":\"${ver}\",\"timestamp\":\"2026-07-04T14:0${n}:00Z\",\"span\":\"lifecycle\",\"harness.lifecycle_step\":\"pr_merge\",\"harness.outcome\":\"fail\",\"harness.stage\":\"ci_checks\",\"span_id\":\"v${n}\",\"harness.duration_ms\":$((900 + n))}"
+  done
+  printf '%s\n' "{${C},\"timestamp\":\"2026-07-04T14:10:00Z\",\"span\":\"lifecycle\",\"harness.lifecycle_step\":\"finish\",\"harness.outcome\":\"pass\",\"harness.duration_ms\":50}"
+} > "$VSPLIT"
+VSPLIT_SUMMARY="${VSPLIT_DIR}/trace-summary.json"
+
+# Fixture self-check: both versions really are on disk (guards the pin
+# against a copy-paste collapse to one version, which would pass vacuously).
+jq -s '[.[]["harness.version"]] | unique == ["fix1234","verNEW","verOLD"]' "$VSPLIT" \
+  | grep -q true \
+  || hard_fail "version-split fixture must carry two burst versions (verOLD/verNEW) plus the finish span's fix1234"
+
+rc="$(run_report "$REPORT_SH" "$VSPLIT")"
+[ "$rc" = "0" ] \
+  || fail "version-split fixture: expected exit 0, got ${rc} (stderr: $(tr '\n' '|' < "$ERR"))"
+if [ ! -f "$VSPLIT_SUMMARY" ]; then
+  fail "version-split fixture: trace-summary.json not written beside the trace (${VSPLIT_SUMMARY})"
+else
+  jq -e '
+    .loop_indicators ==
+      [ {signature: "lifecycle/pr_merge/fail/ci_checks", count: 6} ]
+  ' "$VSPLIT_SUMMARY" >/dev/null 2>&1 \
+    || fail "version-split JSON: a mid-burst harness upgrade must NOT split the group — expected exactly [{lifecycle/pr_merge/fail/ci_checks, 6}], one entry, no duplicate signatures (harness.version is excluded from identity; got: $(jq -c '.loop_indicators' "$VSPLIT_SUMMARY" 2>/dev/null))"
+fi
+grep -E 'lifecycle/pr_merge/fail/ci_checks' "$OUT" | grep -Eq '(^|[^0-9])6([^0-9]|$)' \
+  || fail "version-split markdown: the merged burst must be listed with count 6"
+[ "$(grep -cE 'lifecycle/pr_merge/fail/ci_checks' "$OUT")" = "1" ] \
+  || fail "version-split markdown: the signature must appear exactly once (no duplicate-signature rows)"
 
 # --- Clean fixture: detectors ran and found NOTHING (empty, not null) -------------
 CLEAN_DIR="${TMP_DIR}/clean"

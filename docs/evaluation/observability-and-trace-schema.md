@@ -155,6 +155,25 @@ and reports sanity warnings. Exit codes: `0` no violations, `1` violations
 found, `2` usage or environment error. It runs without network access and is
 not wired into lifecycle gates (that wiring is issue #103).
 
+## Reporting A Trace
+
+`scripts/trace-report.sh` (issue #98) is the standalone, report-only run
+reporter. Like the validator, run it with an issue number (it resolves the
+per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
+prints a markdown run report on stdout and writes a machine-readable summary,
+`trace-summary.json`, beside the trace file (local-only, covered by the same
+gitignore rule) under the versioned contract in
+[trace-summary.v1.json](trace-summary.v1.json) — the input contract for the
+cross-run scorecard (issue #104). The report keeps two clocks separate and
+labeled: per-stage summed span durations (script-measured work) and
+first-to-last timestamp elapsed (whole-run wall clock, including agent
+thinking time between spans) — never blended. Every number is computed from
+spans on disk; absent data stays absent (null, never a fabricated zero).
+Reporting never gates: exit codes are `0` whenever a report is produced and
+`2` on usage or environment errors; validation remains the validator's job —
+unparseable lines are skipped and counted, with a pointer to
+`validate-trace.sh`.
+
 ## Workstream Issues
 
 The issues sketched in earlier drafts of this page now exist as the deep-trace
