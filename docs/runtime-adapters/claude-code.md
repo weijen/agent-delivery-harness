@@ -28,6 +28,21 @@ issue context automatically appends spans with zero manual agent effort:
 | `Stop` | One `agent` span (`gen_ai.operation.name=invoke_agent`, `gen_ai.agent.name=claude-code`), plus one conditional `model` span (see below). |
 | `SubagentStop` | Same as Stop, with `gen_ai.agent.name=claude-code-subagent`. |
 
+**Privacy note on `harness.args_summary`:** the summary is an excerpt of the
+raw `tool_input` — for Edit/Write tools that can include file contents, and
+for Bash it is the full command line. Excerpts are redacted before the size
+cap and again on the serialized line, but redaction is pattern-based, not
+exhaustive. The trace is a **local-only, gitignored** artifact under
+`.copilot-tracking/` — never commit or upload trace files.
+
+**Attribution note on Stop spans:** the adapter's `agent` spans
+(`gen_ai.agent.name=claude-code` / `claude-code-subagent`) are *runtime turn
+markers* — they fire once per assistant turn, every time the session or a
+subagent stops. They are distinct from the *role handback* `agent` spans
+emitted via `scripts/log-handback.sh` (named for harness roles such as the
+conductor and its subagents). Trace consumers counting `invoke_agent` spans
+must not conflate the two populations.
+
 The `model` span is emitted **only** when the payload's `transcript_path`
 points at a readable transcript whose *last* assistant entry carries all three
 of `.message.model`, `.message.usage.input_tokens`, and
@@ -65,6 +80,18 @@ session-safe by contract: on every path it exits `0` and writes nothing to
 stdout, so it cannot disturb a live session. Outside a harness issue run
 (unresolvable issue context, missing `jq`, missing `trace-lib.sh`, malformed
 payload) it is a silent no-op and creates no artifacts.
+
+**Orphaned state files:** a PreToolUse start-time file is only consumed when
+its matching PostToolUse fires, so denied tool calls or killed sessions can
+leave orphans under `.copilot-tracking/issues/issue-NN/.hook-state/`. They
+are tiny, bounded by the number of interrupted tool calls, gitignored, and
+never read again — it is safe to delete the `.hook-state/` directory at any
+time.
+
+**Overhead:** each hooked tool call spawns roughly 10–15 short-lived
+processes (bash, `jq`, `git`, `sed`), and each Stop/SubagentStop runs one
+whole-transcript `jq` pass — negligible for interactive use, but worth
+knowing on very large transcripts or constrained machines.
 
 ## Transcript-shape compatibility caveat
 

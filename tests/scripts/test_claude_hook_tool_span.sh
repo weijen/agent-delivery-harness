@@ -49,6 +49,22 @@
 #      harness.duration_ms >= 0 and the X state file is gone (cleanup).
 #   6. Read PostToolUse (tool_input.file_path) -> gen_ai.tool.name=Read,
 #      args_summary contains the file path, schema-valid.
+#   7. LOOP-2 HARDENING (review finding #1) — truncate-before-redact
+#      fragment leak: a bare synthetic ghp_ token positioned so the 200-char
+#      cap cuts it to `ghp_` + fewer than 20 chars (below trace_redact's
+#      gh[pousr]_[A-Za-z0-9_]{20,} floor). NO `ghp_` fragment may appear
+#      anywhere in the on-disk trace — the cap must not manufacture
+#      redaction-proof secret fragments (fix direction: redact before
+#      capping, or strip a trailing partial token).
+#   8. LOOP-2 HARDENING (review finding #2) — state-file path traversal:
+#      tool_use_id "../../escape" on a Pre/Post pair. The state artifact
+#      must be exactly ONE regular file DIRECTLY inside .hook-state/ (no
+#      subdirectories, no 'escape'-named path anywhere else in the fixture
+#      repo). PINNED: id sanitization is deterministic on both sides, so
+#      the pair STILL correlates — the Post span carries numeric
+#      harness.duration_ms >= 0 and the state file is deleted afterwards.
+#      (Mutation teeth: deleting the hook's tr sanitization must fail this
+#      case.)
 #
 # Secret is SYNTHETIC (test-only shape, never a real credential).
 #
@@ -302,5 +318,71 @@ printf '%s\n' "$span6" | jq -e --arg p "$READ_PATH" '
     and (.["harness.args_summary"] | contains($p))
   ' >/dev/null \
   || fail "case6: Read span must carry gen_ai.tool.name=Read and an args summary containing the file path (C4/C1): ${span6}"
+
+# =============================================================================
+# Case 7 — truncate-before-redact fragment leak (loop-2 review finding #1)
+# =============================================================================
+# Compact tool_input serializes as {"command":"<content>"} — a 12-char JSON
+# prefix. With 171 filler chars the 44-char token starts at summary index
+# 183; the cap keeps 197 chars, cutting it to `ghp_` + 10 chars — below
+# trace_redact's 20-char floor. If the hook caps before redacting, that
+# fragment reaches disk unredactable.
+STRADDLE_SECRET="ghp_StraddleLeak0000000000000000000000000000"
+STRADDLE_FILLER="$(printf 'z%.0s' $(seq 1 171))"
+INPUT7="$(jq -cn --arg c "${STRADDLE_FILLER}${STRADDLE_SECRET}" '{command: $c}')"
+run_hook "case7-straddle-leak" \
+  "$(post_payload "Bash" "$INPUT7" '{"stdout":"","is_error":false}' "toolu_nocorr_07")"
+[ "$(line_count "$TRACE_FILE")" = "7" ] \
+  || fail "case7: expected a seventh trace line, got $(line_count "$TRACE_FILE")"
+span7="$(nth_line "$TRACE_FILE" 7)"
+validate_span "$span7" || fail "case7: span rejected by the contract filter: ${span7}"
+printf '%s\n' "$span7" | jq -e '
+    ((.["harness.args_summary"] | type) == "string")
+    and ((.["harness.args_summary"] | length) <= 200)
+  ' >/dev/null \
+  || fail "case7: straddle span must still carry a capped args summary (C1): ${span7}"
+if grep -q 'ghp_' "$TRACE_FILE"; then
+  fail "case7: a ghp_ fragment reached disk — the 200-char cap cut the token below trace_redact's 20-char floor and leaked a redaction-proof secret prefix (truncate-before-redact defect): $(grep -n 'ghp_' "$TRACE_FILE")"
+fi
+
+# =============================================================================
+# Case 8 — state-file path traversal via tool_use_id (loop-2 review finding #2)
+# =============================================================================
+if find "$REPO" -name '*escape*' 2>/dev/null | grep -q .; then
+  fail "case8: fixture precondition broken — 'escape'-named paths exist before the traversal probe"
+fi
+run_hook "case8-traversal-pre" \
+  "$(pre_payload "Bash" '{"command":"sleep 0"}' "../../escape")"
+[ "$(line_count "$TRACE_FILE")" = "7" ] \
+  || fail "case8: PreToolUse must NOT append a trace line (C2), got $(line_count "$TRACE_FILE")"
+[ -d "$STATE_DIR" ] \
+  || fail "case8: PreToolUse must still create the pinned state dir ${STATE_DIR} (C2)"
+[ -z "$(find "$STATE_DIR" -mindepth 1 -type d 2>/dev/null)" ] \
+  || fail "case8: traversal tool_use_id created a SUBDIRECTORY inside .hook-state/ — id sanitization breached: $(find "$STATE_DIR" -mindepth 1)"
+state_entries="$(find "$STATE_DIR" -mindepth 1 2>/dev/null)"
+[ "$(printf '%s\n' "$state_entries" | grep -c .)" = "1" ] \
+  || fail "case8: expected exactly ONE state artifact directly inside .hook-state/, got: ${state_entries}"
+[ -f "$state_entries" ] \
+  || fail "case8: the state artifact must be a regular file directly inside .hook-state/: ${state_entries}"
+escaped="$(find "$REPO" -name '*escape*' ! -path "${STATE_DIR}/*" 2>/dev/null || true)"
+[ -z "$escaped" ] \
+  || fail "case8: traversal tool_use_id wrote outside .hook-state/ (path traversal breach): ${escaped}"
+
+run_hook "case8-traversal-post" \
+  "$(post_payload "Bash" '{"command":"sleep 0"}' '{"stdout":"","is_error":false}' "../../escape")"
+[ "$(line_count "$TRACE_FILE")" = "8" ] \
+  || fail "case8: correlated PostToolUse must append exactly one line, got $(line_count "$TRACE_FILE")"
+span8="$(nth_line "$TRACE_FILE" 8)"
+validate_span "$span8" || fail "case8: traversal-id span rejected by the contract filter: ${span8}"
+printf '%s\n' "$span8" | jq -e '
+    ((.["harness.duration_ms"] | type) == "number")
+    and (.["harness.duration_ms"] >= 0)
+  ' >/dev/null \
+  || fail "case8: sanitization is deterministic on both sides, so the traversal-id pair must STILL correlate to numeric harness.duration_ms >= 0 (pinned): ${span8}"
+[ -z "$(find "$STATE_DIR" -mindepth 1 2>/dev/null)" ] \
+  || fail "case8: consumed traversal-id state must be DELETED (no residue): $(find "$STATE_DIR" -mindepth 1)"
+escaped="$(find "$REPO" -name '*escape*' 2>/dev/null || true)"
+[ -z "$escaped" ] \
+  || fail "case8: 'escape'-named residue after the Post (traversal breach or missed cleanup): ${escaped}"
 
 printf 'claude-code hook tool-span contract honored\n'

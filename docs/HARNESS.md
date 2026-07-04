@@ -282,6 +282,10 @@ separately. Full
 conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule) live in
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
+Tool and model spans from an agent runtime (per-tool-call arguments, latency, token usage) are contributed by the
+optional runtime adapters under [docs/runtime-adapters/](runtime-adapters/claude-code.md); without one installed the
+trace simply lacks those spans and everything else is unchanged.
+
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.

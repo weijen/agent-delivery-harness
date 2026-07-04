@@ -102,10 +102,17 @@ hook__on_post_tool_use() {
     "gen_ai.operation.name=execute_tool"
   )
 
-  # C1 — args summary: compact tool_input, hard-capped BEFORE trace_span
-  # (size control; trace_redact on the serialized line stays the redaction
-  # boundary).
+  # C1 — args summary: compact tool_input, REDACTED FIRST, then hard-capped.
+  # Redact-before-cap (loop-2 finding #1): truncating first can slice a
+  # secret below trace_redact's pattern floor (e.g. a ghp_ token cut under
+  # 20 chars), leaving a redaction-proof fragment on disk. Redacting the
+  # full summary first makes the cap a pure size control; trace_span's
+  # whole-line trace_redact stays as the second layer. A failed/empty
+  # redaction drops the summary — never emit an unredacted one.
   summary="$(printf '%s' "$payload" | jq -c '.tool_input // empty' 2>/dev/null || true)"
+  if [ -n "$summary" ]; then
+    summary="$(printf '%s' "$summary" | trace_redact 2>/dev/null || true)"
+  fi
   if [ -n "$summary" ]; then
     if [ "${#summary}" -gt "$HOOK_ARGS_SUMMARY_CAP" ]; then
       summary="${summary:0:HOOK_ARGS_SUMMARY_CAP-3}..."
