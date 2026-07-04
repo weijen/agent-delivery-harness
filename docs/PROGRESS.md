@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-04 (issue #95)._
+_Last updated: 2026-07-04 (issue #96)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-04 (issue #95)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 48 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 52 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,22 +66,32 @@ _Last updated: 2026-07-04 (issue #95)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing workstream (open: #96–#99, #103, #104):** optional Claude
-  Code hooks adapter (#96), trace validator core (#97), per-issue trace
-  report (#98), failure-mode taxonomy + replay fixtures (#99), consistency
-  sensor + gate wiring (#103, split from #97), cross-run scorecard keyed by
-  `harness.version` (#104, split from #98). Issues resized to 2–5 features
-  each after the #94 retrospective. Carry-overs for #97: value-type
-  validation (#92 review), `jq_skipped` honesty attr (#94 review), and the
-  live trace↔Action-Log detector reference implementation now in
+- **Deep-tracing workstream (open: #97–#99, #103, #104):** trace validator
+  core (#97), per-issue trace report (#98), failure-mode taxonomy + replay
+  fixtures (#99), consistency sensor + gate wiring (#103), cross-run
+  scorecard keyed by `harness.version` (#104). Carry-overs for #97:
+  value-type validation (#92 review), `jq_skipped` honesty attr (#94
+  review), live trace↔Action-Log detector reference in
   `tests/meta/test_trace_action_log_consistency.sh` (#95).
-- **In flight:** #95 delivered by this branch; #96 is next.
+- **In flight:** #96 delivered by this branch; #97 is next.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#96 — Opt-in Claude Code runtime adapter (hooks).**
+  `scripts/claude-code-trace-hook.sh`: guard chain (jq → JSON → trace-lib →
+  issue context → event dispatch) with subshell containment so the hook can
+  never disturb a session (exit 0 + empty stdout on every path, adversarial
+  probes on record); PostToolUse tool spans (200-char args summary redacted
+  before capping, Pre/Post duration correlation with delete-after-use state,
+  outcome only on explicit is_error); Stop/SubagentStop agent spans plus an
+  all-or-nothing model span from the transcript's last assistant entry
+  (omit-never-fake). Template + guide under `docs/runtime-adapters/`
+  (merge-never-overwrite install, privacy/attribution/overhead notes); zero
+  coupling from core scripts, sensor-enforced. Four features, four sensors,
+  adversarial + mutation evidence throughout.
 - **#95 — Agent-span conventions + single-source handback helper.**
   `scripts/log-handback.sh`: conductor-invoked helper that validates closed
   role/step/outcome enums, emits the `agent` span, then appends the derived

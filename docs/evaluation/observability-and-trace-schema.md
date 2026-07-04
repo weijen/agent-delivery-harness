@@ -48,6 +48,11 @@ Model the run as a tree of spans:
   creation). The closed 13-step enumeration lives only in
   [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
 
+Tool and model spans originate inside the agent runtime, so they are supplied
+by the optional runtime adapters under
+[docs/runtime-adapters/](../runtime-adapters/claude-code.md); without an
+adapter the trace carries agent and lifecycle spans only.
+
 ## Mandatory Common Fields
 
 Every span line, regardless of span type, carries the mandatory common fields
