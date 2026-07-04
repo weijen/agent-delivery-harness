@@ -399,8 +399,9 @@ if run_hb "$WTB" "${TMP_DIR}/b1.out" conductor impl_handback some-feature pass "
 fi
 [ ! -e "${WTB}/.copilot-tracking/issues/issue-14/progress.md" ] \
   || fail "hard-fail path must NOT scaffold/create progress.md"
-[ -f "$TRACE_B" ] && [ "$(line_count "$TRACE_B")" = "1" ] \
-  || fail "pinned ordering (validate, then span, then log): the agent span must already be written when the append fails (expected exactly 1 line in ${TRACE_B})"
+if [ ! -f "$TRACE_B" ] || [ "$(line_count "$TRACE_B")" != "1" ]; then
+  fail "pinned ordering (validate, then span, then log): the agent span must already be written when the append fails (expected exactly 1 line in ${TRACE_B})"
+fi
 check_agent_span "orphan-span" "$(nth_line "$TRACE_B" 1)" conductor impl_handback some-feature pass "impl done" 14
 grep -Eqi 'progress\.md|action log' "${TMP_DIR}/b1.out" \
   || { cat "${TMP_DIR}/b1.out"; fail "append-failure error must name progress.md / the Action Log section"; }
@@ -425,8 +426,9 @@ if run_hb "$WTC" "${TMP_DIR}/c1.out" code-review-subagent review_verdict some-fe
 fi
 [ "$(cksum "$PROG_C")" = "$progc_sum_before" ] \
   || fail "hard-fail path must leave the garbled progress.md byte-identical (no half-written line)"
-[ -f "$TRACE_C" ] && [ "$(line_count "$TRACE_C")" = "1" ] \
-  || fail "pinned ordering: the span must already be written when the Action Log section is missing (expected exactly 1 line in ${TRACE_C})"
+if [ ! -f "$TRACE_C" ] || [ "$(line_count "$TRACE_C")" != "1" ]; then
+  fail "pinned ordering: the span must already be written when the Action Log section is missing (expected exactly 1 line in ${TRACE_C})"
+fi
 grep -qi 'orphan' "${TMP_DIR}/c1.out" \
   || { cat "${TMP_DIR}/c1.out"; fail "missing '## Action Log' section: stderr must warn about the orphan span"; }
 
