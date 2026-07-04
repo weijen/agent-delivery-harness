@@ -5,13 +5,22 @@
 # Exposes:
 #   trace_span <type> <key=value>...
 #     Appends exactly one schema-v1 JSON line to
-#     <git toplevel>/.copilot-tracking/issues/issue-<PAD>/trace.jsonl
-#     (PAD = 2-digit zero-padded issue number). Auto-stamps schema_version,
+#     <main checkout root>/.copilot-tracking/issues/issue-<PAD>/trace.jsonl
+#     (PAD = 2-digit zero-padded issue number). The main checkout root is
+#     dirname of `git rev-parse --git-common-dir` (issue #94 plan D1) —
+#     identical to `git rev-parse --show-toplevel` in a plain repo, and the
+#     MAIN checkout when called from a linked worktree, so one issue run
+#     produces one trace file that survives worktree teardown.
+#     Auto-stamps schema_version,
 #     timestamp (ISO-8601 UTC), harness.issue (number), harness.version
 #     (short HEAD SHA of the harness scripts), and a unique span_id.
 #   trace_redact
 #     stdin→stdout filter masking secret shapes; every serialized line
 #     passes through it immediately before append (no caller can bypass it).
+#   trace_now_ms
+#     Prints integer epoch MILLISECONDS (portable macOS bash 3.2 + Linux;
+#     never fails — falls back to seconds*1000 when no sub-second clock
+#     source exists).
 #
 # Guarantees (plan D2): a trace-write failure NEVER fails the calling
 # script — every error path warns to stderr and returns 0. There is no
@@ -67,6 +76,51 @@ trace_redact() {
     -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"[:space:]]+/\1\2[REDACTED]/g' \
     -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"[:space:]]+/\1[REDACTED]/g' \
     -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"[:space:]]+/\1[REDACTED]/g'
+}
+
+# Integer epoch milliseconds, portable across macOS bash 3.2 and Linux.
+# Preference order: GNU `date +%s%N` (Linux) when it yields pure digits,
+# then perl Time::HiRes, then python3, then seconds*1000 as a last resort.
+# Never fails (plan D2): worst case prints a coarser millisecond value.
+trace_now_ms() {
+  local ns=""
+  ns="$(date +%s%N 2>/dev/null || true)"
+  if [[ "$ns" =~ ^[0-9]{16,}$ ]]; then
+    # Nanoseconds (19 digits this era) fit 64-bit bash arithmetic.
+    printf '%s' "$((ns / 1000000))"
+    return 0
+  fi
+  if command -v perl >/dev/null 2>&1; then
+    ns="$(perl -MTime::HiRes=time -e 'printf("%d", time() * 1000)' 2>/dev/null || true)"
+    if [[ "$ns" =~ ^[0-9]+$ ]]; then
+      printf '%s' "$ns"
+      return 0
+    fi
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    ns="$(python3 -c 'import time; print(int(time.time() * 1000))' 2>/dev/null || true)"
+    if [[ "$ns" =~ ^[0-9]+$ ]]; then
+      printf '%s' "$ns"
+      return 0
+    fi
+  fi
+  printf '%s000' "$(date +%s 2>/dev/null || printf '0')"
+  return 0
+}
+
+# Resolve the MAIN checkout root (plan D1): dirname of the git common dir,
+# absolutized and canonicalized. Equals --show-toplevel in a plain repo;
+# resolves to the main checkout from a linked worktree. Prints nothing and
+# returns 1 when unresolvable (caller warns and drops the span).
+trace__main_root() {
+  local common=""
+  common="$(git rev-parse --git-common-dir 2>/dev/null)" || return 1
+  [ -n "$common" ] || return 1
+  case "$common" in
+    /*) ;;
+    *)  common="$(pwd)/$common" ;;
+  esac
+  (cd "$(dirname "$common")" 2>/dev/null && pwd -P) || return 1
 }
 
 # Unique-per-call span id: 8 random bytes as hex, with a pid/time fallback
@@ -167,6 +221,15 @@ trace_span() {
     return 0
   }
 
+  # Main-root pinning (plan D1): the trace file lives at the MAIN checkout
+  # root regardless of caller CWD, so a linked worktree's spans and the
+  # post-teardown `finish` span all land in one file.
+  local main_root=""
+  main_root="$(trace__main_root)" || {
+    trace_warn "trace_span: cannot resolve the main checkout root — span dropped"
+    return 0
+  }
+
   local version=""
   version="$(git -C "$TRACE_LIB_DIR" rev-parse --short HEAD 2>/dev/null || true)"
   if [ -z "$version" ]; then
@@ -193,8 +256,11 @@ trace_span() {
   # Build the span with jq -n so arbitrary values are JSON-escaped
   # correctly (plan D4). Auto-stamps first; caller key=value pairs are
   # folded in afterwards so an explicit parent_span_id= argument wins over
-  # TRACE_PARENT_SPAN_ID. Typing (plan D6): only integer-looking values on
-  # gen_ai.usage.* keys become JSON numbers; everything else stays a string.
+  # TRACE_PARENT_SPAN_ID. Typing (plan D6, extended by issue #94 plan D4):
+  # integer-looking values on gen_ai.usage.* keys and on the exact keys
+  # harness.exit_status / harness.duration_ms / harness.incomplete_count
+  # become JSON numbers; everything else stays a string (harness.stage and
+  # digits-only shas like harness.review_gate_sha remain strings).
   local line=""
   line="$(jq -cn \
     --arg span "$span_type" \
@@ -218,7 +284,11 @@ trace_span() {
           | ($kv[:$i]) as $k
           | ($kv[$i + 1:]) as $v
           | . + { ($k):
-              (if ($k | startswith("gen_ai.usage.")) and ($v | test("^[0-9]+$"))
+              (if (($k | startswith("gen_ai.usage."))
+                   or ($k == "harness.exit_status")
+                   or ($k == "harness.duration_ms")
+                   or ($k == "harness.incomplete_count"))
+                  and ($v | test("^[0-9]+$"))
                then ($v | tonumber)
                else $v
                end) })
@@ -239,7 +309,7 @@ trace_span() {
     return 0
   fi
 
-  local trace_dir="${toplevel}/.copilot-tracking/issues/issue-${issue_pad}"
+  local trace_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
   mkdir -p "$trace_dir" 2>/dev/null || {
     trace_warn "trace_span: cannot create ${trace_dir} — span dropped"
     return 0
