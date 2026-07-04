@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # trace-scorecard.sh — cross-run trace scorecard keyed by harness.version
-# (issue #104, feature scorecard-core, plan Phase 1).
+# (issue #104: features scorecard-core, scorecard-honesty, scorecard-markdown;
+# plan Phases 1-3).
 #
 # Aggregates the per-issue trace-summary.json files produced by
 # scripts/trace-report.sh (frozen contract: docs/evaluation/trace-summary.v1.json)
@@ -22,10 +23,17 @@
 #     the synthetic "mixed" bucket (attribution "unresolved_mixed"; full
 #     semantics land with feature scorecard-honesty, plan Phase 2).
 #
-# Missing inputs are reported, never repaired (plan D4): an issue dir with a
-# trace.jsonl but no trace-summary.json is listed under
-# inputs.missing_summaries with the trace-report.sh regeneration hint —
-# regeneration stays trace-report.sh's job (single responsibility).
+# Missing/broken inputs are reported, never repaired (plan D4, feature
+# scorecard-honesty):
+#   * an issue dir with a trace.jsonl but no trace-summary.json is listed
+#     under inputs.missing_summaries with the trace-report.sh regeneration
+#     hint — regeneration stays trace-report.sh's job (single responsibility);
+#   * a summary whose summary_schema_version major is not 1 is skipped
+#     untouched (open-world rule: consumers reject unknown majors) and listed
+#     under inputs.skipped as {summary_file, reason};
+#   * a malformed / non-object summary is skipped-with-note the same way —
+#     never a crash, never silently dropped.
+# inputs.summaries_found counts AGGREGATED summaries only.
 #
 # Output: <main root>/tests/evals/scorecards/trace-scorecard.json — single
 # stable filename, idempotent whole-file overwrite, never append. The document
@@ -35,7 +43,10 @@
 #
 # JSON-first architecture (house doctrine, mirrors trace-report.sh): a single
 # jq pass builds the scorecard object from the collected summaries; only the
-# small per-trace attribution peek runs as a separate jq invocation.
+# small per-trace attribution peek runs as a separate jq invocation. The
+# markdown report on stdout (feature scorecard-markdown) is rendered FROM that
+# same object — single source of numbers, so the human and machine artifacts
+# can never disagree.
 #
 # Usage:
 #   ./scripts/trace-scorecard.sh
@@ -105,8 +116,19 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 # is deterministic.
 ENTRIES="${TMP_DIR}/entries.jsonl"
 MISSING="${TMP_DIR}/missing.jsonl"
+SKIPPED="${TMP_DIR}/skipped.jsonl"
 : > "$ENTRIES"
 : > "$MISSING"
+: > "$SKIPPED"
+
+# skip_summary <summary-file> <reason> — skipped-with-note (plan D4): the file
+# is reported under inputs.skipped, contributes to no aggregate, and is never
+# repaired or reinterpreted.
+skip_summary() {
+  local summary_file="$1" reason="$2"
+  jq -nc --arg summary_file "$summary_file" --arg reason "$reason" \
+    '{summary_file: $summary_file, reason: $reason}' >> "$SKIPPED"
+}
 
 for issue_dir in "${ISSUES_DIR}"/issue-*/; do
   [ -d "$issue_dir" ] || continue
@@ -117,8 +139,21 @@ for issue_dir in "${ISSUES_DIR}"/issue-*/; do
 
   if [ -f "$summary_file" ]; then
     if ! jq -e 'type == "object"' "$summary_file" >/dev/null 2>&1; then
-      # Unreadable / non-object summary: the skipped listing is feature
-      # scorecard-honesty's job (plan Phase 2); never aggregated, never repaired.
+      # Malformed / non-object summary: skipped-with-note, never a crash.
+      skip_summary "$summary_file" \
+        "unreadable summary: not parseable as a JSON object (malformed JSON?)"
+      continue
+    fi
+    # Open-world rule: this consumer understands trace-summary major 1 only.
+    # An unknown summary_schema_version major is skipped untouched, never
+    # interpreted under the v1 contract.
+    schema_major="$(jq -r \
+      '.summary_schema_version
+       | if type == "number" then (floor | tostring) else "non-numeric" end' \
+      "$summary_file")"
+    if [ "$schema_major" != "1" ]; then
+      skip_summary "$summary_file" \
+        "unknown summary_schema_version major (${schema_major}) — this consumer understands trace-summary major 1 only"
       continue
     fi
     nver="$(jq -r '.harness_versions // [] | length' "$summary_file")"
@@ -179,7 +214,7 @@ cat > "$AGG_FILTER" <<'JQ'
   inputs: {
     summaries_found: ($entries | length),
     missing_summaries: $missing,
-    skipped: []
+    skipped: $skipped
   },
   by_version:
     ($entries
@@ -252,12 +287,55 @@ jq -n \
   --arg source_root "$ISSUES_DIR" \
   --slurpfile entries "$ENTRIES" \
   --slurpfile missing "$MISSING" \
+  --slurpfile skipped "$SKIPPED" \
   -f "$AGG_FILTER" > "$SCORECARD_JSON"
 
 # --- Install: idempotent whole-file overwrite at the stable path --------------
 mkdir -p "$(dirname "$OUT_FILE")"
 cp "$SCORECARD_JSON" "$OUT_FILE"
-echo "scorecard written: ${OUT_FILE}"
+# The path note goes to stderr so stdout stays pure markdown (trace-report.sh
+# convention: markdown to stdout, JSON to the stable file).
+printf 'scorecard written: %s\n' "$OUT_FILE" >&2
+
+# --- Pass 2: render markdown FROM the scorecard object (single source) --------
+# Always-on stdout report, mirroring trace-report.sh: every number below is
+# read from the same object written to disk — never recomputed. Nulls render
+# as n/a, never 0.
+RENDER_FILTER="${TMP_DIR}/render-markdown.jq"
+cat > "$RENDER_FILTER" <<'JQ'
+. as $s
+| [
+    "# Trace scorecard: \($s.source_root)",
+    "",
+    "- summaries aggregated: \($s.inputs.summaries_found)",
+    "- scorecard JSON: tests/evals/scorecards/trace-scorecard.json (local artifact, not committed)",
+    "",
+    "## Comparison by harness version",
+    "",
+    "| version | runs | passed | red-reentry-free | deviations | tool calls | tokens |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    ($s.by_version[]
+     | "| \(.harness_version) | \(.runs) | \(.passed) | \(.red_reentry_free_rate.free)/\(.red_reentry_free_rate.of) | \(.deviations.count) | \(.tool_calls.calls) | \(if .tokens == null then "n/a" else "in \(.tokens.input) / out \(.tokens.output)" end) |"),
+    "",
+    "Definitions: red-reentry-free = finished, passing runs with no red-after-green re-entry (NOT literally first-pass green — a red before the first green is invisible to trace-summary v1); a version row labeled mixed holds multi-version runs with no readable trace to attribute (never guessed); tokens n/a = no run in the bucket carried token data (absence is null, never 0).",
+    (if ($s.inputs.missing_summaries | length) > 0 then
+       ("",
+        "## Missing summaries (reported, never repaired)",
+        "",
+        ($s.inputs.missing_summaries[]
+         | "- \(.issue_dir): trace.jsonl present but no trace-summary.json — regenerate with \(.hint)"))
+     else empty end),
+    (if ($s.inputs.skipped | length) > 0 then
+       ("",
+        "## Skipped summaries",
+        "",
+        ($s.inputs.skipped[] | "- \(.summary_file) — \(.reason)"))
+     else empty end)
+  ]
+| .[]
+JQ
+
+jq -r -f "$RENDER_FILTER" < "$SCORECARD_JSON"
 
 # Scorecard produced → exit 0, regardless of what it says (reporting is not gating).
 exit 0
