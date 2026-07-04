@@ -262,6 +262,16 @@ part of the pre-commit, end-of-session, or pre-PR gates. The devcontainer pin fo
 tooling, not a mandatory harness requirement. Run markdownlint ad hoc for optional Markdown style
 feedback; a red markdownlint result never blocks issue work.
 
+### Trace emission
+
+Every lifecycle script (`start-issue.sh`, `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`,
+`merge-pr.sh`, `finish-issue.sh`) emits schema-v1 trace spans via `scripts/trace-lib.sh` to the per-issue trace
+file `.copilot-tracking/issues/issue-NN/trace.jsonl` at the **main checkout** root — one append-only file per
+issue regardless of which worktree a script runs from, so the record survives worktree teardown. The trace is
+local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
+a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
+contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
+
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
