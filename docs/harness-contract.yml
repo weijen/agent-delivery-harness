@@ -114,6 +114,9 @@ env_flags:
   - name: REQUIRE_FEATURES_COMPLETE
     owner: scripts/check-feature-list.sh
     present: REQUIRE_FEATURES_COMPLETE
+  - name: REQUIRE_TRACE_CONSISTENCY
+    owner: scripts/review-gate.sh
+    present: REQUIRE_TRACE_CONSISTENCY
   - name: REQUIRE_AZ
     owner: scripts/init.sh
     present: REQUIRE_AZ
@@ -196,6 +199,14 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: has not been approved
+  - id: trace-consistency-warn
+    kind: warn
+    owner: scripts/review-gate.sh
+    present: REQUIRE_TRACE_CONSISTENCY=1 to block
+  - id: trace-consistency-blocking-flag
+    kind: hard
+    owner: scripts/review-gate.sh
+    present: blocking \(REQUIRE_TRACE_CONSISTENCY=1\)
   - id: ci-not-green-refused
     kind: hard
     owner: scripts/merge-pr.sh
@@ -231,6 +242,9 @@ trace_emission:
   - id: trace-finish-issue
     owner: scripts/finish-issue.sh
     present: harness.lifecycle_step=finish
+  - id: trace-review-gate-trace
+    owner: scripts/review-gate.sh
+    present: gen_ai.tool.name=review-gate.trace
 
 # ---------------------------------------------------------------------------
 # Boundaries that MUST stay language-neutral. The listed owner scripts must not

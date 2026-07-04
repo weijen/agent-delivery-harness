@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# review-gate.sh — local HEAD-bound review approval marker.
+# review-gate.sh — local HEAD-bound review approval marker, plus the
+# two-phase trace gate (issue #103, feature trace-gate-two-phase): the
+# `trace` subcommand wraps the report-only trace checkers
+# (validate-trace.sh + check-trace-consistency.sh) warn-only by default;
+# REQUIRE_TRACE_CONSISTENCY=1 is the documented promotion flag that turns
+# findings into a hard failure (REQUIRE_FEATURES_COMPLETE precedent).
 
 set -euo pipefail
 
-red()   { printf '\033[31m%s\033[0m\n' "$*"; }
-green() { printf '\033[32m%s\033[0m\n' "$*"; }
+red()    { printf '\033[31m%s\033[0m\n' "$*"; }
+green()  { printf '\033[32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -31,7 +37,10 @@ fi
 # One span per gate operation, emitted from a stage-tracked EXIT trap (plan
 # D3): approve → review_gate_approve lifecycle span; check / status-doc →
 # tool spans carrying the failing sub-gate in harness.stage. Usage errors and
-# help set no TRACE_CMD, so they emit nothing (not gate operations).
+# help set no TRACE_CMD, so they emit nothing (not gate operations). The
+# `trace` subcommand is the exception: trace_gate emits its
+# review-gate.trace tool span inline (one per gate run, also when invoked
+# from check or finish-issue), so it registers no TRACE_CMD.
 TRACE_CMD=""
 TRACE_T0=0
 TRACE_STAGE=""
@@ -74,15 +83,20 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|status-doc
+Usage: ./scripts/review-gate.sh approve|check|status-doc|trace
 
 Commands:
   approve     Record the current HEAD as reviewed.
   check       Require the recorded approval to match the current HEAD, and that
               the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
+              Also runs the trace gate (warn-only unless REQUIRE_TRACE_CONSISTENCY=1).
   status-doc  Require docs/PROGRESS.md to have changed in <base>...HEAD.
               Every change must update the repo-wide status doc — there is no
               opt-out. docs/PROGRESS.md is what the next agent reads first.
+  trace       Run the trace checkers (validate-trace.sh + check-trace-consistency.sh)
+              for the current issue. Warn-only by default: findings are printed
+              with a warning summary and the exit code stays 0. Set
+              REQUIRE_TRACE_CONSISTENCY=1 to make findings a hard failure.
 EOF
 }
 
@@ -125,6 +139,108 @@ status_doc_gate() {
   exit 1
 }
 
+# trace_gate — two-phase trace gate (issue #103, feature trace-gate-two-phase).
+#
+# Runs the two report-only trace checkers for the current issue and passes
+# their findings through so the operator sees rule names from BOTH:
+#   1. validate-trace.sh <issue>          (schema/type/redaction, #97)
+#   2. check-trace-consistency.sh <issue> (cross-artifact honesty, #103)
+# Phase one is WARN-ONLY (#84 status-doc rollout precedent): findings print a
+# ⚠ summary and the gate returns 0. REQUIRE_TRACE_CONSISTENCY=1 — the
+# documented promotion flag, mirroring REQUIRE_FEATURES_COMPLETE exactly —
+# turns violations into a hard failure (return 1). Promotion later is a
+# doctrine/CI flag flip; no code change needed then.
+#
+# Emits ONE tool span per run (gen_ai.tool.name=review-gate.trace) with
+# harness.outcome (pass when the gate returns 0, fail when blocking fired)
+# and NUMERIC harness.violation_count / harness.warning_count aggregated
+# across both checkers (both keys are in trace-lib's and validate-trace's
+# numeric type maps, so the gate's own span stays validator-clean).
+#
+# Degrades gracefully — skip with a note, return 0, no span — when the
+# checker scripts are absent, the issue number cannot be resolved, or the
+# trace itself cannot be read (checker exit 2): the gate must never break a
+# checkout that predates the trace tooling. A consistency-checker
+# environment error (exit 2) downgrades that half to a skip note while the
+# validator findings still count.
+trace_gate() {
+  local t0 issue_num="" branch=""
+  t0="$(trace_now_ms)"
+
+  if [ ! -x "${SCRIPT_DIR}/validate-trace.sh" ] \
+    || [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+    yellow "⚠ trace gate skipped: validate-trace.sh / check-trace-consistency.sh not found"
+    return 0
+  fi
+
+  # Issue resolution mirrors trace-lib precedence: TRACE_ISSUE env (set by
+  # finish-issue.sh), then the feature/issue-NN-* branch, then the issue-NN
+  # worktree basename.
+  if [ -n "${TRACE_ISSUE:-}" ]; then
+    issue_num="${TRACE_ISSUE}"
+  else
+    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    fi
+  fi
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ trace gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+
+  local vout="" cout="" vrc=0 crc=0
+  vout="$("${SCRIPT_DIR}/validate-trace.sh" "$issue_num" 2>&1)" || vrc=$?
+  if [ "$vrc" -eq 2 ]; then
+    yellow "⚠ trace gate skipped: validate-trace.sh could not run for issue ${issue_num} (no trace yet?)"
+    return 0
+  fi
+  printf '%s\n' "$vout"
+  cout="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || crc=$?
+  if [ "$crc" -eq 2 ]; then
+    yellow "⚠ trace gate: check-trace-consistency.sh could not run for issue ${issue_num} — consistency half skipped"
+    cout=""
+  else
+    printf '%s\n' "$cout"
+  fi
+
+  # Aggregate finding counts across both checkers (findings start their
+  # lines with VIOLATION / WARNING in both report formats).
+  local v_cnt=0 w_cnt=0 a b
+  a="$(printf '%s\n' "$vout" | grep -c '^VIOLATION ' || true)"
+  b="$(printf '%s\n' "$cout" | grep -c '^VIOLATION ' || true)"
+  v_cnt=$((a + b))
+  a="$(printf '%s\n' "$vout" | grep -c '^WARNING' || true)"
+  b="$(printf '%s\n' "$cout" | grep -c '^WARNING' || true)"
+  w_cnt=$((a + b))
+
+  local outcome="pass" gate_rc=0
+  if [ "$v_cnt" -gt 0 ] && [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
+    outcome="fail"
+    gate_rc=1
+  fi
+  if [ "$v_cnt" -gt 0 ] || [ "$w_cnt" -gt 0 ]; then
+    if [ "$gate_rc" -ne 0 ]; then
+      red "✗ trace gate: ${v_cnt} violation(s), ${w_cnt} warning(s) — blocking (REQUIRE_TRACE_CONSISTENCY=1)"
+    else
+      yellow "⚠ trace gate: ${v_cnt} violation(s), ${w_cnt} warning(s) — warn-only (set REQUIRE_TRACE_CONSISTENCY=1 to block)"
+    fi
+  else
+    green "✓ trace gate: no findings"
+  fi
+
+  trace_span tool \
+    "gen_ai.tool.name=review-gate.trace" \
+    "harness.outcome=${outcome}" \
+    "harness.exit_status=${gate_rc}" \
+    "harness.duration_ms=$(( $(trace_now_ms) - t0 ))" \
+    "harness.violation_count=${v_cnt}" \
+    "harness.warning_count=${w_cnt}"
+  return "$gate_rc"
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_dir="${repo_root}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
@@ -159,11 +275,22 @@ case "$command" in
     fi
     green "✓ review approved for current HEAD ${head_sha}"
     status_doc_gate
+    # Two-phase trace gate (issue #103): warn-only inside check by default —
+    # approval + status-doc still decide the exit code; under
+    # REQUIRE_TRACE_CONSISTENCY=1 trace findings fail the check too.
+    TRACE_STAGE="trace_gate"
+    trace_gate
     ;;
   status-doc)
     TRACE_CMD="status-doc"
     TRACE_T0="$(trace_now_ms)"
     status_doc_gate
+    ;;
+  trace)
+    # The trace gate emits its own review-gate.trace tool span inline (one
+    # span per run, also when invoked from check or finish-issue), so no
+    # TRACE_CMD is registered for the EXIT trap here.
+    trace_gate
     ;;
   -h|--help|help)
     usage

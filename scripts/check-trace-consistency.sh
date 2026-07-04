@@ -177,16 +177,21 @@ violations=0
 # --- Core: Action Log ↔ agent-span multiset comparison ------------------------
 # ============================================================================
 # LIFTED #95 DETECTOR (tuple extraction + Action Log slice + comm side
-# selection copied VERBATIM from tests/meta/test_trace_action_log_consistency.sh
+# selection copied from tests/meta/test_trace_action_log_consistency.sh
 # detect() — the mutation-tested reference, built in #95 explicitly for this
-# issue to lift; only the temp-file names and the finding prefixes differ.
+# issue to lift; only the temp-file names and the finding prefixes differ,
+# plus ONE tolerance deviation (#103 gate wiring): the oracle feeds jq the
+# trace as parsed JSON and would ABORT on an unparseable line, while the
+# live checker reads raw lines through `fromjson? | objects` so a corrupt
+# line (already flagged invalid_json by validate-trace.sh) cannot crash the
+# consistency pass. The tuple template string itself stays byte-identical.
 # The meta test keeps its own inlined copy as the oracle; the
 # test_trace_consistency_core.sh parity leg holds THIS copy tuple-for-tuple
 # to it, so the two cannot drift apart silently — plan decision 5.)
 # ============================================================================
 SPANS_SORTED="${TMP_DIR}/spans.sorted"
 LOGS_SORTED="${TMP_DIR}/logs.sorted"
-jq -r 'select(.span == "agent")
+jq -R -r 'fromjson? | objects | select(.span == "agent")
        | "[\(.["gen_ai.agent.name"])] \(.["harness.lifecycle_step"] // "-") \(.["harness.feature_id"] // "-") \(.["harness.outcome"] // "-")"' \
   "$TRACE_FILE" | sort > "$SPANS_SORTED"
 awk '/^## Action Log/{inlog=1; next} /^## /{inlog=0} inlog' "$PROGRESS_FILE" \

@@ -16,8 +16,10 @@
 #   type_violation    a known key carries the wrong JSON type. Known-key type
 #                     map (plan D2): NUMBERS for gen_ai.usage.*,
 #                     harness.exit_status, harness.duration_ms,
-#                     harness.incomplete_count, harness.issue, schema_version;
-#                     STRINGS for everything else. A digits-only string on a
+#                     harness.incomplete_count, harness.issue, schema_version,
+#                     and (issue #103 trace-gate counts, matching trace-lib's
+#                     exact-key numeric list) harness.violation_count /
+#                     harness.warning_count; STRINGS for everything else. A digits-only string on a
 #                     numeric key is a violation; a number on a string key
 #                     likewise. "Looks numeric" is never "must be a number":
 #                     digits-only strings on string keys (e.g.
@@ -210,11 +212,13 @@ $contract[0] as $c
 
 # Known-key type map (plan D2, additive to the lifted filter so the block
 # above stays diffable against test_trace_schema.sh). Numeric keys must be
-# JSON numbers; every other key must be a JSON string. Body verbatim from
-# the #97 validate-types.jq.
+# JSON numbers; every other key must be a JSON string. Body lifted from the
+# #97 validate-types.jq, extended in #103 with the trace-gate count keys
+# (keep in step with trace-lib.sh's exact-key numeric list).
 def types_valid:
 ["harness.exit_status", "harness.duration_ms", "harness.incomplete_count",
- "harness.issue", "schema_version"] as $numeric_keys
+ "harness.issue", "schema_version",
+ "harness.violation_count", "harness.warning_count"] as $numeric_keys
 | to_entries
 | all(.[];
     .key as $k

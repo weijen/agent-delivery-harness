@@ -258,9 +258,11 @@ trace_span() {
   # folded in afterwards so an explicit parent_span_id= argument wins over
   # TRACE_PARENT_SPAN_ID. Typing (plan D6, extended by issue #94 plan D4):
   # integer-looking values on gen_ai.usage.* keys and on the exact keys
-  # harness.exit_status / harness.duration_ms / harness.incomplete_count
+  # harness.exit_status / harness.duration_ms / harness.incomplete_count /
+  # harness.violation_count / harness.warning_count (#103 trace-gate counts)
   # become JSON numbers; everything else stays a string (harness.stage and
-  # digits-only shas like harness.review_gate_sha remain strings).
+  # digits-only shas like harness.review_gate_sha remain strings). Keep this
+  # exact-key list in step with validate-trace.sh's known-key type map.
   local line=""
   line="$(jq -cn \
     --arg span "$span_type" \
@@ -287,7 +289,9 @@ trace_span() {
               (if (($k | startswith("gen_ai.usage."))
                    or ($k == "harness.exit_status")
                    or ($k == "harness.duration_ms")
-                   or ($k == "harness.incomplete_count"))
+                   or ($k == "harness.incomplete_count")
+                   or ($k == "harness.violation_count")
+                   or ($k == "harness.warning_count"))
                   and ($v | test("^[0-9]+$"))
                then ($v | tonumber)
                else $v

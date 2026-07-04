@@ -286,12 +286,24 @@ Tool and model spans from an agent runtime (per-tool-call arguments, latency, to
 optional runtime adapters under [docs/runtime-adapters/](runtime-adapters/claude-code.md); without one installed the
 trace simply lacks those spans and everything else is unchanged.
 
+The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
+report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
+progress.md ↔ feature list ↔ review-gate marker honesty) and emits one `review-gate.trace` tool span per run with
+numeric aggregated finding counts.
+
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
 `./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then checks again after
 `git fetch origin main` + `git rebase origin/main` before pushing or opening a PR. Any new commit or rebase that
 changes HEAD requires a fresh review approval for that final HEAD.
+
+`review-gate.sh check` (and `finish-issue.sh`, before worktree teardown) additionally runs the trace gate
+(`review-gate.sh trace`) **warn-only**: findings from the trace validator and the cross-artifact consistency checker
+are printed with a `⚠` summary but do not change the exit code — live traces predating the current doctrine would
+otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the documented promotion flag, mirroring
+`REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
+before `worktree remove`, leaving the worktree intact.
 
 ## CI Boundary
 
