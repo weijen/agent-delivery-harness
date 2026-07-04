@@ -563,4 +563,47 @@ f4="$(nth_line "$TRACE_A" 10)"
 printf '%s\n' "$f4" | jq -e '.["harness.failure_mode"] == "weak-sensor"' >/dev/null \
   || fail "TRACE_FAILURE_MODE=weak-sensor must attach on ANY step when set (pinned soft rule): ${f4}"
 
+# ============================================================================
+# 11. Contract-read enum branch + fallback/contract parity (loop-2 review
+#     majors). Sections 10a–10d ran with NO contract file in the fixture, so
+#     they only prove the MIRRORED FALLBACK branch. This section pins:
+#     11a. the contract-READ branch is live: with a contract present at
+#          <script_dir>/../docs/evaluation/trace-schema.v1.json whose
+#          failure_modes DIVERGES from the mirrored fallback (a synthetic
+#          9th mode), the divergent mode must be accepted — only the jq
+#          branch can do that;
+#     11b. static parity: the helper's mirrored fallback list must equal the
+#          REAL contract's failure_modes exactly (sorted compare), so enum
+#          drift between contract and fallback fails a sensor.
+# ============================================================================
+# 11a. Divergent contract in the worktree (script dir is ${WTA}/scripts, so
+#      the helper resolves ${WTA}/docs/evaluation/trace-schema.v1.json).
+mkdir -p "${WTA}/docs/evaluation"
+jq '.failure_modes += ["test-only-mode"]' "$CONTRACT" \
+  > "${WTA}/docs/evaluation/trace-schema.v1.json" \
+  || fail "fixture bug: could not derive the divergent 9-mode contract"
+
+run_hb_fm "$WTA" "${TMP_DIR}/f5.out" test-only-mode \
+  conductor deviation - blocked "deviation carrying a contract-only mode" \
+  || { cat "${TMP_DIR}/f5.out"; fail "TRACE_FAILURE_MODE=test-only-mode with a contract declaring it must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "11" ] \
+  || fail "contract-branch call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+f5="$(nth_line "$TRACE_A" 11)"
+printf '%s\n' "$f5" | jq -e '.["harness.failure_mode"] == "test-only-mode"' >/dev/null \
+  || fail "contract-READ branch is dead: a mode present ONLY in the contract (test-only-mode) was not forwarded — the helper is deciding from the mirrored fallback even when the contract is readable: ${f5}"
+rm -rf "${WTA}/docs"
+
+# 11b. Static parity: extract the mirrored fallback block (the enum='...'
+#      literal) from the helper source and compare it, sorted, against the
+#      real contract's failure_modes.
+fallback_list="$(sed -n "/enum='/,/'/p" "$HELPER" \
+  | sed -E "s/^[[:space:]]*enum='//; s/'[[:space:]]*$//" \
+  | sed '/^[[:space:]]*$/d')"
+[ -n "$fallback_list" ] \
+  || fail "could not extract the mirrored fallback enum list (enum='...') from scripts/log-handback.sh — keep the fallback extractable so parity stays sensor-checkable"
+contract_modes_sorted="$(jq -r '(.failure_modes // [])[]' "$CONTRACT" | sort)"
+fallback_sorted="$(printf '%s\n' "$fallback_list" | sort)"
+[ "$fallback_sorted" = "$contract_modes_sorted" ] \
+  || fail "mirrored fallback enum in scripts/log-handback.sh differs from the contract's failure_modes — fallback==contract is pinned (fallback: $(printf '%s' "$fallback_list" | tr '\n' ','); contract: $(printf '%s' "$contract_modes_sorted" | tr '\n' ','))"
+
 printf 'log-handback single-source handback contract honored\n'

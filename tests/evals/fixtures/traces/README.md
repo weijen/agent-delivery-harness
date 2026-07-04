@@ -26,5 +26,14 @@ Consumers: the existing validator in path mode
 - **Verification:** `./scripts/validate-trace.sh` path mode — 0 violations
   (the `unexpected trace location` WARNING is expected for a fixture path);
   no `/Users/` or `/home/` substring; fixed point of `trace_redact`.
-- **Human review:** pending — the conductor eyeballs the fixture content
-  before staging/committing (committing a fixture is a human act).
+- **Human review:** completed 2026-07-04, before commit — all 37 spans
+  inspected line by line: zero home-rooted paths, zero secret shapes, zero
+  personal identifiers. Reviewer: repo owner (via the conductor-run
+  session). Committing a fixture remains a human act; any regeneration
+  requires a fresh review.
+- **Provenance caveat:** spans 18–27 (the `pr_merge` bursts carrying
+  `harness.pr_number` `123` with millisecond-scale durations) originate
+  from dogfood/test runs appended into the real issue-97 trace during
+  development — genuine emitter output, but not part of the issue's own
+  lifecycle. Replay consumers (trajectory/completeness evals) should treat
+  the span-sequence fidelity of that window accordingly.

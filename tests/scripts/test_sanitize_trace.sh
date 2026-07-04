@@ -26,6 +26,15 @@
 #     If a leak survives — e.g. the sourced redactor is broken/no-op — the
 #     sanitizer exits NON-ZERO and does not leave a leaking file at
 #     <out.jsonl>. Exit 0 with a leak on disk is the one forbidden outcome.
+#   - Encoded/alternate path forms (loop-2 review majors, PINNED): the scrub
+#     and the audit must handle paths as they appear in JSON ON DISK, not
+#     just the plain byte form — (a) JSON-escaped slashes (\/Users\/...),
+#     (b) tilde-rooted home paths (~/...), (c) Windows home paths
+#     (C:\Users\...). For each form the sanitizer must EITHER scrub it to
+#     <SCRUBBED_PATH> (judged on the jq-DECODED string values, so escape
+#     games cannot hide a leak) OR fail closed: non-zero exit and no file
+#     left at <out.jsonl>. Exit 0 with any of these forms decodable from
+#     the output is forbidden.
 #   - Output stays valid JSONL and passes the EXISTING validator in path
 #     mode: ./scripts/validate-trace.sh <out.jsonl> exits 0 with zero
 #     VIOLATION findings (the 'unexpected trace location' WARNING is
@@ -256,6 +265,48 @@ run_sanitize "${MUT}/scripts" "${TMP_DIR}/s3.out" "$IN" "$OUT3" || mrc=$?
   || fail "fail-closed audit: with a no-op redactor the sanitizer must exit NON-ZERO (a leak survived), got exit 0"
 if [ -f "$OUT3" ] && grep -qF -- "$GHP" "$OUT3"; then
   fail "fail-closed audit: the sanitizer left a leaking output file at <out> (raw ghp_ secret on disk after non-zero exit)"
+fi
+
+# ==============================================================================
+# E. Encoded/alternate path forms (loop-2 review majors): JSON-escaped
+#    slashes, tilde-rooted, and Windows home paths. The pin is EITHER-OR:
+#    scrub to <SCRUBBED_PATH> (verified on jq-DECODED values) or fail closed
+#    (non-zero, no out-file). Exit 0 with a decodable leak is the RED.
+# ==============================================================================
+IN2="${TMP_DIR}/in2.trace.jsonl"
+cat > "$IN2" <<'JSONL'
+{"schema_version":1,"timestamp":"2026-07-04T11:00:00Z","span":"tool","harness.issue":97,"harness.version":"abc1234","gen_ai.tool.name":"git"}
+{"schema_version":1,"timestamp":"2026-07-04T11:00:01Z","span":"tool","harness.issue":97,"harness.version":"abc1234","gen_ai.tool.name":"gh","harness.summary":"logs kept at \/Users\/synthetic\/leak\/trace.log"}
+{"schema_version":1,"timestamp":"2026-07-04T11:00:02Z","span":"tool","harness.issue":97,"harness.version":"abc1234","gen_ai.tool.name":"tar","harness.summary":"archived to ~/synthetic/leak before teardown"}
+{"schema_version":1,"timestamp":"2026-07-04T11:00:03Z","span":"tool","harness.issue":97,"harness.version":"abc1234","gen_ai.tool.name":"scp","harness.summary":"copied from C:\\Users\\synthetic\\leak on the runner"}
+JSONL
+
+OUT4="${TMP_DIR}/out4.trace.jsonl"
+erc=0
+run_sanitize "${FIX}/scripts" "${TMP_DIR}/s4.out" "$IN2" "$OUT4" || erc=$?
+if [ "$erc" = "0" ]; then
+  # Scrub path taken: judge the DECODED string values, not raw bytes, so a
+  # JSON-escape form (\/Users\/...) cannot hide from the assertion.
+  if [ -f "$OUT4" ]; then
+    decoded="${TMP_DIR}/out4.decoded"
+    jq -rs '.[] | to_entries[] | .value | strings' "$OUT4" > "$decoded" 2>/dev/null \
+      || fail "encoded-path run exited 0 but the output is not decodable JSONL"
+    grep -qF -- '/Users/synthetic/leak' "$decoded" \
+      && fail "JSON-escaped path (\\/Users\\/...) decodes to a /Users/ leak in the output — escaped forms bypassed the scrub AND the audit"
+    # shellcheck disable=SC2088 # literal tilde is the point: grepping for the planted ~-rooted path, no expansion wanted
+    grep -qF -- '~/synthetic/leak' "$decoded" \
+      && fail "tilde-rooted home path (~/...) survived sanitization"
+    grep -qF -- 'C:\Users\synthetic' "$decoded" \
+      && fail "Windows home path (C:\\Users\\...) survived sanitization"
+    grep -qF '<SCRUBBED_PATH>' "$OUT4" \
+      || fail "encoded-path run exited 0: the three planted path forms must have been scrubbed to <SCRUBBED_PATH>"
+  else
+    fail "encoded-path run exited 0 but wrote no output file (${OUT4})"
+  fi
+else
+  # Fail-closed path taken: acceptable, but nothing may be left at <out>.
+  [ ! -e "$OUT4" ] \
+    || fail "encoded-path run failed closed (exit ${erc}) but left a file at <out.jsonl> (${OUT4})"
 fi
 
 # --- Result --------------------------------------------------------------------
