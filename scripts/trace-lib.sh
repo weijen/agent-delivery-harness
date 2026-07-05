@@ -71,6 +71,9 @@ trace_redact() {
     -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
     -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
     -e 's/AKIA[0-9A-Z]{16}/[REDACTED]/g' \
+    -e 's/[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/InstrumentationKey=[REDACTED]/g' \
+    -e 's/sk-ant-[A-Za-z0-9_-]{20,}/[REDACTED]/g' \
+    -e 's/sk-[A-Za-z0-9]{20,}/[REDACTED]/g' \
     -e 's/[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+=-]+/Bearer [REDACTED]/g' \
     -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"[[:space:]]*:[[:space:]]*")[^"]*/\1\2[REDACTED]/g' \
     -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"[:space:]]+/\1\2[REDACTED]/g' \

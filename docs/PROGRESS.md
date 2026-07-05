@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #62)._
+_Last updated: 2026-07-05 (issue #113)._
 
 ---
 
@@ -68,22 +68,22 @@ _Last updated: 2026-07-05 (issue #62)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing remote-monitoring phase (open: #113):** dashboard +
-  retention/PII spec (#113, unblocked — the #112 exporter is merged and
-  live-smoke-verified against the real sink). #113 also inherits the #112
-  review carry-overs: value-length/charset caps on allowlisted string
-  fields, and broadening the redaction backstop (InstrumentationKey=/sk-
-  shapes). Core-workstream follow-ups still recorded: trace-gate promotion
-  flag; trace-summary v1.x; VS Code Copilot token telemetry when a source
-  appears.
+- **Deep-tracing remote-monitoring phase — #113 DELIVERED (see below):** the
+  workbook + retention/PII spec + the two #112 carry-over hardenings landed.
+  **Post-merge deploy step pending:** `terraform apply` the new
+  `azurerm_application_insights_workbook` to the live sink (from the deploy
+  worktree, `terraform -chdir=.../infra/terraform`, az on the personal sub).
+  Core-workstream follow-ups still recorded: trace-gate promotion flag;
+  trace-summary v1.x; VS Code Copilot token telemetry when a source appears.
 - **Deep-trace tool-call + skill observability (open: #121, partial):** the
   hooks-absence warning + Spike-Static write-up are delivered (see below); the
   first-class `skill` span (features 3/4) is **gated on a human Spike-Live
   capture** — one real Copilot CLI session to measure whether a skill
   invocation surfaces as an observable tool call. The `TODO(human)` recipe +
   A/B/documented-gap decision live in `docs/runtime-adapters/github-copilot.skill-spike.md`.
-- **In flight:** #121 partial delivered by this branch — hooks-absence warning
-  + skill-observability spike; features 3/4 await the Spike-Live capture.
+- **In flight:** #113 delivered by this branch — harness-quality workbook +
+  retention/PII spec + exporter value-caps/backstop hardening; workbook
+  `terraform apply` to the live sink is the one remaining post-merge step.
 
 ---
 
@@ -141,6 +141,32 @@ _Last updated: 2026-07-05 (issue #62)._
   content, L1 cases.
 
 ### Deep tracing
+- **#113 — harness-quality dashboard + telemetry retention/PII spec.** The
+  remote-monitoring capstone. Added a live-deployable Azure Workbook
+  (`infra/terraform/workbook.tf` + `harness-quality.workbook.json`, an
+  `azurerm_application_insights_workbook` attached via `source_id` to the
+  module's own AI component) whose panels key on `harness.version` (the
+  continuous form of the #104 scorecard): pass rate, red-reentry-free rate
+  (labeled exactly that, never "first-pass green"), deviation rate, tool-call
+  volume, wall-clock per lifecycle_step, failure-mode view; token/cost and the
+  two deferred metrics rendered explicitly-unavailable (honest null, never a
+  fabricated 0). Every query binds an explicit timespan (envelope time = source
+  span timestamp). A sensor (`test_trace_dashboard_pack.sh`) lints every KQL
+  key against the LIVE exporter allowlist, table correctness, timespans, and
+  the honest-metrics rules. Two #112-review carry-over hardenings on the
+  exporter: (1) value-length(256)+printable-charset caps on allowlisted string
+  customDimensions values — fail-closed, refuse-whole-export on any violation,
+  numeric/measurements exempt; (2) broadened redaction backstop + trace_redact
+  for `InstrumentationKey=<guid>` (the sink's own connection-string self-leak)
+  and `sk-ant-`/`sk-` API-key shapes, anchored so bare `sk-`/the word
+  InstrumentationKey are not false-dropped. Plus `telemetry-retention-pii.md`
+  (retention tied to Terraform `retention_in_days` 30d, allowlist-as-governance,
+  deny-by-default PII posture, deletion/rollback path) and the #115 sink
+  non-goal guard updated to allow the workbook while still forbidding
+  monitor/alert/portal-dashboard. Sensors: `test_trace_export_value_caps.sh`,
+  `test_trace_export_backstop.sh`, `test_trace_dashboard_pack.sh`,
+  `test_telemetry_retention_docs.sh`. Post-merge: `terraform apply` the workbook
+  to the live sink. Dual review (code + dedicated security).
 - **#121 (partial) — tool-call + skill-invocation observability (Copilot),
   spike-first.** Ships the two non-gated features. `trace-report.sh` now emits an
   advisory `WARNING` when a FINISHED trace has lifecycle+agent spans but zero

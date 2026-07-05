@@ -177,7 +177,7 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
   # 2b. HARDCODED secret-shape backstop, deliberately INDEPENDENT of
   #     trace_redact (a broken/no-op redactor cannot blind it). Audit-only:
   #     the redaction POLICY stays trace_redact's alone.
-  if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}' "$staged"; then
+  if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}' "$staged"; then
     red "error: export gate: a well-known secret shape survived into the staged envelopes (hardcoded backstop) — refusing (nothing written)" >&2
     return 1
   fi
@@ -191,6 +191,37 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
       return 1
     fi
   done
+  # 2d. String value caps (plan feature trace-export-value-caps): every
+  #     customDimensions (properties) STRING value must be within the shippable
+  #     risk surface — max 256 chars (256 ships, 257 refuses) AND printable
+  #     charset only (any C0/C1 control byte, including embedded newline/tab, is
+  #     a violation). All-or-nothing, mirroring the harness.version abort: a
+  #     value that cannot ship intact takes the whole batch down. This is a
+  #     fail-closed AUDIT over the projected values — it NEVER truncates or
+  #     strips; it refuses. The measurements map (numeric gen_ai.usage.*) and
+  #     any non-string value are exempt by construction (only string values are
+  #     scanned). The offending key is named; its value is never echoed.
+  local cap_report
+  if ! cap_report="$(grep -v '^//' "$staged" | jq -r '
+      [ .[]?.data.baseData.properties // {}
+        | to_entries[]
+        | select(.value | type == "string")
+        | select((.value | length) > 256
+                 or (.value | explode | any(. < 32 or (. >= 127 and . <= 159))))
+        | .key ]
+      | unique
+      | .[]' 2>/dev/null)"; then
+    red "error: export gate: could not audit customDimensions value caps over the staged envelopes — failing closed (nothing written)" >&2
+    return 1
+  fi
+  if [ -n "$cap_report" ]; then
+    # Name the offending key(s) only; never echo the over-long / control-byte
+    # value itself (it may be secret-ish).
+    printf 'error: export gate: allowlisted customDimensions value fails the string cap (over 256 chars or non-printable control byte): %s\n' \
+      "$(printf '%s' "$cap_report" | tr '\n' ' ')" >&2
+    red "error: export gate: a shippable string value exceeds the 256-char cap or carries a control byte — refusing the whole export (all-or-nothing; nothing written)" >&2
+    return 1
+  fi
   return 0
 }
 
