@@ -30,6 +30,30 @@ SUITE="l0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATOR="${SCRIPT_DIR}/validate-manifest.sh"
 
+# Repo root (tests/evals/bin -> ../../..); used to reach the shared redactor.
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+TRACE_LIB="${ROOT_DIR}/scripts/trace-lib.sh"
+
+# Fail-closed redaction gate (feature f3): the grader's captured evidence is
+# scrubbed with the repo's single redaction policy `trace_redact` before it can
+# ever reach the scorecard. Source it guarded, like scripts/sanitize-trace.sh;
+# when it is missing or does not export trace_redact the gate treats redaction
+# as un-guaranteeable and fails closed (evidence omitted, never emitted raw).
+REDACTOR_AVAILABLE=0
+if [ -f "$TRACE_LIB" ]; then
+  # shellcheck source=/dev/null
+  source "$TRACE_LIB"
+  if declare -F trace_redact >/dev/null 2>&1; then
+    REDACTOR_AVAILABLE=1
+  fi
+fi
+
+# Hardcoded secret-shape backstop, independent of trace_redact working — mirrors
+# the exporter's output audit in docs/runtime-adapters/otlp-azure-monitor.md.
+# A match in the captured evidence is treated as a redaction event regardless of
+# whether trace_redact is available or functioning.
+SECRET_SHAPE_RE='gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|InstrumentationKey=|ConnectionString=|[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+/=-]{8,}'
+
 if [ "$#" -ne 1 ]; then
   printf 'usage: %s <manifest-path>\n' "$(basename "$0")" >&2
   exit 2
@@ -39,6 +63,12 @@ MANIFEST="$1"
 
 command -v jq >/dev/null 2>&1 \
   || { printf 'error: jq is required but was not found on PATH\n' >&2; exit 1; }
+
+# Scratch space for captured grader evidence; never escapes this dir and is
+# removed on exit. The raw capture is inspected in-process only — it is never
+# echoed to stdout or stderr.
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "${WORK_DIR}"' EXIT
 
 # --- Environment-derived, manifest-independent scorecard fields ----------------
 run_id="local-$(date -u +%Y%m%dT%H%M%SZ)"
@@ -79,6 +109,7 @@ grader_cmd="$(mf '.grader.command')"
 status=""
 failure_type_json="null"
 skip_reason_json="null"
+secrets_found_json="false"
 declare -a evidence=()
 duration_ms=0
 
@@ -101,11 +132,42 @@ else
   else
     start="$(date +%s)"
     rc=0
-    bash -c "$grader_cmd" >/dev/null 2>/dev/null || rc=$?
+    # Capture the grader's stdout+stderr as candidate evidence. It is written
+    # to a scratch file and inspected in-process only; the raw capture is NEVER
+    # echoed to the runner's own stdout or stderr (fail-closed guarantee).
+    cap="${WORK_DIR}/grader-output"
+    bash -c "$grader_cmd" >"$cap" 2>&1 || rc=$?
     end="$(date +%s)"
     duration_ms=$(( (end - start) * 1000 ))
 
-    if [ "$rc" -eq 0 ]; then
+    # --- Fail-closed redaction gate over the captured evidence -----------------
+    # Backstop detection runs on the RAW capture and does not depend on
+    # trace_redact functioning. A secret-shaped match is a redaction failure
+    # regardless of the grader's own exit code.
+    secret_in_raw=0
+    if grep -Eq "$SECRET_SHAPE_RE" "$cap" 2>/dev/null; then
+      secret_in_raw=1
+    fi
+
+    if [ "$secret_in_raw" -eq 1 ]; then
+      status="fail"
+      failure_type_json='"redaction_failure"'
+      secrets_found_json="true"
+      # Emit the REDACTED evidence only when trace_redact is available, succeeds,
+      # and leaves no secret shape behind; otherwise fail closed and omit the
+      # evidence body entirely (a broken/missing redactor never ships raw bytes).
+      redacted="${WORK_DIR}/grader-output.redacted"
+      if [ "$REDACTOR_AVAILABLE" -eq 1 ] \
+        && trace_redact <"$cap" >"$redacted" 2>/dev/null \
+        && ! grep -Eq "$SECRET_SHAPE_RE" "$redacted" 2>/dev/null; then
+        evidence=("secret-shaped content detected in grader evidence; emitting redacted form")
+        while IFS= read -r redline || [ -n "$redline" ]; do
+          evidence+=("$redline")
+        done <"$redacted"
+      else
+        evidence=("grader evidence withheld: secret detected and redaction could not be guaranteed")
+      fi
+    elif [ "$rc" -eq 0 ]; then
       status="pass"
       evidence=("grader command exited 0")
     else
@@ -150,6 +212,7 @@ scorecard="$(jq -n \
   --argjson failure_type "$failure_type_json" \
   --argjson skip_reason "$skip_reason_json" \
   --argjson evidence "$evidence_json" \
+  --argjson secrets_found "$secrets_found_json" \
   '
   def orNull($s): if ($s == "") then null else $s end;
   ($status == "pass") as $passed |
@@ -173,7 +236,7 @@ scorecard="$(jq -n \
     },
     redaction: {
       checked: true,
-      secrets_found: false,
+      secrets_found: $secrets_found,
       environment_identifiers_found: false
     },
     results: [
