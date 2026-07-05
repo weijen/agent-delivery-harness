@@ -1,0 +1,16 @@
+# Example inputs for the telemetry-sink stack — synthetic placeholders only.
+# Copy to terraform.tfvars (gitignored) and adjust; never commit real values.
+# Auth comes from az login / ARM_* environment variables, not from tfvars.
+
+resource_group_name          = "adh-dev-rg"
+location                     = "westeurope"
+log_analytics_workspace_name = "adh-dev-law"
+application_insights_name    = "adh-dev-appi"
+
+# Telemetry knobs (governed by the retention/dashboard spec, issue #113).
+retention_in_days   = 30
+daily_cap_gb        = 1
+sampling_percentage = 100
+
+# Common tags merged into every resource (single line keeps this file key=value).
+tags = { environment = "dev", project = "agent-delivery-harness", managed_by = "terraform" }
