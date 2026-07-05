@@ -95,11 +95,16 @@ hook__on_post_tool_use() {
     "gen_ai.operation.name=execute_tool"
   )
 
-  # Args summary. On the CLI dialect toolArgs is JSON *as a string*, taken
-  # verbatim; on the VS Code dialect tool_input is an object, compacted.
+  # Args summary. On the CLI dialect toolArgs is typed `unknown` in the
+  # official reference ("parsed from JSON when possible"): usually JSON *as
+  # a string* (taken verbatim) but the object form is a first-class variant
+  # too (compacted via tojson — loop-2 minor 1). On the VS Code dialect
+  # tool_input is an object, compacted.
   if [ "$dialect" = "camel" ]; then
     summary="$(printf '%s' "$payload" | jq -r '
-        if (.toolArgs | type) == "string" then .toolArgs else empty end' \
+        if (.toolArgs | type) == "string" then .toolArgs
+        elif (.toolArgs | type) == "object" then (.toolArgs | tojson)
+        else empty end' \
       2>/dev/null || true)"
   else
     summary="$(printf '%s' "$payload" | jq -c '.tool_input // empty' 2>/dev/null || true)"

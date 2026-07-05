@@ -213,8 +213,20 @@ printf '%s\n' \
   > "${FIXHOME}/evil/events.jsonl"
 
 # Snapshot the HOME fixture: the hook must treat it as read-only input (S6).
+# LOOP-2 (review minor 3): a bare listing-compare would miss an IN-PLACE
+# mutation of an existing events.jsonl, so the snapshot pairs the tree
+# listing with a content checksum (cksum) of every regular file.
+snapshot_home() {
+  (
+    cd "$FIXHOME" || exit 1
+    find . | LC_ALL=C sort
+    find . -type f | LC_ALL=C sort | while IFS= read -r f; do
+      cksum "$f"
+    done
+  )
+}
 HOME_BEFORE="${TMP_DIR}/home-before.txt"
-(cd "$FIXHOME" && find . | LC_ALL=C sort) > "$HOME_BEFORE"
+snapshot_home > "$HOME_BEFORE"
 
 # --- Payload builders --------------------------------------------------------------
 # camel_stop <event> [sessionId|-]   (- = omit the sessionId key)
@@ -380,8 +392,8 @@ state_dirs="$(find "$REPO" "$FIXHOME" -type d -name '.hook-state' 2>/dev/null ||
   || fail "case7: the Copilot hook must never create .hook-state (no pre/post state machine exists), found: ${state_dirs}"
 
 HOME_AFTER="${TMP_DIR}/home-after.txt"
-(cd "$FIXHOME" && find . | LC_ALL=C sort) > "$HOME_AFTER"
+snapshot_home > "$HOME_AFTER"
 diff -u "$HOME_BEFORE" "$HOME_AFTER" >/dev/null 2>&1 \
-  || fail "case7: the hook wrote into the fixture \$HOME — session-state is READ-ONLY input (S6): $(diff "$HOME_BEFORE" "$HOME_AFTER" || true)"
+  || fail "case7: the hook wrote into (or mutated a file inside) the fixture \$HOME — session-state is READ-ONLY input; listing+cksum snapshot diverged (S6, loop-2 minor 3): $(diff "$HOME_BEFORE" "$HOME_AFTER" || true)"
 
 printf 'copilot hook stop-span contract honored\n'

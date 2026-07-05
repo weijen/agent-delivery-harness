@@ -3,7 +3,10 @@
 GitHub Copilot is this repository's **primary runtime target**. This guide
 covers what a Copilot-driven harness run records with **zero setup**, and what
 the opt-in hooks adapter (`scripts/copilot-trace-hook.sh`) adds on each of
-Copilot's three hook surfaces. The Claude Code adapter
+Copilot's three hook surfaces (events, payload fields, and exit-code
+semantics per the official
+[hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)).
+The Claude Code adapter
 ([claude-code.md](claude-code.md)) remains the labeled **reference example**
 of the adapter pattern this one follows.
 
@@ -32,7 +35,7 @@ simply lacks those spans; nothing else changes, and nothing is faked.
 | per-tool-call `tool` spans | no | **yes** (`postToolUse` + `postToolUseFailure` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) |
 | `harness.duration_ms` on tool spans | no | **no** — no Copilot payload documents a correlation id, so duration is omitted (omit, never fake) | no — omitted | no — omitted |
 | runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`) | yes (`Stop`/`SubagentStop`) | yes |
-| `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | unverified — omitted |
+| `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | best-effort — same `events.jsonl` mechanism as the CLI, unverified inside the sandbox; degrades to omission |
 
 The gaps in this table are deliberate, not defects: where Copilot exposes no
 honest signal, the adapter omits the key entirely — *omit, never fake*.
@@ -61,7 +64,10 @@ cp docs/runtime-adapters/github-copilot.hooks.example.json .github/hooks/harness
 ```
 
 The CLI sends camelCase payloads (`event`, `toolName`, `toolArgs` as a JSON
-string, `toolResult.resultType`).
+string, `toolResult.resultType`). Note that a personal `~/.copilot/hooks`
+install keeps the template's relative `scripts/copilot-trace-hook.sh` path,
+which resolves only when the session's working directory is a checkout of
+this repo — from any other cwd the hook simply is not found and nothing runs.
 
 ### VS Code agent mode (Preview)
 

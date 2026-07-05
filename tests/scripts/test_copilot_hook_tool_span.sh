@@ -38,9 +38,10 @@
 #   P2. Dialect normalization: gen_ai.tool.name comes from `toolName`
 #       (camelCase) or `tool_name` (snake_case); the event comes from
 #       `event` (camelCase) or `hook_event_name` (snake_case).
-#   P3. Args summary — key `harness.args_summary`: from `toolArgs` (already
-#       a JSON-string on CLI) or `jq -c .tool_input` (VS Code, VERBATIM when
-#       short). REDACTED FIRST via trace_redact, THEN hard-capped at 200
+#   P3. Args summary — key `harness.args_summary`: from `toolArgs` (CLI:
+#       the reference types it `unknown`, "parsed from JSON when possible" —
+#       a JSON-string is taken verbatim, an OBJECT is compacted via jq -c)
+#       or `jq -c .tool_input` (VS Code, VERBATIM when short). REDACTED FIRST via trace_redact, THEN hard-capped at 200
 #       chars TOTAL including the literal `...` marker (the #96 loop-2
 #       redact-before-cap lesson is a day-one pin here: capping first can
 #       slice a ghp_ token below trace_redact's 20-char pattern floor and
@@ -103,7 +104,13 @@
 #       chars, cutting it to `ghp_`+10 — below trace_redact's
 #       gh[pousr]_[A-Za-z0-9_]{20,} floor. NO `ghp_` may appear anywhere in
 #       the on-disk trace (P3).
-#   E8. Whole-file invariants: every line has span=tool, and NO line
+#   E8. LOOP-2 (review minor 1) — CLI postToolUse with OBJECT-typed
+#       toolArgs: the official reference types toolArgs `unknown` ("parsed
+#       from JSON when possible"), so the object form is a first-class
+#       dialect variant, not drift. The span must carry
+#       harness.args_summary == jq -c of the object (same redact-before-cap
+#       path as P3) — NOT degrade to a summary-less span.
+#   E9. Whole-file invariants: every line has span=tool, and NO line
 #       carries harness.duration_ms; no .hook-state exists anywhere (P4).
 #
 # Template cases: per P8.
@@ -602,18 +609,51 @@ if grep -q 'ghp_' "$TRACE_FILE"; then
 fi
 
 # =============================================================================
-# Emission E8 — whole-file invariants: every emitted line is a tool span
+# Emission E8 — LOOP-2 (review minor 1): CLI postToolUse with OBJECT-typed
+# toolArgs (reference type `unknown`, "parsed from JSON when possible") —
+# the span must carry harness.args_summary == jq -c of the object, not
+# degrade to a summary-less span
+# =============================================================================
+E8_ARGS_OBJ='{"command":"echo object-dialect-ok"}'
+E8_COMPACT="$(printf '%s' "$E8_ARGS_OBJ" | jq -c .)"
+run_hook "e8-object-toolargs" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" --argjson args "$E8_ARGS_OBJ" '{
+    event: "postToolUse",
+    timestamp: "2026-07-05T12:00:02Z",
+    sessionId: "copilot-sess-fixture-0001",
+    cwd: $cwd,
+    toolName: "bash",
+    toolArgs: $args,
+    toolResult: {resultType: "success", textResultForLlm: "object-dialect-ok"},
+    transcriptPath: "/nonexistent/fixture-transcript.jsonl"
+  }'
+)
+assert_session_safe "e8-object-toolargs"
+[ "$(line_count "$TRACE_FILE")" = "8" ] \
+  || fail "e8: expected an eighth trace line, got $(line_count "$TRACE_FILE")"
+span8="$(nth_line "$TRACE_FILE" 8)"
+validate_span "$span8" || fail "e8: object-toolArgs span rejected by the contract filter: ${span8}"
+printf '%s\n' "$span8" | jq -e --arg want "$E8_COMPACT" '
+    (.span == "tool")
+    and (.["gen_ai.tool.name"] == "bash")
+    and (.["gen_ai.operation.name"] == "execute_tool")
+    and (.["harness.args_summary"] == $want)
+  ' >/dev/null \
+  || fail "e8: OBJECT-typed toolArgs is a first-class CLI variant (reference: toolArgs is \`unknown\`, parsed from JSON when possible) — the span must carry harness.args_summary == jq -c of the object ('${E8_COMPACT}'), not a summary-less span (P3, loop-2 minor 1): ${span8}"
+
+# =============================================================================
+# Emission E9 — whole-file invariants: every emitted line is a tool span
 # with NO harness.duration_ms key, and no .hook-state exists anywhere (P4)
 # =============================================================================
 while IFS= read -r line; do
   printf '%s\n' "$line" | jq -e '
       (.span == "tool") and (has("harness.duration_ms") | not)
     ' >/dev/null \
-    || fail "e8: every line this feature emits must be a tool span WITHOUT harness.duration_ms (P4/P7), got: ${line}"
+    || fail "e9: every line this feature emits must be a tool span WITHOUT harness.duration_ms (P4/P7), got: ${line}"
 done < "$TRACE_FILE"
 state_dirs="$(find "$ISSUE_REPO" -type d -name '.hook-state' 2>/dev/null || true)"
 [ -z "$state_dirs" ] \
-  || fail "e8: the Copilot hook must never create .hook-state — no correlation id exists to justify pre/post state (P4), found: ${state_dirs}"
+  || fail "e9: the Copilot hook must never create .hook-state — no correlation id exists to justify pre/post state (P4), found: ${state_dirs}"
 
 # =============================================================================
 # Template T1-T4 — docs/runtime-adapters/github-copilot.hooks.example.json
