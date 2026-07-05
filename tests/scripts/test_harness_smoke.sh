@@ -8,8 +8,10 @@ cd "$ROOT"
 [ -f .github/workflows/harness-smoke.yml ] || { echo "missing harness-smoke workflow" >&2; exit 1; }
 
 # tests/evals/bin/*.sh added for issue #61 f3 (eval tooling lint coverage).
-bash -n scripts/*.sh tests/evals/bin/*.sh
-shellcheck scripts/*.sh profiles/*.profile.sh tests/evals/bin/*.sh
+# tests/scripts/lib/*.sh added for issue #64 f3 (fold-in of #63 deferral): the
+# TAP helper tap.sh is lint-clean, so this adds no spurious failure.
+bash -n scripts/*.sh tests/evals/bin/*.sh tests/scripts/lib/*.sh
+shellcheck scripts/*.sh profiles/*.profile.sh tests/evals/bin/*.sh tests/scripts/lib/*.sh
 
 shopt -s nullglob
 files=(.copilot/agents/*.agent.md .copilot/skills/*/SKILL.md)
@@ -129,6 +131,15 @@ require_text "$workflow" 'bash -n[^\n]*tests/evals/bin' \
   "workflow bash -n syntax coverage of tests/evals/bin"
 require_text "$workflow" 'shellcheck[^\n]*tests/evals/bin' \
   "workflow shellcheck coverage of tests/evals/bin"
+
+# --- TAP helper lib CI lint coverage (#64 f3, fold-in of #63 deferral) --------
+# The CI workflow must lint tests/scripts/lib/*.sh (the TAP helper tap.sh) with
+# BOTH bash -n (syntax) and the shellcheck linter. The tests/scripts/*.sh glob
+# is non-recursive, so lib/ is otherwise missed by CI.
+require_text "$workflow" 'bash -n[^\n]*tests/scripts/lib' \
+  "workflow bash -n syntax coverage of tests/scripts/lib"
+require_text "$workflow" 'shellcheck[^\n]*tests/scripts/lib' \
+  "workflow shellcheck coverage of tests/scripts/lib"
 
 # --- CI-green merge gate doctrine (#51) --------------------------------------
 require_text ".copilot/instructions/harness.instructions.md" 'merge-pr\.sh' \

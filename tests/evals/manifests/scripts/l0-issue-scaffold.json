@@ -1,0 +1,23 @@
+{
+  "id": "l0-issue-scaffold",
+  "schema_version": 1,
+  "target": "scripts/start-issue.sh",
+  "capability": "Starting an issue scaffolds the per-issue tracking state — feature_list.json, progress.md, and the Action Log heading — so the tracking artifacts a lifecycle depends on are always created.",
+  "boundary": "script-lifecycle",
+  "fixture": {
+    "type": "generated",
+    "builder": "tests/scripts/test_issue_scaffold.sh"
+  },
+  "expected_outcome": "pass",
+  "grader": {
+    "type": "shell",
+    "command": "bash tests/scripts/test_issue_scaffold.sh"
+  },
+  "blocking": true,
+  "contract_refs": [
+    "state_transitions:feature-list-artifact",
+    "state_transitions:progress-artifact",
+    "state_transitions:action-log-scaffold",
+    "lifecycle:tracking-scaffold"
+  ]
+}
