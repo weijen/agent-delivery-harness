@@ -15,8 +15,8 @@ resource "azurerm_application_insights_workbook" "harness_quality" {
   display_name = "Harness Quality Workbook"
   category     = "workbook"
 
-  source_id       = lower(azurerm_application_insights.telemetry.id)
-  serialized_data = file("harness-quality.workbook.json")
+  source_id = lower(azurerm_application_insights.telemetry.id)
+  data_json = file("harness-quality.workbook.json")
 
   tags = var.tags
 }

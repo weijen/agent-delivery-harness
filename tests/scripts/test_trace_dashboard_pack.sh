@@ -5,7 +5,7 @@
 # implementer authors BOTH artifacts:
 #
 #   1. a Terraform file under infra/terraform/ declaring an
-#      `azurerm_application_insights_workbook` resource whose `serialized_data`
+#      `azurerm_application_insights_workbook` resource whose `data_json`
 #      is an embedded Workbook JSON document (dashboard panels), AND
 #   2. docs/evaluation/dashboards/README.md documenting the pack.
 #
@@ -150,6 +150,18 @@ if [ "$wb_count" -ne 1 ]; then
 	note "$WB_TF: expected exactly one azurerm_application_insights_workbook, found $wb_count"
 fi
 
+# Correct provider argument name. azurerm_application_insights_workbook REQUIRES
+# `data_json` (not `serialized_data`, which belongs to a different resource and
+# fails `terraform validate` at deploy time). CI has no Azure provider so it
+# cannot run `terraform validate` — this static grep catches the schema error
+# that fmt-check alone lets through.
+if ! grep -Eq '^[[:space:]]*data_json[[:space:]]*=' "$WB_TF"; then
+	note "$WB_TF: workbook is missing the required 'data_json' argument (azurerm_application_insights_workbook uses data_json, not serialized_data)"
+fi
+if grep -Eq '^[[:space:]]*serialized_data[[:space:]]*=' "$WB_TF"; then
+	note "$WB_TF: uses 'serialized_data' — that argument does not exist on azurerm_application_insights_workbook (it is 'data_json') and will fail terraform validate/apply"
+fi
+
 # =============================================================================
 # F (structural half). Reference module AI resource by Terraform ref; no
 # hardcoded connection string / instrumentation key / foreign GUID literal.
@@ -164,7 +176,7 @@ fi
 # A bare GUID literal (foreign resource id / iKey) anywhere EXCEPT the workbook
 # resource's own `name` attribute — Azure requires the workbook name to be a
 # GUID, so that one line is legitimately a literal. Any OTHER GUID (in source_id,
-# a data source, or the serialized_data body) is a suspected foreign id / iKey.
+# a data source, or the data_json body) is a suspected foreign id / iKey.
 if grep -vE '^[[:space:]]*name[[:space:]]*=' "$WB_TF" \
 	| grep -Eq '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'; then
 	note "$WB_TF: contains a hardcoded GUID literal outside the workbook name= (foreign resource id / iKey suspected — reference the module resource instead)"
@@ -175,8 +187,8 @@ if grep -Eq '/subscriptions/[0-9a-fA-F-]{8,}' "$WB_TF"; then
 fi
 
 # =============================================================================
-# Extract the embedded Workbook JSON from serialized_data and enumerate its
-# KQL queries. serialized_data is HCL — either a "..." string, a jsonencode({..})
+# Extract the embedded Workbook JSON from data_json and enumerate its
+# KQL queries. data_json is HCL — either a "..." string, a jsonencode({..})
 # expression, or a heredoc. We recover the JSON document robustly:
 #   1) try jsonencode(...) → not literal JSON, skip to file() / heredoc paths
 #   2) try a heredoc (<<-EOT ... EOT) body
@@ -188,9 +200,9 @@ extract_dir="$(mktemp -d)"
 trap 'rm -rf "$extract_dir"' EXIT
 raw="$extract_dir/serialized.raw"
 
-# Heredoc body (<<EOT / <<-EOT ... EOT) assigned to serialized_data.
+# Heredoc body (<<EOT / <<-EOT ... EOT) assigned to data_json.
 awk '
-	$0 ~ /serialized_data[[:space:]]*=[[:space:]]*<<-?/ {
+	$0 ~ /data_json[[:space:]]*=[[:space:]]*<<-?/ {
 		match($0, /<<-?["]?[A-Za-z0-9_]+/)
 		tag = substr($0, RSTART, RLENGTH)
 		gsub(/[<"-]/, "", tag)
@@ -207,44 +219,44 @@ awk '
 
 if [ -s "$raw" ] && jq -e '.' "$raw" >/dev/null 2>&1; then
 	WB_JSON="$raw"
-	ok "recovered serialized_data from heredoc body"
+	ok "recovered data_json from heredoc body"
 fi
 
 # jsonencode({ ... }) — HCL, not literal JSON. If present, we cannot jq it
 # statically; treat the workbook doc as un-inspectable JSON and surface a
 # finding so the implementer supplies an inspectable form (heredoc/file()).
-if [ -z "$WB_JSON" ] && grep -Eq 'serialized_data[[:space:]]*=[[:space:]]*jsonencode' "$WB_TF"; then
-	note "$WB_TF: serialized_data uses jsonencode(...) — sensor needs a statically inspectable JSON body (heredoc or file(\"...json\")) to lint embedded KQL keys/tables/timespan"
+if [ -z "$WB_JSON" ] && grep -Eq 'data_json[[:space:]]*=[[:space:]]*jsonencode' "$WB_TF"; then
+	note "$WB_TF: data_json uses jsonencode(...) — sensor needs a statically inspectable JSON body (heredoc or file(\"...json\")) to lint embedded KQL keys/tables/timespan"
 fi
 
 # file("....json") reference.
 if [ -z "$WB_JSON" ]; then
-	wb_file="$(grep -Eo 'serialized_data[[:space:]]*=[[:space:]]*file\("[^"]+"\)' "$WB_TF" | grep -Eo '"[^"]+"' | tr -d '"' | head -n1 || true)"
+	wb_file="$(grep -Eo 'data_json[[:space:]]*=[[:space:]]*file\("[^"]+"\)' "$WB_TF" | grep -Eo '"[^"]+"' | tr -d '"' | head -n1 || true)"
 	if [ -n "$wb_file" ]; then
 		cand="$TF_DIR/$wb_file"
 		[ -f "$cand" ] || cand="$wb_file"
 		if [ -f "$cand" ] && jq -e '.' "$cand" >/dev/null 2>&1; then
 			WB_JSON="$cand"
-			ok "recovered serialized_data from file(\"$wb_file\")"
+			ok "recovered data_json from file(\"$wb_file\")"
 		else
-			note "$WB_TF: serialized_data references file(\"$wb_file\") but it is missing or not valid JSON"
+			note "$WB_TF: data_json references file(\"$wb_file\") but it is missing or not valid JSON"
 		fi
 	fi
 fi
 
 # Quoted JSON string literal (single-line "..."), best-effort unescape via jq.
 if [ -z "$WB_JSON" ]; then
-	lit="$(grep -E 'serialized_data[[:space:]]*=[[:space:]]*"' "$WB_TF" | sed -E 's/^[[:space:]]*serialized_data[[:space:]]*=[[:space:]]*//' | head -n1 || true)"
+	lit="$(grep -E 'data_json[[:space:]]*=[[:space:]]*"' "$WB_TF" | sed -E 's/^[[:space:]]*data_json[[:space:]]*=[[:space:]]*//' | head -n1 || true)"
 	if [ -n "$lit" ]; then
 		if printf '%s' "$lit" | jq -e 'fromjson? | .' >"$extract_dir/lit.json" 2>/dev/null && [ -s "$extract_dir/lit.json" ]; then
 			WB_JSON="$extract_dir/lit.json"
-			ok "recovered serialized_data from quoted JSON string literal"
+			ok "recovered data_json from quoted JSON string literal"
 		fi
 	fi
 fi
 
 if [ -z "$WB_JSON" ]; then
-	note "$WB_TF: could not recover an inspectable Workbook JSON from serialized_data — KQL key/table/timespan legs cannot run (supply a heredoc or file(\"...json\") body)"
+	note "$WB_TF: could not recover an inspectable Workbook JSON from data_json — KQL key/table/timespan legs cannot run (supply a heredoc or file(\"...json\") body)"
 	echo
 	echo "trace dashboard-pack sensor FAILED (RED) — artifacts absent/incomplete"
 	exit 1

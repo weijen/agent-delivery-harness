@@ -81,9 +81,13 @@ _Last updated: 2026-07-05 (issue #113)._
   capture** — one real Copilot CLI session to measure whether a skill
   invocation surfaces as an observable tool call. The `TODO(human)` recipe +
   A/B/documented-gap decision live in `docs/runtime-adapters/github-copilot.skill-spike.md`.
-- **In flight:** #113 delivered by this branch — harness-quality workbook +
-  retention/PII spec + exporter value-caps/backstop hardening; workbook
-  `terraform apply` to the live sink is the one remaining post-merge step.
+- **In flight:** post-#113 hotfix — the workbook resource argument was
+  `serialized_data` (wrong: fails `terraform validate`); corrected to
+  `data_json`. The workbook is now DEPLOYED to the live sink (apply: 1 added,
+  0 changed). `test_trace_dashboard_pack.sh` now grep-asserts `data_json` so
+  CI (which has no Azure provider to run `terraform validate`) catches this
+  schema class. Lesson: `terraform fmt` checks syntax, not provider schema —
+  a fmt-clean `.tf` can still fail at apply.
 
 ---
 
