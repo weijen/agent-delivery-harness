@@ -17,10 +17,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Check shell syntax
-        run: bash -n scripts/*.sh tests/evals/bin/*.sh
+        run: bash -n scripts/*.sh tests/scripts/lib/*.sh tests/evals/bin/*.sh
 
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/meta/*.sh profiles/*.profile.sh tests/evals/bin/*.sh
+        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/scripts/lib/*.sh tests/meta/*.sh profiles/*.profile.sh tests/evals/bin/*.sh
 
       - name: Validate customization frontmatter
         shell: bash
