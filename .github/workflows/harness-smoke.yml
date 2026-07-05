@@ -64,3 +64,7 @@ jobs:
             echo "One or more harness sensors failed." >&2
           fi
           exit "$rc"
+
+      - name: Run L0 suite gate
+        shell: bash
+        run: bash tests/evals/bin/run-l0-suite.sh
