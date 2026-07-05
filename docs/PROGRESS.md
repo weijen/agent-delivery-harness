@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #114)._
+_Last updated: 2026-07-05 (issue #112)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-05 (issue #114)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 78 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 82 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,20 +66,36 @@ _Last updated: 2026-07-05 (issue #114)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing remote-monitoring phase (open: #112, #113):**
-  OTLP/Azure Monitor exporter (#112, unblocked — the #115 sink Terraform
-  is merged), dashboard + retention/PII spec (#113, depends on #112).
-  Core-workstream follow-ups still recorded: trace-gate promotion flag;
-  trace-summary v1.x for review-verdict/per-feature metrics; VS Code
-  Copilot token telemetry when a source appears (#114 honest gap).
-- **In flight:** #114 delivered by this branch — GitHub Copilot becomes
-  the primary runtime adapter target.
+- **Deep-tracing remote-monitoring phase (open: #113):** dashboard +
+  retention/PII spec (#113, unblocked — the #112 exporter is merged and
+  live-smoke-verified against the real sink). #113 also inherits the #112
+  review carry-overs: value-length/charset caps on allowlisted string
+  fields, and broadening the redaction backstop (InstrumentationKey=/sk-
+  shapes). Core-workstream follow-ups still recorded: trace-gate promotion
+  flag; trace-summary v1.x; VS Code Copilot token telemetry when a source
+  appears.
+- **In flight:** #112 delivered by this branch — telemetry now reaches
+  Azure Application Insights.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#112 — OTLP / Azure Monitor exporter adapter.**
+  `scripts/trace-export.sh` ships a completed trace to Application
+  Insights via the Track API (honest framing: App-Insights-native
+  envelopes carrying OTel attribute names, not wire-OTLP — native OTLP
+  would need a DCE/DCR + Entra resource). Opt-in (`TRACE_EXPORT_OTLP=1` +
+  env connection string from the #115 Terraform output), zero core
+  coupling, deny-by-default allowlist (free-text/path fields excluded
+  byte-absent), fail-closed redaction gates (input validate-trace pass
+  with invalid_json-only tolerance + staged-envelope audit with a backstop
+  independent of trace_redact), and a `--dry-run-to-file` CI seam so no
+  test touches the network. The instrumentation key never reaches process
+  argv or logs; staging is mode-700. Passed a dedicated security review
+  (0 blocking). Live smoke: issue-96's 39 spans shipped 39/39 accepted,
+  verified arriving in the real sink via KQL, sliceable by `harness.version`.
 - **#114 — GitHub Copilot primary runtime adapter.**
   The spike overturned the issue premise: Copilot now ships lifecycle
   hooks on three surfaces (CLI, VS Code agent mode Preview with
