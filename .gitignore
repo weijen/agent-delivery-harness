@@ -78,6 +78,10 @@ override.tf.json
 data/synthetic/
 data/raw-video/
 
+# Local runtime trace-hook config (opt-in per-developer; a tracked hook file
+# would auto-apply to everyone cloning the repo — see docs/runtime-adapters/).
+.github/hooks/
+
 # azd / Azure environment (subscription/tenant/object ids — never commit)
 .azure/
 
