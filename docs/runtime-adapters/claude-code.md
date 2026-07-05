@@ -1,4 +1,9 @@
-# Claude Code runtime adapter (opt-in)
+# Claude Code runtime adapter (opt-in, reference example)
+
+> **Reference example.** This document is the labeled reference example of
+> the runtime-adapter pattern. The repository's **primary runtime target is
+> GitHub Copilot** — see [github-copilot.md](github-copilot.md) for the
+> primary adapter guide, which follows the contract pinned here.
 
 The harness core is runtime-agnostic: its lifecycle scripts emit `agent` and
 `lifecycle` spans to the per-issue `trace.jsonl` on their own. Tool latency,
@@ -110,8 +115,8 @@ corrupt transcript yields no token claims rather than possibly wrong ones.
 
 ## The adapter pattern for other runtimes
 
-A future adapter for another runtime (for example a GitHub Copilot adapter)
-should follow the same contract this one pins:
+An adapter for another runtime — the [GitHub Copilot adapter](github-copilot.md)
+is the first — should follow the same contract this one pins:
 
 - **Emit through `trace-lib.sh`** — source it and call `trace_span` so issue
   resolution, main-root pinning, schema stamping, and redaction stay uniform.

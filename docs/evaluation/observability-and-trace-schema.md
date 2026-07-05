@@ -49,9 +49,12 @@ Model the run as a tree of spans:
   [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
 
 Tool and model spans originate inside the agent runtime, so they are supplied
-by the optional runtime adapters under
-[docs/runtime-adapters/](../runtime-adapters/claude-code.md); without an
-adapter the trace carries agent and lifecycle spans only.
+by the optional runtime adapters under `docs/runtime-adapters/` — GitHub
+Copilot is the primary runtime target
+([runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md)),
+with [runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) as
+the labeled reference example; without an adapter the trace carries agent and
+lifecycle spans only.
 
 ## Mandatory Common Fields
 
