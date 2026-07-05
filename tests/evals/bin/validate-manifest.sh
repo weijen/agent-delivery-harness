@@ -12,13 +12,18 @@
 #   * `boundary` is one of: script-lifecycle, skill-trigger, skill-artifact,
 #     skill-behavior.
 #   * `blocking` is a JSON boolean.
-#   * `fixture` is a oneOf — generated (declares `builder`) XOR static
-#     (declares `path`). Declaring neither shape, or both, is invalid.
+#   * `fixture` is an object whose oneOf is keyed by `type`: a generated fixture
+#     declares `type:"generated"` + `builder` (and forbids `path`); a static
+#     fixture declares `type:"static"` + `path` (and forbids `builder`). A
+#     missing `type`, a `type` outside {generated, static}, a type/field
+#     mismatch, declaring neither shape, or declaring both is invalid. A
+#     non-object `fixture` is rejected cleanly, never a raw jq crash.
 #   * Optional fields (trials, threshold, source_dataset, contract_refs) are
 #     accepted when present; unknown optionals are not rejected.
 #
 # Usage: validate-manifest.sh <manifest-path>
-# Exit codes: 0 valid manifest · 1 invalid manifest / usage / missing jq.
+# Exit codes: 0 valid manifest · 1 invalid manifest (or missing jq) · 2
+#            usage/argc error.
 
 set -euo pipefail
 
@@ -78,14 +83,42 @@ if [ "$(jq -r '.blocking | type' "$MANIFEST")" != "boolean" ]; then
   reject "blocking must be a JSON boolean"
 fi
 
-# fixture oneOf: generated (builder) XOR static (path).
+# fixture must be an object before we index into it — guard a bare scalar or
+# array so jq never bubbles a raw "Cannot index" crash out under set -euo
+# pipefail.
+fixture_kind="$(jq -r '.fixture | type' "$MANIFEST")"
+if [ "$fixture_kind" != "object" ]; then
+  reject "fixture must be an object; got ${fixture_kind}"
+fi
+
+# fixture oneOf keyed by `.fixture.type`: generated requires builder and forbids
+# path; static requires path and forbids builder. Missing/bogus type or a
+# type/field mismatch is invalid. Retains the neither/both rejection: a fixture
+# declaring neither shape has no type, and a generated/static fixture carrying
+# the opposite field is caught by the forbid rules.
+fixture_type="$(jq -r '.fixture.type // empty' "$MANIFEST")"
 has_builder="$(jq '(.fixture.builder != null)' "$MANIFEST")"
 has_path="$(jq '(.fixture.path != null)' "$MANIFEST")"
-if [ "$has_builder" = "true" ] && [ "$has_path" = "true" ]; then
-  reject "fixture must declare exactly one shape: generated (builder) XOR static (path); got both"
-elif [ "$has_builder" != "true" ] && [ "$has_path" != "true" ]; then
-  reject "fixture must declare exactly one shape: generated (builder) XOR static (path); got neither"
-fi
+case "$fixture_type" in
+  generated)
+    [ "$has_builder" = "true" ] \
+      || reject "fixture.type generated requires 'builder'"
+    [ "$has_path" != "true" ] \
+      || reject "fixture.type generated forbids 'path'"
+    ;;
+  static)
+    [ "$has_path" = "true" ] \
+      || reject "fixture.type static requires 'path'"
+    [ "$has_builder" != "true" ] \
+      || reject "fixture.type static forbids 'builder'"
+    ;;
+  "")
+    reject "fixture must declare a type (generated or static)"
+    ;;
+  *)
+    reject "fixture.type must be one of generated, static; got '${fixture_type}'"
+    ;;
+esac
 
 printf 'valid_manifest: %s\n' "$(jq -r '.id' "$MANIFEST")"
 exit 0

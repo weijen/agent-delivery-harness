@@ -10,8 +10,12 @@
 #   * `boundary` is one of: script-lifecycle, skill-trigger, skill-artifact,
 #     skill-behavior.
 #   * `blocking` is a JSON boolean.
-#   * `fixture` is a oneOf — EITHER generated (declares `builder`) XOR static
-#     (declares `path`). Declaring neither shape, or both, is invalid.
+#   * `fixture` is a oneOf keyed by `type`: a generated fixture declares
+#     `type:"generated"` AND `builder`; a static fixture declares
+#     `type:"static"` AND `path`. Missing `type`, a bogus `type`, a type/field
+#     mismatch (e.g. static+builder or generated+path), declaring neither
+#     shape, or declaring both is invalid. A non-object `fixture` (a bare
+#     scalar) is rejected cleanly as invalid_manifest — never a raw jq crash.
 #   * A fully valid manifest exits 0.
 #   * On ANY violation the validator exits NON-ZERO and prints, to stderr, the
 #     status token `invalid_manifest` plus a SPECIFIC reason naming the
@@ -105,6 +109,32 @@ FIXTURE_BOTH="${TMP_DIR}/fixture-both.json"
 jq '.fixture = {type: "generated", builder: "tests/scripts/test_review_gate.sh", path: "tests/evals/fixtures/scripts/review-gate/"}' \
   "$BASE" > "$FIXTURE_BOTH"
 
+# `fixture` MISSING `type`: drop the discriminator, keep `builder`. Per spec a
+# fixture must declare its `type`; builder-presence alone is not enough.
+FIXTURE_NO_TYPE="${TMP_DIR}/fixture-no-type.json"
+jq 'del(.fixture.type)' "$BASE" > "$FIXTURE_NO_TYPE"
+
+# `fixture` type/field MISMATCH — static type carrying the generated field:
+# flip `type` to static while `builder` remains. static must carry `path`.
+FIXTURE_STATIC_BUILDER="${TMP_DIR}/fixture-static-builder.json"
+jq '.fixture.type = "static"' "$BASE" > "$FIXTURE_STATIC_BUILDER"
+
+# `fixture` type/field MISMATCH — generated type carrying the static field:
+# generated must carry `builder`, but this one declares `path`.
+FIXTURE_GENERATED_PATH="${TMP_DIR}/fixture-generated-path.json"
+jq '.fixture = {type: "generated", path: "tests/evals/fixtures/scripts/review-gate/"}' \
+  "$BASE" > "$FIXTURE_GENERATED_PATH"
+
+# `fixture` with a bogus `type` value outside the closed {generated, static} set.
+FIXTURE_BAD_TYPE="${TMP_DIR}/fixture-bad-type.json"
+jq '.fixture.type = "typo"' "$BASE" > "$FIXTURE_BAD_TYPE"
+
+# `fixture` set to a NON-OBJECT scalar: indexing `.fixture.builder` on a string
+# must not bubble a raw jq crash out under set -euo pipefail; it must be a clean
+# invalid_manifest rejection.
+FIXTURE_SCALAR="${TMP_DIR}/fixture-scalar.json"
+jq '.fixture = "somestring"' "$BASE" > "$FIXTURE_SCALAR"
+
 # Malformed JSON: not parseable at all (written directly, not via jq).
 MALFORMED="${TMP_DIR}/malformed.json"
 printf '{ "id": "broken", this is not json,,, \n' > "$MALFORMED"
@@ -144,6 +174,18 @@ assert_invalid() {
   fi
 }
 
+# Like assert_invalid, but ALSO asserts the reject was clean: the validator must
+# surface its own invalid_manifest status, not leak a raw `jq: error` stack
+# trace bubbling out under set -euo pipefail. Relies on ERR still holding the
+# just-run stderr from the assert_invalid call above.
+assert_invalid_clean() {
+  local label="$1" manifest="$2" reason="$3"
+  assert_invalid "$label" "$manifest" "$reason"
+  if grep -Eqi 'jq: error|cannot index|error \(at ' "$ERR"; then
+    fail "${label}: validator leaked a raw jq error instead of a clean invalid_manifest reason; got: $(cat "$ERR")"
+  fi
+}
+
 # --- Cases ---------------------------------------------------------------------
 assert_valid   "valid/generated-fixture"   "$BASE"
 assert_valid   "valid/static-fixture"      "$STATIC_VALID"
@@ -153,6 +195,17 @@ assert_invalid "fixture-neither-shape"     "$FIXTURE_NEITHER"  "fixture"
 assert_invalid "fixture-both-shapes"       "$FIXTURE_BOTH"     "fixture"
 assert_invalid "malformed-json"            "$MALFORMED"        ""
 
+# fixture.type discipline: the oneOf is keyed by `type`, not by builder/path
+# presence alone. Missing type, a bogus type, and either type/field mismatch
+# must all be rejected naming `type`.
+assert_invalid "fixture-missing-type"      "$FIXTURE_NO_TYPE"        "type"
+assert_invalid "fixture-static-with-builder" "$FIXTURE_STATIC_BUILDER" "type"
+assert_invalid "fixture-generated-with-path" "$FIXTURE_GENERATED_PATH" "type"
+assert_invalid "fixture-bogus-type"        "$FIXTURE_BAD_TYPE"       "type"
+
+# Non-object fixture: rejected cleanly, no raw jq crash leaking through.
+assert_invalid_clean "fixture-non-object-scalar" "$FIXTURE_SCALAR"   "fixture"
+
 # --- Verdict -------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
   printf 'FAIL: %d manifest-validator assertion(s) regressed for tests/evals/bin/validate-manifest.sh\n' \
@@ -160,4 +213,4 @@ if [ "$fails" -ne 0 ]; then
   exit 1
 fi
 
-printf 'PASS: manifest validator honors the schema contract across all 7 cases\n'
+printf 'PASS: manifest validator honors the schema contract across all 12 cases\n'
