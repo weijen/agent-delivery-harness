@@ -78,6 +78,7 @@ grader_cmd="$(mf '.grader.command')"
 # --- Grade the case ------------------------------------------------------------
 status=""
 failure_type_json="null"
+skip_reason_json="null"
 declare -a evidence=()
 duration_ms=0
 
@@ -87,19 +88,31 @@ if [ ! -f "$MANIFEST" ] || ! "$VALIDATOR" "$MANIFEST" >/dev/null 2>&1; then
   status="invalid_manifest"
   evidence=("manifest failed schema validation")
 else
-  start="$(date +%s)"
-  rc=0
-  bash -c "$grader_cmd" >/dev/null 2>/dev/null || rc=$?
-  end="$(date +%s)"
-  duration_ms=$(( (end - start) * 1000 ))
-
-  if [ "$rc" -eq 0 ]; then
-    status="pass"
-    evidence=("grader command exited 0")
+  # First token of grader.command = the executable the grader needs. If it does
+  # not resolve on PATH the eval dependency is unavailable, so the case could
+  # not be run to a target verdict: classify it as an environment problem
+  # (not_run / environment_missing) and do NOT execute the missing command.
+  grader_bin="${grader_cmd%% *}"
+  if [ -n "$grader_bin" ] && ! command -v "$grader_bin" >/dev/null 2>&1; then
+    status="not_run"
+    failure_type_json='"environment_missing"'
+    skip_reason_json="$(printf '%s' "grader executable not found: ${grader_bin}" | jq -R .)"
+    evidence=("grader executable '${grader_bin}' not found on PATH")
   else
-    status="fail"
-    failure_type_json='"target_failure"'
-    evidence=("grader command exited ${rc}")
+    start="$(date +%s)"
+    rc=0
+    bash -c "$grader_cmd" >/dev/null 2>/dev/null || rc=$?
+    end="$(date +%s)"
+    duration_ms=$(( (end - start) * 1000 ))
+
+    if [ "$rc" -eq 0 ]; then
+      status="pass"
+      evidence=("grader command exited 0")
+    else
+      status="fail"
+      failure_type_json='"target_failure"'
+      evidence=("grader command exited ${rc}")
+    fi
   fi
 fi
 
@@ -135,6 +148,7 @@ scorecard="$(jq -n \
   --argjson trials 1 \
   --argjson duration_ms "$duration_ms" \
   --argjson failure_type "$failure_type_json" \
+  --argjson skip_reason "$skip_reason_json" \
   --argjson evidence "$evidence_json" \
   '
   def orNull($s): if ($s == "") then null else $s end;
@@ -181,7 +195,7 @@ scorecard="$(jq -n \
         ),
         trials: $trials,
         duration_ms: $duration_ms,
-        skip_reason: null,
+        skip_reason: $skip_reason,
         failure_type: $failure_type,
         evidence: $evidence
       }
@@ -190,7 +204,7 @@ scorecard="$(jq -n \
       total_cases: 1,
       passed: (if $passed then 1 else 0 end),
       failed: (if $status == "fail" then 1 else 0 end),
-      skipped: 0,
+      skipped: (if $status == "not_run" then 1 else 0 end),
       false_positive: 0,
       false_negative: 0
     }
