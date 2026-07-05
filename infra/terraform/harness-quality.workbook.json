@@ -1,0 +1,131 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Harness Quality Workbook\n\nCross-run quality view for the agent-delivery-harness, keyed on customDimensions['harness.version']. Every panel scopes time via the {TimeRange} parameter. Panels read the App Insights table that matches the exporter span mapping: tool/lifecycle spans to dependencies, agent/model spans to customEvents. See docs/evaluation/dashboards/README.md for the panel to contract-field map and honest-metric caveats."
+      },
+      "name": "header"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "time-range",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 }
+              ]
+            }
+          }
+        ]
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), outcome = tostring(customDimensions['harness.outcome']), step = tostring(customDimensions['harness.lifecycle_step']) | where step == 'finish' | summarize passed = countif(outcome == 'pass'), runs = count() by hv | extend pass_rate = todouble(passed) / todouble(runs) | project hv, runs, passed, pass_rate | order by hv asc",
+        "size": 0,
+        "title": "Outcome / pass rate by harness.version",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "pass-rate"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), step = tostring(customDimensions['harness.lifecycle_step']), feature = tostring(customDimensions['harness.feature_id']) | where step in ('green_handback', 'red_handback') | summarize greens = countif(step == 'green_handback'), reds_after = countif(step == 'red_handback') by hv, feature | summarize free = countif(greens > 0 and reds_after == 0), of = count() by hv | extend red_reentry_free_rate = todouble(free) / todouble(of) | project hv, free, of, red_reentry_free_rate | order by hv asc",
+        "size": 0,
+        "title": "red_reentry_free_rate by harness.version",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "red-reentry-free-rate"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), step = tostring(customDimensions['harness.lifecycle_step']), feature = tostring(customDimensions['harness.feature_id']) | where step == 'deviation' | summarize deviations = count(), features = dcount(feature) by hv | order by hv asc",
+        "size": 0,
+        "title": "Deviation rate by harness.version",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "deviation-rate"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), tool = tostring(customDimensions['gen_ai.tool.name']), status = tostring(customDimensions['harness.exit_status']) | where isnotempty(tool) | summarize calls = count(), fail_calls = countif(status != '0' and isnotempty(status)) by hv, tool | order by calls desc",
+        "size": 0,
+        "title": "Tool-call volume (dependencies)",
+        "queryType": 0,
+        "visualization": "barchart"
+      },
+      "name": "tool-call-volume"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), step = tostring(customDimensions['harness.lifecycle_step']), dur = todouble(customDimensions['harness.duration_ms']) | where isnotempty(step) and isnotnull(dur) | summarize wall_clock_ms = sum(dur) by hv, step | order by wall_clock_ms desc",
+        "size": 0,
+        "title": "Wall-clock per lifecycle_step (dependencies duration)",
+        "queryType": 0,
+        "visualization": "barchart"
+      },
+      "name": "wall-clock-per-step"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), model = tostring(customDimensions['gen_ai.request.model']) | extend input_tokens = toreal(measurements['gen_ai.usage.input_tokens']), output_tokens = toreal(measurements['gen_ai.usage.output_tokens']) | summarize input_tokens = sum(input_tokens), output_tokens = sum(output_tokens), runs_with_tokens = countif(isnotnull(input_tokens)), runs = count() by hv, model | extend tokens_status = iff(runs_with_tokens == 0, 'unavailable-until-issue-96', 'measured') | order by hv asc",
+        "size": 0,
+        "title": "Token / cost (customEvents measurements) - unavailable until #96",
+        "queryType": 0,
+        "visualization": "table"
+      },
+      "name": "token-cost"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies | where {TimeRange} | extend hv = tostring(customDimensions['harness.version']), mode = tostring(customDimensions['harness.failure_mode']), outcome = tostring(customDimensions['harness.outcome']) | where outcome == 'fail' and isnotempty(mode) | summarize failures = count() by hv, mode | order by failures desc",
+        "size": 0,
+        "title": "Failure-mode view (harness.failure_mode)",
+        "queryType": 0,
+        "visualization": "barchart"
+      },
+      "name": "failure-mode"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Deferred metrics - explicitly UNAVAILABLE\n\nThe following contract-deferred metrics are NOT charted because trace-summary.v1.json does not carry them. They are shown here as explicitly unavailable / deferred / n/a, never fabricated:\n\n- Review-blocking findings per issue: DEFERRED / unavailable / n/a - trace-summary v1 carries no per-verdict field (per-stage handback counts are only a labeled proxy). Needs an additive trace-summary v1.x extension.\n- Per-feature attribution of tool calls: DEFERRED / unavailable / n/a - v1 tools[] has no feature dimension. Needs an additive trace-summary v1.x extension.\n\nThe red_reentry_free_rate panel above measures no-red-after-green re-entry. The token/cost panel is likewise unavailable-until-#96 and renders an honest null (never a fabricated 0) when no run carried gen_ai.usage.* numbers."
+      },
+      "name": "deferred-metrics"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
