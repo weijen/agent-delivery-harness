@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #115)._
+_Last updated: 2026-07-05 (issue #114)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-05 (issue #115)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 74 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 78 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -66,20 +66,33 @@ _Last updated: 2026-07-05 (issue #115)._
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
   [docs/evaluation/](evaluation/).
-- **Deep-tracing remote-monitoring phase (open: #112, #113, #114):**
-  OTLP/Azure Monitor exporter (#112, unblocked by this branch), dashboard +
-  retention/PII spec (#113, depends on #112), GitHub Copilot primary
-  runtime adapter (#114, in flight on its own branch). Core-workstream
-  follow-ups still recorded: trace-gate promotion flag; trace-summary
-  v1.x for review-verdict/per-feature metrics.
-- **In flight:** #115 delivered by this branch — the App Insights sink
-  Terraform that unblocks #112.
+- **Deep-tracing remote-monitoring phase (open: #112, #113):**
+  OTLP/Azure Monitor exporter (#112, unblocked — the #115 sink Terraform
+  is merged), dashboard + retention/PII spec (#113, depends on #112).
+  Core-workstream follow-ups still recorded: trace-gate promotion flag;
+  trace-summary v1.x for review-verdict/per-feature metrics; VS Code
+  Copilot token telemetry when a source appears (#114 honest gap).
+- **In flight:** #114 delivered by this branch — GitHub Copilot becomes
+  the primary runtime adapter target.
 
 ---
 
 ## Delivered (newest first)
 
 ### Deep tracing
+- **#114 — GitHub Copilot primary runtime adapter.**
+  The spike overturned the issue premise: Copilot now ships lifecycle
+  hooks on three surfaces (CLI, VS Code agent mode Preview with
+  Claude-compatible payloads, cloud agent). `scripts/copilot-trace-hook.sh`
+  emits dual-dialect tool spans (object- and string-typed toolArgs,
+  redact-before-cap) and stop-event agent spans plus an all-or-nothing CLI
+  model span from the session events.jsonl (latest complete metrics wins;
+  internal-format caveat documented). Honest gaps declared, not papered
+  over: no correlation id so duration is omitted; VS Code tokens
+  unavailable in v1. preToolUse is never registered — on Copilot a
+  non-zero hook denies the tool call, so exit-0 containment is a safety
+  property (adversarially audited). github-copilot.md is the primary
+  guide; claude-code.md is reframed as the labeled reference example.
 - **#115 — Terraform for the Application Insights telemetry sink.**
   `infra/terraform/`: in-stack resource group + Log Analytics workspace +
   workspace-based Application Insights; retention/sampling/daily-cap as

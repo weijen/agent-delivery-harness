@@ -283,8 +283,10 @@ conventions (roles, lifecycle steps, deviation recording, token-usage omit-never
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
 Tool and model spans from an agent runtime (per-tool-call arguments, latency, token usage) are contributed by the
-optional runtime adapters under [docs/runtime-adapters/](runtime-adapters/claude-code.md); without one installed the
-trace simply lacks those spans and everything else is unchanged.
+optional runtime adapters under `docs/runtime-adapters/` — GitHub Copilot is the primary runtime target
+([runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md)), with the Claude Code adapter
+([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md)) kept as the labeled reference example of the
+pattern; without one installed the trace simply lacks those spans and everything else is unchanged.
 
 The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
