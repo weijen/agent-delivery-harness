@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #121, partial)._
+_Last updated: 2026-07-05 (issue #62)._
 
 ---
 
@@ -59,11 +59,11 @@ _Last updated: 2026-07-05 (issue #121, partial)._
 
 ## Next up
 
-- **L0/L1 evaluation workstream (open issues #62, #64–#69):** #61 (directory
-  contract + manifest schema + validator) and #63 (case-level TAP output for the
-  5 L0 sensors) are **delivered** (see below); next is
-  local runner + scorecard + redaction gate
-  (#62), L0 manifests + blocking CI gate
+- **L0/L1 evaluation workstream (open issues #64–#69):** #61 (directory
+  contract + manifest schema + validator), #63 (case-level TAP output for the
+  5 L0 sensors), and #62 (local runner + scorecard + fail-closed redaction gate)
+  are **delivered** (see below); next is
+  L0 manifests + blocking CI gate
   (#64), SKILL.md frontmatter lint (#65), skill description-discriminability
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
@@ -90,6 +90,25 @@ _Last updated: 2026-07-05 (issue #121, partial)._
 ## Delivered (newest first)
 
 ### L0/L1 evaluation
+- **#62 — local eval runner + case-level scorecard + fail-closed redaction gate.**
+  Added `tests/evals/bin/run-evals.sh`: validates a manifest (via #61's
+  `validate-manifest.sh`), runs its grader, and emits a schema-valid case-level
+  scorecard JSON to stdout (per docs/evaluation/l0-solution/spec.md § Scorecard
+  Schema) — reproducibility fields (commit_sha, manifest path/version,
+  runner_version, tool_versions), per-case row (status/failure_type/evidence/
+  observable_signal/blocking_decision/trials), and aggregates. Status mapping:
+  pass→pass, non-zero grader→fail+target_failure, invalid manifest→invalid_manifest,
+  missing grader dependency→not_run+environment_missing (command -v probe). A
+  fail-closed redaction gate captures grader evidence, scrubs it via `trace_redact`
+  plus a redactor-independent secret-shape backstop, and classifies a detected
+  secret as `redaction_failure` with zero raw-secret leak on stdout/stderr.
+  not_run/invalid_manifest/infrastructure_error de-escalate to
+  `blocking_decision:warn` (not a Tier A block). Sensors:
+  `test_run_evals_scorecard.sh` (21), `test_run_evals_not_run.sh` (6),
+  `test_run_evals_redaction.sh`. Consumed by #64 (wires the runner into CI).
+  Deferred MINORs: fixture_path/hash for static fixtures; env-identifier
+  detection (Tier B / #67); multi-token grader command parsing.
+
 - **#63 — case-level TAP output for the 5 L0 sensors.** Added a hand-rolled,
   dependency-free TAP emitter `tests/scripts/lib/tap.sh` (bash-3.2 compatible;
   `tap_ok`/`tap_not_ok`/`tap_is` emit one row per scenario and never `exit`;
