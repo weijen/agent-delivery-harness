@@ -16,10 +16,12 @@ for the shared eval schema and [research-notes.md](research-notes.md) for the
 external grounding behind these choices.
 
 For the first executable slice, read
-[l0-l1-solution/README.md](l0-l1-solution/README.md). It narrows the broad
-strategy in this directory into an L0/L1 architecture and specification with a
-determinism-based runtime split: deterministic Tier A checks in GitHub Actions
-CI, and model-driven Tier B checks on Azure.
+[l0-solution/README.md](l0-solution/README.md). It narrows the broad strategy in
+this directory into an L0 architecture and specification — plus the shared eval
+framework (manifest schema, runner, scorecard, and the determinism-based Tier A /
+Tier B runtime split) that later layers reuse. The skills layer builds on that
+framework in [l1-solution/README.md](l1-solution/README.md), which is kept
+separate because it is less settled than L0.
 
 ## Layer Map
 
@@ -61,7 +63,8 @@ and have their own pages below.
 | [evaluation-matrix.md](evaluation-matrix.md) | Cross-cutting | Shared eval schema and grader types |
 | [product-quality-rubric.md](product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
 | [research-notes.md](research-notes.md) | Cross-cutting | External grounding and open questions |
-| [l0-l1-solution/](l0-l1-solution/) | L0/L1 solution | Runnable architecture and spec for the first two layers |
+| [l0-solution/](l0-solution/) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
+| [l1-solution/](l1-solution/) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
 
 ## Scorecard Model
 

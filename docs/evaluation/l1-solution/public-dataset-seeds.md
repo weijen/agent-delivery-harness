@@ -1,21 +1,23 @@
-# Public Dataset Seeds For L0/L1 Evals
+# Public Dataset Seeds For L1 Evals
 
 ## Purpose
 
-This note records open-source datasets and benchmarks that can seed the first
-L0/L1 evaluation implementation. These sources are useful for fixture design,
+This note records open-source datasets and benchmarks that can seed the L1
+skills evaluation implementation. These sources are useful for fixture design,
 behavior probes, and shadow comparisons, but they do not replace this repo's own
 versioned regression fixtures.
 
-The L0/L1 solution still needs harness-specific manifests, fixtures, labels,
+The L1 solution still needs harness-specific manifests, fixtures, labels,
 observable signals, graders, and scorecards. Public datasets should be adapted
 into local fixtures under `tests/evals/` before they can participate in this
 repo's evaluation gates.
 
+L0 does not need a public dataset — its bootstrap inputs are the existing
+`tests/scripts/*.sh` sensors, wrapped in manifests. See
+[../l0-solution/README.md](../l0-solution/README.md).
+
 ## Immediate Finding
 
-- L0 does not need a public dataset. The current `tests/scripts/*.sh` sensors are
-  the bootstrap inputs and should be wrapped in manifests first.
 - L1 skill-trigger evals, especially `skill:code-review`, do not have a single
   ready-made public dataset. They need a harness-specific prompt dataset because
   the expected routing decision depends on this repo's skill descriptions and
@@ -32,7 +34,7 @@ repo's evaluation gates.
 | `openai/openai_humaneval` | Hugging Face `datasets` | MIT; 164 Python problems | Small code-correctness and tester fixtures | Useful for smoke-sized behavior seeds, but likely contaminated in model pretraining. Do not use as a sole gate. |
 | `princeton-nlp/SWE-bench_Lite` | Hugging Face `datasets` | Small subset of SWE-bench; about 300 issue/PR pairs | Outcome, subagent-role, and review-behavior seeds | Real GitHub issue style, but heavier than L1 trigger evals and not ideal for fast PR gates. |
 | `princeton-nlp/SWE-bench_Verified` | Hugging Face `datasets` | 500 human-validated SWE-bench samples | Higher-quality issue fixture seeds | Prefer over full SWE-bench when sampling realistic issue fixtures. Still requires local adaptation. |
-| `SWE-bench/SWE-bench` | Hugging Face `datasets` | Larger SWE-bench corpus | External capability comparison and later outcome evals | Too heavy for the first L0/L1 implementation slice. |
+| `SWE-bench/SWE-bench` | Hugging Face `datasets` | Larger SWE-bench corpus | External capability comparison and later outcome evals | Too heavy for the first L1 implementation slice. |
 
 Example loading commands:
 
@@ -53,13 +55,13 @@ swe_verified = load_dataset("princeton-nlp/SWE-bench_Verified", split="test")
 | CodeSearchNet | GitHub repository plus S3 downloads | Routing relevance, code/docstring relevance, judge-calibration seeds | The GitHub repo is archived but the dataset and human relevance judgments are public. The full corpus is large; use targeted subsets. |
 | AgentDojo | GitHub and `pip install agentdojo` | `security-audit` behavior, prompt-injection, tool-agent attack fixtures | Useful for adversarial skill behavior. Replace any risky payloads with synthetic markers before committing fixtures. |
 | InjecAgent | GitHub repository data files | Indirect prompt injection and data-stealing attack fixtures | Includes attacker cases, user cases, and generated test cases. Adapt only sanitized synthetic variants. |
-| Terminal-Bench | GitHub and `pip install terminal-bench` / `uv tool install terminal-bench` | Terminal-task and trajectory seeds | Better suited for later trajectory or outcome evals than the first L0/L1 gate. |
+| Terminal-Bench | GitHub and `pip install terminal-bench` / `uv tool install terminal-bench` | Terminal-task and trajectory seeds | Better suited for later trajectory or outcome evals than the first L1 gate. |
 | tau-bench / tau2 / tau3 | GitHub repositories | Tool-agent-user interaction and historical trajectory seeds | The original tau-bench README points users to newer tau2/tau3 tasks. Use for design ideas and later trajectory work. |
 
 ## Recommended First Slice
 
 1. Build the first `skill:code-review` trigger dataset manually with the strata
-   required by the L0/L1 spec: explicit positive, implicit positive, contextual
+   required by the L1 spec: explicit positive, implicit positive, contextual
    positive, negative control, and ambiguous cases.
 2. Sample 5-10 BigCodeBench rows as behavior-fixture seeds for code-review or
    tester-style checks.

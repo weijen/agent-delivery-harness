@@ -41,7 +41,7 @@
 # stable filename, idempotent whole-file overwrite, never append. The document
 # carries NO generation timestamp: a rerun over unchanged inputs is
 # byte-identical. Generated scorecards are local artifacts (gitignored) per
-# the l0-l1 spec; the directory is kept present via .gitkeep.
+# the l0 eval spec; the directory is kept present via .gitkeep.
 #
 # JSON-first architecture (house doctrine, mirrors trace-report.sh): a single
 # jq pass builds the scorecard object from the collected summaries; only the

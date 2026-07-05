@@ -55,7 +55,7 @@
 #      summaries_found 0) — reporting is not gating.
 #   6. Exit codes: 0 scorecard produced · 2 usage/environment error
 #      (e.g. --root pointing at a missing directory) · never 1.
-#   7. Git hygiene: generated scorecards are local-only (l0-l1 spec:
+#   7. Git hygiene: generated scorecards are local-only (l0 eval spec:
 #      "Generated scorecards are local artifacts and should not be
 #      committed"). Pinned via git check-ignore against the REAL repo:
 #      tests/evals/scorecards/trace-scorecard.json is ignored, while a
@@ -100,7 +100,7 @@ command -v jq >/dev/null 2>&1 \
 if git -C "$ROOT" check-ignore -q -- "$SCORECARD_REL"; then
   note "generated scorecard is gitignored (${SCORECARD_REL})"
 else
-  fail "git check-ignore says ${SCORECARD_REL} would be TRACKED — generated scorecards must never be committed (l0-l1 spec); add the ignore rule pair for tests/evals/scorecards/"
+  fail "git check-ignore says ${SCORECARD_REL} would be TRACKED — generated scorecards must never be committed (l0 eval spec); add the ignore rule pair for tests/evals/scorecards/"
 fi
 keeper=""
 if [ -f "${ROOT}/tests/evals/scorecards/.gitkeep" ]; then
