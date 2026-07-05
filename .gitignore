@@ -57,6 +57,19 @@ tests/evals/scorecards/*
 *.tfvars
 !*.tfvars.example
 crash.log
+crash.*.log
+# Local backend config (real subscription/storage ids) and plan files (plans
+# can embed sensitive values) — never committable under any conventional name.
+# No bare *.hcl glob here: .terraform.lock.hcl must stay committed.
+backend.hcl
+*.backend.hcl
+tfplan
+*.tfplan
+# Local-only override overlays.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
 
 # Local SQLite caches / sample data
 *.db

@@ -19,6 +19,19 @@ must_ignore=(
 	"infra/terraform/.terraform/providers/x"
 	"infra/terraform/terraform.tfstate"
 	"infra/terraform/dev.tfvars"
+	# Loop-2 security findings 1-3: the README workflow instructs creating
+	# local backend config (real subscription/storage identifiers) and plan
+	# files (can embed sensitive values) — both must be un-committable under
+	# any conventional naming.
+	"infra/terraform/backend.hcl"
+	"infra/terraform/prod.backend.hcl"
+	"infra/terraform/tfplan"
+	"infra/terraform/plan.tfplan"
+	# Canonical HashiCorp ignore set: crash logs dump state/env; override
+	# files are local-only experiment overlays.
+	"infra/terraform/crash.2024.log"
+	"infra/terraform/override.tf"
+	"infra/terraform/x_override.tf"
 )
 for p in "${must_ignore[@]}"; do
 	if ! git check-ignore -q -- "$p"; then

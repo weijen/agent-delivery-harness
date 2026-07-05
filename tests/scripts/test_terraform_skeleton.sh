@@ -101,6 +101,48 @@ if [ -f "$variables" ]; then
 		! var_block sampling_percentage | grep -Eq 'default[[:space:]]*=[[:space:]]*100\b'; then
 		note "$variables: sampling_percentage default must be 100 (plan pin)"
 	fi
+
+	# Loop-2 nit 4: every telemetry knob fails fast at plan time via a
+	# validation block. Bounds pinned: retention 30-730 (LAW limits),
+	# sampling 0-100, daily_cap_gb strictly > 0 — the workspace's -1
+	# "unlimited" sentinel is rejected by App Insights daily_data_cap_in_gb,
+	# so a shared knob must ban it.
+	for v in retention_in_days daily_cap_gb sampling_percentage; do
+		block="$(var_block "$v")"
+		if [ -z "$block" ]; then
+			continue # absence already reported above
+		fi
+		if ! printf '%s\n' "$block" | grep -Eq '^[[:space:]]*validation[[:space:]]*\{'; then
+			note "$variables: variable \"$v\" has no validation block (fail fast at plan time)"
+			continue
+		fi
+		# Bounds are asserted against the condition expression ONLY — the
+		# error_message prose echoes the numbers and would mask drift.
+		cond="$(printf '%s\n' "$block" | grep -E '^[[:space:]]*condition[[:space:]]*=' || true)"
+		case "$v" in
+		retention_in_days)
+			if ! printf '%s\n' "$cond" | grep -Eq '\b30\b'; then
+				note "$variables: retention_in_days validation condition must enforce the 30 lower bound"
+			fi
+			if ! printf '%s\n' "$cond" | grep -Eq '\b730\b'; then
+				note "$variables: retention_in_days validation condition must enforce the 730 upper bound"
+			fi
+			;;
+		sampling_percentage)
+			if ! printf '%s\n' "$cond" | grep -Eq '\b0\b'; then
+				note "$variables: sampling_percentage validation condition must enforce the 0 lower bound"
+			fi
+			if ! printf '%s\n' "$cond" | grep -Eq '\b100\b'; then
+				note "$variables: sampling_percentage validation condition must enforce the 100 upper bound"
+			fi
+			;;
+		daily_cap_gb)
+			if ! printf '%s\n' "$cond" | grep -Eq '>[[:space:]]*0\b'; then
+				note "$variables: daily_cap_gb validation condition must require > 0 (ban the -1 unlimited sentinel)"
+			fi
+			;;
+		esac
+	done
 fi
 
 # --- 5. No backend block committed anywhere in the stack ------------------------
