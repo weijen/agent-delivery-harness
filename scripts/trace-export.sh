@@ -1,21 +1,44 @@
 #!/usr/bin/env bash
 # trace-export.sh — opt-in trace exporter: projects a per-issue schema-v1
-# trace.jsonl onto Application Insights Track API JSON envelopes (issue
-# #112, feature trace-export-mapping-core, plan Phase 1).
+# trace.jsonl onto Application Insights Track API JSON envelopes and ships
+# them to the v2/track ingestion endpoint (issue #112; features
+# trace-export-mapping-core, trace-export-redaction-gate,
+# trace-export-transport — plan Phases 1–3).
 #
 # "App-Insights-native envelopes carrying OTel-conventional attribute
 # names": the allowlisted gen_ai.* / harness.* keys ride verbatim inside
 # each envelope's properties (→ customDimensions), so KQL can slice by
 # customDimensions["harness.version"] without a schema translation layer.
 #
-# THIS FEATURE covers mapping + gating + the --dry-run-to-file seam ONLY.
-# The redaction gate (validate-trace reuse + fixed-point output audit) is
-# feature 2 (trace-export-redaction-gate) — its seam is redaction_gate()
-# below, invoked on the STAGED output before anything leaves the staging
-# dir. Transport (connection-string parsing + curl POST to v2/track) is
-# feature 3 (trace-export-transport) — its seam is ship_envelopes(), which
-# currently refuses with a clear not-implemented notice. This script never
-# touches the network in feature-1 scope.
+# Fail-closed export gate (feature 2) — redaction_gate() runs on BOTH
+# delivery paths (dry-run is NOT a debugging bypass) before anything leaves
+# the staging dir:
+#   Gate 1 (input; plan D4 — one redaction policy, never a fork): the trace
+#     must pass validate-trace.sh, with ONE conductor-resolved tolerance:
+#     if ALL findings are invalid_json the export proceeds (those lines are
+#     already skip-and-counted by the mapper); ANY other violation class
+#     (redaction_leak, schema_violation, type_violation,
+#     failure_mode_violation, completeness, redaction_audit_error) → exit 1,
+#     nothing written anywhere.
+#   Gate 2 (output; sanitize-trace precedent): the staged envelope file must
+#     be a trace_redact fixed point, PLUS a HARDCODED secret-shape backstop
+#     (gh[pousr]_/github_pat_/AKIA) that does NOT depend on trace_redact
+#     working (a no-op redactor cannot blind it), PLUS a belt check that the
+#     four allowlist-excluded field names never appear. A broken or missing
+#     trace_redact fails closed (exit 1/2, nothing written). Gate failure
+#     messages never echo secret content.
+#
+# Transport (feature 3) — ship_envelopes(): parses
+# APPLICATIONINSIGHTS_CONNECTION_STRING (semicolon key=value pairs, any
+# order, trailing slash on the endpoint tolerated, extra fields ignored),
+# injects iKey into EVERY envelope, and makes ONE POST per trace (batch,
+# all-or-nothing — plan D2) to ${IngestionEndpoint%/}/v2/track with
+# Content-Type: application/json. The body reaches curl via @file ONLY:
+# the connection string, any InstrumentationKey= fragment, and the raw key
+# GUID never appear in curl argv or on stdout/stderr. Success requires
+# HTTP 200 AND itemsAccepted == itemsReceived == sent; partial accept
+# reports both counts and exits 1; a non-200 status outranks a response
+# body that claims acceptance; a curl transport error exits 1.
 #
 # Opt-in gating (plan Gate 0; decoupling doctrine — never wired into the
 # lifecycle scripts, invocation is manual or via a user-side hook):
@@ -69,6 +92,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
+# trace_redact is the Gate 2 fixed-point oracle (plan D4): reuse the library
+# filter, never fork its pattern list. Sourced conditionally; the gate fails
+# closed (exit 2) if the function is missing when the gate runs.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+
 usage() {
   {
     echo "usage: ./scripts/trace-export.sh <issue-number|trace-path> [--dry-run-to-file <out.json>]"
@@ -81,26 +112,156 @@ usage() {
   } >&2
 }
 
-# --- Seam: redaction gate (feature 2, trace-export-redaction-gate) -----------
-# Runs on the STAGED output file before anything leaves the staging dir —
-# feature 2 replaces this body with the validate-trace input gate plus the
-# sanitize-trace-style fixed-point/backstop audit of the serialized
-# envelopes (plan Gate 1 + Gate 2). Feature-1 scope: pass-through.
+# --- Gate (feature 2, trace-export-redaction-gate) -----------------------------
+# Fail-closed export gate: runs on BOTH delivery paths before anything
+# leaves the staging dir. Return codes: 0 pass · 1 gate violation · 2 the
+# gate itself could not run (both mean NOTHING is written). Failure
+# messages carry rule/class names and counts only — never line content or
+# attribute values (validate-trace doctrine: findings must not re-leak
+# what redaction keeps out of circulation).
 redaction_gate() { # redaction_gate <staged-envelope-file>
   local staged="$1"
-  [ -f "$staged" ] || return 1
+  local validator="${SCRIPT_DIR}/validate-trace.sh"
+  local vout="" vrc=0
+
+  if [ ! -f "$staged" ]; then
+    red "error: export gate: staged envelope file is missing — refusing (nothing written)" >&2
+    return 2
+  fi
+
+  # Gate 1 — input gate: validate-trace.sh is the single validation +
+  # redaction-audit authority (plan D4). Conductor-resolved tolerance: a
+  # trace whose ONLY findings are invalid_json still exports (those lines
+  # are already skip-and-counted by the mapper); any other violation class
+  # is disqualifying.
+  if [ ! -f "$validator" ]; then
+    red "error: export gate: scripts/validate-trace.sh not found — refusing to export unvalidated spans (nothing written)" >&2
+    return 2
+  fi
+  vout="$("$validator" "$TRACE_FILE" 2>&1)" || vrc=$?
+  if [ "$vrc" -eq 2 ]; then
+    red "error: export gate: validate-trace.sh could not run (exit 2) — refusing (nothing written)" >&2
+    return 2
+  elif [ "$vrc" -ne 0 ]; then
+    if printf '%s\n' "$vout" | grep -e '^VIOLATION' | grep -vq 'invalid_json$'; then
+      # Relay the validator's findings (rule names + line numbers only —
+      # validate-trace never echoes values, so this cannot re-leak).
+      printf '%s\n' "$vout" | grep -e '^VIOLATION' | grep -v 'invalid_json$' >&2
+      red "error: export gate: the input trace fails validate-trace.sh with disqualifying violation class(es) — nothing written" >&2
+      return 1
+    fi
+    # invalid_json-only: tolerated (skip-and-count already reported).
+  fi
+
+  # Gate 2 — output audit on the STAGED envelopes (sanitize-trace
+  # precedent): nothing leaves staging unless the serialized output is
+  # provably clean.
+  # 2a. trace_redact fixed point — a second pass must change nothing. A
+  #     missing or failing redactor fails CLOSED: "the auditor broke" is
+  #     never "ship anyway".
+  if ! declare -F trace_redact >/dev/null 2>&1; then
+    red "error: export gate: scripts/trace-lib.sh (trace_redact) is unavailable — failing closed (nothing written)" >&2
+    return 2
+  fi
+  local audited="${TMP_DIR}/envelopes.redacted.json"
+  if ! trace_redact < "$staged" > "$audited" 2>/dev/null; then
+    red "error: export gate: trace_redact failed at runtime over the staged envelopes — failing closed (nothing written)" >&2
+    return 1
+  fi
+  if ! cmp -s "$staged" "$audited"; then
+    red "error: export gate: staged envelopes are not a trace_redact fixed point — secret-shaped content would ship; refusing (nothing written)" >&2
+    return 1
+  fi
+  # 2b. HARDCODED secret-shape backstop, deliberately INDEPENDENT of
+  #     trace_redact (a broken/no-op redactor cannot blind it). Audit-only:
+  #     the redaction POLICY stays trace_redact's alone.
+  if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}' "$staged"; then
+    red "error: export gate: a well-known secret shape survived into the staged envelopes (hardcoded backstop) — refusing (nothing written)" >&2
+    return 1
+  fi
+  # 2c. Belt: the four allowlist-excluded field names must never appear in
+  #     the output (the allowlist projection already drops them; this
+  #     catches a projection regression before it ships).
+  local excluded
+  for excluded in 'harness.args_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
+    if grep -qF -- "$excluded" "$staged"; then
+      red "error: export gate: excluded field name '${excluded}' appeared in the staged envelopes — refusing (nothing written)" >&2
+      return 1
+    fi
+  done
   return 0
 }
 
-# --- Seam: transport (feature 3, trace-export-transport) ---------------------
-# Feature 3 replaces this body with connection-string parsing (regional
-# IngestionEndpoint + InstrumentationKey), iKey injection, and the curl
-# POST to ${IngestionEndpoint%/}/v2/track with itemsReceived==itemsAccepted
-# verification. Until then the ship path refuses loudly — it must never
-# pretend spans were shipped.
+# --- Transport (feature 3, trace-export-transport) ------------------------------
+# ONE POST per trace (batch, all-or-nothing — plan D2) to the Track API.
+# Secrets never in argv: the iKey rides only inside the body file
+# (--data-binary @file); the URL is the only connection-string-derived
+# argv content. Messages never echo the connection string or the key GUID.
 ship_envelopes() { # ship_envelopes <staged-envelope-file>
-  red "error: the ship path (curl POST to v2/track) is not implemented yet — feature trace-export-transport (issue #112 Phase 3); use --dry-run-to-file <out.json> for the envelope projection" >&2
-  exit 2
+  local staged="$1"
+  local ikey="" endpoint="" part url
+  local body="${TMP_DIR}/track-body.json"
+  local resp="${TMP_DIR}/track-response.json"
+  local http_code="" curl_rc=0 received="" accepted=""
+
+  if ! command -v curl >/dev/null 2>&1; then
+    red "error: curl is required to ship envelopes to the Track API" >&2
+    exit 2
+  fi
+
+  # Connection-string parsing: semicolon-separated key=value pairs, any
+  # order, extra fields ignored, trailing endpoint slash tolerated.
+  local -a cs_parts=()
+  IFS=';' read -r -a cs_parts <<< "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+  for part in ${cs_parts[@]+"${cs_parts[@]}"}; do
+    case "$part" in
+      InstrumentationKey=*) ikey="${part#InstrumentationKey=}" ;;
+      IngestionEndpoint=*)  endpoint="${part#IngestionEndpoint=}" ;;
+    esac
+  done
+  if [ -z "$ikey" ] || [ -z "$endpoint" ]; then
+    red "error: APPLICATIONINSIGHTS_CONNECTION_STRING is missing InstrumentationKey and/or IngestionEndpoint (value not echoed)" >&2
+    exit 2
+  fi
+  url="${endpoint%/}/v2/track"
+
+  # iKey injection at ship time: every envelope in the posted body carries
+  # the parsed key (dry-run output never does — feature-1 pin).
+  if ! grep -v '^//' "$staged" | jq --arg ikey "$ikey" 'map(. + { iKey: $ikey })' > "$body"; then
+    red "error: failed to build the Track API request body" >&2
+    exit 2
+  fi
+
+  # ONE POST; body via @file only. -w captures the HTTP status; the
+  # response body lands in a temp file, never on the terminal.
+  http_code="$(curl -sS -X POST \
+    -H 'Content-Type: application/json' \
+    --data-binary "@${body}" \
+    -o "$resp" \
+    -w '%{http_code}' \
+    "$url")" || curl_rc=$?
+  if [ "$curl_rc" -ne 0 ]; then
+    red "error: transport failure — curl exited ${curl_rc}; nothing confirmed shipped" >&2
+    exit 1
+  fi
+  # The status line outranks the body: a non-200 fails even if the body
+  # claims acceptance.
+  if [ "$http_code" != "200" ]; then
+    red "error: Track API returned HTTP ${http_code} (expected 200) — export failed" >&2
+    exit 1
+  fi
+
+  received="$(jq -r '.itemsReceived // empty' "$resp" 2>/dev/null)" || received=""
+  accepted="$(jq -r '.itemsAccepted // empty' "$resp" 2>/dev/null)" || accepted=""
+  if ! [[ "$received" =~ ^[0-9]+$ && "$accepted" =~ ^[0-9]+$ ]]; then
+    red "error: Track API response was unreadable (no itemsReceived/itemsAccepted) — cannot confirm ingestion" >&2
+    exit 1
+  fi
+  if [ "$accepted" != "$received" ] || [ "$accepted" != "$count" ]; then
+    red "error: Track API accepted ${accepted} of ${received} received (${count} sent) — partial accept, export failed" >&2
+    exit 1
+  fi
+  green "shipped: ${accepted} envelope(s) accepted by the Track API (${count} sent, HTTP 200)"
 }
 
 # --- Argument parsing (exit 2: usage error) -----------------------------------
@@ -350,11 +511,14 @@ STAGED="${TMP_DIR}/envelopes.staged.json"
   printf '%s\n' "$projection" | tail -n +4
 } > "$STAGED"
 
-# Gate seam (feature 2): audits the staged OUTPUT before anything leaves
-# the staging dir. Any gate failure ships/writes zero envelopes.
-if ! redaction_gate "$STAGED"; then
-  red "error: export gate rejected the staged envelopes — nothing written" >&2
-  exit 1
+# Gate (feature 2): validates the INPUT and audits the staged OUTPUT
+# before anything leaves the staging dir, on BOTH delivery paths. Any gate
+# failure ships/writes zero envelopes; the gate's own return code carries
+# the house exit family (1 violation, 2 could-not-run).
+gate_rc=0
+redaction_gate "$STAGED" || gate_rc=$?
+if [ "$gate_rc" -ne 0 ]; then
+  exit "$gate_rc"
 fi
 
 # --- Deliver: dry-run file or ship seam ---------------------------------------
