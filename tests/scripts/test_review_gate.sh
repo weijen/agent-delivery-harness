@@ -5,14 +5,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# This sensor exercises the approval-marker behavior. Because `check`/`create-pr.sh`
-# now also enforce the status-doc gate (no opt-out), every feature commit below
-# updates docs/PROGRESS.md so the gate is satisfied and only the approval logic is
-# under test.
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/tap.sh"
 
+# This sensor drives one long, sequentially-mutated git repo, so scenarios share
+# state in a single shell. fail() records a diagnostic and marks the current
+# scenario failed WITHOUT aborting; emit() turns that mark into exactly one TAP
+# row and resets it. Unconditional setup steps between scenarios still run under
+# `set -e`, so a failed assertion never fail-fasts yet the state chain is
+# preserved. Exit semantics: all scenarios pass => tap_done exits 0.
+_sfail=0
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  exit 1
+  printf '# %s\n' "$*" >&2
+  _sfail=1
+}
+emit() {
+  if [ "$_sfail" -eq 0 ]; then tap_ok "$1"; else tap_not_ok "$1"; fi
+  _sfail=0
 }
 
 make_commit() {
@@ -108,10 +117,12 @@ if ./scripts/review-gate.sh check >/tmp/review-gate-check.out 2>&1; then
   fail "check passed without approval"
 fi
 grep -q "current HEAD has not been approved" /tmp/review-gate-check.out || fail "missing unapproved HEAD message"
+emit "review-gate check fails on an unapproved HEAD"
 
 ./scripts/review-gate.sh approve >/tmp/review-gate-approve.out
 ./scripts/review-gate.sh check >/tmp/review-gate-check.out
 grep -q "review approved for current HEAD" /tmp/review-gate-check.out || fail "approval check did not pass"
+emit "review-gate check passes after approving the current HEAD"
 
 printf 'changed\n' > README.md
 git add README.md
@@ -121,11 +132,13 @@ if ./scripts/review-gate.sh check >/tmp/review-gate-stale.out 2>&1; then
   fail "check passed after HEAD changed"
 fi
 grep -q "current HEAD has not been approved" /tmp/review-gate-stale.out || fail "missing stale approval message"
+emit "review-gate check fails after HEAD moves past the approval"
 
 if ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr.out 2>&1; then
   fail "create-pr passed without current HEAD approval"
 fi
 grep -q "current HEAD has not been approved" /tmp/create-pr.out || fail "create-pr did not stop at review gate"
+emit "create-pr refuses without current-HEAD approval"
 
 write_fake_gh
 export PATH="${TMP_DIR}/bin:${PATH}"
@@ -146,6 +159,7 @@ fi
 current_head="$(git rev-parse HEAD)"
 [ "$current_head" = "$approved_head" ] || fail "unchanged sync rewrote approved HEAD"
 [ -s "$GH_LOG" ] || fail "create-pr did not open PR after unchanged sync"
+emit "create-pr opens a PR on an approved HEAD when sync does not change it"
 
 git reset -q --hard "$approved_head"
 git push -q origin :feature/review-gate >/dev/null 2>&1 || true
@@ -157,5 +171,6 @@ if ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-stale-aft
 fi
 grep -q "current HEAD has not been approved" /tmp/create-pr-stale-after-sync.out || fail "create-pr did not require fresh approval after sync changed HEAD"
 [ ! -s "$GH_LOG" ] || fail "create-pr opened PR after sync changed approved HEAD"
+emit "create-pr requires fresh approval after sync changes the approved HEAD"
 
-printf 'review gate smoke passed\n'
+tap_done

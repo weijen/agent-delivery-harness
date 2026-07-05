@@ -23,9 +23,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/tap.sh"
+
+# Each of the three ordering scenarios below runs inside its own `set -e`
+# subshell (see the `( set -e ... )` wrappers). fail() therefore exits only that
+# subshell; tap_result turns the subshell's exit code into exactly one TAP row
+# and the run continues to the next scenario instead of fail-fast. Exit
+# semantics are preserved: all scenarios pass => tap_done exits 0.
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
+  printf '# %s\n' "$*" >&2
   exit 1
+}
+
+tap_result() {
+  if [ "$1" -eq 0 ]; then tap_ok "$2"; else tap_not_ok "$2"; fi
 }
 
 make_commit() {
@@ -69,6 +81,9 @@ SH
 # ============================================================================
 # 1. start-issue: preflight BEFORE worktree creation
 # ============================================================================
+set +e
+(
+  set -e
 R1="${TMP_DIR}/r1"
 mkdir -p "${R1}/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${R1}/scripts/"
@@ -105,10 +120,17 @@ fi
 if git show-ref --verify --quiet refs/heads/feature/issue-300-order; then
   fail "start-issue created the issue branch despite a failed preflight"
 fi
+)
+_rc=$?
+set -e
+tap_result "$_rc" "start-issue runs preflight before creating a worktree"
 
 # ============================================================================
 # 2. create-pr: review-gate check BEFORE push
 # ============================================================================
+set +e
+(
+  set -e
 # Bare origin so a push, if it happened, would be observable.
 mkdir -p "${TMP_DIR}/origin-seed/scripts"
 cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/origin-seed/scripts/"
@@ -153,10 +175,17 @@ if git ls-remote --heads origin "feature/issue-301-order" 2>/dev/null | grep -q 
   fail "create-pr pushed the branch despite a failed review gate (push BEFORE gate)"
 fi
 [ ! -s "$GH_LOG" ] || fail "create-pr opened a PR despite a failed review gate"
+)
+_rc=$?
+set -e
+tap_result "$_rc" "create-pr enforces the review gate before pushing"
 
 # ============================================================================
 # 3. finish-issue: validate completion BEFORE removing the worktree
 # ============================================================================
+set +e
+(
+  set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts"
 for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh init.sh; do
@@ -193,5 +222,9 @@ grep -qi "incomplete" "${TMP_DIR}/order-finish.out" || { cat "${TMP_DIR}/order-f
 if [ ! -d "$WT" ]; then
   fail "finish-issue removed the worktree despite a failed completion check (removal BEFORE validation)"
 fi
+)
+_rc=$?
+set -e
+tap_result "$_rc" "finish-issue validates completion before removing the worktree"
 
-printf 'lifecycle order checks passed\n'
+tap_done
