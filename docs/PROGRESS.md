@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #63)._
+_Last updated: 2026-07-05 (issue #121, partial)._
 
 ---
 
@@ -76,8 +76,14 @@ _Last updated: 2026-07-05 (issue #63)._
   shapes). Core-workstream follow-ups still recorded: trace-gate promotion
   flag; trace-summary v1.x; VS Code Copilot token telemetry when a source
   appears.
-- **In flight:** #112 delivered by this branch — telemetry now reaches
-  Azure Application Insights.
+- **Deep-trace tool-call + skill observability (open: #121, partial):** the
+  hooks-absence warning + Spike-Static write-up are delivered (see below); the
+  first-class `skill` span (features 3/4) is **gated on a human Spike-Live
+  capture** — one real Copilot CLI session to measure whether a skill
+  invocation surfaces as an observable tool call. The `TODO(human)` recipe +
+  A/B/documented-gap decision live in `docs/runtime-adapters/github-copilot.skill-spike.md`.
+- **In flight:** #121 partial delivered by this branch — hooks-absence warning
+  + skill-observability spike; features 3/4 await the Spike-Live capture.
 
 ---
 
@@ -116,6 +122,24 @@ _Last updated: 2026-07-05 (issue #63)._
   content, L1 cases.
 
 ### Deep tracing
+- **#121 (partial) — tool-call + skill-invocation observability (Copilot),
+  spike-first.** Ships the two non-gated features. `trace-report.sh` now emits an
+  advisory `WARNING` when a FINISHED trace has lifecycle+agent spans but zero
+  `tool` spans (Copilot hooks adapter absent → per-tool-call spans unavailable),
+  so an empty Tool-calls table is never misread as "the agent called nothing"
+  (advisory, exit 0; silent on in-progress, tool-present, and agentless runs;
+  real span-derived four-predicate guard, stderr-only). Added the spike-finding
+  artifact `docs/runtime-adapters/github-copilot.skill-spike.md` (payload-shape
+  analysis, honest "skill observability not claimed either way", Path A runtime-
+  hook vs Path B SKILL.md-convention trade-off with the exact 10 SKILL.md files,
+  and a `TODO(human)` Spike-Live capture recipe + recommendation stub) and a
+  characterization sensor (`test_copilot_hook_skill_payload_hypotheses.sh`,
+  GREEN-from-start, hypothesis-only with a negative skill-span guard). Sensors:
+  `test_trace_report_hook_absence_warning.sh` (RED→GREEN). **Deferred, gated on
+  Spike-Live:** first-class `skill` span (`skill-span-schema`) + its surfacing
+  (`skill-surface`) — the three schema files (`trace-schema.v1.json`,
+  `trace-lib.sh`, `trace-export.sh`) are deliberately byte-untouched (committing
+  schema before the spike is what the issue forbids). #121 remains open.
 - **#112 — OTLP / Azure Monitor exporter adapter.**
   `scripts/trace-export.sh` ships a completed trace to Application
   Insights via the Track API (honest framing: App-Insights-native

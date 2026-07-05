@@ -345,5 +345,31 @@ JQ
 
 jq -r -f "$RENDER_FILTER" < "$SUMMARY_JSON"
 
+# --- Advisory: hooks-adapter-absence warning (feature hook-absence-warning) --
+# A FINISHED run (finish lifecycle span present) that carries at least one
+# lifecycle span and at least one agent span but ZERO tool spans almost always
+# means the Copilot hooks adapter was not installed — so per-tool-call `tool`
+# spans were never captured. Left unlabeled, the empty Tool-calls table above
+# reads like "the agent called no tools." This one advisory note reframes that
+# silence as tracing-not-wired.
+# Precision (plan-parallel): we warn ONLY on a finished trace — an in-progress
+# run legitimately may not have emitted tool spans yet, and a false warning on
+# every such run would be pure noise. Advisory, not gating: exit stays 0.
+# The note is appended to the markdown report on STDOUT (not stderr): it is
+# report content a reader should see, and stderr stays reserved for genuine
+# errors (the trace-report robustness contract keeps stderr silent on success).
+warn_hooks_absent="$(
+  jq -r '
+    (.span_counts.by_type // {}) as $bt
+    | (($bt.tool // 0) == 0)
+      and (.finished == true)
+      and (($bt.lifecycle // 0) > 0)
+      and (($bt.agent // 0) > 0)
+  ' < "$SUMMARY_JSON"
+)"
+if [ "$warn_hooks_absent" = "true" ]; then
+  printf '\n> **WARNING:** this finished trace has zero tool spans — the Copilot hooks adapter appears not installed, so per-tool-call tool spans were unavailable; the empty Tool-calls table above is tracing-not-wired, not proof the agent called no tools. See docs/runtime-adapters/github-copilot.md.\n'
+fi
+
 # Report produced → exit 0, regardless of run health (plan D7).
 exit 0
