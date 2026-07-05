@@ -7,8 +7,9 @@ cd "$ROOT"
 
 [ -f .github/workflows/harness-smoke.yml ] || { echo "missing harness-smoke workflow" >&2; exit 1; }
 
-bash -n scripts/*.sh
-shellcheck scripts/*.sh profiles/*.profile.sh
+# tests/evals/bin/*.sh added for issue #61 f3 (eval tooling lint coverage).
+bash -n scripts/*.sh tests/evals/bin/*.sh
+shellcheck scripts/*.sh profiles/*.profile.sh tests/evals/bin/*.sh
 
 shopt -s nullglob
 files=(.copilot/agents/*.agent.md .copilot/skills/*/SKILL.md)
@@ -119,6 +120,15 @@ require_text "$workflow" 'tests/meta/test_\*\.sh' \
   "workflow execution of the tests/meta sensor glob"
 require_text "$workflow" 'shellcheck[^\n]*tests/' \
   "workflow shellcheck coverage of tests/"
+
+# --- Eval tooling CI lint coverage (#61 f3) ----------------------------------
+# The CI workflow must lint tests/evals/bin/*.sh with BOTH bash -n (syntax) and
+# the shellcheck linter, so a broken eval tool (e.g. validate-manifest.sh)
+# fails CI.
+require_text "$workflow" 'bash -n[^\n]*tests/evals/bin' \
+  "workflow bash -n syntax coverage of tests/evals/bin"
+require_text "$workflow" 'shellcheck[^\n]*tests/evals/bin' \
+  "workflow shellcheck coverage of tests/evals/bin"
 
 # --- CI-green merge gate doctrine (#51) --------------------------------------
 require_text ".copilot/instructions/harness.instructions.md" 'merge-pr\.sh' \

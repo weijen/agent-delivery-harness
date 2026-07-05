@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #112)._
+_Last updated: 2026-07-05 (issue #61)._
 
 ---
 
@@ -59,8 +59,9 @@ _Last updated: 2026-07-05 (issue #112)._
 
 ## Next up
 
-- **L0/L1 evaluation workstream (open issues #61–#69):** directory contract +
-  manifest schema + validator (#61), local runner + scorecard + redaction gate
+- **L0/L1 evaluation workstream (open issues #62–#69):** #61 (directory
+  contract + manifest schema + validator) is **delivered** (see below); next is
+  local runner + scorecard + redaction gate
   (#62), case-level L0 sensor output (#63), L0 manifests + blocking CI gate
   (#64), SKILL.md frontmatter lint (#65), skill description-discriminability
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
@@ -80,6 +81,22 @@ _Last updated: 2026-07-05 (issue #112)._
 ---
 
 ## Delivered (newest first)
+
+### L0/L1 evaluation
+- **#61 — eval directory contract + manifest schema validator.** Established
+  the `tests/evals/` target-first layout (`manifests/{scripts,skills}`,
+  `fixtures/{scripts,skills}`, `baselines/`, alongside the existing
+  `scorecards/`), each kept by a tracked `.gitkeep`. Added
+  `tests/evals/bin/validate-manifest.sh` — a deterministic `jq`-based manifest
+  validator enforcing the required-field set, the `boundary` enum, the
+  `blocking` boolean, and the fixture `oneOf` keyed on `fixture.type`
+  (generated⇒`builder`, static⇒`path`; neither/both/mismatch/non-object all
+  rejected with `invalid_manifest` + a specific reason). CI (`harness-smoke.yml`)
+  now lints `tests/evals/bin/*.sh` with `bash -n` + `shellcheck`. Sensors:
+  `test_eval_dir_contract.sh`, `test_eval_manifest_validator.sh` (12 cases),
+  plus extended `test_harness_smoke.sh`. Root of the eval framework the runner
+  (#62) and L0 manifests (#64) build on. Out of scope: runner, L0 manifest
+  content, L1 cases.
 
 ### Deep tracing
 - **#112 — OTLP / Azure Monitor exporter adapter.**
