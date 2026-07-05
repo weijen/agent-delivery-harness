@@ -237,6 +237,8 @@ scorecard="$(jq -n \
     redaction: {
       checked: true,
       secrets_found: $secrets_found,
+      # L0 is spec-scoped to no Azure / no live GitHub auth, so no L0 grader
+      # emits tenant/subscription IDs or endpoints; Tier B / #67 extends this.
       environment_identifiers_found: false
     },
     results: [
@@ -252,6 +254,7 @@ scorecard="$(jq -n \
         status: $status,
         blocking_decision: (
           if $status == "pass" then "pass"
+          elif ($status == "not_run" or $status == "invalid_manifest" or $status == "infrastructure_error") then "warn"
           elif ($blocking == true) then "block"
           else "warn"
           end

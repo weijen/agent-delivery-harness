@@ -148,6 +148,7 @@ fi
 # values so a RED failure line shows got-vs-expected without extra digging.
 actual_status="$(jq -r '.results[0].status // "<none>"' "$SCORECARD" 2>/dev/null || echo '<unparseable>')"
 actual_failure_type="$(jq -r '.results[0].failure_type // "<null>"' "$SCORECARD" 2>/dev/null || echo '<unparseable>')"
+actual_blocking_decision="$(jq -r '.results[0].blocking_decision // "<none>"' "$SCORECARD" 2>/dev/null || echo '<unparseable>')"
 
 # --- Assertion 2: status is a not_run-class status, NOT "fail" ------------------
 assert_jq "$SCORECARD" \
@@ -166,6 +167,19 @@ assert_jq "$SCORECARD" \
 assert_jq "$SCORECARD" \
   'all(.results[]; .failure_type != "target_failure")' \
   "missing-grader: no results row has failure_type == target_failure (misclassification; actual='${actual_failure_type}')"
+
+# --- Assertion 4: a blocking not_run case is NOT a Tier A block ------------------
+# The manifest carries blocking:true, but a not_run/environment_missing outcome
+# is explicitly "not a Tier A failure" (docs/evaluation/l0-solution/spec.md
+# § "Runtime Profiles": "Missing Azure configuration yields not_run with
+# failure_type: environment_missing, not a Tier A failure"). An environment
+# problem must therefore NOT escalate to blocking_decision "block"; the correct
+# non-blocking decision is "warn". The current runner maps any blocking:true row
+# that is not "pass" to "block", so it emits "block" here — FAILS RED with the
+# exact got-vs-expected mismatch below.
+assert_jq "$SCORECARD" \
+  '.results[0].blocking_decision == "warn"' \
+  "missing-grader: blocking not_run row uses blocking_decision == warn, not Tier A block (expected warn; actual='${actual_blocking_decision}')"
 
 # --- Verdict -------------------------------------------------------------------
 tap_done
