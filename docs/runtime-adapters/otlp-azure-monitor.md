@@ -64,14 +64,16 @@ span, one POST per trace (batch, all-or-nothing).
 
 | Trace span | Envelope `name` / `baseType` | App Insights table | Key `baseData` fields |
 | --- | --- | --- | --- |
-| `tool` | `Microsoft.ApplicationInsights.RemoteDependency` / `RemoteDependencyData` | `dependencies` | `name` = `gen_ai.tool.name`, `type` = `harness.tool`, `id` = `span_id`, `duration` = `harness.duration_ms` as `hh:mm:ss.fff` (absent → `00:00:00.000`), `success` = `harness.outcome == pass` (absent → true), `resultCode` = stringified `harness.exit_status` |
+| `tool` | `Microsoft.ApplicationInsights.RemoteDependency` / `RemoteDependencyData` | `dependencies` | `name` = `gen_ai.tool.name`, `type` = `harness.tool`, `id` = `span_id`, `duration` = `harness.duration_ms` as a TimeSpan `hh:mm:ss.fff` (≥ 24h gains a day segment, `d.hh:mm:ss.fff`; absent or negative → `00:00:00.000`), `success` = `harness.outcome == pass` (absent → true), `resultCode` = stringified `harness.exit_status` when present, falling back to `harness.outcome`, else omitted |
 | `lifecycle` | same / `RemoteDependencyData` | `dependencies` | as above, with `name` = `harness.lifecycle_step`, `type` = `harness.lifecycle` |
 | `agent` | `Microsoft.ApplicationInsights.Event` / `EventData` | `customEvents` | `name` = `harness.agent/<gen_ai.agent.name>` |
 | `model` | same / `EventData` | `customEvents` | `name` = `harness.model/<gen_ai.request.model>`; numeric `gen_ai.usage.*` land in `measurements` as JSON numbers (token/cost dashboards) |
 
 Every envelope additionally carries:
 
-- `tags["ai.operation.id"] = "issue-<NN>"` — the per-trace correlation id;
+- `tags["ai.operation.id"] = "issue-<NN>"` — the per-trace correlation id —
+  and `tags["ai.cloud.role"] = "agent-delivery-harness"` (the role name the
+  portal's application map displays);
 - `properties` (→ `customDimensions`): the allowlisted attributes,
   stringified, keys verbatim — **always including `harness.version`**, the
   queryable dimension. A span missing `harness.version` aborts the whole
@@ -88,11 +90,16 @@ dependencies
 
 Attributes are projected through an explicit **allowlist**; anything not on
 it is silently dropped before envelope construction — **deny-by-default**, so
-unknown or future keys never ship by accident. Shipped: structural identity
+unknown or future keys never ship by accident. Note the allowlist constrains
+**keys, not values**: a shipped key's value passes through as-is
+(stringified), which is one reason the fail-closed gates below also audit the
+serialized output. Shipped: structural identity
 (`schema_version`, `timestamp`, `span`, `span_id`, `parent_span_id`), the
 slicing dimensions (`harness.issue`, `harness.version`), closed enums
-(`harness.lifecycle_step`, `harness.outcome`, `harness.failure_mode`,
-`harness.warning`), pure numbers (`harness.exit_status`,
+(`harness.lifecycle_step`, `harness.outcome`, `harness.failure_mode`), plus
+`harness.warning` — a type-checked string that is *enum-ish by convention
+only* (our own scripts emit short codes like `jq_skipped`, but nothing
+enforces that at the value level), pure numbers (`harness.exit_status`,
 `harness.duration_ms`, counts, and the `gen_ai.usage.*` prefix family), short
 identifiers (`harness.feature_id`, `harness.stage`, `gen_ai.tool.name`,
 `gen_ai.operation.name`, `gen_ai.agent.name`, `gen_ai.request.model`,
@@ -129,10 +136,17 @@ debugging bypass):
    closed — "the auditor broke" never degrades to "ship anyway".
 
 On any gate failure **nothing is written and nothing is shipped** — no
-dry-run file, no POST, exit 1 — and failure messages never echo the
-offending content. The ship path then requires HTTP 200 **and**
-`itemsAccepted == itemsReceived ==` envelopes sent; a partial accept reports
-both counts and exits 1.
+dry-run file, no POST — and failure messages never echo the offending
+content. Exit codes distinguish the two failure kinds: a **finding**
+(violations in the input, secret-shaped output) exits **1**, while the gate
+itself being **unable to run** (validator missing or erroring out, redactor
+unavailable) exits **2** — still with nothing written.
+
+The ship path then requires HTTP 200 **and** `itemsAccepted ==
+itemsReceived ==` envelopes sent; a partial accept reports both counts and
+exits 1. The whole trace goes in **one POST** — a v1 limit: there is no
+chunking or retry, and any non-200 response fails the entire export honestly
+with exit 1 rather than pretending a partial ship succeeded.
 
 ## Dry-run seam (internal, not stable)
 

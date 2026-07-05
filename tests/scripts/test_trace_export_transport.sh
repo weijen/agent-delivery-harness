@@ -151,6 +151,22 @@ exit "${CURL_STUB_EXIT:-0}"
 SH
 chmod +x "${BIN}/curl"
 
+# jq wrapper (loop-2 security hardening 1): records every jq argv line when
+# JQ_ARGV_LOG is set, then execs the real jq. Lets the sensor prove the
+# iKey never rides PROCESS ARGV (ps-visible on shared machines) on its way
+# into the request body — env-based injection into jq is the required
+# mechanism, --arg is forbidden for the key.
+REAL_JQ="$(command -v jq)"
+rm -f "${BIN}/jq"
+cat > "${BIN}/jq" <<SH
+#!/usr/bin/env bash
+if [ -n "\${JQ_ARGV_LOG:-}" ]; then
+  printf 'JQARGS %s\n' "\$*" >> "\${JQ_ARGV_LOG}"
+fi
+exec "${REAL_JQ}" "\$@"
+SH
+chmod +x "${BIN}/jq"
+
 # --- Fixtures ------------------------------------------------------------------
 # Synthetic connection strings (never real): CS1 has extra fields, ordering,
 # and a TRAILING slash on the endpoint; CS2 reverses key order and has NO
@@ -186,9 +202,10 @@ run_ship() { # run_ship <report> <argvlog> <bodylog> <respfile> <httpcode> <curl
   shift 7 || shift "$#"
   : > "$alog"
   : > "$blog"
+  : > "${alog}.jq"
   local -a envs=(
     TRACE_EXPORT_OTLP=1
-    "CURL_ARGV_LOG=${alog}" "CURL_BODY_LOG=${blog}"
+    "CURL_ARGV_LOG=${alog}" "CURL_BODY_LOG=${blog}" "JQ_ARGV_LOG=${alog}.jq"
     "CURL_STUB_BODY=${resp}" "CURL_STUB_HTTP_CODE=${code}" "CURL_STUB_EXIT=${cexit}"
   )
   [ -n "$conn" ] && envs+=("APPLICATIONINSIGHTS_CONNECTION_STRING=${conn}")
@@ -328,6 +345,46 @@ rc=0
   || fail "E2: connection string set but TRACE_EXPORT_OTLP unset must be a clean exit-0 no-op, got ${rc}"
 [ "$(count_invocations "$ALOGE2")" = "0" ] \
   || fail "E2: the opt-out no-op must never invoke curl"
+
+# ==============================================================================
+# F. iKey never in PROCESS argv (loop-2 security hardening 1): argv of any
+#    process is ps-visible on shared machines. Behavioral pin: the happy-path
+#    ship run's recorded jq argv must not carry the raw key GUID. Static
+#    pins: scripts/trace-export.sh must not pass the key via `--arg ikey`/
+#    `--arg iKey`, and must use env-based injection ($ENV.<...IKEY...> /
+#    env.<...IKEY...> — jq reads the environment, argv stays clean).
+# ==============================================================================
+if [ -s "${ALOG}.jq" ]; then
+  grep -qF -- "$IKEY1" "${ALOG}.jq" \
+    && fail "F: the raw instrumentation key GUID appeared in jq PROCESS ARGV (ps-visible) — inject it via the environment (\$ENV.<var>), never --arg"
+else
+  fail "F: the jq wrapper recorded no invocations for the ship run — cannot prove the iKey stays out of process argv"
+fi
+grep -qE -- '--arg[[:space:]]+i[Kk]ey' "$EXPORTER" \
+  && fail "F: scripts/trace-export.sh passes the iKey to jq via --arg (process-argv exposure) — forbidden; use env-based injection"
+# shellcheck disable=SC2016 # literal $ENV is the point: grepping for jq's env-access syntax, no shell expansion wanted
+grep -qiE '\$ENV\.[A-Za-z_]*IKEY|env\.[A-Za-z_]*IKEY' "$EXPORTER" \
+  || fail "F: scripts/trace-export.sh must inject the iKey into jq via the environment (\$ENV.<...IKEY...>), keeping it out of process argv"
+
+# ==============================================================================
+# G. Malformed / keyless connection string (loop-2 code nit 6): exit 2
+#    (environment error), the message NAMES the expected format
+#    (InstrumentationKey + IngestionEndpoint) so the operator can fix it,
+#    and the bogus VALUE is never echoed.
+# ==============================================================================
+BOGUS_CS="totally-bogus-noformat-zq7"
+rc=0
+run_ship "${TMP_DIR}/g.out" "${TMP_DIR}/g.argv" "${TMP_DIR}/g.body" "$RESP_OK" 200 0 "$BOGUS_CS" || rc=$?
+[ "$rc" = "2" ] \
+  || fail "G: a connection string without InstrumentationKey/IngestionEndpoint must exit 2 (environment error), got ${rc}"
+grep -qF 'InstrumentationKey' "${TMP_DIR}/g.out" \
+  || fail "G: the malformed-connection-string error must name InstrumentationKey (expected format, actionable)"
+grep -qF 'IngestionEndpoint' "${TMP_DIR}/g.out" \
+  || fail "G: the malformed-connection-string error must name IngestionEndpoint (expected format, actionable)"
+grep -qF -- "$BOGUS_CS" "${TMP_DIR}/g.out" \
+  && fail "G: the malformed-connection-string error echoed the value — values are never echoed"
+[ "$(count_invocations "${TMP_DIR}/g.argv")" = "0" ] \
+  || fail "G: a malformed connection string must never reach curl"
 
 # --- Result --------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

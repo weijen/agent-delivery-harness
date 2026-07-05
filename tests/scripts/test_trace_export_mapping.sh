@@ -408,6 +408,52 @@ else
 fi
 
 # ==============================================================================
+# I. Duration edge rendering (loop-2 code nit 1): the Track API duration is
+#    a .NET TimeSpan string — values >= 24h MUST render in d.hh:mm:ss.fff
+#    form (a bare hours field >= 24 is a malformed TimeSpan App Insights
+#    rejects or misparses), and a negative harness.duration_ms clamps to
+#    the honest floor 00:00:00.000 (garbage in never becomes a malformed
+#    TimeSpan out).
+# ==============================================================================
+IN4="${TMP_DIR}/in4.trace.jsonl"
+cat > "$IN4" <<'JSONL'
+{"schema_version":1,"timestamp":"2026-07-04T10:00:06Z","span":"tool","harness.issue":112,"harness.version":"abc1234","span_id":"spandbig","gen_ai.tool.name":"soak","harness.duration_ms":90061001}
+{"schema_version":1,"timestamp":"2026-07-04T10:00:07Z","span":"tool","harness.issue":112,"harness.version":"abc1234","span_id":"spandneg","gen_ai.tool.name":"clockskew","harness.duration_ms":-250}
+JSONL
+OUT4="${TMP_DIR}/envelopes4.json"
+rc=0
+run_export "${TMP_DIR}/i.out" TRACE_EXPORT_OTLP=1 -- "$IN4" --dry-run-to-file "$OUT4" || rc=$?
+[ "$rc" = "0" ] \
+  || fail "I: duration-edge dry-run must exit 0, got ${rc}: $(tr '\n' '|' < "${TMP_DIR}/i.out")"
+if [ -f "$OUT4" ]; then
+  grep -v '^//' "$OUT4" | jq -e '
+    [.[] | select(.data.baseData.properties["span_id"] == "spandbig")]
+    | length == 1 and .[0].data.baseData.duration == "1.01:01:01.001"' \
+    > /dev/null 2>&1 \
+    || fail "I: 90061001ms (25h 1m 1.001s) must render as the d.hh:mm:ss.fff TimeSpan \"1.01:01:01.001\" — a >=24h duration must carry the day segment, never a 25-hour field"
+  grep -v '^//' "$OUT4" | jq -e '
+    [.[] | select(.data.baseData.properties["span_id"] == "spandneg")]
+    | length == 1 and .[0].data.baseData.duration == "00:00:00.000"' \
+    > /dev/null 2>&1 \
+    || fail "I: a negative harness.duration_ms must clamp to \"00:00:00.000\" (honest floor, never a malformed TimeSpan)"
+else
+  fail "I: duration-edge dry-run did not write the envelope file (${OUT4})"
+fi
+
+# ==============================================================================
+# J. Static staging-dir guard (loop-2 security hardening 2): the mktemp-less
+#    fallback must create the private staging dir with mode 700 and must
+#    fail on a pre-existing path (mkdir -p would succeed on an attacker's
+#    pre-created dir AND skip -m on it). Pinned as source greps: creation of
+#    "$TMP_DIR" uses mkdir -m 700 WITHOUT -p; no `mkdir -p` ever targets
+#    "$TMP_DIR" (the dry-run OUT_DIR mkdir -p is unrelated and allowed).
+# ==============================================================================
+grep -qE 'mkdir[[:space:]]+-m[[:space:]]+0?700[[:space:]]+(--[[:space:]]+)?"\$\{?TMP_DIR\}?"' "$EXPORTER" \
+  || fail "J: the mktemp-less fallback must create the staging dir with 'mkdir -m 700 \"\$TMP_DIR\"' (private perms, atomically fail-if-exists)"
+grep -qE 'mkdir[[:space:]]+(-[^[:space:]]*p[^[:space:]]*[[:space:]]+)+(--[[:space:]]+)?"\$\{?TMP_DIR\}?"' "$EXPORTER" \
+  && fail "J: 'mkdir -p' must never target \"\$TMP_DIR\" — -p tolerates a pre-existing (potentially attacker-owned) dir and skips -m on it"
+
+# ==============================================================================
 # H. Zero-network pin: no run in this sensor may ever invoke curl.
 # ==============================================================================
 if [ -e "$CURL_MARKER" ]; then

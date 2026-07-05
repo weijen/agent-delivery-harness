@@ -53,7 +53,9 @@
 #   tool/lifecycle → Microsoft.ApplicationInsights.RemoteDependency /
 #     RemoteDependencyData: name = gen_ai.tool.name | harness.lifecycle_step,
 #     type = harness.tool | harness.lifecycle, id = span_id, duration =
-#     harness.duration_ms as hh:mm:ss.fff (absent → 00:00:00.000), success =
+#     harness.duration_ms as a TimeSpan hh:mm:ss.fff (>= 24h gains the day
+#     segment d.hh:mm:ss.fff; absent → 00:00:00.000; negative clamps to
+#     00:00:00.000), success =
 #     harness.outcome == pass (absent → true), resultCode = stringified
 #     harness.exit_status when present (else the outcome, else omitted).
 #   agent/model → Microsoft.ApplicationInsights.Event / EventData:
@@ -197,8 +199,8 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
 # Secrets never in argv: the iKey rides only inside the body file
 # (--data-binary @file); the URL is the only connection-string-derived
 # argv content. Messages never echo the connection string or the key GUID.
-ship_envelopes() { # ship_envelopes <staged-envelope-file>
-  local staged="$1"
+ship_envelopes() { # ship_envelopes <staged-envelope-file> <sent-count>
+  local staged="$1" sent="$2"
   local ikey="" endpoint="" part url
   local body="${TMP_DIR}/track-body.json"
   local resp="${TMP_DIR}/track-response.json"
@@ -210,24 +212,31 @@ ship_envelopes() { # ship_envelopes <staged-envelope-file>
   fi
 
   # Connection-string parsing: semicolon-separated key=value pairs, any
-  # order, extra fields ignored, trailing endpoint slash tolerated.
+  # order, extra fields ignored, trailing endpoint slash tolerated,
+  # whitespace around segments trimmed.
   local -a cs_parts=()
   IFS=';' read -r -a cs_parts <<< "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
   for part in ${cs_parts[@]+"${cs_parts[@]}"}; do
+    # Trim leading/trailing whitespace on the segment.
+    part="${part#"${part%%[![:space:]]*}"}"
+    part="${part%"${part##*[![:space:]]}"}"
     case "$part" in
       InstrumentationKey=*) ikey="${part#InstrumentationKey=}" ;;
       IngestionEndpoint=*)  endpoint="${part#IngestionEndpoint=}" ;;
     esac
   done
   if [ -z "$ikey" ] || [ -z "$endpoint" ]; then
-    red "error: APPLICATIONINSIGHTS_CONNECTION_STRING is missing InstrumentationKey and/or IngestionEndpoint (value not echoed)" >&2
+    red "error: APPLICATIONINSIGHTS_CONNECTION_STRING must be semicolon-separated key=value pairs carrying InstrumentationKey and IngestionEndpoint (value not echoed)" >&2
     exit 2
   fi
   url="${endpoint%/}/v2/track"
 
   # iKey injection at ship time: every envelope in the posted body carries
-  # the parsed key (dry-run output never does — feature-1 pin).
-  if ! grep -v '^//' "$staged" | jq --arg ikey "$ikey" 'map(. + { iKey: $ikey })' > "$body"; then
+  # the parsed key (dry-run output never does — feature-1 pin). The key
+  # reaches jq via the ENVIRONMENT ($ENV), never --arg: process argv is
+  # ps-visible on shared machines, the environment is not.
+  if ! grep -v '^//' "$staged" \
+      | TRACE_EXPORT_IKEY="$ikey" jq 'map(. + { iKey: $ENV.TRACE_EXPORT_IKEY })' > "$body"; then
     red "error: failed to build the Track API request body" >&2
     exit 2
   fi
@@ -257,11 +266,11 @@ ship_envelopes() { # ship_envelopes <staged-envelope-file>
     red "error: Track API response was unreadable (no itemsReceived/itemsAccepted) — cannot confirm ingestion" >&2
     exit 1
   fi
-  if [ "$accepted" != "$received" ] || [ "$accepted" != "$count" ]; then
-    red "error: Track API accepted ${accepted} of ${received} received (${count} sent) — partial accept, export failed" >&2
+  if [ "$accepted" != "$received" ] || [ "$accepted" != "$sent" ]; then
+    red "error: Track API accepted ${accepted} of ${received} received (${sent} sent) — partial accept, export failed" >&2
     exit 1
   fi
-  green "shipped: ${accepted} envelope(s) accepted by the Track API (${count} sent, HTTP 200)"
+  green "shipped: ${accepted} envelope(s) accepted by the Track API (${sent} sent, HTTP 200)"
 }
 
 # --- Argument parsing (exit 2: usage error) -----------------------------------
@@ -356,7 +365,13 @@ if command -v mktemp >/dev/null 2>&1; then
   TMP_DIR="$(mktemp -d)"
 else
   TMP_DIR="${TMPDIR:-/tmp}/trace-export.$$.${RANDOM}"
-  mkdir -p "$TMP_DIR"
+  # Private perms, atomic fail-if-exists: never -p here — -p would happily
+  # reuse a pre-existing (potentially attacker-owned) dir AND skip -m on
+  # it. A collision refuses instead of reusing.
+  if ! mkdir -m 700 "$TMP_DIR" 2>/dev/null; then
+    red "error: staging dir cannot be created (pre-existing path refused): ${TMP_DIR}" >&2
+    exit 2
+  fi
 fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -402,11 +417,16 @@ def props:
 def lpad($n):
   tostring | if length >= $n then . else ("0" * ($n - length)) + . end;
 
-# harness.duration_ms → Track API duration string hh:mm:ss.fff
-# (absent input → "00:00:00.000").
+# harness.duration_ms → Track API duration string, a .NET TimeSpan:
+# hh:mm:ss.fff, gaining a day segment (d.hh:mm:ss.fff) at >= 24h — a bare
+# hours field of 24+ is a malformed TimeSpan App Insights rejects or
+# misparses. Absent input → "00:00:00.000"; a NEGATIVE input clamps to the
+# honest floor "00:00:00.000" (garbage in never becomes malformed output).
 def fmt_duration:
-  ((. // 0) | floor) as $t
-  | ((($t / 3600000) | floor) | lpad(2)) + ":"
+  ((. // 0) | floor | if . < 0 then 0 else . end) as $t
+  | (($t / 86400000) | floor) as $days
+  | (if $days > 0 then "\($days)." else "" end)
+    + (((($t % 86400000) / 3600000) | floor) | lpad(2)) + ":"
     + (((($t % 3600000) / 60000) | floor) | lpad(2)) + ":"
     + (((($t % 60000) / 1000) | floor) | lpad(2)) + "."
     + (($t % 1000) | lpad(3));
@@ -530,4 +550,4 @@ if [ -n "$DRY_RUN_FILE" ]; then
   exit 0
 fi
 
-ship_envelopes "$STAGED"
+ship_envelopes "$STAGED" "$count"
