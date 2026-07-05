@@ -24,7 +24,7 @@
 # that keeps this adapter from blocking a live session's tool calls.
 # Outside a harness issue run it is a silent no-op and creates no artifacts.
 #
-# Pinned guard order (mirrors claude-code-trace-hook.sh G1–G5):
+# Pinned guard order (mirrors the Claude Code adapter hook's G1–G5):
 #   G1. jq available (checked BEFORE any jq invocation)
 #   G2. stdin (slurped exactly once) parses as a JSON object
 #   G3. trace-lib.sh exists beside this script
@@ -137,16 +137,91 @@ hook__on_post_tool_use() {
   return 0
 }
 
-# agentStop / subagentStop / Stop / SubagentStop — STUB (issue #114 feature 2,
-# copilot-hook-stop-spans): agent spans (and the best-effort CLI model span
-# from session-state events.jsonl) land in the follow-up feature. Until then
-# these events dispatch here and no-op silently — same session-safety
-# contract, zero artifacts.
-# hook__on_stop <payload> <agent_name>
+# agentStop / subagentStop / Stop / SubagentStop — spans per the stop-span
+# sensor conventions S1–S6 (test_copilot_hook_stop_span.sh). Stateless: no
+# .hook-state, no duration, and $HOME session-state is READ-ONLY input.
+#   S1. ALWAYS one `agent` span: gen_ai.operation.name=invoke_agent,
+#       gen_ai.agent.name = $2 ("github-copilot" | "github-copilot-subagent").
+#   S2. ONE `model` span ONLY when token_source=cli (camelCase agentStop —
+#       the only pinned surface with a locally reachable token store) AND
+#       ~/.copilot/session-state/<sessionId>/events.jsonl yields a complete
+#       LATEST metrics event: .model non-empty string plus numeric
+#       .inputTokens/.outputTokens → gen_ai.request.model +
+#       gen_ai.usage.input_tokens/output_tokens (trace-lib types the
+#       gen_ai.usage.* values as JSON numbers).
+#   S3. Anything absent/partial/garbage → agent span only, zero fake keys.
+#   S4. VS Code Stop/SubagentStop (snake dialect) → agent span ONLY in v1:
+#       no verified VS Code token source exists as of 2026-07-05 (honest
+#       gap) — events.jsonl is NOT consulted on the snake dialect even when
+#       a file exists for the session id.
+#   S5. sessionId is path-sanitized BEFORE touching the filesystem: only
+#       [A-Za-z0-9._-]+ ids (and not "."/"..") may form the session-state
+#       path — reject, never rewrite — so a traversal-shaped id can never
+#       escape ~/.copilot/session-state/.
+#
+# STABILITY CAVEAT (plan spike; the adapter-guide feature carries it): the
+# events.jsonl file is an INTERNAL, UNDOCUMENTED Copilot CLI format. The
+# metrics line shape parsed below ({"type":"metrics","model":"<id>",
+# "inputTokens":N,...,"outputTokens":N,...}) follows the plan's spike
+# sources (the copilot-cli-cost extension's parsing of the same file) and
+# is EMPIRICALLY-UNVERIFIED against a real CLI session as of 2026-07-05.
+# Any shape drift makes the extraction come up empty → honest omission,
+# never wrong numbers.
+#
+# hook__on_stop <payload> <agent_name> <token_source: cli|none>
 hook__on_stop() {
-  # Intentionally unused until feature 2 implements stop spans.
-  local payload="$1" agent_name="$2"
-  : "$payload" "$agent_name"
+  local payload="$1" agent_name="$2" token_source="$3"
+  local sid="" events="" extracted=""
+  local model="" in_tokens="" out_tokens=""
+
+  trace_span agent \
+    "gen_ai.operation.name=invoke_agent" \
+    "gen_ai.agent.name=${agent_name}"
+
+  [ "$token_source" = "cli" ] || return 0
+  [ -n "${HOME:-}" ] || return 0
+
+  # S5 — sanitize before building any path.
+  sid="$(printf '%s' "$payload" | jq -r '.sessionId // empty' 2>/dev/null || true)"
+  [ -n "$sid" ] || return 0
+  [[ "$sid" =~ ^[A-Za-z0-9._-]+$ ]] || return 0
+  case "$sid" in
+    .|..) return 0 ;;
+  esac
+
+  events="${HOME}/.copilot/session-state/${sid}/events.jsonl"
+  if [ ! -f "$events" ] || [ ! -r "$events" ]; then
+    return 0
+  fi
+  # Slurp the events file: any non-JSON line fails the whole jq run
+  # (garbage file → honest omission). The filter prints model/in/out as one
+  # TSV line only for the LATEST complete metrics event (discriminator:
+  # .type=="metrics" with a non-empty model string and numeric token
+  # counts; partial or string-typed lines never qualify — S2/S3).
+  extracted="$(jq -rs '
+      [ .[] | select((type == "object")
+          and (.type? == "metrics")
+          and ((.model? | type) == "string")
+          and (.model != "")
+          and ((.inputTokens? | type) == "number")
+          and ((.outputTokens? | type) == "number")) ] | last
+      | if . != null
+        then [ .model,
+               (.inputTokens | tostring),
+               (.outputTokens | tostring) ] | @tsv
+        else empty
+        end' "$events" 2>/dev/null || true)"
+  [ -n "$extracted" ] || return 0
+  IFS=$'\t' read -r model in_tokens out_tokens <<< "$extracted" || true
+  if [ -z "$model" ] \
+      || ! [[ "$in_tokens" =~ ^[0-9]+$ ]] \
+      || ! [[ "$out_tokens" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+  trace_span model \
+    "gen_ai.request.model=${model}" \
+    "gen_ai.usage.input_tokens=${in_tokens}" \
+    "gen_ai.usage.output_tokens=${out_tokens}"
   return 0
 }
 
@@ -187,9 +262,10 @@ hook__main() {
     postToolUse)        hook__on_post_tool_use "$payload" camel "" ;;
     postToolUseFailure) hook__on_post_tool_use "$payload" camel fail ;;
     PostToolUse)        hook__on_post_tool_use "$payload" snake "" ;;
-    agentStop|Stop)     hook__on_stop "$payload" "github-copilot" ;;
-    subagentStop|SubagentStop)
-                        hook__on_stop "$payload" "github-copilot-subagent" ;;
+    agentStop)          hook__on_stop "$payload" "github-copilot" cli ;;
+    subagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
+    Stop)               hook__on_stop "$payload" "github-copilot" none ;;
+    SubagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     *)                  return 0 ;;
   esac
   return 0
