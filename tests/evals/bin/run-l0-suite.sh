@@ -21,7 +21,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="${SCRIPT_DIR}/run-evals.sh"
-DEFAULT_MANIFEST_DIR="$(cd "${SCRIPT_DIR}/../manifests/scripts" 2>/dev/null && pwd || true)"
+# Resolve the default L0 manifest dir to its absolute path, or leave it empty
+# when the directory does not exist. Explicit if/then/else avoids the
+# `A && B || C` (SC2015) pitfall where C can run when A succeeds but B fails.
+if DEFAULT_MANIFEST_DIR="$(cd "${SCRIPT_DIR}/../manifests/scripts" 2>/dev/null && pwd)"; then
+	:
+else
+	DEFAULT_MANIFEST_DIR=""
+fi
 
 if [ "$#" -gt 1 ]; then
 	printf 'usage: %s [MANIFEST_DIR]\n' "$(basename "$0")" >&2
