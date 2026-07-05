@@ -8,9 +8,12 @@ trap 'rm -f "${OUT}"; rm -rf "${TMP_DIR}"' EXIT
 
 cd "$ROOT"
 
-# The docs-only invocation runs against the real repo root, so fake an
-# authenticated gh (init.sh hard-fails on gh auth) to keep the test hermetic in
-# CI and on machines without an active gh/az login. uv/az are soft in init.sh.
+# The real-root invocation fakes an authenticated gh (init.sh hard-fails on gh
+# auth) plus terraform, to keep the test hermetic in CI and on machines without
+# an active gh/az login or a terraform install. uv/az are soft in init.sh.
+# Since issue #115 the repo root legitimately carries a Terraform surface
+# (infra/terraform/*.tf), so init.sh must detect it — the repo is no longer
+# docs-only. The docs-only path keeps coverage via a fixture repo below.
 DOCSBIN="${TMP_DIR}/docsbin"
 mkdir -p "$DOCSBIN"
 cat > "${DOCSBIN}/gh" <<'SH'
@@ -20,9 +23,34 @@ case "$1" in
 	api) printf 'fixture-user\n' ;;
 esac
 SH
-chmod +x "${DOCSBIN}/gh"
+cat > "${DOCSBIN}/terraform" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+	fmt|validate) exit 0 ;;
+esac
+exit 0
+SH
+chmod +x "${DOCSBIN}"/*
 PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
 
+grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
+if grep -q "docs-only project" "$OUT"; then
+	echo "init.sh must not report docs-only on a root with a Terraform surface"
+	cat "$OUT"
+	exit 1
+fi
+
+# --- Docs-only path (fixture repo with no language/infra surface) -------------
+mkdir -p "${TMP_DIR}/docsrepo/scripts"
+cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/docsrepo/scripts/init.sh"
+cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
+(
+	cd "${TMP_DIR}/docsrepo"
+	git init -q -b main
+	git config commit.gpgsign false
+	printf '# docs-only fixture\n' > README.md
+	PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
+)
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
 # markdownlint must NOT be presented as a required local gate in the docs-only flow.

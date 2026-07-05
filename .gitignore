@@ -47,6 +47,17 @@ tests/evals/scorecards/*
 .env.local
 .env.*.local
 
+# Terraform — state and real tfvars can carry secrets; the provider cache is
+# machine-local. Copy terraform.tfvars.example to terraform.tfvars and fill
+# values locally. NOTE: .terraform.lock.hcl is deliberately NOT ignored — it
+# is committed for reproducible provider pins.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
 # Local SQLite caches / sample data
 *.db
 *.db-shm
