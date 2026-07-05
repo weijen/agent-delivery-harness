@@ -91,6 +91,14 @@ Run any tool call from a Copilot session inside an issue worktree (branch
 `feature/issue-NN-*` or an `issue-NN` worktree) and check that
 `.copilot-tracking/issues/issue-NN/trace.jsonl` gained a `tool` span.
 
+If the adapter is **not** installed, a finished run records lifecycle and
+handback `agent` spans but no `tool` spans. In that case
+`./scripts/trace-report.sh <issue-NN>` prints an advisory `WARNING` that the
+hooks adapter appears absent and tool spans were unavailable — so the empty
+Tool-calls table is not misread as "the agent called no tools." The warning is
+advisory only (exit stays `0`); to clear it, install the adapter as above and
+confirm a `tool` span appears in the trace.
+
 ## DANGER: never register preToolUse
 
 On Copilot surfaces a hook's exit status is load-bearing: a **non-zero exit
