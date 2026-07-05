@@ -1,0 +1,22 @@
+{
+  "id": "l0-review-gate",
+  "schema_version": 1,
+  "target": "scripts/review-gate.sh",
+  "capability": "The review gate binds approval to the current HEAD and refuses a stale approval, so an out-of-date review marker cannot let unreviewed changes through.",
+  "boundary": "script-lifecycle",
+  "fixture": {
+    "type": "generated",
+    "builder": "tests/scripts/test_review_gate.sh"
+  },
+  "expected_outcome": "pass",
+  "grader": {
+    "type": "shell",
+    "command": "bash tests/scripts/test_review_gate.sh"
+  },
+  "blocking": true,
+  "contract_refs": [
+    "failure_modes:stale-review-approval",
+    "state_transitions:review-gate-marker",
+    "lifecycle:review-approval"
+  ]
+}

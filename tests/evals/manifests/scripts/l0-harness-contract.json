@@ -1,0 +1,23 @@
+{
+  "id": "l0-harness-contract",
+  "schema_version": 1,
+  "target": "docs/harness-contract.yml",
+  "capability": "The frozen harness contract in docs/harness-contract.yml stays in sync with the lifecycle scripts, so a required entrypoint or lifecycle obligation cannot silently drift from the contract.",
+  "boundary": "script-lifecycle",
+  "fixture": {
+    "type": "generated",
+    "builder": "tests/scripts/test_harness_contract.sh"
+  },
+  "expected_outcome": "pass",
+  "grader": {
+    "type": "shell",
+    "command": "bash tests/scripts/test_harness_contract.sh"
+  },
+  "blocking": true,
+  "contract_refs": [
+    "scripts:init",
+    "scripts:review-gate",
+    "lifecycle:preflight",
+    "lifecycle:review-approval"
+  ]
+}

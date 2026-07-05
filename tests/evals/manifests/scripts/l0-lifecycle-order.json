@@ -1,0 +1,23 @@
+{
+  "id": "l0-lifecycle-order",
+  "schema_version": 1,
+  "target": "scripts/start-issue.sh",
+  "capability": "The harness performs its lifecycle actions in the contracted order, so branch/worktree creation, PR creation, and closeout cleanup cannot be reordered or dropped without failing.",
+  "boundary": "script-lifecycle",
+  "fixture": {
+    "type": "generated",
+    "builder": "tests/scripts/test_lifecycle_order.sh"
+  },
+  "expected_outcome": "pass",
+  "grader": {
+    "type": "shell",
+    "command": "bash tests/scripts/test_lifecycle_order.sh"
+  },
+  "blocking": true,
+  "contract_refs": [
+    "lifecycle:branch-worktree-creation",
+    "lifecycle:pr-creation",
+    "lifecycle:closeout-worktree-cleanup",
+    "failure_modes:preflight-failure-aborts-start"
+  ]
+}
