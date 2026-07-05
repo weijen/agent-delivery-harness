@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #113)._
+_Last updated: 2026-07-05 (issue #64)._
 
 ---
 
@@ -59,15 +59,16 @@ _Last updated: 2026-07-05 (issue #113)._
 
 ## Next up
 
-- **L0/L1 evaluation workstream (open issues #64–#69):** #61 (directory
-  contract + manifest schema + validator), #63 (case-level TAP output for the
-  5 L0 sensors), and #62 (local runner + scorecard + fail-closed redaction gate)
-  are **delivered** (see below); next is
-  L0 manifests + blocking CI gate
-  (#64), SKILL.md frontmatter lint (#65), skill description-discriminability
+- **L0 evaluation workstream (#61–#64) — COMPLETE.** #61 (directory contract +
+  manifest schema + validator), #63 (case-level TAP output for the 5 L0 sensors),
+  #62 (local runner + scorecard + fail-closed redaction gate), and #64 (L0
+  manifests + blocking CI gate) are all **delivered** (see below). L0 evals now
+  run through the runner and block PRs in CI.
+- **L1 evaluation workstream (open issues #65–#69):** SKILL.md frontmatter lint
+  (#65), skill description-discriminability
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
-  [docs/evaluation/](evaluation/).
+  [docs/evaluation/l1-solution/](evaluation/l1-solution/).
 - **Deep-tracing remote-monitoring phase — #113 DELIVERED (see below):** the
   workbook + retention/PII spec + the two #112 carry-over hardenings landed.
   **Post-merge deploy step pending:** `terraform apply` the new
@@ -94,6 +95,24 @@ _Last updated: 2026-07-05 (issue #113)._
 ## Delivered (newest first)
 
 ### L0/L1 evaluation
+- **#64 — L0 manifests + blocking CI gate.** Authored the five L0 eval
+  manifests (`tests/evals/manifests/scripts/l0-{harness-contract,lifecycle-order,
+  review-gate,feature-list,issue-scaffold}.json`) — each `boundary:script-lifecycle`,
+  its grader running the matching L0 sensor, and a `contract_refs` array whose
+  every `section:id` resolves to a real `docs/harness-contract.yml` entry (no
+  third source of truth). Added `tests/evals/bin/run-l0-suite.sh`: runs the 5
+  manifests through `run-evals.sh`, prints case-level scorecards, and exits
+  non-zero iff any case `blocking_decision==block` (scorecard-authoritative, not
+  exit-code-trusting; accepts a manifest-dir arg for testability). Wired into
+  `harness-smoke.yml` as a distinct blocking **Run L0 suite gate** step (no Azure
+  config). Also folded in #63's deferred item: CI now lints `tests/scripts/lib/*.sh`
+  under `bash -n` + `shellcheck`. Sensors: `test_l0_manifests.sh` (contract-ref
+  resolution, good/bad self-checked), `test_l0_ci_gate.sh` (default-green +
+  mutation block-proof + CI wiring). This completes the L0 eval workstream
+  (#61–#64). Follow-up MINORs (non-blocking, from review): `require_text`
+  `[^\n]*`→`.*` grep-dialect portability; `run-l0-suite.sh` runner-stderr
+  passthrough; treat an unparseable scorecard as blocking (fail-closed).
+
 - **#62 — local eval runner + case-level scorecard + fail-closed redaction gate.**
   Added `tests/evals/bin/run-evals.sh`: validates a manifest (via #61's
   `validate-manifest.sh`), runs its grader, and emits a schema-valid case-level
