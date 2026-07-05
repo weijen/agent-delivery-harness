@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #61)._
+_Last updated: 2026-07-05 (issue #63)._
 
 ---
 
@@ -59,10 +59,11 @@ _Last updated: 2026-07-05 (issue #61)._
 
 ## Next up
 
-- **L0/L1 evaluation workstream (open issues #62–#69):** #61 (directory
-  contract + manifest schema + validator) is **delivered** (see below); next is
+- **L0/L1 evaluation workstream (open issues #62, #64–#69):** #61 (directory
+  contract + manifest schema + validator) and #63 (case-level TAP output for the
+  5 L0 sensors) are **delivered** (see below); next is
   local runner + scorecard + redaction gate
-  (#62), case-level L0 sensor output (#63), L0 manifests + blocking CI gate
+  (#62), L0 manifests + blocking CI gate
   (#64), SKILL.md frontmatter lint (#65), skill description-discriminability
   proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
   Azure Tier B runner + config/secret contract (#69). See
@@ -83,6 +84,22 @@ _Last updated: 2026-07-05 (issue #61)._
 ## Delivered (newest first)
 
 ### L0/L1 evaluation
+- **#63 — case-level TAP output for the 5 L0 sensors.** Added a hand-rolled,
+  dependency-free TAP emitter `tests/scripts/lib/tap.sh` (bash-3.2 compatible;
+  `tap_ok`/`tap_not_ok`/`tap_is` emit one row per scenario and never `exit`;
+  `tap_done` prints the `1..N` plan and returns non-zero iff any scenario
+  failed — continue-past-failure). Converted the 5 L0 sensors
+  (`test_harness_contract`, `test_lifecycle_order`, `test_review_gate`,
+  `test_feature_list_check`, `test_issue_scaffold`) from fail-fast to
+  per-scenario TAP (12/3/6/11/5 rows) using two isolation patterns
+  (per-scenario subshell vs. single-shell accumulator), preserving exactly what
+  each sensor exercises and its exit semantics. Sensors:
+  `tests/meta/test_tap_helper.sh`, `tests/meta/test_l0_sensors_tap.sh`. Decision:
+  hand-rolled TAP over `bats-core` (zero-dependency, matches repo ethos).
+  No-fail-fast mutation-proven on both patterns; full suite green.
+  Deferred (fold into #64, which already touches the workflow): extend the CI
+  `shellcheck` glob to cover `tests/scripts/lib/*.sh`.
+
 - **#61 — eval directory contract + manifest schema validator.** Established
   the `tests/evals/` target-first layout (`manifests/{scripts,skills}`,
   `fixtures/{scripts,skills}`, `baselines/`, alongside the existing

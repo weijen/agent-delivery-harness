@@ -5,9 +5,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/tap.sh"
+
+# Each scenario below runs inside its own `set -e` subshell (the `( set -e ... )`
+# wrappers), so fail() exits only that subshell and tap_result turns its exit
+# code into exactly one TAP row; the run then continues instead of fail-fast.
+# The subshells share on-disk state (worktrees, feature_list.json) but isolate
+# variables and cwd. Exit semantics: all scenarios pass => tap_done exits 0.
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
+  printf '# %s\n' "$*" >&2
   exit 1
+}
+
+tap_result() {
+  if [ "$1" -eq 0 ]; then tap_ok "$2"; else tap_not_ok "$2"; fi
 }
 
 make_commit() {
@@ -43,9 +55,19 @@ SKIP_INIT=1 ./scripts/start-issue.sh 123 SLUG=scaffold-test >/tmp/start-issue.ou
 WORKTREE="${TMP_DIR}/repo-worktrees/issue-123"
 FEATURE_LIST="${WORKTREE}/.copilot-tracking/issues/issue-123/feature_list.json"
 
+set +e
+(
+  set -e
 [ -f "$FEATURE_LIST" ] || fail "feature_list.json was not scaffolded"
 jq -e '.feature_schema.steps and (.feature_schema.passes == false) and (.feature_schema.regression_sensor == null) and (.feature_schema.e2e_sensor == null) and (.feature_schema.blocked_on == null) and (.feature_schema.verification == null)' "$FEATURE_LIST" >/dev/null || fail "feature schema missing expected fields"
+)
+_rc=$?
+set -e
+tap_result "$_rc" "start-issue scaffolds feature_list.json with the expected schema fields"
 
+set +e
+(
+  set -e
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":"fixture","e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST" >"${FEATURE_LIST}.tmp"
 mv "${FEATURE_LIST}.tmp" "$FEATURE_LIST"
 
@@ -53,10 +75,21 @@ if REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test 
   fail "finish hard gate passed with incomplete features"
 fi
 grep -q "incomplete feature_list items" /tmp/finish-hard.out || fail "finish hard gate did not report incomplete features"
+)
+_rc=$?
+set -e
+tap_result "$_rc" "finish hard gate refuses an incomplete feature_list"
 
+set +e
+(
+  set -e
 jq '.features[0].passes = true | .features[0].verification = "verified: closeout smoke green"' "$FEATURE_LIST" >"${FEATURE_LIST}.tmp"
 mv "${FEATURE_LIST}.tmp" "$FEATURE_LIST"
 REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >/tmp/finish-pass.out
+)
+_rc=$?
+set -e
+tap_result "$_rc" "finish hard gate passes once every feature is complete"
 
 # --- Issue #17 regression: warning paths must not crash on an undefined helper ---
 # finish-issue.sh has two warning-mode branches (incomplete features in default mode,
@@ -65,6 +98,9 @@ REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >/t
 
 # (a) Default mode (REQUIRE_FEATURES_COMPLETE unset): incomplete features are a WARNING.
 #     finish-issue.sh must exit 0 and emit the warning, not crash.
+set +e
+(
+  set -e
 SKIP_INIT=1 ./scripts/start-issue.sh 124 SLUG=warn-test >/tmp/start-warn.out
 WORKTREE_WARN="${TMP_DIR}/repo-worktrees/issue-124"
 FEATURE_LIST_WARN="${WORKTREE_WARN}/.copilot-tracking/issues/issue-124/feature_list.json"
@@ -78,9 +114,16 @@ grep -q "incomplete feature_list items remain" /tmp/finish-warn.out || fail "def
 if grep -qi "command not found" /tmp/finish-warn.out; then
   fail "default-mode finish hit an undefined helper (yellow-path regression)"
 fi
+)
+_rc=$?
+set -e
+tap_result "$_rc" "default-mode finish warns (not crash) on incomplete features"
 
 # (b) Missing jq: the completion check must SKIP with a warning, not crash. Run with a
 #     restricted PATH that provides the tools finish-issue.sh needs but omits jq.
+set +e
+(
+  set -e
 SKIP_INIT=1 ./scripts/start-issue.sh 125 SLUG=nojq-test >/tmp/start-nojq.out
 WORKTREE_NOJQ="${TMP_DIR}/repo-worktrees/issue-125"
 FEATURE_LIST_NOJQ="${WORKTREE_NOJQ}/.copilot-tracking/issues/issue-125/feature_list.json"
@@ -100,5 +143,9 @@ grep -q "jq not installed" /tmp/finish-nojq.out || fail "missing-jq finish did n
 if grep -qi "command not found" /tmp/finish-nojq.out; then
   fail "missing-jq finish hit an undefined helper (yellow-path regression)"
 fi
+)
+_rc=$?
+set -e
+tap_result "$_rc" "missing-jq finish skips with a warning (not crash)"
 
-printf 'issue scaffold smoke passed\n'
+tap_done

@@ -29,13 +29,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT="${ROOT}/docs/harness-contract.yml"
 
-fails=0
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/tap.sh"
+
+# This sensor already accumulates rather than fail-fast: fail() records a
+# diagnostic and bumps a PER-SCENARIO counter WITHOUT aborting, and
+# end_scenario() turns that counter into exactly one TAP row and resets it for
+# the next scenario. HOW results are reported changes (accumulate -> per-scenario
+# TAP); WHAT each section exercises is unchanged.
+sec_fails=0
 fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  fails=$((fails + 1))
+  printf '# %s\n' "$*" >&2
+  sec_fails=$((sec_fails + 1))
+}
+end_scenario() {
+  if [ "$sec_fails" -eq 0 ]; then tap_ok "$1"; else tap_not_ok "$1"; fi
+  sec_fails=0
 }
 
-[ -f "$CONTRACT" ] || { printf 'FAIL: contract not found at %s\n' "$CONTRACT" >&2; exit 1; }
+[ -f "$CONTRACT" ] || { printf '# BLOCKING: contract not found at %s\n' "$CONTRACT" >&2; exit 1; }
 
 # --- awk YAML readers (tailored to docs/harness-contract.yml's flat shape) ----
 
@@ -114,6 +126,7 @@ while IFS= read -r rec; do
   [ -x "$abs" ] || fail "declared script not executable: ${p}"
   bash -n "$abs" 2>/dev/null || fail "declared script does not parse (bash -n): ${p}"
 done < <(parse_records scripts)
+end_scenario "declared scripts exist, are executable, and parse (bash -n)"
 
 # --- 2. Required-script backstop (contract must not silently shrink) ---------
 for required in \
@@ -131,6 +144,7 @@ for required in \
     *) fail "contract no longer declares required script: ${required}" ;;
   esac
 done
+end_scenario "contract still declares every required harness script"
 
 # --- 2b. CI-green merge precondition backstop (issue #51) --------------------
 # The contract must keep declaring that a green CI run is required before merge,
@@ -140,6 +154,7 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-green-precondition[[:space
   || fail "contract no longer declares the ci-green-precondition lifecycle obligation"
 grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
   || fail "contract no longer declares the ci-not-green-refused failure mode"
+end_scenario "contract declares the CI-green merge precondition and its failure mode"
 
 # --- 2c. Breakdown-ownership backstop (issue #78) ----------------------------
 # The contract must keep declaring that the conductor owns authoring the
@@ -148,6 +163,7 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:
 # sensor even though section 3 would then no longer check it.
 grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]]*$' "$CONTRACT" \
   || fail "contract no longer declares the breakdown-ownership lifecycle obligation"
+end_scenario "contract declares the breakdown-ownership lifecycle obligation"
 
 # --- 2d. Trace-lib registration backstop (issue #93) -------------------------
 # scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
@@ -200,6 +216,7 @@ if grep -Eq '^trace_emission:' "$CONTRACT"; then
 else
   fail "contract no longer declares the trace_emission section (issue #94)"
 fi
+end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
@@ -231,10 +248,15 @@ check_owner_present() {
 }
 
 check_owner_present lifecycle
+end_scenario "lifecycle obligations still present in their owner scripts"
 check_owner_present env_flags
+end_scenario "env-flag obligations still present in their owner scripts"
 check_owner_present state_transitions
+end_scenario "state-transition obligations still present in their owner scripts"
 check_owner_present failure_modes
+end_scenario "failure-mode obligations still present in their owner scripts"
 check_owner_present trace_emission
+end_scenario "trace_emission obligations still present in their owner scripts"
 
 # --- 4. Language-neutral boundary -------------------------------------------
 neutral_owners="$(parse_nested_list language_neutral owners)"
@@ -262,6 +284,7 @@ while IFS= read -r owner; do
     fi
   done <<< "$neutral_tokens"
 done <<< "$neutral_owners"
+end_scenario "language-neutral scripts contain no language/toolchain tokens"
 
 # --- 5. No stale IMPLEMENTATION-STATUS references in tracked files -----------
 # The repo-wide status doc is named docs/PROGRESS.md everywhere (issue #84). Any
@@ -273,10 +296,7 @@ if [ -n "$stale_status_refs" ]; then
     fail "stale IMPLEMENTATION-STATUS reference in tracked file: ${f} (use docs/PROGRESS.md)"
   done <<< "$stale_status_refs"
 fi
+end_scenario "no stale IMPLEMENTATION-STATUS references in tracked files"
 
-# --- Result ------------------------------------------------------------------
-if [ "$fails" -ne 0 ]; then
-  printf '\n%d harness-contract violation(s).\n' "$fails" >&2
-  exit 1
-fi
-printf 'harness contract honored\n'
+# --- Result: one TAP plan line; non-zero exit iff any scenario failed ---------
+tap_done
