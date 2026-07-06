@@ -280,6 +280,10 @@ Prefer the cheap deterministic sensors on every change; reserve the expensive in
 set (enumerated once in §6) for the Pre-PR verify gate. When a sensor message tells you how to
 fix something, do it before moving on.
 
+The Pre-PR verify gate also runs a deterministic **`ci-gate`** (project-CI coverage): a repo with a
+code surface but no project-CI workflow running its gates cannot open a PR. See §6 (bypass:
+`SKIP_CI_GATE=1`, logged).
+
 ### Completion sensors: regression vs. end-to-end
 
 `passes:true` means the feature is protected against regression and, when applicable, proven
@@ -389,6 +393,13 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    `./scripts/create-pr.sh`) **fails closed** unless `docs/PROGRESS.md` changed in
    `main...HEAD`. **Every change must update `docs/PROGRESS.md` — there is no opt-out**,
    because it is the running log the next agent reads first. Only then open the PR.
+7. **Project-CI coverage is enforced deterministically.** The same `review-gate.sh check` call
+   inside `./scripts/create-pr.sh` runs the fail-closed **`ci-gate`**: if the repo has a code
+   surface (Python/Go/Node/Java/Ruby) but no `.github/workflows/*.y*ml` other than
+   `harness-smoke.yml` running its gates, `create-pr.sh` refuses to open the PR — `harness-smoke.yml`
+   runs the harness's own sensors, not the adopting project's. Add a project-CI workflow, or bypass
+   with `SKIP_CI_GATE=1` (a **logged** escape hatch) when a repo legitimately has no project CI yet.
+   Preflight (`init.sh`) surfaces the same gap earlier as a WARN.
 
 Skipping this gate is a process violation even when the four computational gates are green —
 the inferential sensors catch what the deterministic ones cannot. If you find yourself about
