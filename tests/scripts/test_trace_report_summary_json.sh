@@ -166,6 +166,8 @@ else
   expect_summary "final outcome"        '.final_outcome == "pass"'
   expect_summary "span_counts totals"   '.span_counts.total == 15 and .span_counts.invalid_lines == 2'
   expect_summary "span_counts by_type"  '.span_counts.by_type == {"agent":2,"lifecycle":6,"tool":7}'
+  expect_summary "coverage flags (#131: tool spans present, no model spans)" \
+    '.coverage.has_tool_spans == true and .coverage.has_model_spans == false'
   expect_summary "stage pr_merge (2 spans, 400+600=1000 ms)" \
     '(.stages[] | select(.step == "pr_merge")) | .spans == 2 and .duration_ms == 1000'
   expect_summary "tool git (3 calls)" \

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #130)._
+_Last updated: 2026-07-06 (issue #131)._
 
 ---
 
@@ -164,7 +164,19 @@ _Last updated: 2026-07-06 (issue #130)._
   content, L1 cases.
 
 ### Deep tracing
-- **#130 — capture tool-result summary as `harness.result_summary` (P1-1).**
+- **#131 — telemetry-coverage in trace-summary + scorecard (P1-2).** Stops the
+  cross-run scorecard from blending instrumented and lifecycle-only runs.
+  `trace-report.sh` now emits `coverage {has_tool_spans, has_model_spans}` in
+  `trace-summary.json` (computed from span presence; span-kind counts already
+  ride `span_counts.by_type`), documented in `trace-summary.v1.json` as an
+  additive open-world optional key — no `summary_schema_version` bump, absent on
+  older summaries. `trace-scorecard.sh` adds a per-bucket
+  `tool_coverage {runs_with_tool_spans, of}` (mirroring the existing
+  `token_coverage` honest-denominator pattern) and propagates per-run `coverage`
+  onto the issue rows: a lifecycle-only run counts in `of` but not in
+  `runs_with_tool_spans`, so a low `tool_calls` sum reads as "the adapter was
+  not wired", never "the agent called nothing". A pre-#131 summary degrades to
+  `null` rather than a fabricated flag. Third of the deep-trace P1 batch.
   Closed the one deep-telemetry gap where the boundary was on our side: both
   runtime hooks already RECEIVED the tool result but dropped it, keeping only
   pass/fail. Now `copilot-trace-hook.sh` sources it from
