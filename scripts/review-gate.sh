@@ -109,10 +109,9 @@ Commands:
   status-doc  Require docs/PROGRESS.md to have changed in <base>...HEAD.
               Every change must update the repo-wide status doc — there is no
               opt-out. docs/PROGRESS.md is what the next agent reads first.
-  ci-gate     Fail closed when a code surface (Python/Go/Node/Java/Ruby) is
-              present but no .github/workflows/*.y*ml (other than
-              harness-smoke.yml) runs its gates. Bypass with SKIP_CI_GATE=1
-              (logged).
+  ci-gate     Fail closed when a code surface is present but no
+              .github/workflows/*.y*ml (other than harness-smoke.yml) runs its
+              gates. Bypass with SKIP_CI_GATE=1 (logged).
   trace       Run the trace checkers (validate-trace.sh + check-trace-consistency.sh)
               for the current issue. Warn-only by default: findings are printed
               with a warning summary and the exit code stays 0. Set
@@ -160,13 +159,13 @@ status_doc_gate() {
 }
 
 # ci_gate — fail closed unless every detected code surface has project-CI
-# coverage (issue #129). A code surface (Python/Go/Node/Java/Ruby) present with
-# no .github/workflows/*.y*ml (other than harness-smoke.yml) running its gate
-# commands means the project's own tests/lint/type-check never run in CI, so a
-# PR must not open. Detection + all language tokens live in ci-coverage-lib.sh;
-# this function stays language-neutral, printing the lib's message via a
-# variable. SKIP_CI_GATE=1 is the documented escape hatch (mirrors FORCE=1): it
-# bypasses the gate with a LOGGED warning, never silently.
+# coverage (issue #129). A code surface present with no .github/workflows/*.y*ml
+# (other than harness-smoke.yml) running its gate commands means the project's
+# own tests/lint/type-check never run in CI, so a PR must not open. Detection +
+# all language tokens live in ci-coverage-lib.sh; this function stays
+# language-neutral, printing the lib's message via a variable. SKIP_CI_GATE=1 is
+# the documented escape hatch (mirrors FORCE=1): it bypasses the gate with a
+# LOGGED warning, never silently.
 ci_gate() {
   TRACE_STAGE="ci_coverage"
 

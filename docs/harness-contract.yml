@@ -126,6 +126,9 @@ env_flags:
   - name: DELETE_BRANCH
     owner: scripts/finish-issue.sh
     present: DELETE_BRANCH
+  - name: SKIP_CI_GATE
+    owner: scripts/review-gate.sh
+    present: SKIP_CI_GATE
 
 # ---------------------------------------------------------------------------
 # Required outputs and state transitions. Each declared artifact / naming rule
@@ -211,6 +214,10 @@ failure_modes:
     kind: hard
     owner: scripts/merge-pr.sh
     present: checks are not green
+  - id: ci-coverage-missing
+    kind: hard
+    owner: scripts/review-gate.sh
+    present: no project CI runs the gates
 
 # ---------------------------------------------------------------------------
 # Trace emission (issue #94). Every lifecycle script emits schema-v1 trace
