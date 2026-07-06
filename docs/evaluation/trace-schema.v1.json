@@ -63,6 +63,7 @@
     "harness.worktree": "string; absolute path of the issue worktree. Excluded from the trace-export allowlist.",
     "harness.summary": "string; one-line human summary of a handback (log-handback). Excluded from the trace-export allowlist.",
     "harness.args_summary": "string; redacted, length-capped excerpt of a tool call's arguments (runtime hooks). High-leakage: excluded from the trace-export allowlist.",
+    "harness.result_summary": "string; redacted, length-capped excerpt of a tool call's result text (runtime hooks: Copilot textResultForLlm/text_result_for_llm, Claude tool_response). High-leakage: excluded from the trace-export allowlist. Capped at 500 chars (HOOK_RESULT_SUMMARY_CAP).",
     "harness.preflight_skipped": "string; whether preflight (init.sh) was skipped via SKIP_INIT at worktree creation (start-issue), 'true' when set.",
     "harness.scaffolded": "string; whether the issue tracking dir was scaffolded on this run (start-issue), 'true' | 'false'.",
     "harness.worktree_reused": "string; whether an existing worktree was reused instead of created (start-issue), 'true' | 'false'.",

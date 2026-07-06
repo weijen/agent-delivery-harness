@@ -463,6 +463,8 @@ printf '%s\n' "$span1" | jq -e '.["harness.outcome"] == "pass"' >/dev/null \
   || fail "e1: toolResult.resultType=success must stamp harness.outcome=pass (P5): ${span1}"
 printf '%s\n' "$span1" | jq -e 'has("harness.duration_ms") | not' >/dev/null \
   || fail "e1: NO Copilot payload documents a correlation id — harness.duration_ms must NEVER be emitted, omit-never-fake (P4): ${span1}"
+printf '%s\n' "$span1" | jq -e '.["harness.result_summary"] == "fixture-ok"' >/dev/null \
+  || fail "e1: toolResult.textResultForLlm must become harness.result_summary (#130 camel path): ${span1}"
 
 # =============================================================================
 # Emission E2 — CLI postToolUse WITHOUT toolResult: outcome ABSENT (honest
@@ -579,6 +581,8 @@ span6="$(nth_line "$TRACE_FILE" 6)"
 validate_span "$span6" || fail "e6: span rejected by the contract filter: ${span6}"
 printf '%s\n' "$span6" | jq -e '.["harness.outcome"] == "pass"' >/dev/null \
   || fail "e6: tool_result.result_type=success (snake dialect) must stamp harness.outcome=pass (P5): ${span6}"
+printf '%s\n' "$span6" | jq -e '.["harness.result_summary"] == "ok"' >/dev/null \
+  || fail "e6: tool_result.text_result_for_llm must become harness.result_summary (#130 snake path): ${span6}"
 
 # =============================================================================
 # Emission E7 — redact-before-cap straddle (#96 loop-2 finding #1, pinned
@@ -640,6 +644,33 @@ printf '%s\n' "$span8" | jq -e --arg want "$E8_COMPACT" '
     and (.["harness.args_summary"] == $want)
   ' >/dev/null \
   || fail "e8: OBJECT-typed toolArgs is a first-class CLI variant (reference: toolArgs is \`unknown\`, parsed from JSON when possible) — the span must carry harness.args_summary == jq -c of the object ('${E8_COMPACT}'), not a summary-less span (P3, loop-2 minor 1): ${span8}"
+
+# =============================================================================
+# Emission E8b (#130) — harness.result_summary from an oversized textResultForLlm
+# carrying a SYNTHETIC ghp_ token: redact-before-cap at 500, token byte-absent,
+# [REDACTED] present. Proves the new result field gets the same treatment as
+# args_summary. Line 9; read dynamically so later edits stay robust.
+# =============================================================================
+R_SECRET="ghp_ResultFixtureSecret0000000000000000000000"
+R_PAD="$(printf 'y%.0s' $(seq 1 720))"
+E8B_RESULT="$(jq -cn --arg s "$R_SECRET" --arg p "$R_PAD" \
+  '{resultType: "success", textResultForLlm: ("leak=" + $s + " " + $p)}')"
+run_hook "e8b-result-secret-oversize" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  cli_payload "postToolUse" "$ISSUE_REPO" "bash" '{"command":"echo r"}' "$E8B_RESULT"
+)
+assert_session_safe "e8b-result-secret-oversize"
+E8B_LINE="$(line_count "$TRACE_FILE")"
+span8b="$(nth_line "$TRACE_FILE" "$E8B_LINE")"
+validate_span "$span8b" || fail "e8b: result-summary span rejected by the contract filter: ${span8b}"
+printf '%s\n' "$span8b" | jq -e '
+    ((.["harness.result_summary"] | type) == "string")
+    and ((.["harness.result_summary"] | length) <= 500)
+    and (.["harness.result_summary"] | endswith("..."))
+  ' >/dev/null \
+  || fail "e8b: harness.result_summary must be capped at 500 chars TOTAL and end with '...' (#130): ${span8b}"
+if grep -qF "$R_SECRET" "$TRACE_FILE"; then
+  fail "e8b: the synthetic ghp_ token reached disk via the result summary — redaction breached: $(grep -n "$R_SECRET" "$TRACE_FILE")"
+fi
 
 # =============================================================================
 # Emission E9 — whole-file invariants: every emitted line is a tool span

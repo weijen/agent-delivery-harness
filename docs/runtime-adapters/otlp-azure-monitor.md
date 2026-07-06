@@ -105,11 +105,12 @@ identifiers (`harness.feature_id`, `harness.stage`, `gen_ai.tool.name`,
 `gen_ai.operation.name`, `gen_ai.agent.name`, `gen_ai.request.model`,
 `harness.review_gate_sha`, `harness.pr_number`, `harness.require_complete`).
 
-Four fields are **excluded by name**, deliberately:
+Five fields are **excluded by name**, deliberately:
 
 | Excluded field | Why it never ships (v1) |
 | --- | --- |
 | `harness.args_summary` | Redacted-then-capped tool arguments are still free-text: paths, repo names, prompt fragments — the largest leak surface in the trace. |
+| `harness.result_summary` | Redacted-then-capped tool result text (command output, test failures, stack traces): free-text, and capped at 500 rather than 200 — the largest single-field leak surface. |
 | `harness.summary` | Free-text handback prose; same reasoning. |
 | `harness.worktree` | Absolute, home-rooted local paths (exactly what `sanitize-trace.sh` scrubs). |
 | `harness.branch` | Naming leak surface, and derivable from the issue number anyway. |
@@ -132,7 +133,7 @@ debugging bypass):
 2. **Output audit** — the serialized envelope array is staged in a temp dir
    and must be a `trace_redact` fixed point, pass a hardcoded secret-shape
    backstop that does not depend on `trace_redact` working, and contain none
-   of the four excluded field names. A broken or missing redactor fails
+   of the excluded field names. A broken or missing redactor fails
    closed — "the auditor broke" never degrades to "ship anyway".
 
 On any gate failure **nothing is written and nothing is shipped** — no

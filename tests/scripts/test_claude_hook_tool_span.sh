@@ -222,6 +222,11 @@ printf '%s\n' "$span1" | jq -e '.["harness.outcome"] == "pass"' >/dev/null \
   || fail "case1: tool_response.is_error=false must stamp harness.outcome=pass (C3): ${span1}"
 printf '%s\n' "$span1" | jq -e 'has("harness.duration_ms") | not' >/dev/null \
   || fail "case1: PostToolUse with no prior PreToolUse must OMIT harness.duration_ms — omit, never fake (C2): ${span1}"
+printf '%s\n' "$span1" | jq -e '
+    ((.["harness.result_summary"] | type) == "string")
+    and (.["harness.result_summary"] | contains("fixture-ok"))
+  ' >/dev/null \
+  || fail "case1: tool_response must become harness.result_summary (#130): ${span1}"
 
 # =============================================================================
 # Case 2 — synthetic secret + oversized input: cap at 200 chars with `...`
@@ -384,5 +389,29 @@ printf '%s\n' "$span8" | jq -e '
 escaped="$(find "$REPO" -name '*escape*' 2>/dev/null || true)"
 [ -z "$escaped" ] \
   || fail "case8: 'escape'-named residue after the Post (traversal breach or missed cleanup): ${escaped}"
+
+# =============================================================================
+# Case 9 (#130) — harness.result_summary from an oversized tool_response stdout
+# carrying a SYNTHETIC ghp_ token: redact-before-cap at 500, token byte-absent.
+# Read the appended line dynamically so it is robust to earlier edits.
+# =============================================================================
+R_SECRET="ghp_ClaudeResultSecret00000000000000000000000"
+R_PAD="$(printf 'y%.0s' $(seq 1 720))"
+RESP9="$(jq -cn --arg s "$R_SECRET" --arg p "$R_PAD" \
+  '{stdout: ("leak=" + $s + " " + $p), is_error: false}')"
+run_hook "case9-result-secret-oversize" \
+  "$(post_payload "Bash" '{"command":"echo r"}' "$RESP9" "toolu_nocorr_09")"
+LINE9="$(line_count "$TRACE_FILE")"
+span9="$(nth_line "$TRACE_FILE" "$LINE9")"
+validate_span "$span9" || fail "case9: result-summary span rejected by the contract filter: ${span9}"
+printf '%s\n' "$span9" | jq -e '
+    ((.["harness.result_summary"] | type) == "string")
+    and ((.["harness.result_summary"] | length) <= 500)
+    and (.["harness.result_summary"] | endswith("..."))
+  ' >/dev/null \
+  || fail "case9: harness.result_summary must be capped at 500 chars TOTAL and end with '...' (#130): ${span9}"
+if grep -qF "$R_SECRET" "$TRACE_FILE"; then
+  fail "case9: the synthetic ghp_ token reached disk via the result summary — redaction breached: $(grep -n "$R_SECRET" "$TRACE_FILE")"
+fi
 
 printf 'claude-code hook tool-span contract honored\n'
