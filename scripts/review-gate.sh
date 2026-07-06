@@ -296,6 +296,77 @@ trace_gate() {
   return "$gate_rc"
 }
 
+# red_first_evidence_gate — hard-block the PR path on missing red-first
+# evidence (issue #144, feature trace-red-first-pr-gate).
+#
+# Unlike the broader warn-only trace_gate, this gate BLOCKS BY DEFAULT (no env
+# flag). It runs check-trace-consistency.sh for the current issue and fails
+# ONLY when a red-first finding is present:
+#   VIOLATION consistency: red_first_evidence_missing <fid>
+#   VIOLATION consistency: red_first_role_mismatch  <fid>
+# Every OTHER consistency / validate-trace finding stays warn-only via
+# trace_gate — this gate never blocks on them. A completed (passes:true)
+# feature clears the gate with a role-correct, file-ordered
+#   test-subagent red_handback -> implementation-subagent impl_handback
+#   -> test-subagent green_handback
+# triple (all harness.outcome==pass) or a governed red_first_waiver.
+#
+# Degrades gracefully — print a neutral note and return 0, never break the
+# gate — when the issue number cannot be resolved (a checkout that predates
+# the trace tooling), the checker is not executable, or the checker hits an
+# environment error (exit 2: no trace yet). Emits no span of its own.
+red_first_evidence_gate() {
+  local issue_num="" branch=""
+
+  # Issue resolution mirrors trace_gate / trace-lib precedence: TRACE_ISSUE
+  # env, then the feature/issue-NN-* branch, then the issue-NN worktree
+  # basename.
+  if [ -n "${TRACE_ISSUE:-}" ]; then
+    issue_num="${TRACE_ISSUE}"
+  else
+    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    fi
+  fi
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ red-first gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+
+  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+    yellow "⚠ red-first gate skipped: check-trace-consistency.sh not found or not executable"
+    return 0
+  fi
+
+  # Capture stdout+stderr and the exit code without letting set -e abort on the
+  # checker's non-zero exit (exit 1 means findings, exit 2 means it could not
+  # run). Only exit 2 degrades to a skip; findings are inspected below.
+  local out="" rc=0
+  out="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    yellow "⚠ red-first gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
+    return 0
+  fi
+
+  # Block ONLY on the red-first findings — never on any other finding.
+  local findings=""
+  findings="$(printf '%s\n' "$out" \
+    | grep -E 'VIOLATION consistency: red_first_(evidence_missing|role_mismatch)' || true)"
+  if [ -n "$findings" ]; then
+    red "✗ red-first gate: completed feature(s) lack role-correct ordered red-first evidence."
+    printf '%s\n' "$findings"
+    echo "  Provide a role-correct ordered red_handback -> impl_handback -> green_handback"
+    echo "  triple (or a governed red_first_waiver) before opening the PR — the red-first"
+    echo "  evidence gate blocks by default."
+    return 1
+  fi
+
+  return 0
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_dir="${repo_root}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
@@ -306,6 +377,14 @@ case "$command" in
   approve)
     TRACE_CMD="approve"
     TRACE_T0="$(trace_now_ms)"
+    # Red-first evidence gate (issue #144): refuse to record approval when a
+    # completed feature lacks role-correct ordered red-first evidence. Blocks
+    # by default and runs BEFORE the marker is written, so a blocked approve
+    # never leaves an approved-head marker behind.
+    if ! red_first_evidence_gate; then
+      red "✗ approve refused: missing red-first evidence (see above) — not recording approval."
+      exit 1
+    fi
     mkdir -p "$marker_dir"
     printf '%s\n' "$head_sha" > "$marker_file"
     green "✓ review approved for current HEAD ${head_sha}"
@@ -338,6 +417,11 @@ case "$command" in
     # REQUIRE_TRACE_CONSISTENCY=1 trace findings fail the check too.
     TRACE_STAGE="trace_gate"
     trace_gate
+    # Red-first evidence gate (issue #144): hard-block by default on missing
+    # role-correct ordered red-first evidence, independent of the warn-only
+    # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
+    TRACE_STAGE="red_first_evidence"
+    red_first_evidence_gate || exit 1
     ;;
   status-doc)
     TRACE_CMD="status-doc"
