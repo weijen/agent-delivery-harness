@@ -56,6 +56,9 @@ scripts:
   - id: finish-issue
     path: scripts/finish-issue.sh
     role: Tear down the worktree after the PR merges.
+  - id: trace-export
+    path: scripts/trace-export.sh
+    role: Opt-in trace exporter; best-effort closeout export target.
 
 # ---------------------------------------------------------------------------
 # Lifecycle order. The harness must continue to perform these actions in this
@@ -99,6 +102,15 @@ lifecycle:
   - id: closeout-worktree-cleanup
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
+  - id: local-hook-seeding
+    owner: scripts/start-issue.sh
+    present: harness-trace\.json
+  - id: trace-export
+    owner: scripts/finish-issue.sh
+    present: best_effort_trace_export
+  - id: pr-path-red-first-gate
+    owner: scripts/review-gate.sh
+    present: red_first_evidence_gate
 
 # ---------------------------------------------------------------------------
 # Required inputs and environment flags. Each flag must still be referenced in
@@ -132,6 +144,9 @@ env_flags:
   - name: SKIP_CI_GATE
     owner: scripts/review-gate.sh
     present: SKIP_CI_GATE
+  - name: TRACE_EXPORT_OTLP
+    owner: scripts/finish-issue.sh
+    present: TRACE_EXPORT_OTLP
 
 # ---------------------------------------------------------------------------
 # Required outputs and state transitions. Each declared artifact / naming rule
@@ -221,6 +236,14 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: no project CI runs the gates
+  - id: missing-red-first-evidence
+    kind: hard
+    owner: scripts/review-gate.sh
+    present: red_first_evidence_missing
+  - id: wrong-red-first-role-attribution
+    kind: hard
+    owner: scripts/review-gate.sh
+    present: red_first_role_mismatch
 
 # ---------------------------------------------------------------------------
 # Trace emission (issue #94). Every lifecycle script emits schema-v1 trace

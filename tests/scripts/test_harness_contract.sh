@@ -111,6 +111,29 @@ field() {
   printf '%s\n' "$1" | tr '\t' '\n' | awk -F= -v k="$2" '$1==k { sub(/^[^=]*=/, ""); print; exit }'
 }
 
+# require_contract_record SECTION KEY VALUE [OWNER|OWNER2]
+#   Backstop a required contract entry even if deleting the YAML record would
+#   otherwise make the generic section scan silently skip it.
+require_contract_record() {
+  local section="$1" key="$2" expected_value="$3" expected_owners="${4:-}"
+  local rec actual_owner found
+  found=0
+  while IFS= read -r rec; do
+    [ -n "$rec" ] || continue
+    if [ "$(field "$rec" "$key")" = "$expected_value" ]; then
+      found=1
+      if [ -n "$expected_owners" ]; then
+        actual_owner="$(field "$rec" owner)"
+        case "|${expected_owners}|" in
+          *"|${actual_owner}|"*) : ;;
+          *) fail "${section}/${expected_value}: owner must be one of ${expected_owners}, got ${actual_owner:-<empty>}" ;;
+        esac
+      fi
+    fi
+  done < <(parse_records "$section")
+  [ "$found" -eq 1 ] || fail "contract no longer declares ${section}/${expected_value}"
+}
+
 # --- 1. Declared scripts: exist, executable, parse ---------------------------
 declared_scripts=""
 while IFS= read -r rec; do
@@ -217,6 +240,19 @@ else
   fail "contract no longer declares the trace_emission section (issue #94)"
 fi
 end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
+
+# --- 2f. Trace evidence contract backstop (issue #144) -----------------------
+# The contract must freeze the issue #144 lifecycle obligations explicitly.
+# If any YAML record is deleted, this scenario fails before the generic
+# check_owner_present scans can silently shrink their worklist.
+require_contract_record scripts path scripts/trace-export.sh
+require_contract_record lifecycle id local-hook-seeding scripts/start-issue.sh
+require_contract_record lifecycle id trace-export scripts/finish-issue.sh
+require_contract_record env_flags name TRACE_EXPORT_OTLP 'scripts/finish-issue.sh|scripts/trace-export.sh'
+require_contract_record failure_modes id missing-red-first-evidence scripts/review-gate.sh
+require_contract_record failure_modes id wrong-red-first-role-attribution scripts/review-gate.sh
+require_contract_record lifecycle id pr-path-red-first-gate scripts/review-gate.sh
+end_scenario "contract declares issue #144 trace evidence obligations"
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
