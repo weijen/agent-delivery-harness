@@ -35,6 +35,9 @@ scripts:
   - id: trace-lib
     path: scripts/trace-lib.sh
     role: Sourceable trace-span emitter for deep tracing; schema authority docs/evaluation/trace-schema.v1.json.
+  - id: ci-coverage-lib
+    path: scripts/ci-coverage-lib.sh
+    role: Sourceable project-CI coverage detector; owns language gate-signature tokens so review-gate.sh/create-pr.sh stay language-neutral.
   - id: start-issue
     path: scripts/start-issue.sh
     role: Begin an issue in an isolated branch + worktree; scaffold tracking state.

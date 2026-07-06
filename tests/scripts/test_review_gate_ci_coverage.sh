@@ -76,6 +76,21 @@ if ! run_a ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must pass once a workflow runs the gates"
 fi
 
+# 2b. a .yaml (not .yml) workflow is also recognised
+rm "${A}/.github/workflows/ci.yml"
+printf '%s\n' "$CI_WORKFLOW" > "${A}/.github/workflows/ci.yaml"
+if ! run_a ./scripts/review-gate.sh ci-gate; then
+  cat "$OUT"; fail "ci-gate must recognise .yaml (not just .yml) workflows"
+fi
+
+# 1c. multi-surface: an added, uncovered Go surface still fails (per-surface)
+printf 'module fixture\n' > "${A}/go.mod"
+if run_a ./scripts/review-gate.sh ci-gate; then
+  cat "$OUT"; fail "ci-gate must fail when ANY surface (go) lacks project CI"
+fi
+grep -qi 'missing for:.*go' "$OUT" || { cat "$OUT"; fail "multi-surface failure must name the uncovered surface (go)"; }
+rm "${A}/go.mod"
+
 # ============================================================================
 # Part B — create-pr.sh enforces ci-gate via the `check` path
 # ============================================================================
