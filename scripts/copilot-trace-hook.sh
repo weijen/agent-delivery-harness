@@ -151,6 +151,29 @@ hook__on_post_tool_use() {
     attrs+=("harness.result_summary=${result_summary}")
   fi
 
+  # Skill identity (#138): the CLI exposes a skill invocation as a first-class
+  # tool call with toolName "skill" and the skill name in the args. Add
+  # harness.skill.name (an enum-like identifier, allowlisted for export); the
+  # span stays a tool span. Omit when the args do not parse or carry no skill
+  # key (omit, never fake). Non-skill tools never reach this branch.
+  if [ "$tool_name" = "skill" ]; then
+    local skill_name=""
+    if [ "$dialect" = "camel" ]; then
+      skill_name="$(printf '%s' "$payload" | jq -r '
+          (.toolArgs
+           | if type == "string" then (fromjson? // {})
+             elif type == "object" then .
+             else {} end) as $a
+          | ($a.skill // empty) | strings' 2>/dev/null || true)"
+    else
+      skill_name="$(printf '%s' "$payload" | jq -r '
+          (.tool_input.skill // empty) | strings' 2>/dev/null || true)"
+    fi
+    if [ -n "$skill_name" ]; then
+      attrs+=("harness.skill.name=${skill_name}")
+    fi
+  fi
+
   # Outcome only from unambiguous signals (P5).
   if [ "$outcome_hint" = "fail" ]; then
     outcome="fail"

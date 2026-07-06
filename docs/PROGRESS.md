@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #137)._
+_Last updated: 2026-07-06 (issue #138)._
 
 ---
 
@@ -164,7 +164,17 @@ _Last updated: 2026-07-06 (issue #137)._
   content, L1 cases.
 
 ### Deep tracing
-- **#137 — fix the CLI hook against real Copilot CLI v1.0.69 payloads (A of the #121 split).**
+- **#138 — CLI skill identity via `harness.skill.name` (B of the #121 split).**
+  With CLI tool spans restored by #137, the spike-confirmed `skill` tool call
+  (`toolName: "skill"`, name in `toolArgs.skill`) now carries
+  `harness.skill.name` — a tool-span attribute, not a first-class `skill` span
+  kind (owner decision 1b). The hook parses `toolArgs.skill` (camel string or
+  object; snake `tool_input.skill`) only when the tool name is `skill`; the key
+  is omitted on malformed args and never appears on non-skill tools. Documented
+  in `trace-schema.v1.json` (drift sensor now 32 keys) and added to the
+  `trace-export` allowlist (enum-like, safe to ship). Sensors E13/E14 plus the
+  #121 spike hypotheses test updated to the resolved behavior. Unblocks #139
+  (surface skill usage in report/scorecard/App Insights).
   Bug-class fix from the #121 spike: CLI v1.0.69 sends **no `event` field**, so
   `copilot-trace-hook.sh` dropped every CLI tool call and emitted no tool spans
   at all (which also meant #130 `result_summary` never landed on real CLI).

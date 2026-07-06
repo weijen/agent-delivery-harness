@@ -747,6 +747,65 @@ assert_session_safe "e12-eventless-notool"
   || fail "e12: an event-less payload with NO toolName must NOT be inferred as a tool call (stop-shaped/unknown) — no span may be appended (#137), got $(line_count "$TRACE_FILE") from ${E12_BEFORE}"
 
 # =============================================================================
+# Emission E13 (#138) — CLI skill identity: an event-less `skill` tool call
+# (toolName "skill", skill name in toolArgs.skill) must carry harness.skill.name
+# extracted from toolArgs.skill, staying a tool span with outcome=pass.
+# =============================================================================
+E13_BEFORE="$(line_count "$TRACE_FILE")"
+run_hook "e13-skill-identity" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" '{
+    sessionId: "copilot-sess-fixture-0001",
+    timestamp: 1783345245587,
+    cwd: $cwd,
+    toolName: "skill",
+    toolArgs: "{\"skill\":\"find-over-design\"}",
+    toolResult: {resultType: "success", textResultForLlm: "Skill loaded"}
+  }'
+)
+assert_session_safe "e13-skill-identity"
+[ "$(line_count "$TRACE_FILE")" = "$((E13_BEFORE + 1))" ] \
+  || fail "e13: a skill tool call must emit one tool span (#138), got $(line_count "$TRACE_FILE") from ${E13_BEFORE}"
+span13="$(nth_line "$TRACE_FILE" "$((E13_BEFORE + 1))")"
+validate_span "$span13" || fail "e13: skill span rejected by the contract filter: ${span13}"
+printf '%s\n' "$span13" | jq -e '
+    (.span == "tool")
+    and (.["gen_ai.tool.name"] == "skill")
+    and (.["harness.skill.name"] == "find-over-design")
+    and (.["harness.outcome"] == "pass")
+  ' >/dev/null \
+  || fail "e13: toolName=skill must add harness.skill.name from toolArgs.skill (#138): ${span13}"
+
+# =============================================================================
+# Emission E14 (#138) — skill tool call with malformed args (no skill key):
+# span still emitted, but harness.skill.name OMITTED (omit, never fake).
+# =============================================================================
+E14_BEFORE="$(line_count "$TRACE_FILE")"
+run_hook "e14-skill-malformed" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" '{
+    sessionId: "copilot-sess-fixture-0001",
+    timestamp: 1783345246000,
+    cwd: $cwd,
+    toolName: "skill",
+    toolArgs: "{\"notskill\":\"x\"}",
+    toolResult: {resultType: "success"}
+  }'
+)
+assert_session_safe "e14-skill-malformed"
+[ "$(line_count "$TRACE_FILE")" = "$((E14_BEFORE + 1))" ] \
+  || fail "e14: a skill tool call with malformed args must still emit one tool span, got $(line_count "$TRACE_FILE") from ${E14_BEFORE}"
+span14="$(nth_line "$TRACE_FILE" "$((E14_BEFORE + 1))")"
+printf '%s\n' "$span14" | jq -e '(.["gen_ai.tool.name"] == "skill") and (has("harness.skill.name") | not)' >/dev/null \
+  || fail "e14: a skill call without a parseable toolArgs.skill must OMIT harness.skill.name (omit, never fake): ${span14}"
+
+# Whole-file guard (#138): only skill tool spans may carry harness.skill.name.
+while IFS= read -r line; do
+  printf '%s\n' "$line" | jq -e '
+      (has("harness.skill.name") | not) or (.["gen_ai.tool.name"] == "skill")
+    ' >/dev/null \
+    || fail "e14: harness.skill.name may only appear on a gen_ai.tool.name=skill span, got: ${line}"
+done < "$TRACE_FILE"
+
+# =============================================================================
 # Emission E9 — whole-file invariants: every emitted line is a tool span
 # with NO harness.duration_ms key, and no .hook-state exists anywhere (P4)
 # =============================================================================

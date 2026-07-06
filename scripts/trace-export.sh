@@ -430,7 +430,7 @@ def allowlist:
    "gen_ai.tool.name", "gen_ai.operation.name", "gen_ai.agent.name",
    "gen_ai.request.model",
    "harness.review_gate_sha", "harness.pr_number",
-   "harness.require_complete", "harness.warning"];
+   "harness.require_complete", "harness.warning", "harness.skill.name"];
 
 def shippable_key:
   . as $k
