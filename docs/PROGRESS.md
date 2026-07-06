@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #131)._
+_Last updated: 2026-07-06 (issue #121 spike)._
 
 ---
 
@@ -164,6 +164,26 @@ _Last updated: 2026-07-06 (issue #131)._
   content, L1 cases.
 
 ### Deep tracing
+- **#121 — skill-invocation observability SPIKE: DONE, issue closed, split into follow-ups.**
+  The Spike-Live capture landed the answer static analysis could not give
+  (`docs/runtime-adapters/github-copilot.skill-spike.md`, Copilot CLI v1.0.69):
+  a skill invocation IS a first-class CLI tool call (`toolName: "skill"`, name
+  in `toolArgs.skill`, success via `toolResult.resultType`, failure via a
+  top-level `error`), but the capture surfaced two prerequisite gaps that make
+  the current hook emit **no** CLI tool spans at all: (1) CLI v1.0.69 payloads
+  carry **no `event` field**, so the hook's dispatch drops every CLI tool call
+  (this also retroactively means #130 `result_summary` never landed on real
+  CLI); (2) failure is a top-level `error` string, not
+  `postToolUseFailure`/`resultType`. Selected path: **A primary** (represent
+  the skill as a `tool` span carrying `harness.skill.name`, owner decision 1b),
+  **B in reserve** (the SKILL.md → `log-skill.sh` completion-outcome convention,
+  deferred). #121 is a spike and its deliverable is this finding; the work is
+  split into follow-up issues to be executed in order:
+  A — fix the CLI hook against real v1.0.69 payloads (event-less dispatch +
+  top-level `error` outcome; bug-class, unblocks all CLI tool/model spans and
+  #130); B — CLI skill identity (`harness.skill.name` from `toolArgs.skill`);
+  C — surface skill/tool usage in trace-report, scorecard, App Insights;
+  D (deferred) — skill-completion outcome via the SKILL.md convention.
 - **#131 — telemetry-coverage in trace-summary + scorecard (P1-2).** Stops the
   cross-run scorecard from blending instrumented and lifecycle-only runs.
   `trace-report.sh` now emits `coverage {has_tool_spans, has_model_spans}` in
