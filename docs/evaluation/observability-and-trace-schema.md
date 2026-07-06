@@ -56,6 +56,28 @@ with [runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) as
 the labeled reference example; without an adapter the trace carries agent and
 lifecycle spans only.
 
+## Evidence Authority Split
+
+Not every span type carries the same evidentiary weight. There is a deliberate
+**authority split** between the two sources of tool-execution evidence:
+
+- **Handback `agent span`s are the accepted red-first proof.** The
+  role-attributed handback spans written through `scripts/log-handback.sh`
+  (`red_handback` → `impl_handback` → `green_handback`) are the harness's
+  authoritative evidence that a feature was driven **red-first**. Because each
+  handback names its role, feature, and outcome, the ordered triple is
+  self-attributing: the consistency checker can prove a feature failed before
+  it passed straight from these `agent spans`.
+- **Runtime hook `tool span`s are not yet accepted as fail/pass proof.** The
+  per-tool-call `tool spans` contributed by a runtime adapter are valuable for
+  trajectory and cost evals, but in v1 they are **not** accepted as red-first
+  fail-then-pass evidence on their own. A `tool span` records that *some*
+  command ran with *some* outcome; it does not, without **deterministic**
+  **per-feature** (or per-sensor) **attribution**, prove *which* feature's
+  sensor went red and then green. Until that deterministic attribution links a
+  `tool span` to a specific feature/sensor, the handback `agent spans` remain
+  the authority and `tool spans` stay corroborating context, not proof.
+
 ## Mandatory Common Fields
 
 Every span line, regardless of span type, carries the mandatory common fields

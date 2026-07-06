@@ -57,6 +57,26 @@ export APPLICATIONINSIGHTS_CONNECTION_STRING="$(terraform output -raw connection
 trace artifacts. It lives in your shell environment for the duration of a
 ship, nothing more (see the sensitivity rules in `AGENTS.md`).
 
+## Best-effort closeout export from finish-issue
+
+`finish-issue.sh` now attempts this exporter **best-effort** at issue closeout,
+so a completed issue's trace can reach App Insights without a separate manual
+`trace-export.sh` run. The attempt is strictly gated on the same environment
+contract: it fires **only when configured** — `TRACE_EXPORT_OTLP=1` **and**
+`APPLICATIONINSIGHTS_CONNECTION_STRING` both set. When either is unset the
+closeout export is a clean no-op; the exporter itself stays **opt-in** and
+**fail-closed**, exactly as on the manual path.
+
+Crucially, this closeout hook never gates teardown. Export failures **warn**
+and continue: `finish-issue.sh` prints the warning and proceeds to remove the
+worktree regardless, so a transient sink outage or a fail-closed refusal
+**never blocks** closing the issue. The exporter's own gates still hold — a
+redaction leak or an unconfigured sink refuses to ship — but that refusal is
+surfaced as a warning at closeout, not a hard stop. The **never commit the
+connection string** rule above applies unchanged: closeout sources it from the
+environment for the duration of the export and nothing is written to tracked
+files.
+
 ## Span → envelope mapping
 
 One completed trace becomes one JSON array of envelopes — one envelope per
