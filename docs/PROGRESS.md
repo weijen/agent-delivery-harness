@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #129)._
+_Last updated: 2026-07-06 (issue #144)._
 
 ---
 
@@ -40,9 +40,15 @@ _Last updated: 2026-07-06 (issue #129)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 102 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 106 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
+- **Red-first evidence is enforced, not just counted (#144):** the PR path
+  (`review-gate.sh approve`/`check`, inherited by `create-pr.sh`) hard-blocks by
+  default when a `passes:true` feature lacks a role-correct ordered
+  `red_handback → impl_handback → green_handback` triple and has no governed
+  `red_first_waiver`; `start-issue.sh` seeds the local Copilot hook into new
+  worktrees; `finish-issue.sh` attempts a best-effort trace export at closeout.
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
 - **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
@@ -93,6 +99,44 @@ _Last updated: 2026-07-06 (issue #129)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace evidence & closeout export
+- **#144 — enforce reliable evidence capture and closeout export.** Closed two
+  silent-failure modes in the deep-trace pipeline by moving telemetry guarantees
+  onto non-optional script paths and freezing them in the contract. Six features,
+  each with one regression sensor:
+  - **Red-first evidence rule** — `check-trace-consistency.sh` now flags any
+    `passes:true` feature lacking a role-correct, file-ordered
+    `test-subagent red_handback → implementation-subagent impl_handback →
+    test-subagent green_handback` triple (`red_first_evidence_missing`) or with a
+    wrong-role handback (`red_first_role_mismatch`), unless the feature carries a
+    governed structured `red_first_waiver` (`kind` ∈ bootstrap/visual-only/
+    doc-only/justified, non-empty reason). Never fabricates or backfills spans
+    (`test_trace_red_first_evidence.sh`).
+  - **PR-path hard gate** — `review-gate.sh` `approve`/`check` hard-block by
+    default on those red-first findings (a refusal, no marker written), and
+    `create-pr.sh` inherits the block; the broader trace gate stays warn-only
+    (`test_red_first_pr_gate.sh`).
+  - **Worktree hook seeding** — `start-issue.sh` copies a developer-local
+    `.github/hooks/harness-trace.json` from the main checkout into a freshly
+    created worktree when present, skips cleanly when absent, and never clobbers
+    a reused worktree (`test_issue_scaffold.sh`).
+  - **Best-effort closeout export** — `finish-issue.sh` attempts
+    `trace-export.sh` after worktree removal only when `TRACE_EXPORT_OTLP=1` and
+    `APPLICATIONINSIGHTS_CONNECTION_STRING` are set; a clean no-op otherwise and
+    warn-and-continue on failure, never blocking teardown
+    (`test_finish_issue_trace_export.sh`).
+  - **Docs** — the evidence authority split (handback `agent` spans as accepted
+    red-first proof vs. runtime hook `tool` spans that need deterministic
+    per-feature attribution before counting), hook seeding, closeout export, and
+    the unregistered-named-subagent fallback are documented across `HARNESS.md`,
+    `observability-and-trace-schema.md`, and the Copilot/OTLP adapters
+    (`test_trace_authority_docs.sh`).
+  - **Contract freeze** — `docs/harness-contract.yml` declares `trace-export.sh`,
+    the `local-hook-seeding` and `trace-export` lifecycle obligations, the
+    `TRACE_EXPORT_OTLP` flag, the `pr-path-red-first-gate`, and the
+    `missing-red-first-evidence` / `wrong-red-first-role-attribution` failure
+    modes so they cannot be silently deleted (`test_harness_contract.sh`).
 
 ### L0/L1 evaluation
 - **#64 — L0 manifests + blocking CI gate.** Authored the five L0 eval

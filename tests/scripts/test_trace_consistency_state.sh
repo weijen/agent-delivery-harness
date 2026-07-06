@@ -140,13 +140,18 @@ mk_state_case() {
 }
 JSON
 
-  # Trace: green_handback agent span for feat-a (evidence), the approve span
-  # (SHA always the APPROVED one — mismatch is induced via the MARKER so the
-  # span side stays constant), and the pr_create span with pr_number 123.
+  # Trace: the role-correct file-ordered red-first triple for feat-a
+  # (test-subagent red_handback -> implementation-subagent impl_handback ->
+  # test-subagent green_handback, all outcome==pass — issue #144 evidence),
+  # the approve span (SHA always the APPROVED one — mismatch is induced via
+  # the MARKER so the span side stays constant), and the pr_create span with
+  # pr_number 123.
   cat > "${dir}/issues/issue-77/trace.jsonl" <<TRACE
-{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
-{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"${APPROVED_SHA}"}
-{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"pr_create","harness.outcome":"pass","harness.pr_number":"123"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"red_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:03Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"${APPROVED_SHA}"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:04Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"pr_create","harness.outcome":"pass","harness.pr_number":"123"}
 TRACE
 
   # progress.md: core-consistent Action Log bullet for the agent span, plus
@@ -160,6 +165,8 @@ TRACE
       *) hard_fail "mk_state_case: unknown pr_mode '${pr_mode}' — sensor bug" ;;
     esac
     printf '## Action Log\n\n'
+    printf -- '- [test-subagent] red_handback feat-a pass — feat-a sensor RED first\n'
+    printf -- '- [implementation-subagent] impl_handback feat-a pass — implemented feat-a\n'
     printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
   } > "${dir}/issues/issue-77/progress.md"
 }
@@ -249,10 +256,13 @@ git -C "$RMAIN" commit -q -m initial
 RWT="${TMP_DIR}/real-wt-issue-91"
 git -C "$RMAIN" worktree add -q -b feature/issue-91-fixture "$RWT"
 
-# Main root: trace ONLY (what live runs actually have there).
+# Main root: trace ONLY (what live runs actually have there). feat-a carries
+# the role-correct file-ordered red-first triple (issue #144 evidence).
 mkdir -p "${RMAIN}/.copilot-tracking/issues/issue-91"
 cat > "${RMAIN}/.copilot-tracking/issues/issue-91/trace.jsonl" <<'TRACE'
-{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":91,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":91,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"red_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":91,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"agent","harness.issue":91,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
 TRACE
 [ ! -f "${RMAIN}/.copilot-tracking/issues/issue-91/progress.md" ] \
   || hard_fail "S6 fixture: main-root progress.md must be ABSENT — sensor bug"
@@ -261,6 +271,8 @@ TRACE
 mkdir -p "${RWT}/.copilot-tracking/issues/issue-91"
 {
   printf '# Issue 91 progress\n\nStatus: in progress.\n\n## Action Log\n\n'
+  printf -- '- [test-subagent] red_handback feat-a pass — feat-a sensor RED first\n'
+  printf -- '- [implementation-subagent] impl_handback feat-a pass — implemented feat-a\n'
   printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
 } > "${RWT}/.copilot-tracking/issues/issue-91/progress.md"
 printf '{"issue":91,"features":[{"id":"feat-a","title":"A","passes":true}]}\n' \
@@ -298,6 +310,8 @@ mk_state_case s8 false "$APPROVED_SHA" absent
 {
   printf '# Issue 77 progress\n\nSplit from https://github.com/acme/widgets/pull/55 (prior art).\n\nStatus: closing out.\n\nPR: https://github.com/acme/widgets/pull/123\n\n'
   printf '## Action Log\n\n'
+  printf -- '- [test-subagent] red_handback feat-a pass — feat-a sensor RED first\n'
+  printf -- '- [implementation-subagent] impl_handback feat-a pass — implemented feat-a\n'
   printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
 } > "${TMP_DIR}/s8/.copilot-tracking/issues/issue-77/progress.md"
 rc="$(run_checker "$(trace_path s8)")"

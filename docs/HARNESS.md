@@ -169,6 +169,16 @@ one.
 The conductor remains responsible for selecting the issue and feature, preserving scope, approving the current HEAD,
 committing, pushing, opening PRs, and merging.
 
+#### Unregistered-named-subagent fallback
+
+The repo defines each role as an agent file — for example `.copilot/agents/test-subagent.agent.md` or
+`.copilot/agents/implementation-subagent.agent.md`. Some runtimes register those agents by `agentName` and can invoke
+them directly; others do not. When the current runner does **not** register the named subagent (the `agentName` is
+`not registered`), the conductor uses this **fallback**: invoke a blank or current subagent and paste the full **role
+contract** from that `.agent.md` file into the prompt, then record the handback under the intended role exactly as if
+the named agent had run. The role boundary is defined by the contract text, not by whether the runtime knows the agent
+name — so an unregistered `agentName` never becomes an excuse for the conductor to do the feature work itself.
+
 ### Skill × subagent × stage
 
 Which skill fires, who owns it, and at which lifecycle phase:
@@ -309,6 +319,23 @@ are printed with a `⚠` summary but do not change the exit code — live traces
 otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the documented promotion flag, mirroring
 `REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
 before `worktree remove`, leaving the worktree intact.
+
+### Red-first evidence obligation on the PR path
+
+While the broad trace gate stays warn-only, one class of finding is a **hard block by default** on the PR path: a
+`passes:true` feature must carry role-correct **red-first** handback evidence before it can ship. The
+`check-trace-consistency.sh` checker looks for a file-ordered handback triple — `test-subagent` `red_handback`
+(the failing sensor) → `implementation-subagent` `impl_handback` (the minimal production change) → `test-subagent`
+`green_handback` (verified GREEN), all with `outcome=pass` — and raises `red_first_evidence_missing` when the triple
+is absent or `red_first_role_mismatch` when a handback is recorded under the wrong role. `review-gate.sh` approve and
+check **hard-block** on these red-first findings by default, and `create-pr.sh` inherits the block, so a feature that
+skipped the red-first handoff cannot reach a PR.
+
+The only sanctioned way past the block is a governed **`red_first_waiver`** on the feature. The waiver is an explicit
+object carrying a `kind` drawn from a closed set — `bootstrap`, `visual-only`, `doc-only`, or `justified` — plus a
+non-empty `reason`. A feature that legitimately cannot show a failing-first sensor (for example a docs-only change, a
+visual-only tweak, or first-commit bootstrap) records the matching `red_first_waiver` kind and reason, and the
+red-first block stands down for that feature alone. An empty or kind-less waiver does not satisfy the gate.
 
 ## CI Boundary
 

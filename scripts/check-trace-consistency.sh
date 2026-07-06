@@ -296,15 +296,126 @@ while IFS= read -r out_line; do
   esac
 done <<< "$state_out"
 
+# --- Second trace pass: red-first evidence per feature (issue #144) ------------
+# A completed (passes:true) coded feature must show role-correct, file-ordered
+# RED-first evidence for the SAME harness.feature_id, all harness.outcome==pass,
+# in TRACE FILE ORDER:
+#   test-subagent            red_handback   ->
+#   implementation-subagent  impl_handback  ->
+#   test-subagent            green_handback
+# (strictly increasing file positions red < impl < green). This pass does NOT
+# read feature_list.json and never fabricates spans — it only observes what the
+# trace already contains and emits one verdict per feature that has ≥1 agent
+# span carrying a harness.feature_id:
+#   ::redfirst <fid> ok       a role-correct ordered triple exists
+#   ::redfirst <fid> role     an ordered triple exists by lifecycle step but a
+#                             participating span has the wrong role
+#   ::redfirst <fid> missing  no ordered triple of the three steps exists
+# A feature with no span here yields no line; the passing-feature loop below
+# treats an absent verdict exactly like `missing`. The waiver decision and the
+# passes:true selection stay on the bash side against feature_list.json.
+REDFIRST_FILTER="${TMP_DIR}/consistency-redfirst.jq"
+cat > "$REDFIRST_FILTER" <<'JQ'
+# ordered(reds; impls; greens): does some red.idx < impl.idx < green.idx exist?
+# Greedy is exact here: the earliest red leaves the most room for an impl after
+# it, and the earliest such impl leaves the most room for a green after it.
+def ordered($reds; $impls; $greens):
+  ($reds | map(.idx) | min) as $r
+  | if $r == null then false
+    else ([$impls[] | select(.idx > $r) | .idx] | min) as $i
+    | if $i == null then false
+      else ([$greens[] | select(.idx > $i)] | length) > 0
+      end
+    end;
+[ inputs
+  | fromjson? | objects
+  | select(.span == "agent")
+  | select((.["harness.feature_id"] | type) == "string")
+  | { fid:     .["harness.feature_id"],
+      role:    .["gen_ai.agent.name"],
+      step:    .["harness.lifecycle_step"],
+      outcome: .["harness.outcome"] } ]
+| to_entries
+| map(.value + { idx: .key })          # array index == trace file order
+| group_by(.fid)[]
+| .[0].fid as $fid
+| [ .[] | select(.outcome == "pass") ] as $pass
+| [ $pass[] | select(.step == "red_handback") ]   as $reds
+| [ $pass[] | select(.step == "impl_handback") ]  as $impls
+| [ $pass[] | select(.step == "green_handback") ] as $greens
+| [ $reds[]   | select(.role == "test-subagent") ]           as $rcRed
+| [ $impls[]  | select(.role == "implementation-subagent") ] as $rcImpl
+| [ $greens[] | select(.role == "test-subagent") ]           as $rcGreen
+| ( if ordered($rcRed; $rcImpl; $rcGreen) then "ok"
+    elif ordered($reds; $impls; $greens) then "role"
+    else "missing" end ) as $verdict
+| "::redfirst \($fid) \($verdict)"
+JQ
+if ! redfirst_out="$(jq -nRr -f "$REDFIRST_FILTER" < "$TRACE_FILE")"; then
+  red "error: the red-first evidence jq pass failed to run" >&2
+  exit 2
+fi
+
+redfirst_ok_ids=$'\n'
+redfirst_role_ids=$'\n'
+while IFS= read -r rf_line; do
+  case "$rf_line" in
+    '::redfirst '*)
+      rf_rest="${rf_line#'::redfirst '}"
+      rf_fid="${rf_rest% *}"
+      rf_verdict="${rf_rest##* }"
+      case "$rf_verdict" in
+        ok)   redfirst_ok_ids="${redfirst_ok_ids}${rf_fid}"$'\n' ;;
+        role) redfirst_role_ids="${redfirst_role_ids}${rf_fid}"$'\n' ;;
+      esac
+      ;;
+  esac
+done <<< "$redfirst_out"
+
 # --- State: unverified_feature_pass -------------------------------------------
 # Every passes:true feature must have green_handback evidence in the trace.
 if [ -f "$FEATURE_LIST_FILE" ]; then
   if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
       "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+    # Governed red-first waivers (issue #144): a feature may skip red-first
+    # checking only when it carries a red_first_waiver OBJECT whose .kind is in
+    # the closed set AND whose .reason is a non-empty string after trimming
+    # whitespace. Any other shape (missing, wrong type, invalid kind, empty
+    # reason) is NOT a waiver. Extracted once here, not per feature.
+    waiver_ids=$'\n'
+    if raw_waiver_ids="$(jq -r '
+        ["bootstrap", "visual-only", "doc-only", "justified"] as $kinds
+        | .features[]?
+        | select(.passes == true)
+        | select((.red_first_waiver | type) == "object")
+        | .red_first_waiver as $w
+        | select(($w.kind | type) == "string" and ($kinds | index($w.kind)) != null)
+        | select(($w.reason | type) == "string" and ($w.reason | test("\\S")))
+        | .id | strings' \
+        "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+      while IFS= read -r wfid; do
+        [ -n "$wfid" ] || continue
+        waiver_ids="${waiver_ids}${wfid}"$'\n'
+      done <<< "$raw_waiver_ids"
+    fi
     while IFS= read -r fid; do
       [ -n "$fid" ] || continue
       if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
         printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
+        violations=$((violations + 1))
+      fi
+      # Red-first evidence (issue #144): a governed waiver suppresses the rule;
+      # otherwise require a role-correct ordered triple. An absent verdict is
+      # treated exactly like a `missing` verdict.
+      if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        :  # governed waiver — red-first checking skipped for this feature
+      elif [[ "$redfirst_role_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        printf 'VIOLATION consistency: red_first_role_mismatch %s\n' "$fid"
+        violations=$((violations + 1))
+      elif [[ "$redfirst_ok_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        :  # role-correct ordered triple present
+      else
+        printf 'VIOLATION consistency: red_first_evidence_missing %s\n' "$fid"
         violations=$((violations + 1))
       fi
     done <<< "$passing_ids"

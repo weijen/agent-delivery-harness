@@ -107,6 +107,25 @@ Tool-calls table is not misread as "the agent called no tools." The warning is
 advisory only (exit stays `0`); to clear it, install the adapter as above and
 confirm a `tool` span appears in the trace.
 
+### Local hook seeding into a new worktree
+
+The repo tracks no live hook config on purpose — a tracked `.github/hooks/`
+template would auto-apply to everyone who clones the repo, whereas the local
+`.github/hooks/harness-trace.json` is the developer's own opt-in install. Keep
+those two distinct: the **tracked template** is
+[`github-copilot.hooks.example.json`](github-copilot.hooks.example.json), and
+the **local hook** is the `.github/hooks/harness-trace.json` file you copied
+from it.
+
+To spare you re-installing the hook in every fresh isolated checkout,
+`start-issue` **seeds** the local hook: when a
+`.github/hooks/harness-trace.json` is **present** in the main checkout,
+`start-issue` copies it into the newly created **worktree** so the adapter is
+live there from the first tool call. When no such local hook exists in the main
+checkout, seeding is a clean **no-op** — nothing is created, and an absent hook
+is never treated as an error. Seeding only ever fills a gap: it copies the
+local hook into a new worktree and never clobbers a hook that already exists.
+
 ## DANGER: never register preToolUse
 
 On Copilot surfaces a hook's exit status is load-bearing: a **non-zero exit

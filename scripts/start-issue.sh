@@ -208,7 +208,23 @@ else
   green "✓ Tracking dir already present — left untouched."
 fi
 
-# --- 5. Next steps ----------------------------------------------------------
+# --- 5. Seed developer-local hook config ------------------------------------
+# The Copilot trace hook config lives at ${ROOT}/.github/hooks/harness-trace.json.
+# It is a gitignored, developer-local file, so `git worktree add` never carries
+# it into the new worktree. Copy it in here. This is a purely local operation:
+# it never contacts a remote, and it never fails the lifecycle — a missing source
+# file is normal (not every checkout configures the hook) and is skipped silently.
+# Runs ONLY on fresh worktree creation; the reuse path exits earlier (section 3)
+# and so never reaches this block, leaving any worktree-local hook config intact.
+HOOK_SRC="${ROOT}/.github/hooks/harness-trace.json"
+HOOK_DST="${WORKTREE_DIR}/.github/hooks/harness-trace.json"
+if [ -f "$HOOK_SRC" ]; then
+  mkdir -p "$(dirname "$HOOK_DST")"
+  cp -p "$HOOK_SRC" "$HOOK_DST"
+  green "✓ Seeded developer-local hook config (.github/hooks/harness-trace.json)"
+fi
+
+# --- 6. Next steps ----------------------------------------------------------
 echo
 bold "Ready. Start working in the worktree:"
 echo "  cd ${WORKTREE_DIR}"
