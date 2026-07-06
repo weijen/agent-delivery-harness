@@ -32,7 +32,7 @@ simply lacks those spans; nothing else changes, and nothing is faked.
 | --- | --- | --- | --- | --- |
 | `lifecycle` spans | yes | yes | yes | yes (in-sandbox) |
 | handback `agent` spans | yes | yes | yes | yes |
-| per-tool-call `tool` spans | no | **yes** (`postToolUse` + `postToolUseFailure` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) |
+| per-tool-call `tool` spans | no | **yes** (v1.0.69: payload is event-less, inferred from shape; failure from a top-level `error` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) |
 | `harness.duration_ms` on tool spans | no | **no** — no Copilot payload documents a correlation id, so duration is omitted (omit, never fake) | no — omitted | no — omitted |
 | runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`) | yes (`Stop`/`SubagentStop`) | yes |
 | `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | best-effort — same `events.jsonl` mechanism as the CLI, unverified inside the sandbox; degrades to omission |
@@ -63,8 +63,16 @@ mkdir -p .github/hooks   # or: mkdir -p ~/.copilot/hooks
 cp docs/runtime-adapters/github-copilot.hooks.example.json .github/hooks/harness-trace.json
 ```
 
-The CLI sends camelCase payloads (`event`, `toolName`, `toolArgs` as a JSON
-string, `toolResult.resultType`). Note that a personal `~/.copilot/hooks`
+The CLI sends camelCase payloads (`toolName`, `toolArgs` as a JSON string,
+`toolResult.resultType`). **Measured on Copilot CLI v1.0.69 (2026-07-06, issue
+#137):** the CLI post-tool-call payload carries **no `event` field** (and no
+`hook_event_name`); the hook therefore **infers a post-tool-use from shape** — a
+`toolName` plus a result signal (`toolResult`, or a top-level `error` string) —
+rather than dispatching on an event name. A failed tool call is reported by that
+**top-level `error`** (not `postToolUseFailure`/`resultType`), which the hook
+maps to `harness.outcome=fail`. This shape inference is what makes tool spans
+(and, with them, `model` spans and the #130 `harness.result_summary`) actually
+land on the CLI surface. Note that a personal `~/.copilot/hooks`
 install keeps the template's relative `scripts/copilot-trace-hook.sh` path,
 which resolves only when the session's working directory is a checkout of
 this repo — from any other cwd the hook simply is not found and nothing runs.

@@ -673,6 +673,80 @@ if grep -qF "$R_SECRET" "$TRACE_FILE"; then
 fi
 
 # =============================================================================
+# Emission E10 (#137) — event-LESS CLI v1.0.69 success: the real CLI payload
+# carries NO event / hook_event_name field. Dispatch must infer a camel
+# post-tool-use from shape (toolName + toolResult) and emit a tool span with
+# outcome=pass AND harness.result_summary (retroactive #130 — result only
+# lands once dispatch fires). Read the appended line dynamically.
+# =============================================================================
+E10_BEFORE="$(line_count "$TRACE_FILE")"
+run_hook "e10-eventless-success" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" '{
+    sessionId: "copilot-sess-fixture-0001",
+    timestamp: 1783345245587,
+    cwd: $cwd,
+    toolName: "bash",
+    toolArgs: "{\"command\":\"echo eventless-ok\"}",
+    toolResult: {resultType: "success", textResultForLlm: "eventless-ok"}
+  }'
+)
+assert_session_safe "e10-eventless-success"
+[ "$(line_count "$TRACE_FILE")" = "$((E10_BEFORE + 1))" ] \
+  || fail "e10: an event-less CLI v1.0.69 postToolUse payload (no event field) must still emit exactly one tool span — the hook's dispatch must infer post-tool-use from shape (#137 Gap 1), got $(line_count "$TRACE_FILE") lines from ${E10_BEFORE}"
+span10="$(nth_line "$TRACE_FILE" "$((E10_BEFORE + 1))")"
+validate_span "$span10" || fail "e10: event-less span rejected by the contract filter: ${span10}"
+printf '%s\n' "$span10" | jq -e '
+    (.span == "tool")
+    and (.["gen_ai.tool.name"] == "bash")
+    and (.["harness.outcome"] == "pass")
+    and (.["harness.result_summary"] == "eventless-ok")
+    and (has("harness.duration_ms") | not)
+  ' >/dev/null \
+  || fail "e10: event-less success must map toolName->gen_ai.tool.name, resultType->pass, and textResultForLlm->harness.result_summary (retroactive #130): ${span10}"
+
+# =============================================================================
+# Emission E11 (#137) — event-LESS CLI failure: no event field, no toolResult,
+# a top-level `error` string. Outcome must be fail (Gap 2 — the hook must read
+# the top-level error, not only postToolUseFailure/resultType).
+# =============================================================================
+E11_BEFORE="$(line_count "$TRACE_FILE")"
+run_hook "e11-eventless-failure" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" '{
+    sessionId: "copilot-sess-fixture-0001",
+    timestamp: 1783345550461,
+    cwd: $cwd,
+    toolName: "bash",
+    toolArgs: "{\"command\":\"false\"}",
+    error: "exit status 1"
+  }'
+)
+assert_session_safe "e11-eventless-failure"
+[ "$(line_count "$TRACE_FILE")" = "$((E11_BEFORE + 1))" ] \
+  || fail "e11: an event-less failure payload (top-level error, no toolResult) must still emit one tool span (#137), got $(line_count "$TRACE_FILE") from ${E11_BEFORE}"
+span11="$(nth_line "$TRACE_FILE" "$((E11_BEFORE + 1))")"
+validate_span "$span11" || fail "e11: event-less failure span rejected by the contract filter: ${span11}"
+printf '%s\n' "$span11" | jq -e '
+    (.span == "tool") and (.["harness.outcome"] == "fail")
+  ' >/dev/null \
+  || fail "e11: a top-level error string must stamp harness.outcome=fail (#137 Gap 2): ${span11}"
+
+# =============================================================================
+# Emission E12 (#137) — event-LESS stop-shaped payload (no event, no toolName):
+# must NOT be misclassified as a tool call. No new span, session-safe.
+# =============================================================================
+E12_BEFORE="$(line_count "$TRACE_FILE")"
+run_hook "e12-eventless-notool" "$ISSUE_REPO" "$ISSUE_HOOK" <(
+  jq -cn --arg cwd "$ISSUE_REPO" '{
+    sessionId: "copilot-sess-fixture-0001",
+    timestamp: 1783345560000,
+    cwd: $cwd
+  }'
+)
+assert_session_safe "e12-eventless-notool"
+[ "$(line_count "$TRACE_FILE")" = "$E12_BEFORE" ] \
+  || fail "e12: an event-less payload with NO toolName must NOT be inferred as a tool call (stop-shaped/unknown) — no span may be appended (#137), got $(line_count "$TRACE_FILE") from ${E12_BEFORE}"
+
+# =============================================================================
 # Emission E9 — whole-file invariants: every emitted line is a tool span
 # with NO harness.duration_ms key, and no .hook-state exists anywhere (P4)
 # =============================================================================
