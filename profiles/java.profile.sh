@@ -18,6 +18,9 @@
 # --- Metadata (Profile Interface fields) -------------------------------------
 PROFILE_ID="java"
 PROFILE_DETECT="pom.xml | build.gradle | build.gradle.kts"
+# Grep signatures (extended regex) proving a project-CI workflow runs this
+# surface's gates (issue #129); consumed by scripts/ci-coverage-lib.sh.
+PROFILE_CI_SIGNATURES="mvnw|gradlew|mvn |gradle |spotless|checkstyle"
 PROFILE_VARIANTS="maven gradle"
 PROFILE_TOOL_REQUIREMENTS="java"
 PROFILE_INSTRUCTIONS=".copilot/instructions/java.instructions.md"

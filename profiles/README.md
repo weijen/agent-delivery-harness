@@ -36,6 +36,7 @@ A descriptor declares the spec's **Profile Interface** fields:
 | `lint` | gate slot `lint` | Optional lint command. |
 | `typecheck` | gate slot `typecheck` | Optional type-check command. |
 | `test` | gate slot `test` | Optional test command. |
+| `ci_signatures` | `PROFILE_CI_SIGNATURES` | Extended-regex grep tokens (the gate-command signatures) proving a project-CI workflow runs this surface's gates. Consumed by `scripts/ci-coverage-lib.sh` for the preflight WARN and Pre-PR `ci-gate` (issue #129). |
 | `tool_requirements` | `PROFILE_TOOL_REQUIREMENTS` | Command(s) that must exist to run the gates. |
 | `instructions` | `PROFILE_INSTRUCTIONS` | Matching Copilot instruction file (consumed by issue #36). |
 | `frameworks` | `PROFILE_FRAMEWORKS` | Supported web-framework hints (consumed by the per-language profile issues). |
