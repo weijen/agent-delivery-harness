@@ -116,6 +116,7 @@ write_fixture_trace() {
     '"SCALAR_LINE_b42e — valid JSON, not an object"' \
     '{"schema_version":1,"timestamp":"2026-07-04T10:04:00Z","span":"tool","harness.issue":98,"harness.version":"fix1234","gen_ai.tool.name":"review-gate.check","harness.outcome":"pass","harness.duration_ms":40}' \
     '{"schema_version":"1","timestamp":"2026-07-04T10:05:00Z","span":"tool","harness.issue":"98","harness.version":"fix1234","gen_ai.tool.name":"typedrift-tool","harness.duration_ms":7}' \
+    '{"schema_version":1,"timestamp":"2026-07-04T10:05:30Z","span":"tool","harness.issue":98,"harness.version":"fix1234","gen_ai.tool.name":"skill","harness.skill.name":"find-over-design","harness.outcome":"pass"}' \
     '{"schema_version":1,"timestamp":"2026-07-04T10:06:00Z","span":"agent","harness.issue":98,"harness.version":"fix1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor"}' \
     '{"schema_version":1,"timestamp":"2026-07-04T10:07:00Z","span":"lifecycle","harness.issue":98,"harness.version":"fix1234","harness.lifecycle_step":"pr_create","harness.duration_ms":2500}' \
     '{"schema_version":1,"timestamp":"2026-07-04T10:08:00Z","span":"lifecycle","harness.issue":98,"harness.version":"fix1234","harness.lifecycle_step":"pr_merge","harness.duration_ms":400}' \
@@ -164,8 +165,10 @@ else
   expect_summary "issue number"         '.issue == 98 and (.issue | type) == "number"'
   expect_summary "finished flag"        '.finished == true'
   expect_summary "final outcome"        '.final_outcome == "pass"'
-  expect_summary "span_counts totals"   '.span_counts.total == 15 and .span_counts.invalid_lines == 2'
-  expect_summary "span_counts by_type"  '.span_counts.by_type == {"agent":2,"lifecycle":6,"tool":7}'
+  expect_summary "span_counts totals"   '.span_counts.total == 16 and .span_counts.invalid_lines == 2'
+  expect_summary "span_counts by_type"  '.span_counts.by_type == {"agent":2,"lifecycle":6,"tool":8}'
+  expect_summary "skills aggregate (#139: find-over-design, 1 call, 0 fail)" \
+    '(.skills[] | select(.name == "find-over-design")) | .calls == 1 and .fail_calls == 0'
   expect_summary "coverage flags (#131: tool spans present, no model spans)" \
     '.coverage.has_tool_spans == true and .coverage.has_model_spans == false'
   expect_summary "stage pr_merge (2 spans, 400+600=1000 ms)" \
@@ -197,7 +200,7 @@ else
   jq -es 'length == 1' "$SUMMARY" >/dev/null 2>&1 \
     || fail "re-run: trace-summary.json must hold exactly ONE JSON document (overwrite, never append)"
   expect_summary "re-run keeps the same numbers" \
-    '.span_counts.total == 15 and .wall_clock.elapsed_seconds == 630'
+    '.span_counts.total == 16 and .wall_clock.elapsed_seconds == 630'
 fi
 
 # --- 3b. Measured zero is preserved as 0, never nulled ----------------------------

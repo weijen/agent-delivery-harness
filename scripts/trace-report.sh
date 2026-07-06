@@ -210,6 +210,12 @@ def ts_secs:
                calls: length,
                fail_calls: ([.[] | select(.["harness.outcome"] == "fail")] | length),
                duration_ms: sum_duration })),
+    skills:
+      ([$spans[] | select((.["harness.skill.name"]? | type) == "string")]
+       | group_by(.["harness.skill.name"])
+       | map({ name: .[0]["harness.skill.name"],
+               calls: length,
+               fail_calls: ([.[] | select(.["harness.outcome"] == "fail")] | length) })),
     finished: (($finishes | length) > 0),
     final_outcome:
       (if ($finishes | length) > 0

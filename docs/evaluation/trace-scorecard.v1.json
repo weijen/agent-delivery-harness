@@ -32,6 +32,7 @@
     "tokens",
     "token_coverage",
     "tool_coverage",
+    "skills",
     "issues"
   ],
   "fields": {
@@ -52,7 +53,8 @@
     "by_version[].tokens": "object {input, output} summed over ONLY the runs whose summary carries a non-null tokens object, or null when NO run in the bucket carried token data (absence is null, never 0; a tokens-null run is never averaged in as 0). Input token buckets are accepted under either key pair — {input, output} or the trace-report.sh producer's {input_tokens, output_tokens} — and always emitted here as {input, output}.",
     "by_version[].token_coverage": "object {runs_with_tokens, of}; the honest denominator for the tokens sums.",
     "by_version[].tool_coverage": "object {runs_with_tool_spans, of}; the honest denominator for tool_calls, mirroring token_coverage (issue #131). runs_with_tool_spans counts runs whose summary coverage.has_tool_spans is true; of is the bucket run count. A lifecycle-only run (no runtime adapter, no tool spans) is counted in of but not in runs_with_tool_spans, so a low tool_calls sum reads as 'the adapter was not wired' rather than 'the agent called no tools' — instrumented and lifecycle-only runs are never blended. Additive open-world optional key; absent on scorecards generated before #131.",
-    "by_version[].issues": "array of per-run rows, each {issue, summary_file, attribution, harness_versions, finished, final_outcome, red_reentry, deviations, tool_calls, tool_fail_calls, wall_clock_elapsed_seconds, tokens, loop_indicator_groups, invalid_lines}. summary_file is generated-from provenance; attribution is one of \"single\", \"last_seen_in_trace\", \"unresolved_mixed\"; harness_versions preserves the summary's full version list; wall_clock_elapsed_seconds and tokens propagate null as null; coverage propagates the summary's coverage object (has_tool_spans/has_model_spans) or null for a pre-#131 summary; invalid_lines surfaces the summary's span_counts.invalid_lines (a scorecard that hides bad input is not honest).",
+    "by_version[].skills": "array of {name, calls, fail_calls} keyed on skill name (issue #139), summed over the bucket's runs' summary.skills; [] when no run recorded a skill. Surfaces which skills the runs invoked (loaded) per harness version. Additive open-world optional key.",
+    "by_version[].issues": "array of per-run rows, each {issue, summary_file, attribution, harness_versions, finished, final_outcome, red_reentry, deviations, tool_calls, tool_fail_calls, wall_clock_elapsed_seconds, tokens, loop_indicator_groups, invalid_lines}. summary_file is generated-from provenance; attribution is one of \"single\", \"last_seen_in_trace\", \"unresolved_mixed\"; harness_versions preserves the summary's full version list; wall_clock_elapsed_seconds and tokens propagate null as null; coverage propagates the summary's coverage object (has_tool_spans/has_model_spans) or null for a pre-#131 summary; skills propagates the summary's skills array (issue #139) or []; invalid_lines surfaces the summary's span_counts.invalid_lines (a scorecard that hides bad input is not honest).",
     "compat": "object {issue_62_mapping}; the #62 mapping statement (see notes.issue_62_mapping)."
   }
 }
