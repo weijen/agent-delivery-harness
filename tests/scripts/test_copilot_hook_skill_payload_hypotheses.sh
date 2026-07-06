@@ -205,14 +205,21 @@ for row in "${HYPO_ROWS[@]}"; do
     ' >/dev/null \
     || fail "${label}: expected a tool-name-agnostic tool span — gen_ai.tool.name=='${tool_name}', operation=execute_tool, args summary carrying the skill name '${skill_name}'. If this failed, a path-A edit likely special-cased a skill toolName and broke plain tool-span emission: ${span}"
 
-  # A skill invocation is NOT (yet) a first-class span kind: the hook must NOT
-  # invent a `skill` span or a harness.skill.* attribute in this feature. That
-  # is gated on the Spike-Live capture + schema commit (issue #121 feature
-  # skill-span-schema), deliberately not built here.
-  printf '%s\n' "$span" | jq -e '
-      (.span != "skill") and (has("harness.skill.name") | not)
-    ' >/dev/null \
-    || fail "${label}: this feature must NOT emit a first-class skill span or harness.skill.name — that is gated on the Spike-Live capture (feature skill-span-schema). The hook should still produce a plain tool span: ${span}"
+  # #138 (spike resolved): the skill signal is a tool-span ATTRIBUTE
+  # (harness.skill.name), NOT a first-class `skill` span kind (owner decision
+  # 1b). It fires ONLY on the spike-confirmed literal toolName "skill"; any
+  # other tool name never carries it.
+  if [ "$tool_name" = "skill" ]; then
+    printf '%s\n' "$span" | jq -e --arg sn "$skill_name" '
+        (.span == "tool") and (.["harness.skill.name"] == $sn)
+      ' >/dev/null \
+      || fail "${label}: toolName=skill must add harness.skill.name from toolArgs.skill as a tool-span attribute (#138), not a skill span kind: ${span}"
+  else
+    printf '%s\n' "$span" | jq -e '
+        (.span != "skill") and (has("harness.skill.name") | not)
+      ' >/dev/null \
+      || fail "${label}: only the literal toolName 'skill' triggers harness.skill.name; a non-skill toolName must stay a plain tool span: ${span}"
+  fi
 done
 
 # Whole-file invariant: every emitted line is a plain tool span (no skill kind
@@ -222,4 +229,4 @@ while IFS= read -r line; do
     || fail "whole-file: every line emitted for a skill-shaped call must be a plain tool span under the current (characterized) behavior, got: ${line}"
 done < "$TRACE_FILE"
 
-printf 'copilot hook skill-payload HYPOTHESES characterized (tool-name-agnostic, no skill kind) — Spike-Live still required to confirm real payload shapes\n'
+printf 'copilot hook skill-payload characterized: toolName "skill" -> harness.skill.name (tool-span attribute, #138); no first-class skill kind\n'
