@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #138)._
+_Last updated: 2026-07-06 (issue #139)._
 
 ---
 
@@ -164,7 +164,17 @@ _Last updated: 2026-07-06 (issue #138)._
   content, L1 cases.
 
 ### Deep tracing
-- **#138 — CLI skill identity via `harness.skill.name` (B of the #121 split).**
+- **#139 — surface skill/tool usage in report, scorecard, and App Insights (C of the #121 split — completes the skill workstream).**
+  With `harness.skill.name` emitted (#138), skills are now visible everywhere
+  tool usage is: `trace-report.sh` emits a `skills` aggregate
+  ([{name, calls, fail_calls}]) in `trace-summary.json`; `trace-scorecard.sh`
+  adds a per-bucket `skills` aggregate and per-run skills on the issue rows; the
+  harness-quality workbook gains a **Skill-invocation volume** panel over
+  `dependencies` sliced by `customDimensions['harness.skill.name']` (fail from
+  `harness.outcome`). Both contracts documented (open-world optional); the
+  dashboard-pack sensor now requires a skill panel and the dashboards README
+  panel map is updated. The #121 follow-up split (A #137 → B #138 → C #139) is
+  complete; D (skill-completion via the SKILL.md convention) stays deferred.
   With CLI tool spans restored by #137, the spike-confirmed `skill` tool call
   (`toolName: "skill"`, name in `toolArgs.skill`) now carries
   `harness.skill.name` — a tool-span attribute, not a first-class `skill` span

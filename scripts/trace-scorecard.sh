@@ -274,6 +274,12 @@ cat > "$AGG_FILTER" <<'JQ'
                  ([$g[] | select(.summary.coverage.has_tool_spans == true)] | length),
                of: $runs
              },
+             skills:
+               ([$g[].summary.skills[]? | select(. != null)]
+                | group_by(.name)
+                | map({ name: .[0].name,
+                        calls: ([.[].calls | numbers] | add // 0),
+                        fail_calls: ([.[].fail_calls | numbers] | add // 0) })),
              issues:
                [$g[]
                 | { issue: .summary.issue,
@@ -291,6 +297,7 @@ cat > "$AGG_FILTER" <<'JQ'
                       (.summary.wall_clock.elapsed_seconds? // null),
                     tokens: .summary.tokens,
                     coverage: (.summary.coverage // null),
+                    skills: (.summary.skills // []),
                     loop_indicator_groups:
                       ((.summary.loop_indicators // []) | length),
                     invalid_lines: (.summary.span_counts.invalid_lines? // null) }]

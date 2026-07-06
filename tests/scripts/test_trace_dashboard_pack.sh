@@ -355,6 +355,13 @@ while IFS= read -r q; do
 	fi
 done < "$queries_file"
 
+# --- #139: a skill-usage panel must surface harness.skill.name ---------------
+if grep -q 'harness\.skill\.name' "$queries_file"; then
+	ok "workbook carries a skill-usage panel referencing harness.skill.name (#139)"
+else
+	note "$WB_JSON: no panel references harness.skill.name — skill usage (#139) is not surfaced in the dashboard"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================

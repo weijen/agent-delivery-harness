@@ -151,6 +151,7 @@ cat > "${ISSUES_DIR}/issue-10/trace-summary.json" <<EOF
   ],
   "tokens": null,
   "coverage": {"has_tool_spans": true, "has_model_spans": false},
+  "skills": [{"name": "find-over-design", "calls": 2, "fail_calls": 1}],
   "loop_indicators": [],
   "red_reentry": [],
   "deviations": {"count": 2, "feature_ids": ["feat-a", "feat-b"]}
@@ -281,6 +282,15 @@ jq -e '
   and ($b.issues[0].coverage == null)
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "#131: vA (coverage present) must give tool_coverage 1/1 and propagate the row coverage; vB (pre-#131 summary) must give tool_coverage 0/1 and row coverage null: $(jq -c '[.by_version[] | {v: .harness_version, tc: .tool_coverage, rc: .issues[0].coverage}]' "$SCORECARD" 2>/dev/null)"
+
+# --- 3b#139. skills aggregate per bucket + per-run propagation ----------------
+jq -e '
+  (.by_version[] | select(.harness_version == "vA")) as $a
+  | ($a.skills[] | select(.name == "find-over-design")) as $s
+  | ($s.calls == 2) and ($s.fail_calls == 1)
+  and (($a.issues[0].skills // []) | any(.name == "find-over-design"))
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "#139: vA bucket must aggregate skills [{find-over-design, calls 2, fail 1}] and propagate per-run skills onto the issue row: $(jq -c '.by_version[] | select(.harness_version=="vA") | {skills, issue0: (.issues[0].skills)}' "$SCORECARD" 2>/dev/null)"
 
 # --- 3c. missing_summaries: reported, never repaired ---------------------------
 jq -e '
