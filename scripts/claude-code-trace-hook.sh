@@ -44,6 +44,12 @@ fi
 # the redaction boundary.
 HOOK_ARGS_SUMMARY_CAP=200
 
+# Hard cap for harness.result_summary (issue #130): 500 characters TOTAL
+# including the `...` marker. Separate from HOOK_ARGS_SUMMARY_CAP (owner
+# decision) because tool RESULTS run longer than arguments; the field is
+# excluded from the export allowlist, so the larger cap never ships.
+HOOK_RESULT_SUMMARY_CAP=500
+
 # Duration-correlation state file path (plan D5, tool-span sensor C2):
 # <main root>/.copilot-tracking/issues/issue-NN/.hook-state/<session_id>-<tool_use_id>
 # Requires trace-lib to be sourced (uses trace__main_root and
@@ -118,6 +124,26 @@ hook__on_post_tool_use() {
       summary="${summary:0:HOOK_ARGS_SUMMARY_CAP-3}..."
     fi
     attrs+=("harness.args_summary=${summary}")
+  fi
+
+  # Result summary (#130): Claude's tool result content lives in
+  # .tool_response (a string, or an object such as {stdout,is_error}). Capture
+  # it verbatim when a string, compacted via tojson when an object — the data
+  # the adapter previously received but dropped, keeping only is_error. Same
+  # redact-before-cap discipline as args_summary; omitted when absent.
+  local result_summary=""
+  result_summary="$(printf '%s' "$payload" | jq -r '
+      if (.tool_response | type) == "string" then .tool_response
+      elif (.tool_response | type) == "object" then (.tool_response | tojson)
+      else empty end' 2>/dev/null || true)"
+  if [ -n "$result_summary" ]; then
+    result_summary="$(printf '%s' "$result_summary" | trace_redact 2>/dev/null || true)"
+  fi
+  if [ -n "$result_summary" ]; then
+    if [ "${#result_summary}" -gt "$HOOK_RESULT_SUMMARY_CAP" ]; then
+      result_summary="${result_summary:0:HOOK_RESULT_SUMMARY_CAP-3}..."
+    fi
+    attrs+=("harness.result_summary=${result_summary}")
   fi
 
   # C3 — outcome only when the payload clearly indicates it.

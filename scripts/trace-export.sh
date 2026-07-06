@@ -181,11 +181,11 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
     red "error: export gate: a well-known secret shape survived into the staged envelopes (hardcoded backstop) — refusing (nothing written)" >&2
     return 1
   fi
-  # 2c. Belt: the four allowlist-excluded field names must never appear in
+  # 2c. Belt: the allowlist-excluded field names must never appear in
   #     the output (the allowlist projection already drops them; this
   #     catches a projection regression before it ships).
   local excluded
-  for excluded in 'harness.args_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
+  for excluded in 'harness.args_summary' 'harness.result_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
     if grep -qF -- "$excluded" "$staged"; then
       red "error: export gate: excluded field name '${excluded}' appeared in the staged envelopes — refusing (nothing written)" >&2
       return 1

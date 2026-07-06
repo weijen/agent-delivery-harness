@@ -124,6 +124,7 @@ V_ARGS="ARGSLEAK_zq9 redacted-then-capped args do not ship"
 V_SUMMARY="SUMMARYLEAK_zq9 free text handback prose"
 V_WORKTREE="/Users/plantedzq9/worktrees/issue-112"
 V_BRANCH="feature/issue-112-plantedzq9"
+V_RESULT="RESULTLEAK_zq9 redacted-then-capped tool result does not ship"
 V_UNKNOWN="DROPME_zq9 unknown future key"
 
 # ==============================================================================
@@ -155,7 +156,7 @@ git -C "$FIX" config user.email "harness-test@example.invalid"
 IN="${TMP_DIR}/in.trace.jsonl"
 cat > "$IN" <<JSONL
 {"schema_version":1,"timestamp":"2026-07-04T10:00:00Z","span":"lifecycle","harness.issue":112,"harness.version":"abc1234","span_id":"spanlc01","harness.lifecycle_step":"preflight","harness.worktree":"${V_WORKTREE}"}
-{"schema_version":1,"timestamp":"2026-07-04T10:00:01Z","span":"tool","harness.issue":112,"harness.version":"abc1234","span_id":"spantool1","parent_span_id":"spanlc01","gen_ai.tool.name":"git","harness.outcome":"pass","harness.exit_status":0,"harness.duration_ms":1234,"harness.warning":"jq_skipped","harness.args_summary":"${V_ARGS}"}
+{"schema_version":1,"timestamp":"2026-07-04T10:00:01Z","span":"tool","harness.issue":112,"harness.version":"abc1234","span_id":"spantool1","parent_span_id":"spanlc01","gen_ai.tool.name":"git","harness.outcome":"pass","harness.exit_status":0,"harness.duration_ms":1234,"harness.warning":"jq_skipped","harness.args_summary":"${V_ARGS}","harness.result_summary":"${V_RESULT}"}
 {"schema_version":1,"timestamp":"2026-07-04T10:00:02Z","span":"tool","harness.issue":112,"harness.version":"abc1234","span_id":"spantool2","gen_ai.tool.name":"gh","harness.outcome":"fail","harness.exit_status":2,"harness.duration_ms":40000,"harness.branch":"${V_BRANCH}"}
 {"schema_version":1,"timestamp":"2026-07-04T10:00:03Z","span":"agent","harness.issue":112,"harness.version":"abc1234","span_id":"spanagent","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.feature_id":"trace-export-mapping-core","harness.outcome":"pass","harness.summary":"${V_SUMMARY}"}
 {"schema_version":1,"timestamp":"2026-07-04T10:00:04Z","span":"model","harness.issue":112,"harness.version":"abc1234","span_id":"spanmodel","gen_ai.request.model":"example-model","gen_ai.usage.input_tokens":18000,"gen_ai.usage.output_tokens":4000,"gen_ai.usage.total_tokens":22000,"custom.future_key":"${V_UNKNOWN}"}
@@ -342,8 +343,8 @@ jq -e -n --argjson allow "$ALLOW" --slurpfile spans "$IN" --slurpfile envs "$ENV
 # E3. Byte-absence of the four excluded fields: names AND planted values
 #     must not appear ANYWHERE in the raw output file (comments included).
 for needle in \
-  'harness.args_summary' 'harness.summary' 'harness.worktree' 'harness.branch' \
-  'ARGSLEAK_zq9' 'SUMMARYLEAK_zq9' 'plantedzq9' 'DROPME_zq9'; do
+  'harness.args_summary' 'harness.result_summary' 'harness.summary' 'harness.worktree' 'harness.branch' \
+  'ARGSLEAK_zq9' 'RESULTLEAK_zq9' 'SUMMARYLEAK_zq9' 'plantedzq9' 'DROPME_zq9'; do
   grep -qF -- "$needle" "$OUT" \
     && fail "E3: excluded/unknown material '${needle}' is present in the raw dry-run output — must be byte-absent"
 done

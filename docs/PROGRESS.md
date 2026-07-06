@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #132)._
+_Last updated: 2026-07-06 (issue #130)._
 
 ---
 
@@ -164,7 +164,20 @@ _Last updated: 2026-07-06 (issue #132)._
   content, L1 cases.
 
 ### Deep tracing
-- **#132 — register emitted `harness.*` keys in the schema contract (P1-3).**
+- **#130 — capture tool-result summary as `harness.result_summary` (P1-1).**
+  Closed the one deep-telemetry gap where the boundary was on our side: both
+  runtime hooks already RECEIVED the tool result but dropped it, keeping only
+  pass/fail. Now `copilot-trace-hook.sh` sources it from
+  `toolResult.textResultForLlm` (camel) / `tool_result.text_result_for_llm`
+  (snake) and `claude-code-trace-hook.sh` from `tool_response` (string
+  verbatim / object `tojson`), each redacted-before-cap at a dedicated
+  `HOOK_RESULT_SUMMARY_CAP=500` and omitted when absent. Documented in
+  `trace-schema.v1.json` (the #132 drift sensor now guards 31 keys). Treated as
+  high-leakage: added to the export belt-check exclusion and kept out of the
+  allowlist, with the mapping-test E3 byte-absence fixture extended and
+  mutation-tested (allowlisting it makes the export refuse, fail-closed).
+  Moves command outputs / test results / stack traces from "unrecorded" to
+  "partial". Second of the deep-trace P1 batch (order B).
   Closed the documented-vs-emitted vocabulary drift: audited all 30
   `harness.*`/`gen_ai.*` keys emitted by `trace_span` across `scripts/` (lifecycle
   scripts + both runtime hooks) and added the 19 previously-undocumented ones to

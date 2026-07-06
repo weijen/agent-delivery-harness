@@ -63,6 +63,14 @@ fi
 # whole-line trace_redact stays the second layer.
 HOOK_ARGS_SUMMARY_CAP=200
 
+# Hard cap for harness.result_summary: 500 characters TOTAL including the
+# literal `...` truncation marker (issue #130; owner decision — separate from
+# HOOK_ARGS_SUMMARY_CAP because tool RESULTS, e.g. test failures and stack
+# traces, run longer than arguments). Same redact-before-cap discipline as
+# args_summary; the field is EXCLUDED from the export allowlist, so its
+# larger cap never reaches App Insights.
+HOOK_RESULT_SUMMARY_CAP=500
+
 # postToolUse / postToolUseFailure / PostToolUse — emit one schema-valid
 # `tool` span (sensor conventions P2–P5, P7):
 #   gen_ai.tool.name        toolName (camel) / tool_name (snake); absent → no span
@@ -119,6 +127,28 @@ hook__on_post_tool_use() {
       summary="${summary:0:HOOK_ARGS_SUMMARY_CAP-3}..."
     fi
     attrs+=("harness.args_summary=${summary}")
+  fi
+
+  # Result summary (#130): the tool's result text — camel
+  # .toolResult.textResultForLlm, snake .tool_result.text_result_for_llm.
+  # This is the data the adapter previously RECEIVED but dropped, keeping only
+  # the pass/fail outcome. Same redact-before-cap discipline as args_summary
+  # (a failed/empty redaction drops the field — never emit an unredacted one);
+  # omitted entirely when the source is absent (omit, never fake).
+  local result_summary=""
+  if [ "$dialect" = "camel" ]; then
+    result_summary="$(printf '%s' "$payload" | jq -r '.toolResult.textResultForLlm // empty' 2>/dev/null || true)"
+  else
+    result_summary="$(printf '%s' "$payload" | jq -r '.tool_result.text_result_for_llm // empty' 2>/dev/null || true)"
+  fi
+  if [ -n "$result_summary" ]; then
+    result_summary="$(printf '%s' "$result_summary" | trace_redact 2>/dev/null || true)"
+  fi
+  if [ -n "$result_summary" ]; then
+    if [ "${#result_summary}" -gt "$HOOK_RESULT_SUMMARY_CAP" ]; then
+      result_summary="${result_summary:0:HOOK_RESULT_SUMMARY_CAP-3}..."
+    fi
+    attrs+=("harness.result_summary=${result_summary}")
   fi
 
   # Outcome only from unambiguous signals (P5).
