@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-05 (issue #64)._
+_Last updated: 2026-07-06 (issue #132)._
 
 ---
 
@@ -164,7 +164,18 @@ _Last updated: 2026-07-05 (issue #64)._
   content, L1 cases.
 
 ### Deep tracing
-- **#113 — harness-quality dashboard + telemetry retention/PII spec.** The
+- **#132 — register emitted `harness.*` keys in the schema contract (P1-3).**
+  Closed the documented-vs-emitted vocabulary drift: audited all 30
+  `harness.*`/`gen_ai.*` keys emitted by `trace_span` across `scripts/` (lifecycle
+  scripts + both runtime hooks) and added the 19 previously-undocumented ones to
+  `trace-schema.v1.json` `optional_fields`, typed to match trace-lib serialization
+  (5 numeric: `exit_status`/`duration_ms`/`incomplete_count`/`violation_count`/`warning_count`;
+  the rest strings, including `pr_number`). Two new `tests/meta/` drift sensors
+  guard independent directions: `test_trace_schema_key_coverage.sh` (every emitted
+  key is documented) and `test_trace_export_allowlist_contract.sh` (the
+  25-key export allowlist ⊆ documented contract, so no undocumented key reaches
+  App Insights — mutation-tested for teeth). First of the deep-trace P1 batch
+  (order B: #132 → #130 → #131 → #121).
   remote-monitoring capstone. Added a live-deployable Azure Workbook
   (`infra/terraform/workbook.tf` + `harness-quality.workbook.json`, an
   `azurerm_application_insights_workbook` attached via `source_id` to the
