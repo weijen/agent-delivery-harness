@@ -183,6 +183,10 @@ def ts_secs:
       by_type:
         (reduce ($spans[] | .span? | strings) as $t ({}; .[$t] = ((.[$t] // 0) + 1)))
     },
+    coverage: {
+      has_tool_spans:  (([$spans[] | select(.span? == "tool")]  | length) > 0),
+      has_model_spans: (([$spans[] | select(.span? == "model")] | length) > 0)
+    },
     wall_clock:
       (if ($ts | length) == 0 then null
        else

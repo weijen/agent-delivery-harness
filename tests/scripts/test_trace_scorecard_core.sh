@@ -150,6 +150,7 @@ cat > "${ISSUES_DIR}/issue-10/trace-summary.json" <<EOF
     {"name": "jq", "calls": 2, "fail_calls": 0, "duration_ms": null}
   ],
   "tokens": null,
+  "coverage": {"has_tool_spans": true, "has_model_spans": false},
   "loop_indicators": [],
   "red_reentry": [],
   "deviations": {"count": 2, "feature_ids": ["feat-a", "feat-b"]}
@@ -264,6 +265,22 @@ jq -e '
   and ($b.token_coverage == {"runs_with_tokens": 1, "of": 1})
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "vB bucket wrong — issue-11 must be attributed to vB via the LAST version-carrying trace span (attribution last_seen_in_trace), with red_reentry_free_rate 0/1 (feat-c re-entered red), tool_calls {4, 0}, tokens {1000, 200}, coverage 1/1: $(jq -c '.by_version[] | select(.harness_version == "vB")' "$SCORECARD" 2>/dev/null)"
+
+# --- 3b#131. tool_coverage honest denominator + per-run coverage propagation ---
+# issue-10 (vA) carries a #131 coverage object -> counted in runs_with_tool_spans
+# and propagated onto its issue row. issue-11 (vB) is a pre-#131 summary with NO
+# coverage field -> NOT counted (unknown is not true) and the row coverage is
+# null. Instrumented and no-coverage runs never blend; an older summary degrades
+# to null rather than a fabricated flag.
+jq -e '
+  (.by_version[] | select(.harness_version == "vA")) as $a
+  | (.by_version[] | select(.harness_version == "vB")) as $b
+  | ($a.tool_coverage == {"runs_with_tool_spans": 1, "of": 1})
+  and ($a.issues[0].coverage == {"has_tool_spans": true, "has_model_spans": false})
+  and ($b.tool_coverage == {"runs_with_tool_spans": 0, "of": 1})
+  and ($b.issues[0].coverage == null)
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "#131: vA (coverage present) must give tool_coverage 1/1 and propagate the row coverage; vB (pre-#131 summary) must give tool_coverage 0/1 and row coverage null: $(jq -c '[.by_version[] | {v: .harness_version, tc: .tool_coverage, rc: .issues[0].coverage}]' "$SCORECARD" 2>/dev/null)"
 
 # --- 3c. missing_summaries: reported, never repaired ---------------------------
 jq -e '

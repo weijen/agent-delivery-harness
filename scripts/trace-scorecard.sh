@@ -269,6 +269,11 @@ cat > "$AGG_FILTER" <<'JQ'
                       ([$toks[] | (.output // .output_tokens) | numbers] | add // 0) }
                 end),
              token_coverage: { runs_with_tokens: ($toks | length), of: $runs },
+             tool_coverage: {
+               runs_with_tool_spans:
+                 ([$g[] | select(.summary.coverage.has_tool_spans == true)] | length),
+               of: $runs
+             },
              issues:
                [$g[]
                 | { issue: .summary.issue,
@@ -285,6 +290,7 @@ cat > "$AGG_FILTER" <<'JQ'
                     wall_clock_elapsed_seconds:
                       (.summary.wall_clock.elapsed_seconds? // null),
                     tokens: .summary.tokens,
+                    coverage: (.summary.coverage // null),
                     loop_indicator_groups:
                       ((.summary.loop_indicators // []) | length),
                     invalid_lines: (.summary.span_counts.invalid_lines? // null) }]
