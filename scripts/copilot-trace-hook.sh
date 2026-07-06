@@ -163,6 +163,15 @@ hook__on_post_tool_use() {
         if .tool_result.result_type? == "success" then "pass" else "" end' \
       2>/dev/null || true)"
   fi
+  # CLI v1.0.69 (#137 Gap 2) signals failure with a top-level `error` string,
+  # not the postToolUseFailure event or toolResult.resultType. When no
+  # success/fail was established above, a non-empty top-level error means fail.
+  if [ -z "$outcome" ]; then
+    if printf '%s' "$payload" | jq -e '
+         (.error? | type) == "string" and (.error != "")' >/dev/null 2>&1; then
+      outcome="fail"
+    fi
+  fi
   case "$outcome" in
     pass|fail) attrs+=("harness.outcome=${outcome}") ;;
     *) ;;
@@ -301,6 +310,20 @@ hook__main() {
     subagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     Stop)               hook__on_stop "$payload" "github-copilot" none ;;
     SubagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
+    "")
+      # CLI v1.0.69 (#137) sends NO event / hook_event_name field. Infer a
+      # camel post-tool-use ONLY from shape: a non-empty toolName plus a
+      # result signal (toolResult, or a top-level error string). A payload
+      # with no toolName (stop-shaped or unknown) is not a tool call and
+      # drops through untouched — this can never misclassify a stop payload,
+      # which carries no toolName.
+      if printf '%s' "$payload" | jq -e '
+           ((.toolName? | type) == "string") and (.toolName != "")
+           and ((.toolResult? != null) or ((.error? | type) == "string"))' \
+           >/dev/null 2>&1; then
+        hook__on_post_tool_use "$payload" camel ""
+      fi
+      ;;
     *)                  return 0 ;;
   esac
   return 0

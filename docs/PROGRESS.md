@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #121 spike)._
+_Last updated: 2026-07-06 (issue #137)._
 
 ---
 
@@ -164,6 +164,19 @@ _Last updated: 2026-07-06 (issue #121 spike)._
   content, L1 cases.
 
 ### Deep tracing
+- **#137 — fix the CLI hook against real Copilot CLI v1.0.69 payloads (A of the #121 split).**
+  Bug-class fix from the #121 spike: CLI v1.0.69 sends **no `event` field**, so
+  `copilot-trace-hook.sh` dropped every CLI tool call and emitted no tool spans
+  at all (which also meant #130 `result_summary` never landed on real CLI).
+  `hook__main` now infers a camel post-tool-use from shape (a non-empty
+  `toolName` plus a result signal: `toolResult`, or a top-level `error`), while
+  a `toolName`-less stop-shaped payload is never misclassified and the
+  event-bearing VS Code/snake path is untouched. `hook__on_post_tool_use` maps
+  a non-empty top-level `error` to `harness.outcome=fail` (Gap 2). Tool/model
+  spans and `harness.result_summary` now actually land on the CLI surface.
+  `github-copilot.md` corrected to v1.0.69 reality. Sensor cases E10 (event-less
+  success + retroactive result_summary), E11 (top-level error → fail), E12
+  (no `toolName` → no span). Unblocks #138 (skill identity) and #139 (surface).
 - **#121 — skill-invocation observability SPIKE: DONE, issue closed, split into follow-ups.**
   The Spike-Live capture landed the answer static analysis could not give
   (`docs/runtime-adapters/github-copilot.skill-spike.md`, Copilot CLI v1.0.69):
