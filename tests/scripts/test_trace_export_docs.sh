@@ -40,8 +40,11 @@
 #
 #   T — zero core coupling (#96 T3 style): no script under scripts/*.sh
 #       other than trace-export.sh itself references 'trace-export' — the
-#       exporter is opt-in and never wired into the lifecycle. (Tests and
-#       docs are exempt by construction: only scripts/ is scanned.)
+#       exporter is opt-in and never wired into the lifecycle, WITH ONE
+#       sanctioned exception: finish-issue.sh performs a best-effort closeout
+#       export (issue #144), so it may reference trace-export. Every OTHER
+#       core script must stay decoupled. (Tests and docs are exempt by
+#       construction: only scripts/ is scanned.)
 #
 # The coupling leg runs FIRST so a RED report shows both the decoupling
 # status and the missing doc. RED while the doc does not exist.
@@ -75,9 +78,13 @@ finish() {
 # ==============================================================================
 coupled=""
 for script in "${ROOT}"/scripts/*.sh; do
-  if [ "$(basename "$script")" = "trace-export.sh" ]; then
-    continue
-  fi
+  case "$(basename "$script")" in
+    # trace-export.sh is the exporter itself. finish-issue.sh is the ONE
+    # sanctioned lifecycle caller: it wires a best-effort closeout export
+    # (issue #144) that no-ops unless configured and never blocks teardown.
+    # Every OTHER core script must stay decoupled, so they are still scanned.
+    trace-export.sh | finish-issue.sh) continue ;;
+  esac
   if grep -q 'trace-export' "$script"; then
     coupled="${coupled} $(basename "$script")"
   fi

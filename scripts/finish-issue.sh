@@ -116,6 +116,28 @@ check_feature_completion() {
   "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
 }
 
+# Best-effort closeout trace export (issue #144). Ships the issue's spans to
+# Azure Monitor ONLY when explicitly configured (opt-in flag + connection
+# string). It ALWAYS returns 0: a missing/failing exporter must never change
+# finish-issue's exit code or block teardown. It reads the MAIN-checkout trace
+# file (which survives worktree removal), so it runs AFTER the worktree is gone.
+best_effort_trace_export() {
+  [ "${TRACE_EXPORT_OTLP:-}" = "1" ] || return 0
+  [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ] || return 0
+  if [ ! -x "${SCRIPT_DIR}/trace-export.sh" ]; then
+    yellow "⚠ trace export skipped: scripts/trace-export.sh not executable"
+    return 0
+  fi
+  local rc=0
+  "${SCRIPT_DIR}/trace-export.sh" "$ISSUE_NUM" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    yellow "⚠ trace export failed (exit ${rc}) — continuing teardown (best-effort)"
+  else
+    green "✓ Exported trace for issue ${ISSUE_NUM}"
+  fi
+  return 0
+}
+
 # The worktree's own checked-out branch is the deterministic source of truth —
 # prefer it over a slug recomputed from the (mutable) issue title.
 if [ -e "$WORKTREE_DIR" ]; then
@@ -177,6 +199,13 @@ else
 fi
 
 git worktree prune
+
+# --- Best-effort closeout trace export (issue #144) --------------------------
+# After teardown so a failed export can never block worktree removal; gated on
+# both config vars so it is a clean no-op unless explicitly opted in.
+TRACE_STAGE="trace_export"
+best_effort_trace_export
+
 green "✓ Pruned stale worktree metadata"
 
 # --- Optional branch deletion ----------------------------------------------
