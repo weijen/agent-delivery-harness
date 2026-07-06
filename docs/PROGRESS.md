@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #139)._
+_Last updated: 2026-07-06 (issue #129)._
 
 ---
 
@@ -40,7 +40,7 @@ _Last updated: 2026-07-06 (issue #139)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 82 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 102 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
@@ -443,6 +443,22 @@ _Last updated: 2026-07-06 (issue #139)._
   competing vocabulary can drift).
 
 ### Lifecycle hardening — naming + verify gate
+- **#129 — Enforce project-CI coverage for code surfaces (WARN in preflight,
+  FAIL at Pre-PR gate).** `harness-smoke.yml` runs the harness's own sensors, not
+  an adopting project's gates, so a project could accumulate unit tests that CI
+  never ran. New `scripts/ci-coverage-lib.sh` detects a code surface
+  (Python/Go/Node/Java/Ruby via `profile_detect`) that no `.github/workflows/*.y*ml`
+  other than `harness-smoke.yml` covers, matching each profile's new
+  `PROFILE_CI_SIGNATURES` gate-command tokens. `init.sh` preflight WARNs on the
+  gap; a new fail-closed `review-gate.sh ci-gate` — embedded in the `check` case,
+  so `create-pr.sh` enforces it with no edit — refuses to open the PR, with
+  `SKIP_CI_GATE=1` as the logged escape hatch. The lib owns all language tokens so
+  `review-gate.sh`/`create-pr.sh` stay `language_neutral` (contract test 11); the
+  gate emits a `review-gate.ci-gate` trace span. Contract records `SKIP_CI_GATE`
+  + the `ci-coverage-missing` failure mode. Four sensors
+  (`test_init_ci_coverage_warn.sh`, `test_review_gate_ci_coverage.sh`,
+  `test_ci_coverage_docs.sh`, plus the extended `test_harness_contract.sh`). No
+  workflow template is shipped (projects author their own CI).
 - **#84 — Unify repo-wide status doc as `docs/PROGRESS.md` + enforce it.**
   Renamed the status doc everywhere, declared it separate from the per-issue
   local `progress.md`, added a `review-gate.sh status-doc` gate (fails closed

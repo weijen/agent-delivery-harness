@@ -322,6 +322,25 @@ A green run is a **hard precondition for merge**: merge through `./scripts/merge
 verifies `gh pr checks` is green before merging. For belt-and-braces enforcement, a repo admin
 should enable a **branch-protection required check** on `main` so the gate cannot be bypassed.
 
+### Project-CI coverage gate
+
+`harness-smoke.yml` runs the **harness's own** sensors — it is **not** an adopting project's CI. A
+repo that ships code (Python/Go/Node/Java/Ruby) must add its own workflow that runs the project
+gates (tests, lint, format, type-check). The harness makes a missing project CI visible early and
+blocking at PR time:
+
+- **Preflight WARN** — `./scripts/init.sh` warns when a code surface is present but no
+  `.github/workflows/*.y*ml` other than `harness-smoke.yml` references that surface's gate
+  commands. Seen at the first `start-issue`.
+- **Pre-PR fail-closed `ci-gate`** — `./scripts/review-gate.sh ci-gate` (run inside
+  `review-gate.sh check`, so `./scripts/create-pr.sh` enforces it with no extra step) refuses to
+  open a PR under the same condition. The documented escape hatch is `SKIP_CI_GATE=1`, which
+  bypasses the gate with a **logged** warning for a repo that legitimately has no project CI yet.
+
+Detection signatures live in each `profiles/<id>.profile.sh` (`PROFILE_CI_SIGNATURES`); the
+language-neutral gate scripts read them through `scripts/ci-coverage-lib.sh`, so `review-gate.sh`
+and `create-pr.sh` stay free of any language token.
+
 It is still not:
 
 - CI/CD delivery.

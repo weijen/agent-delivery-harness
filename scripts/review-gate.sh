@@ -34,6 +34,15 @@ if ! declare -F trace_span >/dev/null 2>&1; then
   trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
 fi
 
+# --- Project-CI coverage lib (issue #129) ------------------------------------
+# Guarded source: a missing ci-coverage-lib.sh must never break the gate. The
+# lib owns all language-specific gate-command tokens so this script stays
+# language-neutral (docs/harness-contract.yml).
+if [ -f "${SCRIPT_DIR}/ci-coverage-lib.sh" ]; then
+  # shellcheck source=scripts/ci-coverage-lib.sh
+  source "${SCRIPT_DIR}/ci-coverage-lib.sh"
+fi
+
 # One span per gate operation, emitted from a stage-tracked EXIT trap (plan
 # D3): approve → review_gate_approve lifecycle span; check / status-doc →
 # tool spans carrying the failing sub-gate in harness.stage. Usage errors and
@@ -75,6 +84,12 @@ trace__gate_exit() {
       status-doc)
         trace_span tool "gen_ai.tool.name=review-gate.status-doc" "${attrs[@]}"
         ;;
+      ci-gate)
+        if [ "$outcome" = "fail" ] && [ -n "$TRACE_STAGE" ]; then
+          attrs+=("harness.stage=${TRACE_STAGE}")
+        fi
+        trace_span tool "gen_ai.tool.name=review-gate.ci-gate" "${attrs[@]}"
+        ;;
     esac
   fi
   exit "$rc"
@@ -83,16 +98,20 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|status-doc|trace
+Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace
 
 Commands:
   approve     Record the current HEAD as reviewed.
   check       Require the recorded approval to match the current HEAD, and that
               the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
-              Also runs the trace gate (warn-only unless REQUIRE_TRACE_CONSISTENCY=1).
+              Also runs the ci-gate and the trace gate (warn-only unless
+              REQUIRE_TRACE_CONSISTENCY=1).
   status-doc  Require docs/PROGRESS.md to have changed in <base>...HEAD.
               Every change must update the repo-wide status doc — there is no
               opt-out. docs/PROGRESS.md is what the next agent reads first.
+  ci-gate     Fail closed when a code surface is present but no
+              .github/workflows/*.y*ml (other than harness-smoke.yml) runs its
+              gates. Bypass with SKIP_CI_GATE=1 (logged).
   trace       Run the trace checkers (validate-trace.sh + check-trace-consistency.sh)
               for the current issue. Warn-only by default: findings are printed
               with a warning summary and the exit code stays 0. Set
@@ -136,6 +155,42 @@ status_doc_gate() {
   red "✗ status-doc: ${doc} was not updated on this branch (${base}...HEAD)."
   echo "  Update ${doc} with this change's repo-wide status before opening the PR —"
   echo "  it is the running log the next agent reads first, so every change must touch it."
+  exit 1
+}
+
+# ci_gate — fail closed unless every detected code surface has project-CI
+# coverage (issue #129). A code surface present with no .github/workflows/*.y*ml
+# (other than harness-smoke.yml) running its gate commands means the project's
+# own tests/lint/type-check never run in CI, so a PR must not open. Detection +
+# all language tokens live in ci-coverage-lib.sh; this function stays
+# language-neutral, printing the lib's message via a variable. SKIP_CI_GATE=1 is
+# the documented escape hatch (mirrors FORCE=1): it bypasses the gate with a
+# LOGGED warning, never silently.
+ci_gate() {
+  TRACE_STAGE="ci_coverage"
+
+  if [ "${SKIP_CI_GATE:-0}" = "1" ]; then
+    yellow "⚠ ci-gate: SKIP_CI_GATE=1 set — bypassing the project-CI coverage check (logged)."
+    return 0
+  fi
+
+  if ! declare -F ci_coverage_uncovered_surfaces >/dev/null 2>&1; then
+    yellow "⚠ ci-gate skipped: scripts/ci-coverage-lib.sh not found — coverage check disabled."
+    return 0
+  fi
+
+  local uncovered
+  uncovered="$(ci_coverage_uncovered_surfaces 2>/dev/null || true)"
+  if [ -z "$uncovered" ]; then
+    green "✓ ci-gate: project CI runs the gates for all detected code surfaces."
+    return 0
+  fi
+
+  local surfaces
+  surfaces="$(printf '%s' "$uncovered" | tr '\n' ' ')"
+  red "✗ ci-gate: no project CI runs the gates for the detected code surface(s)."
+  echo "  $(ci_coverage_message "$surfaces")"
+  echo "  Add a .github/workflows/*.yml that runs the project gates before opening the PR (bypass: SKIP_CI_GATE=1)."
   exit 1
 }
 
@@ -275,6 +330,9 @@ case "$command" in
     fi
     green "✓ review approved for current HEAD ${head_sha}"
     status_doc_gate
+    # Project-CI coverage gate (issue #129): fail closed when a code surface has
+    # no project-CI workflow running its gates (bypass: SKIP_CI_GATE=1).
+    ci_gate
     # Two-phase trace gate (issue #103): warn-only inside check by default —
     # approval + status-doc still decide the exit code; under
     # REQUIRE_TRACE_CONSISTENCY=1 trace findings fail the check too.
@@ -285,6 +343,11 @@ case "$command" in
     TRACE_CMD="status-doc"
     TRACE_T0="$(trace_now_ms)"
     status_doc_gate
+    ;;
+  ci-gate)
+    TRACE_CMD="ci-gate"
+    TRACE_T0="$(trace_now_ms)"
+    ci_gate
     ;;
   trace)
     # The trace gate emits its own review-gate.trace tool span inline (one

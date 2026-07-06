@@ -17,6 +17,9 @@
 # --- Metadata (Profile Interface fields) -------------------------------------
 PROFILE_ID="ruby"
 PROFILE_DETECT="Gemfile"
+# Grep signatures (extended regex) proving a project-CI workflow runs this
+# surface's gates (issue #129); consumed by scripts/ci-coverage-lib.sh.
+PROFILE_CI_SIGNATURES="rubocop|standardrb|rspec|minitest|rake test"
 PROFILE_VARIANTS="standardrb rubocop rspec minitest"
 PROFILE_TOOL_REQUIREMENTS="ruby"
 PROFILE_INSTRUCTIONS=".copilot/instructions/ruby.instructions.md"

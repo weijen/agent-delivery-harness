@@ -91,6 +91,14 @@ fi
 # shellcheck source=profiles/python.profile.sh
 . "${PROFILES_DIR}/python.profile.sh"
 
+# Project-CI coverage detection (issue #129) — guarded source so a checkout that
+# predates the lib still runs preflight.
+CI_COVERAGE_LIB="${SCRIPT_DIR}/ci-coverage-lib.sh"
+if [ -f "$CI_COVERAGE_LIB" ]; then
+  # shellcheck source=scripts/ci-coverage-lib.sh
+  . "$CI_COVERAGE_LIB"
+fi
+
 # 1. Required CLIs ------------------------------------------------------------
 echo "[1/6] Required tools"
 for tool in git gh; do
@@ -188,6 +196,17 @@ else
   [ "$has_ruby" = "1" ] && note_ok "$ruby_label"
   [ "$has_java" = "1" ] && note_ok "$java_label"
   [ "$has_terraform" = "1" ] && note_ok "Terraform surface detected (*.tf)"
+fi
+
+# Project-CI coverage (issue #129): a detected code surface with no project
+# workflow running its gates is a WARN here — it fails closed later at the
+# Pre-PR ci-gate. harness-smoke.yml is the harness's own CI, not project CI.
+if declare -F ci_coverage_uncovered_surfaces >/dev/null 2>&1; then
+  uncovered_surfaces="$(ci_coverage_uncovered_surfaces 2>/dev/null || true)"
+  if [ -n "$uncovered_surfaces" ]; then
+    note_warn "$(ci_coverage_message "$(printf '%s' "$uncovered_surfaces" | tr '\n' ' ')")" \
+      "add a .github/workflows/*.yml that runs the project gates; the Pre-PR ci-gate fails closed until then (bypass: SKIP_CI_GATE=1)"
+  fi
 fi
 
 if [ "$has_python" = "1" ]; then

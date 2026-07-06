@@ -16,6 +16,9 @@
 # --- Metadata (Profile Interface fields) -------------------------------------
 PROFILE_ID="go"
 PROFILE_DETECT="go.mod"
+# Grep signatures (extended regex) proving a project-CI workflow runs this
+# surface's gates (issue #129); consumed by scripts/ci-coverage-lib.sh.
+PROFILE_CI_SIGNATURES="go test|go vet|gofmt|golangci-lint"
 PROFILE_VARIANTS=""
 PROFILE_TOOL_REQUIREMENTS="go"
 PROFILE_INSTRUCTIONS=".copilot/instructions/go.instructions.md"
