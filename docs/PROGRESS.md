@@ -40,7 +40,7 @@ _Last updated: 2026-07-06 (issue #129)._
   five audit skills, security-audit, sync-docs, public-exposure-audit).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 100 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 102 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
