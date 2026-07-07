@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #146)._
+_Last updated: 2026-07-07 (issue #151)._
 
 ---
 
@@ -100,6 +100,28 @@ _Last updated: 2026-07-07 (issue #146)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace native OTLP export
+- **#151 — opt-in native OTLP/HTTP export alongside the Track API path.**
+  `scripts/trace-export.sh` gains a second, independent transport that ships
+  schema-v1 spans as native wire-OTLP (OTLP/HTTP + JSON) to any OTel backend,
+  without touching the existing Application Insights Track API path. New
+  `--dry-run-otlp-to-file` seam maps each span to an OTLP `resourceSpans` object
+  (per-issue `traceId`, `span_id`/`parent_span_id` → span/parent linkage, kind
+  INTERNAL, `startTimeUnixNano`/`endTimeUnixNano` with honest single-point
+  `end==start` — no fabricated durations, the same 26-key allowlist projection).
+  The SAME fail-closed `redaction_gate` (Gate 1 input + Gate 2 fixed-point /
+  hardcoded secret-shape backstop / excluded-field belt, made shape-aware for
+  OTLP `stringValue`s) guards the OTLP body before it leaves. Live transport is
+  opt-in via `TRACE_EXPORT_OTLP_HTTP=1` + `OTEL_EXPORTER_OTLP_ENDPOINT`
+  (`/OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`), one `application/json` POST to
+  `/v1/traces`; `OTEL_EXPORTER_OTLP_HEADERS` carries auth and is never logged /
+  committed / echoed. Both transports default-off and independently selectable;
+  setting both ships both. Frozen in `docs/harness-contract.yml`
+  (`TRACE_EXPORT_OTLP_HTTP` env-flag, owner `trace-export.sh`); documented in
+  `docs/runtime-adapters/otlp-azure-monitor.md`. Sensors:
+  `test_trace_export_otlp_mapping.sh`, `test_trace_export_otlp_redaction.sh`,
+  `test_trace_export_otlp_transport.sh`, `test_trace_export_docs.sh` (D9).
 
 ### Deep-trace interval attribution
 - **#146 — interval (session_id + time) attribution for runtime tool/skill

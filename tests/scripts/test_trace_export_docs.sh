@@ -205,4 +205,30 @@ grep -qiE 'internal seam' "$FLAT" \
 grep -qiE 'not a stable contract' "$FLAT" \
   || fail "doc must state the dry-run format is not a stable contract (D8)"
 
+# ==============================================================================
+# D9. Native OTLP/HTTP transport (issue #151): an ADDITIONAL opt-in transport
+#     alongside the unchanged Application Insights Track API path, still wired
+#     to nothing in the lifecycle (decoupling doctrine), with
+#     never-commit-secrets discipline on its auth-headers env var. Concepts,
+#     not exact prose — tolerant/case-insensitive greps.
+# ==============================================================================
+grep -qF 'TRACE_EXPORT_OTLP_HTTP' "$DOC" \
+  || fail "doc must document the TRACE_EXPORT_OTLP_HTTP opt-in flag for the native OTLP/HTTP transport (D9, #151)"
+grep -qF 'OTEL_EXPORTER_OTLP_ENDPOINT' "$DOC" \
+  || fail "doc must document the OTEL_EXPORTER_OTLP_ENDPOINT endpoint env var (D9, #151)"
+grep -qF -- '/v1/traces' "$DOC" \
+  || fail "doc must document the OTLP/HTTP /v1/traces path (D9, #151)"
+grep -qi 'opt-in' "$DOC" \
+  || fail "doc must frame the native OTLP/HTTP transport as opt-in (D9, #151)"
+grep -qiE 'decoupl|never[^.]{0,60}lifecycle|lifecycle[^.]{0,60}never' "$FLAT" \
+  || fail "doc must state the OTLP/HTTP transport is never wired into the lifecycle (decoupling doctrine) (D9, #151)"
+grep -qF 'OTEL_EXPORTER_OTLP_HEADERS' "$DOC" \
+  || fail "doc must document the OTEL_EXPORTER_OTLP_HEADERS env var for auth headers (D9, #151)"
+grep -qiE 'never commit|do not commit|secret|token' "$FLAT" \
+  || fail "doc must carry a never-commit-secrets warning for OTLP/HTTP headers/tokens (D9, #151)"
+grep -qiE 'Track API|Application Insights' "$DOC" \
+  || fail "doc must reference the unchanged Application Insights Track API path (D9, #151)"
+grep -qiE 'alongside|additional transport|independent' "$FLAT" \
+  || fail "doc must frame OTLP/HTTP as an additional transport alongside the Track API path (D9, #151)"
+
 finish

@@ -153,6 +153,9 @@ env_flags:
   - name: TRACE_EXPORT_OTLP
     owner: scripts/finish-issue.sh
     present: TRACE_EXPORT_OTLP
+  - name: TRACE_EXPORT_OTLP_HTTP
+    owner: scripts/trace-export.sh
+    present: TRACE_EXPORT_OTLP_HTTP
 
 # ---------------------------------------------------------------------------
 # Required outputs and state transitions. Each declared artifact / naming rule
