@@ -71,6 +71,9 @@
 #       (git resolves 301) even though an interval window for a DIFFERENT
 #       issue would match the timestamp → the span lands in issue-301 via git
 #       and the intervals are ignored (zero regression to CLI-from-worktree).
+#   C7. CamelCase epoch-ms interval hit: CLI post-tool-use shape with NO
+#       event/hook_event_name and numeric epoch-MILLISECONDS timestamp inside
+#       issue-206's window → interval fallback must normalize before matching.
 #
 # RED proof: today the hook has no interval fallback — when git resolves
 # nothing it drops through G4 and no-ops silently, so C1/C2 append ZERO spans
@@ -164,6 +167,28 @@ snake_post_ts() {
     }
     + (if $sid == "-" then {} else {session_id: $sid} end)
     + (if $ts == "-" then {} else {timestamp: $ts} end)'
+}
+
+# GitHub Copilot CLI camelCase post-tool-use shape. The real CLI may omit an
+# event field; the hook must infer post-tool-use from toolName + toolResult.
+# timestamp is the real CLI epoch-MILLISECONDS JSON NUMBER.
+# camel_post_ts <cwd> <session_id> <tool_name> <tool_args-json-or-string> <timestamp-epoch-ms-integer>
+camel_post_ts() {
+  local cwd="$1" sid="$2" tool="$3" args="$4" ts="$5"
+  jq -cn \
+    --arg cwd "$cwd" --arg sid "$sid" --arg tool "$tool" --arg args "$args" \
+    --argjson ts "$ts" '
+    {
+      sessionId: $sid,
+      cwd: $cwd,
+      toolName: $tool,
+      toolArgs: (($args | fromjson?) // $args),
+      toolResult: {
+        resultType: "success",
+        textResultForLlm: "fixture success"
+      },
+      timestamp: $ts
+    }'
 }
 
 # --- Fixture builders ---------------------------------------------------------
@@ -430,4 +455,33 @@ printf '%s\n' "$c6_new" | jq -e '
     and .["harness.issue"] == 301' >/dev/null \
   || fail "C6: the span must be a tool span attributed to issue-301 (git-first): ${c6_new}"
 
-printf 'PASS: copilot-trace-hook.sh attributes runtime spans git-first, falls back to per-issue interval windows, and no-ops+WARNs on no-match / ambiguity / missing timestamp\n'
+# =============================================================================
+# C7 — camelCase epoch-ms interval hit: real CLI shape carries timestamp as a
+# JSON NUMBER of Unix epoch milliseconds. Fixed UTC arithmetic: 1783438703222
+# floors to 1783438703 seconds = 2026-07-07T15:38:23Z, inside the seeded
+# [2026-07-07T15:00:00Z, 2026-07-07T16:00:00Z] window.
+# =============================================================================
+MAIN7="${TMP_DIR}/main-c7"
+make_main_repo "$MAIN7"
+seed_lifecycle "$MAIN7" 206 worktree_create 2026-07-07T15:00:00Z
+seed_lifecycle "$MAIN7" 206 finish          2026-07-07T16:00:00Z
+C7_T206="$(trace_path "$MAIN7" 206)"
+c7_before206="$(line_count "$C7_T206")"
+[ "$c7_before206" = "2" ] \
+  || fail "C7: fixture seed wrong (want 2 lifecycle lines for issue-206, got ${c7_before206})"
+run_hook "c7" "$MAIN7" <(
+  camel_post_ts "$MAIN7" "S7" "bash" '{"command":"echo hi"}' 1783438703222
+)
+assert_session_safe "c7"
+c7_after206="$(line_count "$C7_T206")"
+[ "$c7_after206" = "$((c7_before206 + 1))" ] \
+  || fail "C7: a camelCase CLI payload timestamped as epoch-ms 1783438703222 (= 2026-07-07T15:38:23Z, inside issue-206's [15:00,16:00] window) must append EXACTLY one tool span to issue-206/trace.jsonl — got before=${c7_before206} after=${c7_after206}; the interval fallback is comparing raw epoch milliseconds lexicographically against ISO-8601 window bounds instead of normalizing first"
+c7_new="$(nth_line "$C7_T206" "$c7_after206")"
+validate_span "$c7_new" \
+  || fail "C7: the appended camelCase epoch-ms span is rejected by the #92 contract filter (fixture broken, not a timestamp-normalization regression): ${c7_new}"
+printf '%s\n' "$c7_new" | jq -e '
+    .span == "tool" and .["gen_ai.tool.name"] == "bash"
+    and .["harness.session_id"] == "S7" and .["harness.issue"] == 206' >/dev/null \
+  || fail "C7: the interval-attributed camelCase epoch-ms span must be a tool span for issue-206 carrying gen_ai.tool.name=bash and harness.session_id=S7: ${c7_new}"
+
+printf 'PASS: copilot-trace-hook.sh attributes runtime spans git-first, falls back to per-issue interval windows including camelCase epoch-ms timestamps, and no-ops+WARNs on no-match / ambiguity / missing timestamp\n'

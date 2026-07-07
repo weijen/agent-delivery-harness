@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #151)._
+_Last updated: 2026-07-07 (issue #164)._
 
 ---
 
@@ -124,6 +124,24 @@ _Last updated: 2026-07-07 (issue #151)._
   `test_trace_export_otlp_transport.sh`, `test_trace_export_docs.sh` (D9).
 
 ### Deep-trace interval attribution
+- **#164 — interval fallback now normalizes camelCase epoch-ms timestamps.**
+  Follow-up to #146. The official GitHub Copilot hooks reference documents two
+  payload dialects with **different `timestamp` types**: the real CLI (camelCase,
+  e.g. `postToolUse`) sends a JSON **number** of Unix epoch **milliseconds**,
+  while the VS Code dialect sends an ISO-8601 **string**. `hook__resolve_issue_by_interval`
+  compared the raw timestamp **lexicographically** against ISO-8601 `…Z` window
+  bounds, so an epoch-ms number (`"1783438703222"`) never matched any window →
+  **every CLI tool/skill span from the main-checkout topology was silently
+  dropped**. Fix: a new `hook__ts_to_iso` helper normalizes only the incoming
+  timestamp before comparison — all-digit epoch-ms → floor to whole seconds →
+  UTC ISO (BSD `date -r` / GNU `date -d @`); an ISO/non-digit string passes
+  through unchanged; empty/unparseable → `return 1` into the existing warn+drop
+  leg (never fabricates a timestamp, never `now()`). Window bounds, the git-first
+  path, and the C4 ambiguity contract are untouched; session-safety (exit 0 +
+  empty stdout) is preserved on every path including a `date` failure. Sensor:
+  new case **C7** (camelCase epoch-ms interval hit) in
+  `test_copilot_hook_interval_attribution.sh` — RED before the fix, GREEN after,
+  with C1–C6 unweakened.
 - **#146 — interval (session_id + time) attribution for runtime tool/skill
   spans.** Closes the "no tool/skill spans" gap for the VS Code conductor
   topology. Verified first (see the #146 comment) that VS Code agent hooks DO
