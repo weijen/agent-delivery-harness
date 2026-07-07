@@ -376,3 +376,23 @@ It is still not:
 
 Product repositories that adopt this harness can add their own CI/CD later, but that is outside this harness
 workflow.
+
+## Harness Versioning & Releases
+
+The top-level `VERSION` file is the authoritative **SemVer** release identity for the harness. It is the source of
+truth that `scripts/trace-lib.sh` reads for the `harness.version` stamped on every trace span; the exact commit
+behind that release is carried separately by the optional `harness.commit` field (the short git SHA of the harness
+scripts at emit time).
+
+Bumping `VERSION` is **manual and deliberate** — there is no auto-increment. Bump only when observable behaviour or
+the lifecycle contract changes:
+
+- **MAJOR / MINOR** — a change to observable behaviour or the lifecycle contract (new or removed lifecycle steps,
+  gate boundaries, script entrypoints, feature-list schema, or trace-schema semantics).
+- **PATCH** — a behaviour-affecting bug fix that does not change the contract surface.
+- **No bump** — docs-only, test-only, or comment-only commits do **not** move `VERSION`. Keeping the release stable
+  across such commits is what makes `by_version` aggregation across traces meaningful.
+
+This release version is **separate** from the `version:` field in `docs/harness-contract.yml`, which is the
+contract-schema version for the frozen lifecycle contract itself. The two evolve independently: a `VERSION` bump
+records a harness behaviour/release change, while the contract `version:` tracks the shape of the contract document.

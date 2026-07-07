@@ -13,7 +13,10 @@
 #     produces one trace file that survives worktree teardown.
 #     Auto-stamps schema_version,
 #     timestamp (ISO-8601 UTC), harness.issue (number), harness.version
-#     (short HEAD SHA of the harness scripts), and a unique span_id.
+#     (the SemVer release read from the top-level VERSION file, falling back
+#     to 0.0.0-dev when absent), an optional harness.commit (short HEAD SHA of
+#     the harness scripts, omitted when it cannot be determined), and a unique
+#     span_id.
 #   trace_redact
 #     stdin→stdout filter masking secret shapes; every serialized line
 #     passes through it immediately before append (no caller can bypass it).
@@ -38,8 +41,8 @@
 
 set -euo pipefail
 
-# Directory holding this library, captured at source time so
-# harness.version reflects the harness scripts actually in use.
+# Directory holding this library, captured at source time so the VERSION
+# lookup and harness.commit reflect the harness scripts actually in use.
 TRACE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
 # Warn-only diagnostics: stderr, never a non-zero return (plan D2).
@@ -193,7 +196,7 @@ trace_span() {
   for kv in "$@"; do
     key="${kv%%=*}"
     case "$key" in
-      span|schema_version|timestamp|harness.issue|harness.version|span_id)
+      span|schema_version|timestamp|harness.issue|harness.version|harness.commit|span_id)
         trace_warn "trace_span: reserved key '${key}' cannot be overridden — attribute dropped"
         ;;
       *)
@@ -233,14 +236,37 @@ trace_span() {
     return 0
   }
 
+  # harness.version is the SemVer release, read from the top-level VERSION
+  # file (the source of truth for "which release"). Resolve the harness root
+  # robustly: prefer the VERSION sitting next to scripts/ (${TRACE_LIB_DIR}/..),
+  # else the git toplevel of the harness scripts. First line, trimmed; falls
+  # back to 0.0.0-dev when the file is missing or empty so the required
+  # harness.version field is always stamped.
+  local version_file=""
+  if [ -f "${TRACE_LIB_DIR}/../VERSION" ]; then
+    version_file="${TRACE_LIB_DIR}/../VERSION"
+  else
+    local harness_top=""
+    harness_top="$(git -C "$TRACE_LIB_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+    if [ -n "$harness_top" ] && [ -f "${harness_top}/VERSION" ]; then
+      version_file="${harness_top}/VERSION"
+    fi
+  fi
   local version=""
-  version="$(git -C "$TRACE_LIB_DIR" rev-parse --short HEAD 2>/dev/null || true)"
-  if [ -z "$version" ]; then
-    version="$(git -C "$toplevel" rev-parse --short HEAD 2>/dev/null || true)"
+  if [ -n "$version_file" ]; then
+    version="$(head -n1 "$version_file" 2>/dev/null | tr -d '[:space:]' || true)"
   fi
   if [ -z "$version" ]; then
-    trace_warn "trace_span: cannot determine harness version (git rev-parse --short HEAD failed) — span dropped"
-    return 0
+    version="0.0.0-dev"
+  fi
+
+  # harness.commit is the "which code" signal: the short HEAD SHA of the
+  # harness scripts. Optional (omit-never-fake): when it cannot be determined
+  # the span is still emitted, just without harness.commit.
+  local commit=""
+  commit="$(git -C "$TRACE_LIB_DIR" rev-parse --short HEAD 2>/dev/null || true)"
+  if [ -z "$commit" ]; then
+    commit="$(git -C "$toplevel" rev-parse --short HEAD 2>/dev/null || true)"
   fi
 
   local timestamp=""
@@ -271,6 +297,7 @@ trace_span() {
     --arg span "$span_type" \
     --arg timestamp "$timestamp" \
     --arg version "$version" \
+    --arg commit "$commit" \
     --arg span_id "$span_id" \
     --arg parent "${TRACE_PARENT_SPAN_ID:-}" \
     --argjson issue "$issue_num" \
@@ -283,6 +310,7 @@ trace_span() {
         "harness.version": $version,
         span_id: $span_id
        }
+       + (if $commit != "" then {"harness.commit": $commit} else {} end)
        + (if $parent != "" then {parent_span_id: $parent} else {} end))
       | reduce $ARGS.positional[] as $kv (.;
           ($kv | index("=")) as $i
