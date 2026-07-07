@@ -200,6 +200,19 @@ hook__on_post_tool_use() {
     *) ;;
   esac
 
+  # Session id (#146): stamp harness.session_id so a run's spans can be grouped
+  # by originating Copilot session. Dialect-correct read — camel .sessionId,
+  # snake .session_id — omitted entirely when absent (omit, never fabricate).
+  local sid=""
+  if [ "$dialect" = "camel" ]; then
+    sid="$(printf '%s' "$payload" | jq -r '.sessionId // empty' 2>/dev/null || true)"
+  else
+    sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
+  fi
+  if [ -n "$sid" ]; then
+    attrs+=("harness.session_id=${sid}")
+  fi
+
   trace_span tool "${attrs[@]}"
   return 0
 }
@@ -241,9 +254,19 @@ hook__on_stop() {
   local sid="" events="" extracted=""
   local model="" in_tokens="" out_tokens=""
 
-  trace_span agent \
-    "gen_ai.operation.name=invoke_agent" \
+  # Session id (#146) for the agent span: read BOTH dialects (snake Stop /
+  # camel agentStop) — distinct from the camel-only `sid` used below for the
+  # session-state token path. Omitted when absent (omit, never fabricate).
+  local sid_span=""
+  sid_span="$(printf '%s' "$payload" | jq -r '.session_id // .sessionId // empty' 2>/dev/null || true)"
+  local -a agent_attrs=(
+    "gen_ai.operation.name=invoke_agent"
     "gen_ai.agent.name=${agent_name}"
+  )
+  if [ -n "$sid_span" ]; then
+    agent_attrs+=("harness.session_id=${sid_span}")
+  fi
+  trace_span agent "${agent_attrs[@]}"
 
   [ "$token_source" = "cli" ] || return 0
   [ -n "${HOME:-}" ] || return 0
@@ -292,6 +315,67 @@ hook__on_stop() {
   return 0
 }
 
+# --- Interval fallback (#146) --------------------------------------------------
+
+# hook__resolve_issue_by_interval <main_root> <ts>
+# Git-first / interval-fallback attribution: when trace__resolve_issue yields
+# nothing (the VS Code conductor topology — cwd = main checkout on `main`),
+# attribute a span by its payload timestamp <ts> against the per-issue ACTIVE
+# WINDOWS derived from the lifecycle spans already on disk under
+# ${main_root}/.copilot-tracking/issues/issue-*/trace.jsonl.
+#
+# An issue's window is [open, close]:
+#   open  = EARLIEST `harness.lifecycle_step == worktree_create` timestamp
+#           (an issue with no worktree_create line has no window → skipped).
+#   close = LATEST `harness.lifecycle_step == finish` timestamp; absent → the
+#           window is open-ended [open, +inf).
+# The window CONTAINS ts iff open <= ts AND (close empty OR ts <= close).
+# Timestamps are ISO-8601 `...Z` strings → lexicographic `[[ a < b ]]`/`=`
+# comparison is correct for the shared same-format Z shape.
+#
+# Prints the SINGLE issue number (unpadded) whose window contains ts and
+# returns 0. Prints nothing and returns non-zero when ZERO or MORE THAN ONE
+# window matches (none/ambiguous — never guess, never mis-attribute). Every
+# jq read is guarded so a bad/empty trace file drops that issue safely
+# without aborting the trapped exit-0.
+hook__resolve_issue_by_interval() {
+  local main_root="$1" ts="$2"
+  local issues_dir="${main_root}/.copilot-tracking/issues"
+  [ -d "$issues_dir" ] || return 1
+
+  local -a matched=()
+  local f base issue open close
+  for f in "$issues_dir"/issue-*/trace.jsonl; do
+    [ -f "$f" ] || continue
+    base="$(basename "$(dirname "$f")")"
+    # Only issue-<digits> dirs form a window; skip anything else.
+    [[ "$base" =~ ^issue-([0-9]+)$ ]] || continue
+    issue="${BASH_REMATCH[1]}"
+    # A bad line makes the slurped jq run fail → `|| true` leaves open/close
+    # empty → the issue is skipped (no window), never mis-attributed.
+    open="$(jq -rs '
+        map(select(.["harness.lifecycle_step"] == "worktree_create"))
+        | sort_by(.timestamp) | (.[0].timestamp // empty)' \
+      "$f" 2>/dev/null || true)"
+    [ -n "$open" ] || continue
+    close="$(jq -rs '
+        map(select(.["harness.lifecycle_step"] == "finish"))
+        | sort_by(.timestamp) | (.[-1].timestamp // empty)' \
+      "$f" 2>/dev/null || true)"
+    # open <= ts ?
+    if [[ "$open" < "$ts" || "$open" = "$ts" ]]; then
+      # close empty (open-ended) OR ts <= close ?
+      if [ -z "$close" ] || [[ "$ts" < "$close" || "$ts" = "$close" ]]; then
+        matched+=("$((10#$issue))")
+      fi
+    fi
+  done
+
+  [ "${#matched[@]}" -eq 1 ] || return 1
+  printf '%s' "${matched[0]}"
+  return 0
+}
+
 # --- Guarded body (G1–G5) ------------------------------------------------------
 
 hook__main() {
@@ -318,7 +402,38 @@ hook__main() {
   fi
   # shellcheck source=/dev/null
   source "$lib" 2>/dev/null || return 0
-  trace__resolve_issue >/dev/null 2>&1 || return 0
+
+  # G4 — issue context: GIT-FIRST, then interval fallback (#146).
+  # trace__resolve_issue honors TRACE_ISSUE → feature/issue-NN-* branch →
+  # issue-NN worktree basename. When git resolves an issue, proceed unchanged
+  # (the CLI-from-worktree and TRACE_ISSUE paths are untouched — zero
+  # regression). When git resolves NOTHING (the VS Code conductor topology:
+  # cwd = main checkout on `main`), attempt interval attribution by the
+  # payload timestamp against the per-issue active windows on disk. Every
+  # fallback failure leg is a warn + return-0 no-op — never now(), never
+  # mis-attribute, never fabricate.
+  if ! trace__resolve_issue >/dev/null 2>&1; then
+    local ts="" main_root="" matched_issue=""
+    ts="$(printf '%s' "$payload" | jq -r '.timestamp // empty' 2>/dev/null || true)"
+    if [ -z "$ts" ]; then
+      trace_warn "copilot-trace-hook: no payload timestamp for interval attribution — span dropped"
+      return 0
+    fi
+    main_root="$(trace__main_root 2>/dev/null || true)"
+    if [ -z "$main_root" ]; then
+      trace_warn "copilot-trace-hook: cannot resolve main checkout root for interval attribution (ts=${ts}) — span dropped"
+      return 0
+    fi
+    if matched_issue="$(hook__resolve_issue_by_interval "$main_root" "$ts")" \
+        && [ -n "$matched_issue" ]; then
+      # Force trace__resolve_issue (called inside every trace_span) to the
+      # matched issue so the fallback span lands in that issue's own trace.
+      export TRACE_ISSUE="$matched_issue"
+    else
+      trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"
+      return 0
+    fi
+  fi
 
   # G5 — dual-dialect event dispatch: camelCase `event` (CLI / cloud) or
   # snake_case `hook_event_name` (VS Code). preToolUse / PreToolUse is
