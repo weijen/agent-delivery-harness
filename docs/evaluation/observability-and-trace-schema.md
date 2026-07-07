@@ -112,10 +112,21 @@ per-span required and optional field sets are in the contract):
 | `harness.lifecycle_step` | `review_gate_approve` | Harness-specific |
 | `harness.review_gate_sha` | commit SHA | Harness-specific |
 | `harness.outcome` | `pass` / `fail` / `blocked` | Harness-specific |
+| `harness.session_id` | `sess-2f9c1a7b` | Harness-specific |
 
 Sensitive values (secrets, tokens, customer data) must be redacted before a span
 is written; see [security-evals.md](security-evals.md) and
 [dataset-governance.md](dataset-governance.md).
+
+Runtime spans may additionally carry the optional `harness.session_id` string,
+the runtime session / conversation identity of the GitHub Copilot session that
+produced them (the OTel conversation-id role, expressed under `harness.*`). It
+is optional and backward-compatible — legacy traces and script-emitted
+lifecycle/handback spans omit it and stay valid. It is distinct from
+`harness.issue`: a single runtime session can span multiple issues, so runtime
+spans are attributed to an issue by time window rather than by session. The id
+is stamped by future runtime capture (transcript reconstruction / hooks),
+giving evals a stable join key across a conversation's spans.
 
 Deviation/failure spans may additionally carry the optional
 `harness.failure_mode` attribute (issue #99), whose value is constrained to
