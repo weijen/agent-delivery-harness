@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-06 (issue #144)._
+_Last updated: 2026-07-07 (issue #148)._
 
 ---
 
@@ -99,6 +99,23 @@ _Last updated: 2026-07-06 (issue #144)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace runtime-signal spike
+- **#148 — GitHub Copilot deep-trace signal spike.** Empirically determined what
+  runtime tool/skill/model signals GitHub Copilot exposes per surface, to steer
+  the tool/skill observability line (#146/#149/#150). Key findings (see
+  `docs/runtime-adapters/github-copilot.trace-spike.md`): (1) VS Code agent-mode
+  hooks are Preview and a mid-session probe captured nothing — inconclusive,
+  needs a fresh-session test; (2) Copilot writes a structured per-session
+  transcript to disk at `GitHub.copilot-chat/transcripts/<session_id>.jsonl` with
+  `tool.execution_start`/`tool.execution_complete` events paired by `toolCallId`
+  (so tool latency + success are recoverable — richer than the correlation-id-less
+  live hook); (3) per-turn token usage is cloud-DuckDB `events` only
+  (`chat.sessionSync.enabled`), local `models.json` is just a catalog; (4)
+  `session_id` is the universal join key. Recommendation: closeout transcript
+  reconstruction (#149) is the primary path for VS Code; live-hook interval
+  attribution (#146) is mainly for CLI; token/cost (#150) is cloud-only. Sensor:
+  `test_trace_spike_docs.sh` pins the findings.
 
 ### Deep-trace evidence & closeout export
 - **#144 — enforce reliable evidence capture and closeout export.** Closed two
