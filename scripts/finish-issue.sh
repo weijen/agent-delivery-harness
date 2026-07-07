@@ -138,6 +138,29 @@ best_effort_trace_export() {
   return 0
 }
 
+# Best-effort closeout trace reconstruction (issue #149). Rebuilds runtime
+# `tool` spans from the local Copilot transcript. Unlike the OTLP export this is
+# a LOCAL-ONLY, no-secret step, so it needs NO opt-in flag — it runs
+# unconditionally at closeout (the reconstruct script itself no-ops when the
+# transcript dir is absent). It reads the MAIN-checkout trace file (which
+# survives worktree removal), so it runs AFTER the worktree is gone. It ALWAYS
+# returns 0: a missing/failing reconstructor must never change finish-issue's
+# exit code or block teardown.
+best_effort_trace_reconstruct() {
+  if [ ! -x "${SCRIPT_DIR}/trace-reconstruct.sh" ]; then
+    yellow "⚠ trace reconstruct skipped: scripts/trace-reconstruct.sh not executable"
+    return 0
+  fi
+  local rc=0
+  "${SCRIPT_DIR}/trace-reconstruct.sh" "$ISSUE_NUM" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    yellow "⚠ trace reconstruct failed (exit ${rc}) — continuing teardown (best-effort)"
+  else
+    green "✓ Reconstructed trace for issue ${ISSUE_NUM}"
+  fi
+  return 0
+}
+
 # The worktree's own checked-out branch is the deterministic source of truth —
 # prefer it over a slug recomputed from the (mutable) issue title.
 if [ -e "$WORKTREE_DIR" ]; then
@@ -205,6 +228,13 @@ git worktree prune
 # both config vars so it is a clean no-op unless explicitly opted in.
 TRACE_STAGE="trace_export"
 best_effort_trace_export
+
+# --- Best-effort closeout trace reconstruction (issue #149) ------------------
+# Local-only, no-secret step: run unconditionally after teardown so a failed
+# reconstruction can never block worktree removal. The reconstruct script
+# no-ops when the transcript dir is absent.
+TRACE_STAGE="trace_reconstruct"
+best_effort_trace_reconstruct
 
 green "✓ Pruned stale worktree metadata"
 

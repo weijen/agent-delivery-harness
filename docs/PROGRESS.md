@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #153)._
+_Last updated: 2026-07-07 (issue #149)._
 
 ---
 
@@ -48,7 +48,8 @@ _Last updated: 2026-07-07 (issue #153)._
   default when a `passes:true` feature lacks a role-correct ordered
   `red_handback → impl_handback → green_handback` triple and has no governed
   `red_first_waiver`; `start-issue.sh` seeds the local Copilot hook into new
-  worktrees; `finish-issue.sh` attempts a best-effort trace export at closeout.
+  worktrees; `finish-issue.sh` attempts a best-effort trace export and a
+  best-effort transcript reconstruction (#149) at closeout.
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
 - **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
@@ -99,6 +100,24 @@ _Last updated: 2026-07-07 (issue #153)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace transcript reconstruction
+- **#149 — reconstruct tool/skill spans from the Copilot transcript at
+  closeout.** Added `scripts/trace-reconstruct.sh <issue-number>`: it resolves
+  the main-root issue trace, computes the `[min,max]` timestamp window of the
+  existing harness spans, scans the Copilot per-session transcript
+  (`COPILOT_TRANSCRIPTS_DIR` override, default real `workspaceStorage` glob),
+  pairs `tool.execution_start`/`tool.execution_complete` by `toolCallId`, keeps
+  only in-window pairs, and emits tool spans through `trace-lib`'s `trace_span`
+  (`gen_ai.tool.name`, `harness.duration_ms`, `harness.outcome`,
+  `harness.session_id`) — never emitting raw tool arguments (no leak).
+  Best-effort and warn-only: exit 0 when the transcript dir is absent, exit 2
+  only on usage/env error. `scripts/finish-issue.sh` now invokes it
+  unconditionally best-effort at closeout (`best_effort_trace_reconstruct`:
+  always returns 0, warn-skips when the script is absent, warns-and-continues on
+  failure) — teardown is never blocked. This closes the "no tool/skill spans"
+  gap for the VS Code conductor topology by recovering spans the live hooks
+  miss. Sensors: `test_trace_reconstruct.sh`, `test_finish_issue_reconstruct.sh`.
 
 ### Harness versioning
 - **#153 — SemVer harness version; decouple `harness.version` from
