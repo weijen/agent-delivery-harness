@@ -82,6 +82,9 @@ data/raw-video/
 # would auto-apply to everyone cloning the repo — see docs/runtime-adapters/).
 .github/hooks/
 
+# Local per-developer coding-agent runtime settings (never shared).
+.claude/
+
 # azd / Azure environment (subscription/tenant/object ids — never commit)
 .azure/
 
