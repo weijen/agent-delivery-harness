@@ -108,6 +108,7 @@ usage() {
     echo "  <issue-number>  exports <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl"
     echo "  <trace-path>    exports the given trace.jsonl file directly"
     echo "  --dry-run-to-file <out.json>  write the envelope array to a file instead of shipping"
+    echo "  --dry-run-otlp-to-file <out.json>  write the OTLP/HTTP+JSON resourceSpans to a file (never ships)"
     echo "opt-in: TRACE_EXPORT_OTLP=1 enables the exporter; the ship path additionally"
     echo "        requires APPLICATIONINSIGHTS_CONNECTION_STRING (dry-run does not)"
     echo "exit codes: 0 exported / clean no-op, 1 gate or export failure, 2 usage/environment error"
@@ -203,12 +204,24 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
   #     scanned). The offending key is named; its value is never echoed.
   local cap_report
   if ! cap_report="$(grep -v '^//' "$staged" | jq -r '
-      [ .[]?.data.baseData.properties // {}
-        | to_entries[]
-        | select(.value | type == "string")
-        | select((.value | length) > 256
-                 or (.value | explode | any(. < 32 or (. >= 127 and . <= 159))))
-        | .key ]
+      if type == "array" then
+        # App-Insights envelope array: cap customDimensions string values.
+        [ .[]?.data.baseData.properties // {}
+          | to_entries[]
+          | select(.value | type == "string")
+          | select((.value | length) > 256
+                   or (.value | explode | any(. < 32 or (. >= 127 and . <= 159))))
+          | .key ]
+      else
+        # OTLP resourceSpans body (no customDimensions shape): cap the
+        # attribute stringValues over the identical risk surface, so the
+        # shape mismatch neither crashes nor no-ops (plan D4 — one policy).
+        [ .resourceSpans[]?.scopeSpans[]?.spans[]?.attributes[]?
+          | select(.value.stringValue | type == "string")
+          | select((.value.stringValue | length) > 256
+                   or (.value.stringValue | explode | any(. < 32 or (. >= 127 and . <= 159))))
+          | .key ]
+      end
       | unique
       | .[]' 2>/dev/null)"; then
     red "error: export gate: could not audit customDimensions value caps over the staged envelopes — failing closed (nothing written)" >&2
@@ -307,6 +320,7 @@ ship_envelopes() { # ship_envelopes <staged-envelope-file> <sent-count>
 # --- Argument parsing (exit 2: usage error) -----------------------------------
 ARG=""
 DRY_RUN_FILE=""
+DRY_RUN_OTLP_FILE=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run-to-file)
@@ -315,6 +329,14 @@ while [ "$#" -gt 0 ]; do
         exit 2
       fi
       DRY_RUN_FILE="$2"
+      shift 2
+      ;;
+    --dry-run-otlp-to-file)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        usage
+        exit 2
+      fi
+      DRY_RUN_OTLP_FILE="$2"
       shift 2
       ;;
     -*)
@@ -343,9 +365,10 @@ if [ "${TRACE_EXPORT_OTLP:-}" != "1" ]; then
   yellow "notice: trace export is disabled — set TRACE_EXPORT_OTLP=1 to opt in (nothing written)" >&2
   exit 0
 fi
-# Ship path needs the connection string; the dry-run seam does not (zero
-# config beyond the opt-in flag — plan D5, the CI seam).
-if [ -z "$DRY_RUN_FILE" ] && [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
+# Ship path needs the connection string; either dry-run seam does not (zero
+# config beyond the opt-in flag — plan D5, the CI seam). The OTLP dry-run
+# seam (feature otlp-http-mapping) is zero-config like --dry-run-to-file.
+if [ -z "$DRY_RUN_FILE" ] && [ -z "$DRY_RUN_OTLP_FILE" ] && [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
   yellow "notice: TRACE_EXPORT_OTLP=1 but APPLICATIONINSIGHTS_CONNECTION_STRING is not set — nothing to ship (no-op); dry-run via --dry-run-to-file needs no connection string" >&2
   exit 0
 fi
@@ -405,6 +428,182 @@ else
   fi
 fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# --- OTLP/HTTP+JSON dry-run seam (feature otlp-http-mapping) -------------------
+# A sibling of --dry-run-to-file: it projects the SAME censused spans onto an
+# OTLP OTLPTraceService request ({ resourceSpans: [...] }) and writes it to a
+# file WITHOUT shipping (no curl, zero network — the live OTLP transport is a
+# later feature). It reuses the allowlist-v1 attribute projection, so excluded
+# free-text keys stay byte-absent; the App-Insights envelope/ship path never
+# runs in this mode. A jq failure fails closed (non-zero, nothing written).
+if [ -n "$DRY_RUN_OTLP_FILE" ]; then
+  OTLP_FILTER="${TMP_DIR}/export-otlp.jq"
+  cat > "$OTLP_FILTER" <<'JQ'
+# Shippable-attribute ALLOWLIST v1 — the SAME deny-by-default surface the
+# App-Insights projection uses (26 keys + the gen_ai.usage.* prefix family).
+# Any key not matched here is dropped, so excluded free text
+# (harness.args_summary, harness.summary, harness.worktree, harness.branch)
+# and unknown/future keys are byte-absent from the OTLP output.
+def allowlist:
+  ["schema_version", "timestamp", "span", "span_id", "parent_span_id",
+   "harness.issue", "harness.version",
+   "harness.lifecycle_step", "harness.outcome", "harness.failure_mode",
+   "harness.exit_status", "harness.duration_ms", "harness.incomplete_count",
+   "harness.violation_count", "harness.warning_count",
+   "harness.feature_id", "harness.stage",
+   "gen_ai.tool.name", "gen_ai.operation.name", "gen_ai.agent.name",
+   "gen_ai.request.model",
+   "harness.review_gate_sha", "harness.pr_number",
+   "harness.require_complete", "harness.warning", "harness.skill.name"];
+
+def shippable_key:
+  . as $k
+  | ((allowlist | index($k)) != null) or ($k | startswith("gen_ai.usage."));
+
+# Left-pad a value's string form with "0" to a fixed width.
+def zpad($n):
+  tostring | if length >= $n then . else ("0" * ($n - length)) + . end;
+
+# Integer → lowercase hex string (portable, no crypto): recurse yields the
+# number then each successive quotient; the reversed remainders are the
+# digits, most significant first.
+def to_hex_digits:
+  [ recurse(if . >= 16 then (. / 16 | floor) else empty end) ]
+  | reverse
+  | map(. % 16)
+  | map("0123456789abcdef"[.:. + 1])
+  | join("");
+
+# Deterministic 32-lowercase-hex TraceId from harness.issue — every span of
+# one issue shares it. Missing/zero issue → 32 zeros.
+def trace_id:
+  ((.["harness.issue"] // 0) | floor | if . < 0 then 0 else . end)
+  | (if . == 0 then "0" else to_hex_digits end)
+  | zpad(32);
+
+# Span timestamp (ISO-8601 ...Z) → integer epoch seconds.
+def epoch_seconds:
+  (.["timestamp"] // "") | fromdateiso8601;
+
+# Nanosecond values exceed jq float precision, so they are built by STRING
+# concatenation, never multiplied: start = "<epoch>000000000".
+def start_nanos:
+  "\(epoch_seconds)000000000";
+
+# end = start + harness.duration_ms * 1e6, carried exactly: whole seconds
+# fold into the epoch, the sub-second remainder is a zero-padded 9-digit
+# nanos field. No duration (or negative) → end == start (single-point; never
+# a fabricated duration).
+def end_nanos:
+  epoch_seconds as $e
+  | ((.["harness.duration_ms"] // 0) | floor | if . < 0 then 0 else . end) as $ms
+  | ($e + ($ms / 1000 | floor)) as $end_e
+  | (($ms % 1000) * 1000000) as $rem_ns
+  | "\($end_e)\($rem_ns | zpad(9))";
+
+# Span display name mirrors the App-Insights naming spirit; falls back to the
+# span type when the primary field is absent.
+def span_name:
+  if .span == "tool" then (.["gen_ai.tool.name"] // .span)
+  elif .span == "lifecycle" then (.["harness.lifecycle_step"] // .span)
+  elif .span == "agent" then (.["gen_ai.agent.name"] // .span)
+  elif .span == "model" then (.["gen_ai.request.model"] // .span)
+  else (.span // "span")
+  end;
+
+# Allowlist projection → OTLP attribute objects. Values are stringified
+# (stringValue); numeric gen_ai.usage.* MAY ride intValue but stringValue is
+# accepted and simpler.
+def otlp_attributes:
+  [ to_entries[]
+    | select(.key | shippable_key)
+    | { key: .key, value: { stringValue: (.value | tostring) } } ];
+
+# One schema-v1 span → one OTLP span. parentSpanId is OMITTED entirely when
+# there is no non-empty parent_span_id (never fabricated).
+def otlp_span:
+  . as $s
+  | { traceId: ($s | trace_id),
+      spanId: ($s["span_id"] // ""),
+      name: ($s | span_name),
+      kind: 1,
+      startTimeUnixNano: ($s | start_nanos),
+      endTimeUnixNano: ($s | end_nanos),
+      attributes: ($s | otlp_attributes) }
+  + (if (($s["parent_span_id"] // "") | length) > 0
+     then { parentSpanId: $s["parent_span_id"] }
+     else {} end);
+
+# Same census as the App-Insights path: skip-and-count non-object lines and
+# tally spans missing harness.version (the queryable dimension).
+[inputs] as $lines
+| [ $lines[] | fromjson? | select(type == "object") ] as $spans
+| (($lines | length) - ($spans | length)) as $skipped
+| ([ $spans[] | select(has("harness.version") | not) ] | length) as $noversion
+| "::skipped \($skipped)",
+  "::noversion \($noversion)",
+  "::count \($spans | length)",
+  ({ resourceSpans:
+       [ { resource:
+             { attributes:
+                 [ { key: "service.name",
+                     value: { stringValue: "agent-delivery-harness" } } ] },
+           scopeSpans:
+             [ { scope: { name: "agent-delivery-harness" },
+                 spans: [ $spans[] | otlp_span ] } ] } ] })
+JQ
+
+  if ! otlp_projection="$(jq -nRr -f "$OTLP_FILTER" < "$TRACE_FILE")"; then
+    red "error: the OTLP projection jq pass failed to run" >&2
+    exit 2
+  fi
+
+  otlp_skipped="$(printf '%s\n' "$otlp_projection" | sed -n '1s/^::skipped //p')"
+  otlp_noversion="$(printf '%s\n' "$otlp_projection" | sed -n '2s/^::noversion //p')"
+  otlp_count="$(printf '%s\n' "$otlp_projection" | sed -n '3s/^::count //p')"
+  if ! [[ "$otlp_skipped" =~ ^[0-9]+$ && "$otlp_noversion" =~ ^[0-9]+$ && "$otlp_count" =~ ^[0-9]+$ ]]; then
+    red "error: the OTLP projection produced an unreadable header" >&2
+    exit 2
+  fi
+
+  if [ "$otlp_skipped" -gt 0 ]; then
+    yellow "notice: skipped ${otlp_skipped} malformed line(s) (not valid JSON spans); run ./scripts/validate-trace.sh for details" >&2
+  fi
+
+  # harness.version census (plan D6): all-or-nothing — a single span without
+  # it aborts the whole OTLP projection (nothing written).
+  if [ "$otlp_noversion" -gt 0 ]; then
+    red "error: ${otlp_noversion} span(s) lack harness.version — refusing to export (harness.version is the queryable dimension; nothing written)" >&2
+    exit 1
+  fi
+
+  # Stage first, then move into place (never write the destination directly).
+  OTLP_STAGED="${TMP_DIR}/otlp.staged.json"
+  {
+    printf '// trace-export OTLP/HTTP+JSON dry-run dump — INTERNAL SEAM for sensors/CI only.\n'
+    printf '// This format is not a stable contract; it may change without notice.\n'
+    printf '// Strip these // comment lines to obtain one OTLP resourceSpans JSON object.\n'
+    printf '%s\n' "$otlp_projection" | tail -n +4
+  } > "$OTLP_STAGED"
+
+  # Gate (feature 2): the SAME fail-closed redaction_gate that guards the
+  # App-Insights path also guards the OTLP staged body — dry-run is NOT a
+  # bypass (plan D4, one redaction policy). One call runs Gate 1 on the
+  # INPUT trace ($TRACE_FILE) and Gate 2 on the staged OTLP OUTPUT before
+  # anything leaves staging; any failure writes zero, and the gate's own
+  # return code carries the house exit family (1 violation, 2 could-not-run).
+  gate_rc=0
+  redaction_gate "$OTLP_STAGED" || gate_rc=$?
+  if [ "$gate_rc" -ne 0 ]; then
+    exit "$gate_rc"
+  fi
+
+  OTLP_OUT_DIR="$(dirname "$DRY_RUN_OTLP_FILE")"
+  mkdir -p "$OTLP_OUT_DIR"
+  mv "$OTLP_STAGED" "$DRY_RUN_OTLP_FILE"
+  green "dry run: wrote OTLP resourceSpans with ${otlp_count} span(s) to ${DRY_RUN_OTLP_FILE} (nothing shipped)"
+  exit 0
+fi
 
 # --- Single-pass jq projection (one jq invocation builds the whole array) -----
 # Output protocol (parsed by bash below): three marker lines, then the
