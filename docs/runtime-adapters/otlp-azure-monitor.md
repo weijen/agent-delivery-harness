@@ -39,6 +39,37 @@ Insights resource is ever flipped to `DisableLocalAuth`, ingestion returns
 HTTP 400 and the exporter fails honestly; moving to `v2.1/track` + Entra
 tokens would be a follow-up, not a v1 behavior.
 
+## Opt-in native OTLP/HTTP transport (#151)
+
+A second transport ships alongside the Track API path: a native **OTLP/HTTP +
+JSON** exporter, gated behind its own opt-in flag **`TRACE_EXPORT_OTLP_HTTP=1`**.
+It is an **additional** transport, fully **independent** of the **unchanged
+Application Insights Track API** path above — both are opt-in and independently
+selectable, and setting both flags runs both exporters over the same trace.
+
+It reads the standard OpenTelemetry endpoint variables:
+**`OTEL_EXPORTER_OTLP_ENDPOINT`** (the base URL, e.g. an OTLP collector), or
+the signal-specific **`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`** override. The
+exporter POSTs an OTLP/HTTP trace request to the **`/v1/traces`** path with
+`Content-Type: application/json`.
+
+Like the Track API exporter, this transport is **never wired into the
+lifecycle** — the same decoupling doctrine holds; nothing in the core scripts
+calls it automatically. You opt in and invoke it yourself.
+
+Auth rides on **`OTEL_EXPORTER_OTLP_HEADERS`** (for example a bearer token for
+a gated collector). Treat its value as a **secret**: never commit it, never log
+it. The exporter never echoes header values in its output or error messages.
+
+Mapping is a straight projection of the same schema-v1 spans onto OTLP
+`resourceSpans`: only the allowlisted `gen_ai.*` and `harness.*` attributes are
+carried, `span_id`/`parent_span_id` become the OTLP span and parent-span
+linkage, the per-issue `issue-<NN>` correlation id becomes the OTLP `traceId`,
+and durations stay honest single-point values (no synthetic spans). For CI and
+local inspection there is a **`--dry-run-otlp-to-file`** seam that writes the
+OTLP JSON request to a file instead of POSTing — the OTLP-side sibling of
+`--dry-run-to-file`.
+
 ## Environment contract
 
 | Variable | Meaning |
