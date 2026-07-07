@@ -164,8 +164,9 @@ seed_lifecycle 148 finish          2026-07-07T11:30:00Z
 T146="$(trace_path "$MAIN" 146)"
 T147="$(trace_path "$MAIN" 147)"
 T148="$(trace_path "$MAIN" 148)"
-[ "$(line_count "$T146")" = "2" ] && [ "$(line_count "$T147")" = "2" ] && [ "$(line_count "$T148")" = "2" ] \
-  || fail "fixture seed wrong (want 2 lifecycle lines per issue, got 146=$(line_count "$T146") 147=$(line_count "$T147") 148=$(line_count "$T148"))"
+if ! { [ "$(line_count "$T146")" = "2" ] && [ "$(line_count "$T147")" = "2" ] && [ "$(line_count "$T148")" = "2" ]; }; then
+  fail "fixture seed wrong (want 2 lifecycle lines per issue, got 146=$(line_count "$T146") 147=$(line_count "$T147") 148=$(line_count "$T148"))"
+fi
 
 FIXHOME="${TMP_DIR}/home"
 mkdir -p "$FIXHOME"

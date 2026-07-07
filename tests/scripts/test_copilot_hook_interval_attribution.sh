@@ -290,8 +290,9 @@ C1_T201="$(trace_path "$MAIN1" 201)"
 C1_T202="$(trace_path "$MAIN1" 202)"
 c1_before201="$(line_count "$C1_T201")"
 c1_before202="$(line_count "$C1_T202")"
-[ "$c1_before201" = "2" ] && [ "$c1_before202" = "2" ] \
-  || fail "C1: fixture seed wrong (want 2 lifecycle lines per issue, got 201=${c1_before201} 202=${c1_before202})"
+if ! { [ "$c1_before201" = "2" ] && [ "$c1_before202" = "2" ]; }; then
+  fail "C1: fixture seed wrong (want 2 lifecycle lines per issue, got 201=${c1_before201} 202=${c1_before202})"
+fi
 run_hook "c1" "$MAIN1" <(
   snake_post_ts "$MAIN1" "S1" "bash" '{"command":"echo hi"}' 2026-07-07T10:15:00Z
 )
