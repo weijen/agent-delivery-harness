@@ -338,8 +338,35 @@ hook__on_stop() {
 # window matches (none/ambiguous — never guess, never mis-attribute). Every
 # jq read is guarded so a bad/empty trace file drops that issue safely
 # without aborting the trapped exit-0.
+
+# hook__ts_to_iso <ts>
+# Normalize timestamps for interval comparison: epoch-ms -> whole-second UTC ISO
+# (BSD/GNU date); ISO/non-digit passes through; empty/unparseable returns 1.
+hook__ts_to_iso() {
+  local ts="$1" sec="" iso=""
+  [ -n "$ts" ] || return 1
+
+  if [[ "$ts" =~ ^[0-9]+$ ]]; then
+    sec=$((ts / 1000))
+    iso="$(date -u -r "$sec" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
+    if [ -z "$iso" ]; then
+      iso="$(date -u -d "@$sec" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)"
+    fi
+    [ -n "$iso" ] || return 1
+    printf '%s' "$iso"
+    return 0
+  fi
+
+  printf '%s' "$ts"
+  return 0
+}
+
 hook__resolve_issue_by_interval() {
   local main_root="$1" ts="$2"
+  local norm_ts
+  norm_ts="$(hook__ts_to_iso "$ts")" || return 1
+  [ -n "$norm_ts" ] || return 1
+  ts="$norm_ts"
   local issues_dir="${main_root}/.copilot-tracking/issues"
   [ -d "$issues_dir" ] || return 1
 
