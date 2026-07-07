@@ -109,8 +109,13 @@ usage() {
     echo "  <trace-path>    exports the given trace.jsonl file directly"
     echo "  --dry-run-to-file <out.json>  write the envelope array to a file instead of shipping"
     echo "  --dry-run-otlp-to-file <out.json>  write the OTLP/HTTP+JSON resourceSpans to a file (never ships)"
-    echo "opt-in: TRACE_EXPORT_OTLP=1 enables the exporter; the ship path additionally"
-    echo "        requires APPLICATIONINSIGHTS_CONNECTION_STRING (dry-run does not)"
+    echo "opt-in: TRACE_EXPORT_OTLP=1 enables the App Insights Track API ship path (needs"
+    echo "        APPLICATIONINSIGHTS_CONNECTION_STRING); TRACE_EXPORT_OTLP_HTTP=1 enables the"
+    echo "        native OTLP/HTTP ship path (needs OTEL_EXPORTER_OTLP_ENDPOINT, or the"
+    echo "        signal-specific OTEL_EXPORTER_OTLP_TRACES_ENDPOINT). Both switches are"
+    echo "        independent — either alone or both together. Dry-run seams need neither."
+    echo "        OTEL_EXPORTER_OTLP_HEADERS (comma-separated Key=Value) is sent to the"
+    echo "        collector but is SECRET — its values are never echoed."
     echo "exit codes: 0 exported / clean no-op, 1 gate or export failure, 2 usage/environment error"
   } >&2
 }
@@ -317,6 +322,91 @@ ship_envelopes() { # ship_envelopes <staged-envelope-file> <sent-count>
   green "shipped: ${accepted} envelope(s) accepted by the Track API (${sent} sent, HTTP 200)"
 }
 
+# --- Native OTLP/HTTP transport (feature otlp-http-transport) -------------------
+# The LIVE sibling of the --dry-run-otlp-to-file seam: POSTs the SAME gated
+# OTLP resourceSpans body (features 1–2) to an OpenTelemetry collector over
+# OTLP/HTTP+JSON. Opt-in (TRACE_EXPORT_OTLP_HTTP=1) and endpoint are
+# independent of the App-Insights path — both may run in one invocation, each
+# to its own URL (/v1/traces vs /v2/track). Mirrors ship_envelopes' safety:
+# curl is required; the body reaches curl by @file ONLY; the header VALUES
+# from OTEL_EXPORTER_OTLP_HEADERS (a secret surface) are injected onto the
+# POST but never echoed to stdout/stderr.
+ship_otlp() { # ship_otlp <staged-otlp-body-file>
+  local staged="$1"
+  local url="" body="${TMP_DIR}/otlp-body.json"
+  local resp="${TMP_DIR}/otlp-response.json"
+  local http_code="" curl_rc=0
+
+  if ! command -v curl >/dev/null 2>&1; then
+    red "error: curl is required to ship spans over OTLP/HTTP" >&2
+    exit 2
+  fi
+
+  # Endpoint resolution: the traces-specific var is the full signal URL (used
+  # as-is); otherwise the base endpoint gains the OTLP/HTTP traces path. Either
+  # way the collector is reached at .../v1/traces.
+  if [ -n "${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}" ]; then
+    url="${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}"
+  elif [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]; then
+    url="${OTEL_EXPORTER_OTLP_ENDPOINT%/}/v1/traces"
+  else
+    red "error: OTLP/HTTP transport needs OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (nothing sent)" >&2
+    exit 2
+  fi
+
+  # Body via @file only (never argv): strip the // seam header down to the
+  # bare OTLP resourceSpans JSON object the collector expects.
+  if ! grep -v '^//' "$staged" > "$body"; then
+    red "error: failed to assemble the OTLP request body — nothing sent" >&2
+    exit 1
+  fi
+
+  # Headers: always application/json. OTEL_EXPORTER_OTLP_HEADERS (OTEL spec:
+  # comma-separated Key=Value pairs) is injected so the collector receives it;
+  # the header VALUE is a secret surface — this function never prints it.
+  local -a hdr_args=(-H 'Content-Type: application/json')
+  if [ -n "${OTEL_EXPORTER_OTLP_HEADERS:-}" ]; then
+    local -a hdr_pairs=()
+    local pair hkey hval
+    IFS=',' read -r -a hdr_pairs <<< "${OTEL_EXPORTER_OTLP_HEADERS}"
+    for pair in ${hdr_pairs[@]+"${hdr_pairs[@]}"}; do
+      # Trim surrounding whitespace on the pair; skip empties.
+      pair="${pair#"${pair%%[![:space:]]*}"}"
+      pair="${pair%"${pair##*[![:space:]]}"}"
+      [ -n "$pair" ] || continue
+      case "$pair" in
+        *=*)
+          hkey="${pair%%=*}"
+          hval="${pair#*=}"
+          # Trim the key only (preserve the value byte-for-byte).
+          hkey="${hkey#"${hkey%%[![:space:]]*}"}"
+          hkey="${hkey%"${hkey##*[![:space:]]}"}"
+          hdr_args+=(-H "${hkey}: ${hval}")
+          ;;
+      esac
+    done
+  fi
+
+  # ONE POST; body by @file, response to a temp file (never the terminal).
+  # A transport error (curl non-zero) or a non-2xx status ships nothing
+  # confirmed and exits 1.
+  http_code="$(curl -sS -X POST \
+    "${hdr_args[@]}" \
+    --data "@${body}" \
+    -o "$resp" \
+    -w '%{http_code}' \
+    "$url")" || curl_rc=$?
+  if [ "$curl_rc" -ne 0 ]; then
+    red "error: OTLP transport failure — curl exited ${curl_rc}; nothing confirmed shipped" >&2
+    exit 1
+  fi
+  if ! [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+    red "error: OTLP endpoint returned HTTP ${http_code:-<none>} (expected 2xx) — export failed" >&2
+    exit 1
+  fi
+  green "shipped: OTLP resourceSpans accepted over OTLP/HTTP (HTTP ${http_code})"
+}
+
 # --- Argument parsing (exit 2: usage error) -----------------------------------
 ARG=""
 DRY_RUN_FILE=""
@@ -359,16 +449,25 @@ if [ -z "$ARG" ]; then
 fi
 
 # --- Gate 0: opt-in (plan Gate 0) ---------------------------------------------
-# Disabled is a clean no-op BEFORE anything is resolved or written — not
-# even the --dry-run-to-file target may appear.
-if [ "${TRACE_EXPORT_OTLP:-}" != "1" ]; then
-  yellow "notice: trace export is disabled — set TRACE_EXPORT_OTLP=1 to opt in (nothing written)" >&2
+# Disabled is a clean no-op BEFORE anything is resolved or written — not even
+# a dry-run target may appear. The exporter engages when a delivery switch is
+# on: TRACE_EXPORT_OTLP=1 (App Insights Track API + its dry-run seams) or
+# TRACE_EXPORT_OTLP_HTTP=1 (native OTLP/HTTP). NEITHER set → the historical
+# opt-out no-op, even with a --dry-run flag (both dry-run seams still require
+# TRACE_EXPORT_OTLP=1). App-Insights-only behavior is unchanged.
+if [ "${TRACE_EXPORT_OTLP:-}" != "1" ] \
+    && [ "${TRACE_EXPORT_OTLP_HTTP:-}" != "1" ]; then
+  yellow "notice: trace export is disabled — set TRACE_EXPORT_OTLP=1 (App Insights) or TRACE_EXPORT_OTLP_HTTP=1 (OTLP/HTTP) to opt in (nothing written)" >&2
   exit 0
 fi
-# Ship path needs the connection string; either dry-run seam does not (zero
-# config beyond the opt-in flag — plan D5, the CI seam). The OTLP dry-run
-# seam (feature otlp-http-mapping) is zero-config like --dry-run-to-file.
-if [ -z "$DRY_RUN_FILE" ] && [ -z "$DRY_RUN_OTLP_FILE" ] && [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
+# App Insights ship path needs the connection string; the dry-run seams and
+# the native OTLP/HTTP transport do not (zero config beyond their own opt-in —
+# plan D5, the CI seam). This no-op fires ONLY when the App-Insights path is the
+# sole thing requested and its connection string is missing; it must never
+# swallow an OTLP/HTTP ship (TRACE_EXPORT_OTLP_HTTP=1 has its own endpoint).
+if [ -z "$DRY_RUN_FILE" ] && [ -z "$DRY_RUN_OTLP_FILE" ] \
+    && [ "${TRACE_EXPORT_OTLP_HTTP:-}" != "1" ] \
+    && [ -z "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
   yellow "notice: TRACE_EXPORT_OTLP=1 but APPLICATIONINSIGHTS_CONNECTION_STRING is not set — nothing to ship (no-op); dry-run via --dry-run-to-file needs no connection string" >&2
   exit 0
 fi
@@ -429,14 +528,16 @@ else
 fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-# --- OTLP/HTTP+JSON dry-run seam (feature otlp-http-mapping) -------------------
-# A sibling of --dry-run-to-file: it projects the SAME censused spans onto an
-# OTLP OTLPTraceService request ({ resourceSpans: [...] }) and writes it to a
-# file WITHOUT shipping (no curl, zero network — the live OTLP transport is a
-# later feature). It reuses the allowlist-v1 attribute projection, so excluded
-# free-text keys stay byte-absent; the App-Insights envelope/ship path never
-# runs in this mode. A jq failure fails closed (non-zero, nothing written).
-if [ -n "$DRY_RUN_OTLP_FILE" ]; then
+# --- OTLP/HTTP+JSON path (dry-run seam + live transport) ----------------------
+# The OTLP projection builds the SAME { resourceSpans: [...] } body for two
+# consumers: the --dry-run-otlp-to-file seam (writes + exits, zero network) and
+# the live TRACE_EXPORT_OTLP_HTTP=1 transport (POSTs to the collector). Both
+# reuse the allowlist-v1 attribute projection, so excluded free-text keys stay
+# byte-absent, and both run redaction_gate on the staged body BEFORE it leaves
+# staging — dry-run is not a bypass and neither is a live ship. A jq failure
+# fails closed (non-zero, nothing written/sent). The App-Insights envelope/ship
+# path is untouched here.
+if [ -n "$DRY_RUN_OTLP_FILE" ] || [ "${TRACE_EXPORT_OTLP_HTTP:-}" = "1" ]; then
   OTLP_FILTER="${TMP_DIR}/export-otlp.jq"
   cat > "$OTLP_FILTER" <<'JQ'
 # Shippable-attribute ALLOWLIST v1 — the SAME deny-by-default surface the
@@ -598,10 +699,26 @@ JQ
     exit "$gate_rc"
   fi
 
-  OTLP_OUT_DIR="$(dirname "$DRY_RUN_OTLP_FILE")"
-  mkdir -p "$OTLP_OUT_DIR"
-  mv "$OTLP_STAGED" "$DRY_RUN_OTLP_FILE"
-  green "dry run: wrote OTLP resourceSpans with ${otlp_count} span(s) to ${DRY_RUN_OTLP_FILE} (nothing shipped)"
+  # Dry-run seam: write the gated body and stop (never ships).
+  if [ -n "$DRY_RUN_OTLP_FILE" ]; then
+    OTLP_OUT_DIR="$(dirname "$DRY_RUN_OTLP_FILE")"
+    mkdir -p "$OTLP_OUT_DIR"
+    mv "$OTLP_STAGED" "$DRY_RUN_OTLP_FILE"
+    green "dry run: wrote OTLP resourceSpans with ${otlp_count} span(s) to ${DRY_RUN_OTLP_FILE} (nothing shipped)"
+    exit 0
+  fi
+
+  # Live native OTLP/HTTP ship (TRACE_EXPORT_OTLP_HTTP=1): the gate above
+  # already passed on this exact staged body, so nothing secret-shaped can
+  # POST. Independent of the App-Insights path — control falls through below to
+  # the Track API ship as well when TRACE_EXPORT_OTLP=1 is ALSO set.
+  ship_otlp "$OTLP_STAGED"
+fi
+
+# App-Insights path runs only when engaged: TRACE_EXPORT_OTLP=1 (live ship) or
+# the --dry-run-to-file seam. When only the native OTLP/HTTP transport was
+# requested, the block above already shipped — nothing more to do.
+if [ "${TRACE_EXPORT_OTLP:-}" != "1" ] && [ -z "$DRY_RUN_FILE" ]; then
   exit 0
 fi
 
