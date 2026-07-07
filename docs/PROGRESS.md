@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #148)._
+_Last updated: 2026-07-07 (issue #147)._
 
 ---
 
@@ -99,6 +99,17 @@ _Last updated: 2026-07-07 (issue #148)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace session identity
+- **#147 — add optional `harness.session_id` to the trace schema.** Additive,
+  open-world schema field (string; runtime/conversation session identity aligned
+  with OTel `gen_ai.conversation.id`), documented in
+  `observability-and-trace-schema.md`, distinct from `harness.issue` (a session
+  can span multiple issues; runtime spans are attributed to an issue by time
+  window). Backward compatible — spans without it still validate; key-coverage
+  unaffected (documented-but-not-yet-emitted is allowed). Foundation for the
+  runtime tool/skill capture line (#149/#146). Sensor:
+  `test_trace_schema_session_id.sh`.
 
 ### Deep-trace runtime-signal spike
 - **#148 — GitHub Copilot deep-trace signal spike.** Empirically determined what
