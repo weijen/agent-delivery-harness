@@ -87,10 +87,14 @@ explanation:
 - `schema_version` — each span states which schema version it conforms to, so
   a trace that survives a harness upgrade mid-issue stays interpretable line
   by line.
-- `harness.version` — the git SHA of the harness scripts in use. Recording it
-  on every span is what makes cross-harness-version comparison possible:
+- `harness.version` — the harness SemVer release read from the top-level
+  `VERSION` file (falling back to `0.0.0-dev` when absent). Recording it on
+  every span is what makes cross-harness-version comparison possible:
   before/after evals can attribute a behavior change to a specific harness
-  revision instead of guessing.
+  release instead of guessing. The exact code behind that release is carried by
+  the optional `harness.commit` field — the short git SHA of the harness
+  scripts at emit time — so provenance stays available without conflating
+  "which release" with "which commit".
 
 ## Conventional Attributes
 
@@ -107,7 +111,8 @@ per-span required and optional field sets are in the contract):
 | `gen_ai.usage.output_tokens` | `4000` | GenAI convention |
 | `gen_ai.tool.name` | `git`, `gh`, `shell` | GenAI convention |
 | `harness.issue` | `21` | Harness-specific |
-| `harness.version` | harness git SHA | Harness-specific |
+| `harness.version` | SemVer release (from `VERSION`) | Harness-specific |
+| `harness.commit` | harness git SHA | Harness-specific |
 | `harness.feature_id` | `frames-extract-01` | Harness-specific |
 | `harness.lifecycle_step` | `review_gate_approve` | Harness-specific |
 | `harness.review_gate_sha` | commit SHA | Harness-specific |

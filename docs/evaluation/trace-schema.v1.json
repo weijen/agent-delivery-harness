@@ -6,7 +6,7 @@
     "timestamp_format": "timestamp is an ISO 8601 UTC string, e.g. 2026-07-04T12:00:00Z (shell: date -u +%Y-%m-%dT%H:%M:%SZ).",
     "extra_fields": "Unknown extra fields are allowed on a span (open-world for additions); the closed enums and required-field sets below are frozen.",
     "schema_version_per_span": "Every span line carries schema_version so a trace surviving a harness upgrade mid-issue remains interpretable line by line.",
-    "harness_version": "harness.version is the git SHA of the harness scripts in use; mandatory on every span to enable before/after harness comparisons."
+    "harness_version": "harness.version is the harness SemVer release read from the top-level VERSION file (fallback 0.0.0-dev); it is stable across commits so by_version aggregation is meaningful. The exact commit is the optional harness.commit field. Mandatory on every span."
   },
   "span_types": ["agent", "model", "tool", "lifecycle"],
   "required_common": ["schema_version", "timestamp", "span", "harness.issue", "harness.version"],
@@ -43,6 +43,7 @@
   ],
   "optional_fields": {
     "harness.feature_id": "string; feature id from feature_list.json",
+    "harness.commit": "string; short git SHA of the harness scripts at emit time, for exact provenance. Optional companion to harness.version (the SemVer release from the VERSION file).",
     "harness.session_id": "string; runtime/conversation session identity for the GitHub Copilot session that produced runtime spans (aligned with OTel gen_ai.conversation.id). Optional and open-world: distinct from harness.issue (a session may span multiple issues; runtime spans are attributed to an issue by time window). Stamped by runtime capture (transcript reconstruction / hooks); absent on script-emitted lifecycle/handback spans.",
     "harness.outcome": "enum: pass | fail | blocked",
     "harness.review_gate_sha": "string; commit SHA approved at the review gate",

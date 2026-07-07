@@ -16,8 +16,10 @@
 #   3. Every emitted line passes the contract-driven jq filter lifted verbatim
 #      from the TRACE SPAN VALIDATION FILTER block in test_trace_schema.sh,
 #      and carries the auto-stamped fields: schema_version=1, ISO-8601 UTC
-#      timestamp, harness.issue (JSON number), harness.version (the fixture
-#      repo's short HEAD SHA), and a non-empty span_id unique per span.
+#      timestamp, harness.issue (JSON number), harness.version (the SemVer
+#      release from VERSION, here the 0.0.0-dev fallback because the fixture
+#      seeds no VERSION file), harness.commit (the fixture repo's short HEAD
+#      SHA — the "which code" signal), and a non-empty span_id unique per span.
 #   4. Issue resolution precedence: TRACE_ISSUE env var wins over the
 #      feature/issue-NN-* branch name; both paths are exercised.
 #   5. parent_span_id passthrough via a parent_span_id=X argument and via the
@@ -99,10 +101,11 @@ nth_line() { sed -n "${2}p" "$1"; }
 
 # Assert the auto-stamped common fields on one emitted line:
 # schema_version==1, harness.issue == <want> as a JSON number, non-empty
-# harness.version matching the fixture repo's short HEAD, non-empty string
-# span_id, and an ISO-8601 UTC timestamp.
+# harness.version (the 0.0.0-dev fallback, since the fixture seeds no VERSION),
+# harness.commit == the fixture repo's short HEAD, non-empty string span_id,
+# and an ISO-8601 UTC timestamp.
 check_stamps() {
-  local label="$1" line="$2" want_issue="$3" ts version
+  local label="$1" line="$2" want_issue="$3" ts version commit
   printf '%s\n' "$line" | jq -e --argjson issue "$want_issue" '
       (.schema_version == 1)
       and ((.["harness.issue"] | type) == "number")
@@ -114,8 +117,11 @@ check_stamps() {
     ' >/dev/null \
     || fail "${label}: auto-stamped fields wrong (need schema_version=1, numeric harness.issue=${want_issue}, non-empty harness.version and span_id): ${line}"
   version="$(printf '%s\n' "$line" | jq -r '.["harness.version"]')"
-  [ "$version" = "$HEAD_SHORT" ] \
-    || fail "${label}: harness.version should be the fixture repo short HEAD SHA '${HEAD_SHORT}', got '${version}'"
+  [ "$version" = "0.0.0-dev" ] \
+    || fail "${label}: harness.version should be the 0.0.0-dev fallback (the fixture seeds no VERSION file), got '${version}'"
+  commit="$(printf '%s\n' "$line" | jq -r '.["harness.commit"] // ""')"
+  [ "$commit" = "$HEAD_SHORT" ] \
+    || fail "${label}: harness.commit should be the fixture repo short HEAD SHA '${HEAD_SHORT}', got '${commit}'"
   ts="$(printf '%s\n' "$line" | jq -r '.timestamp')"
   [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
     || fail "${label}: timestamp is not ISO-8601 UTC (date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ), got '${ts}'"

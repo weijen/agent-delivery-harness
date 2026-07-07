@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #147)._
+_Last updated: 2026-07-07 (issue #153)._
 
 ---
 
@@ -99,6 +99,20 @@ _Last updated: 2026-07-07 (issue #147)._
 ---
 
 ## Delivered (newest first)
+
+### Harness versioning
+- **#153 — SemVer harness version; decouple `harness.version` from
+  `harness.commit`.** Introduced a top-level `VERSION` file (SemVer, seeded
+  `0.1.0`) as the authoritative harness release version. `scripts/trace-lib.sh`
+  now stamps `harness.version` from `VERSION` (fallback `0.0.0-dev`) instead of
+  the git short SHA — so it is **stable across commits** and `by_version`
+  aggregation is finally meaningful — and adds a new optional `harness.commit`
+  (short SHA) for exact provenance. Schema + observability docs updated;
+  `docs/HARNESS.md` documents the manual bump policy (bump only on
+  behaviour/contract changes; docs/test-only commits do not bump; the
+  contract-schema `version:` is separate). Backward compatible (old SHA-valued
+  traces still validate). Sensor: `test_harness_versioning.sh`;
+  `test_trace_lib.sh` reconciled to the new semantics.
 
 ### Deep-trace session identity
 - **#147 — add optional `harness.session_id` to the trace schema.** Additive,
