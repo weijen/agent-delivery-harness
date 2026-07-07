@@ -78,6 +78,71 @@ Not every span type carries the same evidentiary weight. There is a deliberate
   `tool span` to a specific feature/sensor, the handback `agent spans` remain
   the authority and `tool spans` stay corroborating context, not proof.
 
+## The Layered Visibility Boundary
+
+This harness does not talk to a model API directly. It sits **on top of a
+coding agent** (GitHub Copilot, Claude Code), and that agent is itself a
+harness over the model API. Three layers stack up, and each one up the stack
+loses a degree of visibility into the one below:
+
+```text
+┌─────────────────────────────────────────────┐
+│  this harness — lifecycle / handback / gate  │  the layer we own
+├─────────────────────────────────────────────┤
+│  coding agent (Copilot / Claude Code)        │  prompt assembly, RAG,
+│    prompt assembly, context management,      │  tool routing, permission
+│    tool execution, permissions, sandbox      │  decisions, retries
+├─────────────────────────────────────────────┤
+│  model API (OpenAI / Anthropic)              │  raw request / response
+└─────────────────────────────────────────────┘
+```
+
+An agent that calls the model API **directly** is the middle layer, so it owns
+that layer's state for free: the full `messages` array (system, user,
+assistant, tool results), per-request `usage` token buckets, the exact
+request/response timestamps that yield true latency, its own permission and
+retry decisions, and complete tool outputs. For this harness those are not
+local variables; they are the internal state of a separate process one layer
+down. That is the structural reason several deep-telemetry signals are absent
+from the trace — not oversight, but the cost of the layer we chose to stand on.
+
+The absent signals fall into three kinds of boundary:
+
+- **Architectural boundary** — the runtime never exposes the signal. Tool and
+  model latency (no correlation id links a pre-call to its post-call event),
+  permission requests, sandbox snapshots, and the raw prompt with its
+  retrieved context sit here. A direct-API agent gets these for free; this
+  harness cannot reach them without the runtime opening an API.
+- **Interface boundary** — the data reaches an adapter hook, but only through
+  an undocumented or unstable format. Token usage is the example: the Copilot
+  CLI adapter reads it best-effort from an internal `events.jsonl` whose shape
+  can drift across versions, and the VS Code surface exposes no verified token
+  source at all.
+- **Not yet captured** — the runtime already hands the data to a hook, and the
+  harness simply does not field it yet. Command outputs, test result detail,
+  and some edited-file content live here (for example the Copilot adapter
+  receives `toolResult.textResultForLlm` but keeps only the pass/fail
+  outcome). This boundary is ours to move, not the runtime's.
+
+Only the third kind is the harness's own backlog. The first two are the tax of
+building above another harness, and the schema pays that tax honestly: where a
+runtime exposes no trustworthy signal, the adapter omits the key rather than
+fake it (see the capability matrix in
+[runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md)).
+
+What the layering buys in return is what a direct-API agent does not have. A
+direct-API agent sees everything at the model layer but must implement context
+management, sandboxing, permissions, and retries itself, and its telemetry only
+ever holds the model's point of view. Standing one layer up trades that
+model-level visibility for signals the model layer has no concept of: a
+runtime-portable span vocabulary (the same lifecycle and handback spans survive
+swapping Copilot for Claude Code without touching an eval), process-layer truth
+(review-gate SHA, role-attributed handbacks, the TDD red-to-green order, PR
+merge), and a contract that keeps the low coverage **known and labeled** instead
+of papered over. The harness is not competing with a direct-API agent on
+telemetry completeness; it records the process layer that such an agent has no
+vocabulary for, and it marks the runtime-internal gaps as gaps.
+
 ## Mandatory Common Fields
 
 Every span line, regardless of span type, carries the mandatory common fields
