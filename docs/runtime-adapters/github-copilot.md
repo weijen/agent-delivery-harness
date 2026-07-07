@@ -126,6 +126,43 @@ checkout, seeding is a clean **no-op** — nothing is created, and an absent hoo
 is never treated as an error. Seeding only ever fills a gap: it copies the
 local hook into a new worktree and never clobbers a hook that already exists.
 
+## Interval (session_id + time) attribution
+
+VS Code agent hooks do fire, but the hook payload's `cwd` is always the **main
+checkout** (on `main`), never the per-issue worktree. So the git-based
+`trace__resolve_issue` path (`TRACE_ISSUE` → `feature/issue-NN` branch →
+`issue-NN` worktree basename) resolves nothing, and before #146 the hook
+silently no-opped: verified lifecycle and handback spans landed, but zero
+`tool` or `skill` spans. That is the verified-vs-gap topology — everything the
+harness scripts emit themselves survives, and only the runtime-only spans fell
+through the gap.
+
+The interval model closes it. Each runtime span carries a `session_id` and an
+event `timestamp`, and it is attributed to the issue whose **active time
+window** contains that `timestamp`. A single Copilot session can span several
+issues in sequence; each span lands in whichever issue was active at its own
+time, so one `session_id` is split across issues by the `interval` its events
+fall into rather than by a single fixed label.
+
+Resolution is **git-first, interval-fallback**. Git resolution runs first, so a
+CLI session driven from inside a worktree is unchanged — its `cwd` still
+resolves the issue directly. Interval attribution is the `fallback` used only
+when git resolves nothing (the VS Code main-checkout case above).
+
+The switch boundaries come from the harness lifecycle, not from guesswork. An
+issue's window is `[worktree_create, finish]`: the `worktree_create` span from
+start-issue opens it and the `finish` span from finish-issue closes it, both
+already recorded in that issue's
+`.copilot-tracking/issues/issue-NN/trace.jsonl` (an issue with no `finish` yet
+has an open-ended window). Every emitted span also carries a
+`harness.session_id` (#147) alongside the attributed issue.
+
+Attribution never guesses. If zero or more than one issue window contains the
+`timestamp`, or the timestamp is missing or unparseable, the case is
+`ambiguous`: the hook emits a visible `WARN` and drops the span. It is a
+deliberate `no-op` — the adapter will `never mis-attribute` a span and never
+fabricate an issue.
+
 ## DANGER: never register preToolUse
 
 On Copilot surfaces a hook's exit status is load-bearing: a **non-zero exit

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #149)._
+_Last updated: 2026-07-07 (issue #146)._
 
 ---
 
@@ -100,6 +100,30 @@ _Last updated: 2026-07-07 (issue #149)._
 ---
 
 ## Delivered (newest first)
+
+### Deep-trace interval attribution
+- **#146 — interval (session_id + time) attribution for runtime tool/skill
+  spans.** Closes the "no tool/skill spans" gap for the VS Code conductor
+  topology. Verified first (see the #146 comment) that VS Code agent hooks DO
+  fire, but the payload `cwd` is always the **main checkout on `main`**, so the
+  git-based `trace__resolve_issue` resolves nothing and the hook silently
+  no-opped. `scripts/copilot-trace-hook.sh` now: (1) stamps `harness.session_id`
+  (#147) on every emitted tool/agent span in both payload dialects; and (2) uses
+  **git-first, interval-fallback** attribution — when git resolves nothing, it
+  attributes each span by the payload `timestamp` to the single issue whose
+  active window `[worktree_create, finish]` (derived from the lifecycle spans
+  already in each `.copilot-tracking/issues/issue-NN/trace.jsonl`, open-ended
+  when unfinished) contains it. Zero/ambiguous windows or a missing timestamp →
+  visible WARN + no-op; never mis-attributes, never fabricates; the hook stays
+  exit-0 / stdout-clean on every path. Git resolution stays the fallback for
+  CLI-from-worktree (zero regression). The obligation is frozen in
+  `docs/harness-contract.yml` (owner `copilot-trace-hook.sh`). Sensors:
+  `test_copilot_hook_session_id.sh`, `test_copilot_hook_interval_attribution.sh`
+  (C1-C6) + e2e `test_copilot_hook_interval_e2e.sh`,
+  `test_interval_attribution_docs.sh`; docs in
+  `docs/runtime-adapters/github-copilot.md`. (The requested start-issue
+  hook-seeding fold-in was dropped — origin/main already seeds the hook and the
+  Terraform-seed variant would violate the frozen `language_neutral` contract.)
 
 ### Deep-trace transcript reconstruction
 - **#149 — reconstruct tool/skill spans from the Copilot transcript at

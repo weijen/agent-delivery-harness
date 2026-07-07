@@ -59,6 +59,9 @@ scripts:
   - id: trace-export
     path: scripts/trace-export.sh
     role: Opt-in trace exporter; best-effort closeout export target.
+  - id: copilot-trace-hook
+    path: scripts/copilot-trace-hook.sh
+    role: GitHub Copilot runtime adapter hook; emits tool/agent spans with git-first, interval-fallback issue attribution (#146). Exit-0/stdout-clean on every path.
 
 # ---------------------------------------------------------------------------
 # Lifecycle order. The harness must continue to perform these actions in this
@@ -108,6 +111,9 @@ lifecycle:
   - id: trace-export
     owner: scripts/finish-issue.sh
     present: best_effort_trace_export
+  - id: interval-attribution
+    owner: scripts/copilot-trace-hook.sh
+    present: hook__resolve_issue_by_interval
   - id: pr-path-red-first-gate
     owner: scripts/review-gate.sh
     present: red_first_evidence_gate
