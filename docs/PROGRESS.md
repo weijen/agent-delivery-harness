@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #165)._
+_Last updated: 2026-07-08 (issue #172)._
 
 ---
 
@@ -100,6 +100,24 @@ _Last updated: 2026-07-08 (issue #165)._
 ---
 
 ## Delivered (newest first)
+
+### Trace redaction: close secret-shape gaps + single-source the backstop
+- **#172 — `trace_redact` masks four more secret shapes; secret-shape backstop
+  single-sourced.** `scripts/trace-lib.sh` `trace_redact` now masks bare JWTs
+  (`eyJ` + three dot-separated base64url segments, length-floored), Azure SAS
+  `sig=` query values, storage `AccountKey=` values (key kept, value masked),
+  and escaped PEM `PRIVATE KEY` blocks (block-local `[^-]*` body so co-located
+  blocks/fields can never greedily merge). Portable BSD/GNU sed -E and the
+  JSON-safety invariant (never truncate an unquoted number / break a line) are
+  preserved. The hardcoded secret-shape audit backstop is now single-sourced as
+  `TRACE_SECRET_SHAPE_RE` in `trace-lib.sh`; `trace-export.sh` and
+  `sanitize-trace.sh` (both audit sites) reference it instead of forked
+  literals. Generic `sig=`/`AccountKey=` shapes are intentionally excluded from
+  the backstop because their redacted form (`sig=[REDACTED]`) would self-match.
+  Sensors: `tests/scripts/test_trace_lib_redaction.sh` gains a fixture per new
+  shape (incl. a two-PEM-block JSON-safety case); new
+  `tests/scripts/test_trace_backstop_single_source.sh` drift sensor pins the
+  consumers to the shared source. Full shell suite 120/0, shellcheck clean.
 
 ### Deep-trace native OTLP export
 - **#151 — opt-in native OTLP/HTTP export alongside the Track API path.**
