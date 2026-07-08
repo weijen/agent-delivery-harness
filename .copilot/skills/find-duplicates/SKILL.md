@@ -12,6 +12,8 @@ Find exact, semantic, structural, and cross-layer duplications in source code, t
 
 This skill is read-only by default. Report findings and recommendations. Do not modify code unless the user explicitly asks for remediation after the audit.
 
+> Apply the shared audit conventions in `.copilot/skills/_audit-conventions.md` (exclusions, "search broadly / judge narrowly", implementation-usefulness priority decisions using the Fix now / Plan first / Defer-accept grading vocabulary, and the report shape) before auditing. This priority grading is separate from severity, and the priority decision does not override severity.
+
 ## When to Use
 
 Use this skill when the user asks to:
@@ -32,7 +34,6 @@ Similarity is not automatically a problem. Duplication becomes actionable when c
 1. Define scope and constraints.
    - Use the scope provided by the user. If none is provided, inspect the workspace structure and focus on source, tests, scripts, config, and infrastructure files that are relevant to the request.
    - Identify languages, frameworks, generated files, vendored code, test directories, examples, scripts, CLIs, build output, and package boundaries.
-   - Exclude generated files, vendored dependencies, lockfiles, minified bundles, build output, package caches, virtual environments, and dependency directories such as `.venv/`, `venv/`, `node_modules/`, `dist/`, `build/`, `target/`, `.terraform/`, `.next/`, `.nuxt/`, `coverage/`, and `.git/`.
    - For large repositories, sample and index first, then expand around likely duplicate clusters. Do not claim full coverage unless the scan actually covered the full requested scope.
 
 2. Build an inventory.
@@ -130,120 +131,6 @@ Adapt these to the project language and scope:
 - Standalone bootstrap, recovery, install, or migration scripts that intentionally avoid importing application dependencies.
 - Generated code, vendored code, examples, tutorials, and documentation snippets when they are not part of runtime behavior.
 - Two-location duplication where extraction would add coupling or obscure intent.
-
-## Implementation-Usefulness Grading
-
-After a duplication is classified and assigned a severity, grade how useful and safe it
-is to consolidate **now**. This grading is **separate from severity**: severity ranks
-how risky the duplication is; usefulness ranks how worthwhile and tractable the fix is.
-Score every confirmed duplication on five dimensions (High / Medium / Low):
-
-- **Evidence strength** — how certain you are the blocks are truly redundant, not coincidental.
-- **Payoff clarity** — how clearly consolidation reduces drift and maintenance cost.
-- **Tractability** — how bounded the extraction is without dragging in unrelated concerns.
-- **Verification clarity** — whether tests/lint can prove the consolidation is behavior-preserving.
-- **Pattern fit** — whether a natural shared home already exists for the extracted code.
-
-Roll the scores into one **implementation decision** per finding:
-
-- **Fix now** — strong evidence, clear payoff, a natural shared home, verifiable. Safe to consolidate.
-- **Plan first** — real but broad or cross-layer; route to a phased plan before extracting.
-- **Defer-accept** — low payoff or risks coupling unrelated callers; record under Accepted Patterns.
-
-**The decision does not override severity.** A high usefulness score never licenses a
-**premature abstraction**: do not introduce a shared module that tightly couples otherwise
-independent callers just because a score is high. Three similar lines can beat the wrong
-abstraction. When the only shared home would couple unrelated concerns, prefer Defer-accept.
-
-## Report Template
-
-````markdown
-## Duplication Audit: <scope>
-
-**Overall:** <clean | minor duplication | needs attention | high-risk duplication>
-**Coverage:** <full requested scope | targeted scan | sampled scan with limits>
-**Findings:** <N critical, N high, N medium, N low, N accepted>
-
-### Findings
-
-| ID | Sev | Type | Files | Decision | Description |
-| --- | --- | --- | --- | --- | --- |
-| DUP-1 | High | Exact | a.py, b.py, c.py | Fix now | `helper()` copied across three modules. |
-| DUP-2 | Medium | Cross-layer | module.py, script.sh | Plan first | Deployment logic reimplemented in shell and source code. |
-| TDUP-1 | Low | Test helper | test_a.py, test_b.py | Defer-accept | Similar setup helper repeated in two test files. |
-
-### Details
-
-#### DUP-1: <title>
-
-**Files:** `a.py:14-19`, `b.py:37-42`, `c.py:14-19`
-**Type:** Exact duplicate
-**Severity:** High
-
-```python
-# representative duplicated snippet
-```
-
-**Evidence:** <why these are duplicates>
-**Implementation decision:** <Fix now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
-**Risk:** <what can diverge or become harder to maintain>
-**Recommended strategy:** <extract shared module | parametrize | keep and cross-reference | accept>
-**Validation:** <tests, lint, or review steps if this is later fixed>
-
-### Accepted Patterns
-
-- `tests/test_example.py:20-45` — repeated assertions cover different public edge cases and are clearer left local.
-- `scripts/bootstrap.sh:10-80` — standalone script duplicates setup logic intentionally because it runs before project dependencies exist.
-
-### Optional Remediation Plan
-
-Create a plan only if the user asks to fix the findings or if the duplication is broad enough to need phased remediation. Use repository-local planning conventions when present; otherwise provide the plan inline.
-````
-
-## Remediation Plan Template
-
-Use this template only after the user asks for fixes or approves remediation planning.
-
-````markdown
-# Plan: Deduplicate <topic>
-
-## Background
-
-Duplication findings DUP-X, DUP-Y, and TDUP-Z identified <summary of duplicated behavior and risk>.
-
-## Phase 1: <title>
-
-**Scope:** <files and behavior>
-**Strategy:** <extract shared module | fixture | parametrization | cross-reference>
-**Files to change:**
-
-- Edit: `path/to/file.ext`
-- Edit: `path/to/test_file.ext`
-
-**Current duplicated shape:**
-
-```<language>
-# representative current code
-```
-
-**Proposed shape:**
-
-```<language>
-# representative proposed code
-```
-
-**Risks:** <dependency direction, readability, public API, test clarity>
-
-## Test Impact
-
-- `tests/test_example.ext` — update setup to use shared fixture.
-- Add or keep coverage for each distinct behavior after extraction.
-
-## Verification
-
-1. `<targeted test command>`
-2. `<lint/type/build command if relevant>`
-````
 
 ## Completion Criteria
 

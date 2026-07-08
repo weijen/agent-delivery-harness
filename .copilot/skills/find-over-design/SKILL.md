@@ -12,6 +12,8 @@ Find design complexity that is disproportionate to the problem being solved: pre
 
 This skill is read-only by default. Report findings and recommendations. Do not modify code unless the user explicitly asks for remediation after the audit.
 
+> Apply the shared audit conventions in `.copilot/skills/_audit-conventions.md` (exclusions, "search broadly / judge narrowly", implementation-usefulness priority decisions using the Fix now / Plan first / Defer-accept grading vocabulary, and the report shape) before auditing. This priority grading is separate from severity, and the priority decision does not override severity.
+
 ## When to Use
 
 Use this skill when the user asks to:
@@ -39,7 +41,6 @@ The goal is proportional design, not minimal design. Some complexity is earned b
    - Use the scope provided by the user. If none is provided, inspect entrypoints, core modules, tests, scripts, infrastructure, docs, and customization/automation files relevant to the request.
    - Count or estimate source files, production code lines, test lines, documentation files/lines, configuration files, generated files, and major abstraction layers.
    - For large repositories, measure representative areas and state coverage limits. Do not claim a full architecture audit unless the full requested scope was actually reviewed.
-   - Exclude vendored dependencies, generated files, build artifacts, package caches, virtual environments, and dependency directories such as `.venv/`, `venv/`, `node_modules/`, `dist/`, `build/`, `target/`, `.terraform/`, `.next/`, `.nuxt/`, `coverage/`, and `.git/`.
 
 3. Map responsibilities and entrypoints.
    - Start from entrypoints: CLIs, route handlers, app startup, jobs, workers, scripts, workflow files, package exports, plugins, and deployment commands.
@@ -148,132 +149,9 @@ Adapt these to the project language and scope:
 - Meta-work: `plan|phase|roadmap|tracking|handoff|runbook|checklist|governance|process|workflow`
 - Repetition: distinctive verbs repeated across sibling files, such as `create`, `find`, `deploy`, `patch`, `validate`, `backup`, `restore`, `restart`, `poll`, `verify`, and `normalize`.
 
-## Implementation-Usefulness Grading
+## Implementation-Usefulness Nuance
 
-After a finding is classified and assigned a severity, grade how useful and safe it is
-to simplify **now**. This grading is **separate from severity**: severity ranks how
-disproportionate the design is; usefulness ranks how worthwhile and tractable the
-simplification is. Score every confirmed finding on five dimensions (High / Medium / Low):
-
-- **Evidence strength** — how certain you are the complexity is unjustified, not load-bearing.
-- **Payoff clarity** — how clearly removing it reduces lines, layers, or cognitive load.
-- **Tractability** — how bounded the simplification is without a wide ripple.
-- **Verification clarity** — whether tests/lint can prove behavior is preserved after simplifying.
-- **Pattern fit** — whether the simpler shape matches the rest of the codebase.
-
-Roll the scores into one **implementation decision** per finding:
-
-- **Simplify now** — strong evidence the abstraction is unused/single-use, bounded, verifiable.
-- **Plan first** — real but wide-reaching; route to a phased plan before collapsing layers.
-- **Defer-accept** — payoff unclear or complexity may be load-bearing; record as proportional.
-
-**The decision does not override severity.** A high usefulness score never licenses
-collapsing a **justified boundary**: extension points, plugin seams, and abstractions that
-absorb real, demonstrated variation must be protected even when a quick simplification
-looks tempting. When you cannot prove the complexity is unused, prefer Defer-accept.
-
-## Report Template
-
-````markdown
-## Over-Design Audit: <scope>
-
-### Project Scope
-
-<1-3 sentences describing what the reviewed area actually does, who uses it, and what complexity is justified.>
-
-### Metrics
-
-| Metric | Count |
-| --- | --- |
-| Production code | <X files / X lines, or estimated> |
-| Test code | <X files / X lines, or estimated> |
-| Documentation | <X files / X lines, or estimated> |
-| Config / scripts / IaC | <X files / X lines, or estimated> |
-| Main abstraction layers | <short list> |
-| Coverage | <full requested scope | targeted scan | sampled scan with limits> |
-
-### Findings
-
-| ID | Sev | Category | Files | Decision | Description |
-| --- | --- | --- | --- | --- | --- |
-| OD-1 | High | Dual implementation | a.py, b.sh | Plan first | Same behavior exists in two runtimes and must stay synchronized. |
-| OD-2 | Medium | Over-parameterized interface | service.py | Simplify now | Optional callbacks and modes are not used by callers. |
-| OD-3 | Low | Single-use type | models.py | Defer-accept | Dataclass wraps a dict used in one local function. |
-
-### Details
-
-#### OD-1: <title>
-
-**Files:** `path/to/a.py:10-80`, `scripts/b.sh:20-110`
-**Category:** Dual implementation
-**Severity:** High
-
-```python
-# representative snippet or sync marker
-```
-
-**Signal:** <what makes this look disproportionate>
-**Implementation decision:** <Simplify now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
-**Why it matters:** <maintenance/change/debugging risk>
-**Suggested simplification:** <specific strategy>
-**Estimated payoff:** <line savings, fewer layers, fewer files touched, simpler workflow, or qualitative payoff>
-**Validation:** <tests, lint, smoke checks, or manual checks if later fixed>
-
-### Well-Designed and Proportional Areas
-
-- `<area>` — <why this complexity is justified>.
-- `<area>` — <why this should not be simplified>.
-
-### Optional Remediation Plan
-
-Create a plan only if the user asks to fix the findings or approves remediation planning. Use repository-local planning conventions when present; otherwise provide the plan inline.
-````
-
-## Remediation Plan Template
-
-Use this template only after the user asks for fixes or approves remediation planning.
-
-````markdown
-# Plan: Simplify <topic>
-
-## Background
-
-Over-design findings OD-X, OD-Y, and OD-Z identified <summary of disproportionate complexity and payoff>.
-
-## Phase 1: <title>
-
-**Scope:** <files and behavior>
-**Strategy:** <inline | collapse layers | reduce parameters | delete duplicate implementation | trim docs>
-**Files to change:**
-
-- Edit: `path/to/file.ext`
-- Delete/archive: `path/to/stale-file.ext`
-
-**Current shape:**
-
-```<language>
-# representative current code or structure
-```
-
-**Proposed shape:**
-
-```<language>
-# representative simplified code or structure
-```
-
-**Risks:** <public API, dependency direction, migration, tests, docs, operational use>
-
-## Test Impact
-
-- `tests/test_example.ext` — update expectations for simplified path.
-- Add or keep coverage for behavior preserved by simplification.
-
-## Verification
-
-1. `<targeted test command>`
-2. `<lint/type/build command if relevant>`
-3. `<smoke or manual verification if behavior crosses runtime/deployment boundaries>`
-````
+When an over-design finding is safe to fix immediately, reports may phrase **Fix now** as **Simplify now** to make the action clear.
 
 ## Completion Criteria
 

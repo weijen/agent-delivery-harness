@@ -138,13 +138,13 @@ must work with built-in Git and grep alone.
 
 ## Implementation-Usefulness Grading
 
-Grade each finding so a reviewer can act:
+Use the grading vocabulary in `.copilot/skills/_audit-conventions.md`: **Fix now**, **Plan first**, and **Defer-accept**.
 
 - **Fix now** — remove the secret/file, rotate the credential, scrub the soon-to-be-pushed content
   before it lands. Applies to anything not yet pushed.
 - **Plan first** — already-pushed exposure that needs a coordinated response (credential rotation,
   access review, and only if the owner chooses, history rewriting — which is out of scope here).
-- **Defer / accept** — classified as Accept, or residual risk the owner knowingly accepts.
+- **Defer-accept** — classified as Accept, or residual risk the owner knowingly accepts.
 
 ## Report Template
 
