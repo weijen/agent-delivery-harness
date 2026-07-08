@@ -122,7 +122,6 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 |---|---|---|
 | **Skill** `code-review` | Pre-commit / pre-PR review of a diff for spec compliance + bugs | `harness.instructions.md` § Verify gate (every commit, every PR) |
 | **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `scripts/create-pr.sh` |
-| **Skill** `general` | Default coding-style + testing + git conventions when project-specific guidance is silent | Background context for all coding |
 | **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Pulled in by `code-review-subagent` review checklist |
 | **Skill** `find-duplicates` | Semantic duplication / DRY violations | Pulled in by `code-review-subagent` review checklist |
 | **Skill** `find-over-design` | Premature abstraction / unjustified complexity | Pulled in by `code-review-subagent` review checklist |
@@ -143,7 +142,6 @@ Which skill fires, who owns it, and at which lifecycle phase:
 
 | Skill | Owner role | Stage / phase | Fires on |
 | --- | --- | --- | --- |
-| `general` | planner · implementer · tester · code reviewer | All phases (background) | Fallback coding/test/git conventions when no `<language>.instructions.md` applies |
 | `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
 | `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
 | `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
@@ -154,6 +152,7 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 
-Planner, implementer, and tester carry no distinctive skill beyond `general`; their quality bar comes from the
-applicable `<language>.instructions.md` plus `.copilot/instructions/tdd.instructions.md`, not a skill. The audit skills
+Planner, implementer, and tester carry no distinctive skill; their quality bar comes from the
+applicable `<language>.instructions.md` plus `.copilot/instructions/tdd.instructions.md` and this AGENTS.md, not a
+skill. The audit skills
 are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.

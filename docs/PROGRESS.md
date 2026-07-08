@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #168)._
+_Last updated: 2026-07-08 (issue #177)._
 
 ---
 
@@ -36,8 +36,10 @@ _Last updated: 2026-07-08 (issue #168)._
   `issue-lib.sh`.
 - **Language profiles:** Python, Go, Node.js, Java, Ruby (+ a scaffold
   generator) under `profiles/`.
-- **Skills:** 10 under `.copilot/skills/` (code-review, create-pr, general, the
-  five audit skills, security-audit, sync-docs, public-exposure-audit).
+- **Skills:** 9 under `.copilot/skills/` (code-review, create-pr, the
+  five audit skills, security-audit, sync-docs, public-exposure-audit). The
+  obsolete `general` skill was removed in #177 (its fallback role moved to the
+  harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
 - **Sensor suite:** 106 shell sensors (`tests/scripts/` + `tests/meta/`), run by
@@ -100,6 +102,19 @@ _Last updated: 2026-07-08 (issue #168)._
 ---
 
 ## Delivered (newest first)
+
+## Delivered (newest first)
+
+### Skill-prompt modernization — cleanup (epic #176)
+- **#177 — remove obsolete `general` skill, fix `create-pr` dead references,
+  normalize frontmatter.** Deleted the obsolete `general` skill (training-data
+  platitudes) and repointed its 8 fallback references to the harness contract +
+  AGENTS.md conventions. Fixed the `create-pr` bug (dead `skills/typescript|python|testing`
+  quality-gate refs → existing `code-review`/`security-audit`), trimmed its git
+  tutorial and baked-in best practices. Normalized `code-review` frontmatter to
+  kebab-case and dropped imported license/author metadata. Landed the grounding
+  report `docs/skill-prompt-modernization-review.md`. New sensor
+  `tests/meta/test_skill_references_resolve.sh` guards against dead skill refs.
 
 ### Trace docs: skill-span (`harness.skill.name`) preconditions and limits
 - **#168 — documented exactly when a `harness.skill.name` skill span can and
