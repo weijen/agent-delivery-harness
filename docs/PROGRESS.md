@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #171)._
+_Last updated: 2026-07-08 (issue #168)._
 
 ---
 
@@ -101,6 +101,20 @@ _Last updated: 2026-07-08 (issue #171)._
 
 ## Delivered (newest first)
 
+### Trace docs: skill-span (`harness.skill.name`) preconditions and limits
+- **#168 — documented exactly when a `harness.skill.name` skill span can and
+  cannot exist.** `docs/runtime-adapters/github-copilot.md` gains a section
+  pinning the two preconditions (fixed hook installed on `main` + seeded into
+  the worktree; a *fresh* runtime session that surfaces the skill as a
+  `toolName="skill"` tool span), the **no-backfill** limit, the
+  `review_verdict` agent span vs `harness.skill.name` skill span distinction,
+  the `jq` + `trace-report.sh` verification commands, and the omit-never-fake
+  honesty rule for absence. Per the review note, `toolName="skill"` is framed
+  as repo-owned empirical evidence (#121/#138 capture), **not** an official
+  Copilot contract, and the VS Code surface as empirical/preview. Cross-linked
+  from `docs/HARNESS.md`. Sensor `tests/scripts/test_copilot_adapter_docs.sh`
+  extended with a D9 block. Docs-only (`red_first_waiver`).
+
 ### Trace docs drift: honest token labels + complete PII exclusion list
 - **#171 — dashboards token labels de-#96'd; retention exclusion list completed.**
   `docs/evaluation/dashboards/README.md` and the workbook token panel
@@ -114,7 +128,6 @@ _Last updated: 2026-07-08 (issue #171)._
   `trace-schema.v1.json`. Sensors extended: `test_trace_dashboard_pack.sh`
   asserts no stale `until #96` and a `#163` pointer; `test_telemetry_retention_docs.sh`
   asserts the full 5-field exclusion list. Docs-only; full suite 119/0.
-
 ### Trace redaction: close secret-shape gaps + single-source the backstop
 - **#172 — `trace_redact` masks four more secret shapes; secret-shape backstop
   single-sourced.** `scripts/trace-lib.sh` `trace_redact` now masks bare JWTs
