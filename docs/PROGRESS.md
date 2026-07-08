@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #180)._
+_Last updated: 2026-07-08 (subagent review report)._
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08 (issue #180)._
 ---
 
 ## Delivered (newest first)
+
+### Land subagent-prompt-modernization review report
+- **Companion review report brought into the repo.** `docs/subagent-prompt-modernization-review.md` (the `.copilot/agents/` counterpart to `docs/skill-prompt-modernization-review.md`, epic #176) was previously an untracked working file; it is now tracked so the A-X1..A-X6 findings referenced by the subagent-modernization follow-ups (#182/#183/#184) have a stable in-repo source.
 
 ## Delivered (newest first)
 
