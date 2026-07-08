@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #175)._
+_Last updated: 2026-07-08 (issue #156)._
 
 ---
 
@@ -103,7 +103,33 @@ _Last updated: 2026-07-08 (issue #175)._
 
 ## Delivered (newest first)
 
-### Trace runtime-state hygiene: GC orphaned .hook-state + session bindings; idempotent reconstruct
+### code-review-subagent reads the trace as first-class evidence (Trace / Process Evidence section)
+- **#156 — every code review now includes a required Trace / Process Evidence
+  section that judges delivery discipline from the local trace, not just the diff.**
+  `.copilot/agents/code-review-subagent.agent.md` gains a `## Trace / Process
+  Evidence` section instructing the reviewer to locate `trace.jsonl` /
+  `trace-summary.json`, run `scripts/validate-trace.sh NN` +
+  `scripts/check-trace-consistency.sh NN` when a local trace exists, and report
+  trace **coverage** separately from behavior (`has_tool_spans=false` = runtime
+  instrumentation absent, not "no tools ran"; `tokens=null` = unavailable, not
+  zero cost; schema pass/fail; run outcome). It encodes the evidence-authority
+  split — role-attributed handback **agent** spans are authoritative for
+  red-first evidence, runtime **tool** spans are corroborating only — and checks
+  `red_handback → impl_handback → green_handback` ordering, role attribution
+  (`test-subagent` red/green, `implementation-subagent` impl), unexplained
+  `red_reentry`, deviations, and loop anomalies. Blocking findings
+  (`red_first_evidence_missing`, `red_first_role_mismatch`, schema/redaction
+  failure, unresolved deviations) feed `NEEDS_REVISION`/`BLOCKED` even when the
+  diff is clean; missing instrumentation is reported as the exact phrase
+  `trace evidence unavailable`, never inferred as pass. The section states
+  passing trace discipline does not prove correctness and clean code does not
+  excuse a process violation. Sensed by a new prompt-content sensor
+  `tests/meta/test_code_review_trace_evidence.sh`; AC7's blocking guarantee is
+  already locked by `tests/scripts/test_trace_red_first_evidence.sh`, which pins
+  that `check-trace-consistency.sh` produces exactly those two findings for
+  green-only and wrong-role traces.
+
+
 - **#175 — teardown now sweeps orphaned runtime state, and re-running the
   transcript reconstruction no longer double-counts tool calls.**
   `scripts/finish-issue.sh` gains a warn-only `best_effort_state_hygiene()` step
