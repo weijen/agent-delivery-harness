@@ -19,7 +19,7 @@ From the conductor:
 - The expected verification command or nearest available project gate
 
 If the selected feature is missing, the implementation is absent, or the declared sensor is not runnable, stop and
-return a blocking reason. Do not invent a weaker sensor to make the feature pass.
+return a blocking reason.
 
 ## Scope Rules
 
@@ -63,8 +63,7 @@ The following sensor gaps are also **BLOCKING** — return them as a handback, n
 
 A blocking gap may be **waived only by the conductor**, and only when the conductor
 records the explicit waiver and its **rationale in the issue Action Log**. You do
-not waive your own gaps, and you never weaken, delete, or skip a declared sensor
-to clear one — report the gap instead.
+not waive your own gaps; report the gap instead of clearing it.
 
 ## Workflow
 
@@ -102,10 +101,7 @@ Return exactly these sections:
    a **verification/sensor gap** (a sensor is missing, weak, or itself wrong → conductor routes back to you, or to
    the conductor when a *declared* sensor must change), or a **failed product-quality gate** (gate name, evidence,
    expected fix direction, sensor or review to rerun → conductor routes to implementation-subagent or back to you
-   depending on the gap). Never weaken, skip, or replace a declared sensor to make verification pass; report the gap
-   instead. You do not call other subagents directly — the conductor owns the loop. End the handback with the
-  structured payload line the conductor feeds **verbatim** to `scripts/log-handback.sh`:
-  `[<role>] <step> <feature_id> <outcome> — <summary>` — role `test-subagent`, step `red_handback` (RED sensor
-  authored/validated) or `green_handback` (GREEN verification and pass flip), the feature id, outcome
-  `pass|fail|blocked`, and a one-line summary. Include token counts only when the runtime actually displayed them —
-  never estimate or invent counts.
+  depending on the gap). Never weaken, skip, or replace a declared sensor to make verification pass; report the gap
+  instead. End the handback with the structured payload line defined in `.copilot/instructions/harness.instructions.md`
+  §3 (Agent-span conventions), fed **verbatim** to `scripts/log-handback.sh`: role `test-subagent`, step
+  `red_handback` (RED sensor authored/validated) or `green_handback` (GREEN verification and pass flip).

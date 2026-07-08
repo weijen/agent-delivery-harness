@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08_
+_Last updated: 2026-07-09_
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08_
 ---
 
 ## Delivered (newest first)
+
+### Skill-modernize (#202): collapse subagent repetition, single-source the handback spec, merge the planning depth table
+- **#202 — the four subagent prompts are deduplicated and the handback payload spec is single-sourced.** The `[<role>] <step> <feature_id> <outcome> — <summary>` payload template + token caveat now live once in `harness.instructions.md` §3 (Agent-span conventions); each agent keeps one line naming its role and valid steps and points there. `test-subagent`'s repeated "never weaken a sensor" statements and the duplicated "do not call other subagents directly" collapse to one authoritative statement each; `code-review-subagent`'s "blocking findings first" restatements are trimmed and both worked examples removed (the output templates already specify the format). `planning-subagent` merges its "Planning Depth" and per-depth "Workflow Step 1" lists into one depth table with a shared web-research subsection (~258→170 lines). New `tests/meta/test_subagent_prompt_dedup.sh` plus the reworked `test_subagent_handback_payload.sh` and `test_planner_web_fallback.sh` sensors guard the single-source spec, the removed repetition/examples, and the depth-table structure (all proven red-first). The finding-pass vs reporting-pass split is preserved. _(PR #TBD)_
 
 ### Skill-modernize (#200): prune stale Taskfile references and duplicated doctrine
 - **#200 — instruction files no longer reference the retired `task preflight` / `task init-issue` / `task finish-issue` Taskfile workflow, and duplicated stop/retry/feedback doctrine is deduped.** `workflow-tiers.instructions.md` replaced the stale "Optional: Issue-driven harness" Taskfile section with a generic note, genericized the init-issue step, and collapsed the repeated stop/retry/feedback rules; `harness.instructions.md` §3 tightened the non-delegable block and hoisted the Red→Green→Refactor bullet. A new `tests/meta/test_instructions_no_stale_repetition.sh` regression sensor guards against the stale phrasing and repetition (proven red-first). _(PR #209)_
