@@ -273,6 +273,21 @@ documented in v1, so on that surface the adapter never emits `model` spans
 and does not read `events.jsonl` at all — an honest gap, stated rather than
 papered over.
 
+## Subagent model pins
+
+A subagent's `.agent.md` frontmatter *may* carry a `model:` key, but this
+repo's subagents deliberately do **not** — they inherit the session model.
+The reason is drift: a pin like `model: Claude Opus 4.7 (copilot)` names a
+specific model generation, and when the Copilot lineup moves on, Copilot's
+resolution of an **unknown pin is not contractually specified** — it either
+silently substitutes a default model or refuses to launch the subagent, and
+in both cases the conductor sees no signal that the requested model was not
+honored. Inheritance never rots, so the harness prefers it. If a subagent
+ever genuinely needs a stronger-than-session model, pin a **current, verified**
+model id and treat that pin as a maintained fact (guarded by
+`tests/meta/test_agent_model_pins.sh` and the sync-docs high-rot list), not a
+set-and-forget default.
+
 ## Privacy note
 
 `harness.args_summary` excerpts of tool arguments land in the trace — for
