@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #177)._
+_Last updated: 2026-07-08 (issue #182)._
 
 ---
 
@@ -102,6 +102,18 @@ _Last updated: 2026-07-08 (issue #177)._
 ---
 
 ## Delivered (newest first)
+
+### Skill-modernize (#176): single-source the subagent routing map
+- **#182 — profile-aware routing map is single-sourced and matches reality.** The
+  ~12–15 line extension→language routing map that was copy-pasted into all four
+  `.copilot/agents/*-subagent.agent.md` is collapsed to a one-line reference to the
+  single source in `.copilot/instructions/harness.instructions.md`. That map now
+  routes the two instruction files the repo actually has and previously omitted:
+  `.sh` → `bash` and `.tf`/`.bicep` → `terraform-azure`. New drift sensor
+  `tests/meta/test_routing_map_drift.sh` fails if any language `*.instructions.md`
+  on disk is unreachable from the map or if the map names a nonexistent file (#173
+  pattern); `tests/meta/test_subagent_profile_instructions.sh` rewritten to assert
+  the single-source structure. Full sensor suite + L0 + shellcheck green.
 
 ## Delivered (newest first)
 
