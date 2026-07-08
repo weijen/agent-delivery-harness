@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-07 (issue #164)._
+_Last updated: 2026-07-08 (issue #165)._
 
 ---
 
@@ -124,7 +124,34 @@ _Last updated: 2026-07-07 (issue #164)._
   `test_trace_export_otlp_transport.sh`, `test_trace_export_docs.sh` (D9).
 
 ### Deep-trace interval attribution
-- **#164 — interval fallback now normalizes camelCase epoch-ms timestamps.**
+- **#165 — sessionId→issue binding + guaranteed interval-window closure.**
+  Hardens the #146/#164 attribution so the VS Code conductor topology (cwd =
+  main checkout on `main`, git resolves nothing) never mis-attributes a
+  tool/skill span when two issue windows overlap. **AC1 — session binding:**
+  `scripts/copilot-trace-hook.sh` now keeps a per-session `sessionId → issue`
+  map, one file per session under
+  `${main_checkout}/.copilot-tracking/sessions/<sessionId>` (content = unpadded
+  issue number). It **writes** the binding whenever git resolves an issue for a
+  session (it then knows both `sessionId` and issue), and on the main-checkout
+  path where git resolves nothing it **reads** the binding first: a hit
+  attributes the span by exact key lookup and skips interval entirely. Effective
+  precedence is **git → binding → interval** — git stays authoritative and always
+  first (CLI-from-worktree unchanged, zero regression), the recorded binding
+  removes the *need* to guess only when git is blind, and a stale binding is
+  refreshed to the git issue on every git-resolve (never overrides an unambiguous
+  git resolution). `sessionId` is sanitized (`^[A-Za-z0-9._-]+$`, rejects `.`/`..`)
+  and the read-back issue validated `^[0-9]+$` — no path traversal. **AC2 —
+  guaranteed closure:** the interval window close is now `LATEST{finish, pr_merge}`
+  (was `finish` only), so because `merge-pr` is the reliable merge gate that
+  always runs, a **merged**-but-unfinished issue is bounded at the merge instead
+  of staying open-ended and leaking later spans. Session-safety (exit 0 +
+  empty stdout) preserved on every path. Sensors:
+  `test_copilot_hook_session_binding.sh` (B1–B5: bound-beats-overlap, binding
+  written on git path, no-binding→interval preserved, garbage binding ignored,
+  git-beats-stale-binding + refresh), `test_copilot_hook_interval_attribution.sh`
+  (new **C8** pr_merge-close edge, C1–C7 unweakened),
+  `test_interval_attribution_docs.sh` (concept 6 binding precedence + concept 7
+  pr_merge close); docs in `docs/runtime-adapters/github-copilot.md`.
   Follow-up to #146. The official GitHub Copilot hooks reference documents two
   payload dialects with **different `timestamp` types**: the real CLI (camelCase,
   e.g. `postToolUse`) sends a JSON **number** of Unix epoch **milliseconds**,
