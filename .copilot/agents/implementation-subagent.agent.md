@@ -39,9 +39,9 @@ from nearby context.
   `.py` edit that means `.copilot/instructions/python.instructions.md` — pathlib preference, typed parsing of external
   responses, no speculative abstractions, etc.). The conductor should hand you the files; if they are missing from your
   context, read them from the repo paths above. If a `<language>.instructions.md` file does not exist yet (only some
-  languages are provisioned), fall back to the **general skill** (`.copilot/skills/general/SKILL.md`) and the harness
-  contract (`.copilot/instructions/harness.instructions.md` plus `.copilot/instructions/tdd.instructions.md`) rather
-  than inventing language conventions.
+  languages are provisioned), fall back to the harness contract
+  (`.copilot/instructions/harness.instructions.md` plus `.copilot/instructions/tdd.instructions.md`) and the
+  AGENTS.md conventions rather than inventing language conventions.
 - Do not create, edit, weaken, or delete tests or verification fixtures.
 - Do not edit `.copilot-tracking/**`, except when the conductor explicitly asks for a production-facing template file
   outside the per-issue working state.

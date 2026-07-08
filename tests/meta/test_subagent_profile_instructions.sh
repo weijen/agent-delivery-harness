@@ -12,7 +12,7 @@
 #     <language>.instructions.md pattern, not Python alone (AC#1, AC#6).
 #   - Mixed-language diffs load every applicable language instruction plus the
 #     core harness and tdd.instructions.md (AC#4).
-#   - A missing <language>.instructions.md falls back to the general skill and the
+#   - A missing <language>.instructions.md falls back to the harness contract and the
 #     harness contract without inventing conventions (AC#5).
 #
 # This sensor RED-fails on Python-only routing prose and GREEN-passes once the
@@ -45,12 +45,13 @@ done
 # Every routing surface (4 agents + harness doctrine) must:
 #   (a) describe the generic per-language routing token (AC#1/#6),
 #   (b) describe the mixed-language "all applicable" rule (AC#4),
-#   (c) describe the missing-file fallback to the general skill (AC#5).
+#   (c) describe the missing-file fallback to the harness contract + AGENTS.md conventions (AC#5).
 for f in "$plan" "$impl" "$test_agent" "$review" "$harness"; do
   [ -f "$f" ] || continue
   grep -qF "$generic" "$f" || note "$f must route via the generic $generic pattern (not Python-only)"
   grep -qi 'mixed-language' "$f" || note "$f must describe the mixed-language all-applicable rule"
-  grep -qi 'general skill' "$f" || note "$f must describe falling back to the general skill when an instruction file is missing"
+  grep -qi 'harness contract' "$f" || note "$f must describe falling back to the harness contract when an instruction file is missing"
+  grep -qi 'AGENTS.md conventions' "$f" || note "$f must name AGENTS.md conventions as the missing-instruction-file fallback"
   grep -Eqi 'fall back|missing|absent|when present' "$f" || note "$f must state the missing-instruction-file fallback condition"
 done
 

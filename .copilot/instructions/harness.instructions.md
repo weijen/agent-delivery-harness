@@ -244,8 +244,8 @@ contract. For example, when the selected feature touches Python (`.py`):
 
 Apply the same `<language>.instructions.md` pattern for `go`, `node`, `java`, and `ruby` surfaces. If a matching
 `<language>.instructions.md` file does not exist yet (only some languages are provisioned — see `profiles/` and
-`scripts/scaffold-language.sh`), fall back to the **general skill** (`.copilot/skills/general/SKILL.md`) and this
-harness contract rather than inventing language conventions.
+`scripts/scaffold-language.sh`), fall back to this harness contract and the AGENTS.md conventions rather than
+inventing language conventions.
 
 When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
 `.copilot/instructions/bash.instructions.md`: include/point to it for the implementation and test work, and name it as

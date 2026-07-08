@@ -1,10 +1,7 @@
 ---
-name: Code Review
+name: code-review
 description: Perform thorough code reviews on files or pull requests, checking for bugs, security vulnerabilities, performance issues, and style violations.
-license: MIT
-metadata:
-  author: awesome-ai-agent-skills contributors
-  version: 1.0.0
+argument-hint: 'files or diff to review, change intent, optional severity focus'
 ---
 
 # Code Review

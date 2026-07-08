@@ -52,8 +52,8 @@ as binding review criteria alongside the acceptance criteria. For example, a Pyt
 `.copilot/instructions/python.instructions.md` or `.copilot/instructions/tdd.instructions.md` (e.g. ignores pathlib,
 parses external responses without typing, weakens or skips a sensor, or abandons RED→GREEN discipline) is a finding.
 You run in a fresh context, so read the applicable files from the repo when they are not already in your prompt. If a
-`<language>.instructions.md` file does not exist yet, fall back to the **general skill**
-(`.copilot/skills/general/SKILL.md`) and the harness contract rather than inventing language conventions to enforce.
+`<language>.instructions.md` file does not exist yet, fall back to the harness contract and the
+AGENTS.md conventions rather than inventing language conventions to enforce.
 
 ## Review Verdicts
 

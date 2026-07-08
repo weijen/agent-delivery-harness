@@ -125,7 +125,7 @@ Sources consulted in this repo and its linked reference:
 - [`github-copilot.hooks.example.json`](github-copilot.hooks.example.json) — the
   install template. Registers `postToolUse`, `postToolUseFailure`, `agentStop`,
   `subagentStop`. **No skill event.**
-- The 10 `.copilot/skills/*/SKILL.md` files — pure instruction files (see §3).
+- The 9 `.copilot/skills/*/SKILL.md` files — pure instruction files (see §3).
   None shells out to a script, so **none emits any deterministic signal** that
   a skill ran.
 
@@ -140,7 +140,7 @@ whether a skill *reaches* the hook is an unmeasured unknown.
 | --- | --- | --- |
 | Mechanism | `hook__on_post_tool_use` detects a skill `toolName` and emits a `skill` span | Each `SKILL.md` instructs the agent to call a future `scripts/log-skill.sh` at start/end |
 | Trust class | **Low** — runtime/agent self-report; the runtime reports the tool call, not a harness script | **Medium** — a deterministic script emits the span, but firing it depends on the agent following the instruction (the **agent-compliance** class, like the Action Log), not hard-deterministic like the lifecycle scripts |
-| Cost | Small (one branch in the hook) | Edit **10** `SKILL.md` files + a new `scripts/log-skill.sh` helper (shaped like `scripts/log-handback.sh`) |
+| Cost | Small (one branch in the hook) | Edit **9** `SKILL.md` files + a new `scripts/log-skill.sh` helper (shaped like `scripts/log-handback.sh`) |
 | Blocking unknown | **Does the skill invocation even fire a tool-call event, and under what literal `toolName`?** RESOLVED by §4: yes, `toolName: "skill"` — but Path A is now gated on two hook fixes §4 found (missing `event` field; `error`-field failure shape) | None mechanically; adds an agent-compliance dependency |
 
 Neither path is as hard-deterministic as the lifecycle scripts (which an agent
@@ -148,7 +148,7 @@ cannot fake). Path A cannot even be scoped until the live capture tells us the
 event fires and what the `toolName` is. Path B works regardless of what Copilot
 emits, at the cost of a compliance dependency.
 
-### Path B — the exact 10 `SKILL.md` files that would change
+### Path B — the exact 9 `SKILL.md` files that would change
 
 If Path B is chosen, every one of these gets the `log-skill.sh` start/end
 convention added (plus the new `scripts/log-skill.sh` helper):
@@ -159,10 +159,9 @@ convention added (plus the new `scripts/log-skill.sh` helper):
 4. `.copilot/skills/find-brute-force/SKILL.md`
 5. `.copilot/skills/find-duplicates/SKILL.md`
 6. `.copilot/skills/find-over-design/SKILL.md`
-7. `.copilot/skills/general/SKILL.md`
-8. `.copilot/skills/public-exposure-audit/SKILL.md`
-9. `.copilot/skills/security-audit/SKILL.md`
-10. `.copilot/skills/sync-docs/SKILL.md`
+7. `.copilot/skills/public-exposure-audit/SKILL.md`
+8. `.copilot/skills/security-audit/SKILL.md`
+9. `.copilot/skills/sync-docs/SKILL.md`
 
 ## 4. Spike-Live capture — DONE (2026-07-06, Copilot CLI v1.0.69)
 
@@ -285,7 +284,7 @@ unmeasured here.
 >   and belong to Features `skill-span-schema` / `skill-surface`.
 > - **Path B (reserve).** The `skill` tool marks **load**, not the skill's
 >   downstream completion. If "did the skill's *work* succeed" is required, add
->   the `SKILL.md` → `scripts/log-skill.sh` convention (the 10 files in §3) as
+>   the `SKILL.md` → `scripts/log-skill.sh` convention (the 9 files in §3) as
 >   a higher-trust, completion-scoped complement. Not needed for the identity
 >   signal; deferred until a completion signal is actually required.
 > - **Not documented-gap.** A real, stable runtime signal exists; omitting it

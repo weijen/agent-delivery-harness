@@ -167,7 +167,7 @@ instruction files the implementation and test subagents must load, selected by e
 `.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a mixed-language phase, name **every**
 applicable language instruction file plus the harness contract and `tdd.instructions.md`. If a matching
 `<language>.instructions.md` file does not exist yet (only some languages are provisioned — see `profiles/`), have the
-plan fall back to the **general skill** (`.copilot/skills/general/SKILL.md`) and the harness contract rather than
+plan fall back to the harness contract and the AGENTS.md conventions rather than
 inventing language conventions.
 
 For complex or non-obvious parts, include code examples showing the approach. For straightforward parts, a description

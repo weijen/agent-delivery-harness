@@ -9,7 +9,7 @@ The harness lifecycle is implemented in Bash under `scripts/`, with regression
 sensors under `tests/scripts/`. These conventions keep those scripts safe,
 portable, and behaviorally testable. They are project-specific — not a general
 Bash tutorial. When project-specific guidance is silent, fall back to the
-`general` skill.
+harness contract and the AGENTS.md conventions.
 
 ## Style & safety
 

@@ -33,8 +33,8 @@ return a blocking reason. Do not invent a weaker sensor to make the feature pass
   part of your contract (for a Python `.py` test that means `.copilot/instructions/python.instructions.md` plus
   `.copilot/instructions/tdd.instructions.md` — RED→GREEN discipline, never weaken a sensor, typed assertions, etc.).
   The conductor should hand you the files; if they are missing from your context, read them from the repo paths above.
-  If a `<language>.instructions.md` file does not exist yet, fall back to the **general skill**
-  (`.copilot/skills/general/SKILL.md`) and the harness contract (plus `tdd.instructions.md`) rather than inventing
+  If a `<language>.instructions.md` file does not exist yet, fall back to the harness contract
+  (plus `tdd.instructions.md`) and the AGENTS.md conventions rather than inventing
   language conventions.
 - Run the feature's `regression_sensor` and, when a runtime boundary exists, its `e2e_sensor`.
 - Do not edit production code, prompts, docs, config, or scripts except for dedicated test or smoke assets.
