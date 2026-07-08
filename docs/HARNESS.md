@@ -298,6 +298,13 @@ optional runtime adapters under `docs/runtime-adapters/` — GitHub Copilot is t
 ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md)) kept as the labeled reference example of the
 pattern; without one installed the trace simply lacks those spans and everything else is unchanged.
 
+A frequent misread is expecting `harness.skill.name` skill spans (proof that a named audit skill fired) to always
+appear in an issue's trace. They exist only under two preconditions — the fixed hook installed on `main` and seeded
+into the worktree, and a *fresh* runtime session that surfaces the skill as a `toolName="skill"` tool span — and they
+**cannot be backfilled** into an already-run session. The exact rules, the `review_verdict`-vs-skill-span distinction,
+and the omit-never-fake honesty answer are documented in
+[runtime-adapters/github-copilot.md §"When a `harness.skill.name` skill span exists (and when it cannot)"](runtime-adapters/github-copilot.md#when-a-harnessskillname-skill-span-exists-and-when-it-cannot).
+
 The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
 progress.md ↔ feature list ↔ review-gate marker honesty) and emits one `review-gate.trace` tool span per run with

@@ -186,6 +186,61 @@ Attribution never guesses. If zero or more than one issue window contains the
 deliberate `no-op` — the adapter will `never mis-attribute` a span and never
 fabricate an issue.
 
+## When a `harness.skill.name` skill span exists (and when it cannot)
+
+A `harness.skill.name` span is the first-class proof that a named skill (for
+example a `code-review` audit skill) actually fired inside an instrumented
+runtime session. It is one of the most-misread parts of the trace, so the
+exact preconditions are pinned here.
+
+A `harness.skill.name` span exists **only when both** hold:
+
+1. **The fixed trace hook is installed on `main` and seeded into the
+   worktree.** This is the git-first + interval-attribution + session-binding
+   outcome of issues #146/#164/#165. Without it a conductor session launched
+   from the main checkout **before** the fix silently drops every runtime
+   `tool`/`skill` span (the exact bug #164 fixed) — the skill may have run,
+   but no span was ever captured.
+2. **A fresh CLI/runtime session runs whose runtime surfaces the skill as a
+   real tool span** — a `postToolUse` event whose `toolName == "skill"` (in
+   OTLP terms `gen_ai.tool.name == "skill"`) and whose args carry the skill
+   name. Only then does `trace-lib.sh` mint the `harness.skill.name` span.
+
+**This behavior is repo-owned empirical evidence, not an official Copilot
+contract.** GitHub's official hooks reference documents
+`postToolUse`/`postToolUseFailure`, `toolName`, `toolArgs`, `sessionId`,
+timestamp dialects, and hook locations for the Copilot CLI and cloud agent —
+but it does **not** list `skill` in the official tool-name table. The
+`toolName="skill"` shape is observed from this repo's #121/#138 live Copilot
+CLI capture; treat it as empirical/preview behavior, not a public API
+guarantee. (The VS Code surface is likewise empirical/preview, not a
+documented hooks surface.)
+
+Consequences that routinely surprise users:
+
+- **Skill spans cannot be backfilled.** There is no way to add a
+  `harness.skill.name` span retroactively into an already-run session — after
+  the fact the observation simply does not exist, and synthesizing one would
+  violate omit-never-fake.
+- **A `review_verdict` agent span is not a skill span.** When a skill is
+  applied during review, the harness records a `review_verdict` **agent** span
+  (via `log-handback.sh`). That proves the review step ran; it is **not** the
+  same as a first-class `harness.skill.name` **skill** span, and its presence
+  does not imply a skill span exists.
+
+Verify what actually landed:
+
+```
+jq -r 'select(.["harness.skill.name"]) | .["harness.skill.name"]' \
+  .copilot-tracking/issues/issue-<N>/trace.jsonl | sort | uniq -c
+./scripts/trace-report.sh <N>
+```
+
+**Omit-never-fake.** If no `harness.skill.name` span is present, report the
+absence honestly as either (a) the skill was **not invoked**, or (b) it was
+invoked but **not surfaced/captured** by the runtime for that session. Never
+fabricate a skill span to paper over the gap.
+
 ## DANGER: never register preToolUse
 
 On Copilot surfaces a hook's exit status is load-bearing: a **non-zero exit

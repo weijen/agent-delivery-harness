@@ -148,4 +148,33 @@ if jq -e 'tostring | test("preToolUse|PreToolUse")' "$TEMPLATE" >/dev/null 2>&1;
   fail "hooks template registers (or mentions) preToolUse/PreToolUse — FORBIDDEN: fail-closed tool-denial risk (D8)"
 fi
 
+# --- D9: skill-span (harness.skill.name) preconditions and limits (issue #168) ----------
+grep -qiE 'harness\.skill\.name' "$DOC" \
+  || fail "guide must document the harness.skill.name skill span (D9)"
+# Two preconditions: (1) fixed hook installed on main + seeded into the worktree
+grep -qiE 'seed|seeded|installed on .?main|on .?main' "$DOC" \
+  || fail "guide must state precondition 1: the fixed trace hook is installed on main and seeded into the worktree (D9)"
+# (2) a new/fresh session whose runtime surfaces skills as toolName="skill" postToolUse
+grep -qiE 'toolName ?= ?.?skill|tool\.name ?== ?.?skill|gen_ai\.tool\.name' "$DOC" \
+  || fail "guide must state precondition 2: a fresh session must surface skills as a toolName=\"skill\" tool span (D9)"
+grep -qiE 'fresh|new (CLI|runtime)? ?session' "$DOC" \
+  || fail "guide must state precondition 2 requires a new/fresh runtime session (D9)"
+# no-backfill limitation
+grep -qiE 'backfill|retroactive|retroactively|after[- ]the[- ]fact' "$DOC" \
+  || fail "guide must state skill spans cannot be backfilled retroactively (D9)"
+# review_verdict agent span vs harness.skill.name skill span distinction
+grep -qiE 'review_verdict' "$DOC" \
+  || fail "guide must distinguish a review_verdict agent span from a harness.skill.name skill span (D9)"
+# verification commands: jq selecting harness.skill.name + trace-report.sh
+grep -qF "select(.[\"harness.skill.name\"])" "$DOC" \
+  || fail "guide must give the jq verification command selecting harness.skill.name (D9)"
+grep -qF 'trace-report.sh' "$DOC" \
+  || fail "guide must give the trace-report.sh verification command (D9)"
+# omit-never-fake honesty rule for absence
+grep -qiE 'not (invoked|surfaced|captured)' "$DOC" \
+  || fail "guide must state absence means not-invoked or not-surfaced, never fabricated (D9)"
+# empirical, not official-contract framing (review note)
+grep -qiE 'empirical|not (an )?official|repo[- ]owned' "$DOC" \
+  || fail "guide must frame toolName=skill as repo-owned empirical evidence (#121/#138), not an official Copilot contract (D9)"
+
 printf 'github-copilot adapter guide contract honored\n'
