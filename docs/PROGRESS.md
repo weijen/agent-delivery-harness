@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #156)._
+_Last updated: 2026-07-08 (health-check report)._
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08 (issue #156)._
 ---
 
 ## Delivered (newest first)
+
+### Land `.copilot/` full health-check report
+- **Point-in-time `.copilot/` review brought into the repo.** `docs/copilot-health-check.md` (rolls up the skills + subagents reviews and adds the first `instructions/`+`prompts/` review — findings C-1..C-4) was previously an untracked working file; it is now tracked so the `Report:` citations in the follow-up issues #199 and #200 resolve to a stable in-repo source.
 
 ### code-review-subagent reads the trace as first-class evidence (Trace / Process Evidence section)
 - **#156 — every code review now includes a required Trace / Process Evidence
