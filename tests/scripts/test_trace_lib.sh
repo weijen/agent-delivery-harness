@@ -302,4 +302,27 @@ validate_span "$reserved_line" \
 grep -q 'trace-lib' "$RESERVED_ERR" \
   || fail "dropping reserved keys must emit a trace-lib warning on stderr (got: $(cat "$RESERVED_ERR"))"
 
+# --- 9. TRACE_LAST_SPAN_ID exposes success and clears on drop ------------------
+TRACE_LAST_SPAN_ID=""
+trace_span tool "gen_ai.tool.name=git" \
+  || fail "trace_span tool for TRACE_LAST_SPAN_ID success returned non-zero"
+[ "$(line_count "$TRACE_FILE")" = "9" ] \
+  || fail "TRACE_LAST_SPAN_ID success probe must append exactly one span (got $(line_count "$TRACE_FILE") lines)"
+last_span_line="$(nth_line "$TRACE_FILE" 9)"
+last_span_id="$(printf '%s\n' "$last_span_line" | jq -r '.span_id')"
+[ -n "$TRACE_LAST_SPAN_ID" ] \
+  || fail "TRACE_LAST_SPAN_ID must be non-empty after a successful trace_span append"
+[ "$TRACE_LAST_SPAN_ID" = "$last_span_id" ] \
+  || fail "TRACE_LAST_SPAN_ID must equal the appended span_id '${last_span_id}', got '${TRACE_LAST_SPAN_ID}'"
+
+trace__span_id() {
+  printf ''
+}
+trace_span tool "gen_ai.tool.name=git" \
+  || fail "trace_span missing-span-id drop returned non-zero"
+[ "$(line_count "$TRACE_FILE")" = "9" ] \
+  || fail "missing-span-id drop must not append a span"
+[ -z "$TRACE_LAST_SPAN_ID" ] \
+  || fail "TRACE_LAST_SPAN_ID must be cleared after a dropped span, got stale id '${TRACE_LAST_SPAN_ID}'"
+
 printf 'trace-lib core emission contract honored\n'

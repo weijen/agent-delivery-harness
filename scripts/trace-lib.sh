@@ -16,7 +16,10 @@
 #     (the SemVer release read from the top-level VERSION file, falling back
 #     to 0.0.0-dev when absent), an optional harness.commit (short HEAD SHA of
 #     the harness scripts, omitted when it cannot be determined), and a unique
-#     span_id.
+#     span_id. On a successful append it also sets the global
+#     TRACE_LAST_SPAN_ID to the span_id it wrote (cleared to "" on every drop
+#     path) so a caller can parent a following span to it without re-parsing
+#     the trace file (issue #174 in-process parent linkage).
 #   trace_redact
 #     stdin→stdout filter masking secret shapes; every serialized line
 #     passes through it immediately before append (no caller can bypass it).
@@ -187,6 +190,7 @@ trace__resolve_issue() {
 # warn-and-return-0; malformed input is rejected without writing.
 trace_span() {
   local span_type="${1:-}"
+  TRACE_LAST_SPAN_ID=""
   if [ -z "$span_type" ]; then
     trace_warn "trace_span: missing span type — span dropped"
     return 0
@@ -378,5 +382,7 @@ trace_span() {
     trace_warn "trace_span: cannot append to ${trace_dir}/trace.jsonl — span dropped"
     return 0
   }
+  # shellcheck disable=SC2034  # exposed to callers after a successful append
+  TRACE_LAST_SPAN_ID="$span_id"
   return 0
 }

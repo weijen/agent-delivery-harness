@@ -292,6 +292,19 @@ assert_agent_span() {
     || fail "${label}: expected agent span with gen_ai.operation.name=invoke_agent and gen_ai.agent.name=${name} (S1 runtime marker naming): ${line}"
 }
 
+assert_model_parent_link() {
+  local label="$1" agent_line="$2" model_line="$3"
+  local agent_span_id model_parent_span_id
+  agent_span_id="$(printf '%s\n' "$agent_line" | jq -r '.span_id // ""')"
+  model_parent_span_id="$(printf '%s\n' "$model_line" | jq -r '.parent_span_id // ""')"
+  [ -n "$agent_span_id" ] \
+    || fail "${label}: agent span_id must be non-empty before asserting model parent_span_id link: ${agent_line}"
+  [ -n "$model_parent_span_id" ] \
+    || fail "${label}: model span must carry parent_span_id equal to the same stop event's agent span_id (${agent_span_id}); parent_span_id is absent/empty: ${model_line}"
+  [ "$model_parent_span_id" = "$agent_span_id" ] \
+    || fail "${label}: model parent_span_id (${model_parent_span_id}) must equal the same stop event's agent span_id (${agent_span_id})"
+}
+
 # =============================================================================
 # Case 1 — camel agentStop with a complete events.jsonl: agent span THEN one
 # model span from the LATEST metrics event (RED gate: the current hook stubs
@@ -314,6 +327,7 @@ printf '%s\n' "$span1m" | jq -e '
     and ((.["gen_ai.usage.output_tokens"] | type) == "number")
   ' >/dev/null \
   || fail "case1: model span must carry gen_ai.request.model=fixture-model-a and the LATEST metrics event's token counts as JSON NUMBERS (input 111 / output 22, not the earlier 100/20 — plan: latest metrics event wins) (S2): ${span1m}"
+assert_model_parent_link "case1" "$span1a" "$span1m"
 
 # =============================================================================
 # Case 2 — camel subagentStop, no session-state dir for its sessionId:

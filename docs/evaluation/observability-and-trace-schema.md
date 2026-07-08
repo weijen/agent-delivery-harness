@@ -231,6 +231,46 @@ mandatory common fields, including `schema_version` and `harness.version`:
 {"schema_version":1,"timestamp":"2026-07-04T12:07:00Z","span":"model","harness.issue":21,"harness.version":"<git-sha>","gen_ai.request.model":"<model>","gen_ai.usage.input_tokens":18000,"gen_ai.usage.output_tokens":4000}
 ```
 
+## Span Linkage And Trace Identity
+
+`parent_span_id` (defined in [trace-schema.v1.json](trace-schema.v1.json),
+"enabling span-tree linkage per cost-efficiency-evals.md") turns a flat span
+list into a tree. The harness sets it **only where the parent is deterministic
+at emission time** and otherwise omits it — omit, never fake. A flat span with
+no `parent_span_id` is always legal.
+
+- **Model span → agent span (linked).** The runtime stop hooks
+  (`claude-code-trace-hook.sh`, `copilot-trace-hook.sh`) emit an `agent` span
+  and then a `model` span in the same Stop/agentStop event. The model span
+  carries `parent_span_id` = that agent span's `span_id`. This is the one
+  deterministic in-process link available, so it is always set (unless the
+  agent span was dropped, in which case the model span stays flat). `trace_span`
+  exposes the id it just wrote via the `TRACE_LAST_SPAN_ID` global so the caller
+  can reference it without re-parsing the trace file.
+- **Tool spans (omitted).** Tool spans are emitted at tool-call time
+  (PreToolUse/PostToolUse), which is *before* the Stop-time agent span for the
+  same session exists. There is no deterministic in-window parent to point at,
+  so tool spans omit `parent_span_id`. Fabricating a session-root agent span to
+  parent them to would be inventing a parent that never ran, which the
+  omit-never-fake rule forbids.
+- **Reconstructed spans (omitted).** `trace-reconstruct.sh` rebuilds tool spans
+  from a transcript by time-window intersection; it emits no agent span of its
+  own and has no deterministic parent within the reconstructed window, so it
+  omits `parent_span_id`. Absence here is the intended, deterministic default,
+  not a gap.
+
+**Trace identity: no per-run `trace_id` in the schema.** Schema v1 deliberately
+has **no** `trace_id` field, and this issue's decision is to keep it that way —
+a per-run `trace_id` is **rejected**, not added. Within the harness a "trace" is
+already scoped by `harness.issue` (every span carries it) and shaped by
+`span_id`/`parent_span_id`; a redundant top-level `trace_id` would have to be
+threaded through every emitter and kept from drifting for no analytical gain.
+The single place a `trace_id` exists is at OTLP export: `trace-export.sh`
+fabricates a deterministic `traceId` from `harness.issue` at export time only
+(see [runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md)).
+That export-time fabrication rule stays consistent with rejecting an in-trace
+`trace_id`: the correlation id is derived, never stored on the raw spans.
+
 ## Public Trace Examples
 
 There is no public dataset for this exact trace schema yet. Use public agent
