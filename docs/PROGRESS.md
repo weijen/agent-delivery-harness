@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #181)._
+_Last updated: 2026-07-08 (issue #180)._
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-08 (issue #181)._
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 107 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 108 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Red-first evidence is enforced, not just counted (#144):** the PR path
@@ -104,6 +104,9 @@ _Last updated: 2026-07-08 (issue #181)._
 ## Delivered (newest first)
 
 ## Delivered (newest first)
+
+### Skill-prompt modernization — strip anti-derailment scaffolding
+- **#180 — old-model recovery scaffolding and command recipes were removed from audit skills.** `dead-code-detection` drops its tool-retry/path-hallucination/YAML-parser step while retaining reproducible command capture and public-API Defer-protect; `sync-docs` removes generic inventory recipes and false-positive warnings while preserving tiers, live-probe rules, high-rot claims, fix guidance, reporting, and completion criteria. The three `find-*` audit skills keep Common Search Seed categories as prose but no longer carry literal regex alternation recipe lines, and `find-over-design` no longer duplicates its pattern table. New sensor `tests/meta/test_no_antiderailment_scaffolding.sh` guards the cleanup.
 
 ### create-pr codifies repo PR conventions
 - **#181 — the `create-pr` skill now encodes this repo's issue-driven harness

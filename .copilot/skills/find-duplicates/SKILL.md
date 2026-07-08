@@ -39,7 +39,7 @@ Similarity is not automatically a problem. Duplication becomes actionable when c
 2. Build an inventory.
    - List files by language and role: production source, tests, scripts, infrastructure, examples, generated files, and docs with embedded code.
    - Identify project-native tooling that can help: clone detectors, linters, AST tools, coverage reports, type checkers, test frameworks, and existing task wrappers.
-   - Search for explicit sync markers such as `mirrors`, `same as`, `keep in sync`, `copied from`, `based on`, `duplicate`, `TODO dedupe`, and `shared with`.
+   - Search for explicit sync markers such as `keep in sync`, `copied from`, `duplicate`, `TODO dedupe`, and `shared with`.
 
 3. Detect exact duplicates.
    - Look for identical functions, classes, methods, helpers, shell blocks, SQL queries, config blocks, fixtures, mock setup, and multi-line snippets.
@@ -112,15 +112,15 @@ Similarity is not automatically a problem. Duplication becomes actionable when c
 
 ## Common Search Seeds
 
-Adapt these to the project language and scope:
+Adapt these categories to the project language and scope:
 
-- Sync markers: `mirrors|same as|keep in sync|copied from|based on|duplicate|dedupe|shared with|see also`
-- Repeated helpers: `def _make_|def _build_|def _create_|function make|function build|class Fake|class Mock`
-- Test setup: `mocker\.patch|monkeypatch|pytest\.fixture|@pytest\.mark\.parametrize|jest\.fn|sinon\.stub|beforeEach`
-- Embedded code: `<< ?['\"]?EOF|python - <<|python3 - <<|node - <<|cat <<|script: \|`
-- Repeated workflows: distinctive operational verbs such as `backup`, `restore`, `patch`, `restart`, `deploy`, `poll`, `retry`, `verify`, `normalize`, `hydrate`, `serialize`, and `migrate`.
-- Function names: search for the same private helper or public function name across modules, then compare bodies and call sites.
-- Imports: files with the same unusual set of imports often implement related or duplicated behavior; compare their main workflow.
+- Sync markers that say code mirrors, copies, duplicates, or must stay in step with another location.
+- Repeated helpers, factories, fake/mock classes, fixtures, and test setup blocks.
+- Embedded code in heredocs, workflow scripts, notebooks, container files, or docs snippets.
+- Repeated operational workflows such as backup/restore, deploy, poll/retry, verify, normalize, serialize, or migrate.
+- Reused function/helper names across modules; compare bodies and call sites.
+- Unusual shared import sets that suggest sibling files implement related behavior.
+
 
 ## Legitimate Duplication To Accept
 

@@ -38,7 +38,7 @@ Use this skill when the user asks to:
    - For each hit, read enough surrounding code to classify intent and impact.
 
 3. Scan marker comments.
-   - Search for `HACK`, `FIXME`, `XXX`, `TODO` with risk wording, `WORKAROUND`, `TEMP`, `temporary`, `kludge`, `brute force`, `force fix`, `quick fix`, `band-aid`, `monkey patch`, `ugly`, `for now`, and `remove later`.
+   - Search for marker comments such as `HACK`, `FIXME`, `WORKAROUND`, `temporary`, `quick fix`, and `remove later`.
    - Do not report harmless documentation, test assertion strings, changelog text, generated code comments, or normal standard-library names such as temporary-file APIs.
 
 4. Scan swallowed errors and hidden failures.
@@ -47,7 +47,7 @@ Use this skill when the user asks to:
    - Accept intentional graceful degradation only when there is fallback behavior, useful logging, bounded scope, and a clear reason.
 
 5. Scan hardcoded and environment-specific values.
-   - Look for credentials, tokens, API keys, secrets, passwords, connection strings, private keys, hardcoded IPs, hostnames, tenant IDs, subscription IDs, account names, cloud resource names, ports, user-specific paths, absolute machine paths, region names, and opaque generated suffixes.
+   - Look for secrets, connection strings, cloud/account identifiers, hardcoded hosts or ports, absolute machine paths, and opaque generated suffixes.
    - Distinguish named constants, documented defaults, test fixtures, examples, and local development templates from values embedded in production logic.
    - Flag overridable defaults when the default itself contains an environment-specific identifier that will be wrong in another workspace, tenant, region, account, or deployment.
 
@@ -56,9 +56,8 @@ Use this skill when the user asks to:
    - Treat bounded health checks, startup probes, integration-test waits, rate-limit handling, and documented eventual-consistency polling as acceptable when they have timeout, backoff, and useful diagnostics.
 
 7. Scan security shortcuts and destructive bypasses.
-   - Look for TLS verification disabled, authentication or authorization bypasses, permissive CORS, broad firewall rules, insecure cookie/session settings, unsafe deserialization, dynamic code execution, shell injection risk, overly permissive file modes, and destructive flags without confirmation.
-   - Examples include `verify=False`, `--no-verify`, `NODE_TLS_REJECT_UNAUTHORIZED=0`, `rejectUnauthorized: false`, `curl -k`, `chmod 777`, `eval`, `exec`, `shell=True`, `pickle.loads` on untrusted input, `allow_origins=["*"]`, `--force`, and recursive deletes.
-   - Evaluate context carefully: test fixtures and isolated local tooling are lower risk than production code, infrastructure, auth, deployment, or CI paths.
+   - Look for disabled TLS verification, auth bypasses, permissive CORS/firewall rules, unsafe deserialization, dynamic execution, shell injection risk, overly broad file modes, and destructive flags without confirmation.
+   - Evaluate whether shortcuts are isolated test fixtures or reachable from production, infrastructure, auth, deployment, or CI paths.
 
 8. Scan copy-paste and rushed-change artifacts.
    - Look for large commented-out code blocks, duplicate imports, unused variables introduced by refactors, debug prints/logs, console statements, breakpoint statements, debugger hooks, unreachable code after terminators, duplicated conditions, stale comments that contradict code, and repeated blocks with small manual edits.
@@ -99,15 +98,15 @@ Use this skill when the user asks to:
 
 ## Common Search Seeds
 
-Adapt these to the project language and scope:
+Adapt these categories to the project language and scope:
 
-- Marker comments: `HACK|FIXME|XXX|WORKAROUND|TEMP|temporary|kludge|brute.?force|force.?fix|quick.?fix|band.?aid|monkey.?patch|remove later|for now`
-- Swallowed errors: `except:|except Exception|catch \(|catch\s*\([^)]*\)\s*\{\s*\}|\.catch\(\s*\(.*\)\s*=>\s*\{?\s*\}?\s*\)|pass\s*$|\|\| true|2>/dev/null|continue-on-error|set \+e`
-- Hardcoded sensitive values: `password\s*=|passwd\s*=|api[_-]?key\s*=|secret\s*=|token\s*=|connection[_-]?string\s*=|BEGIN .*PRIVATE KEY`
-- Environment-specific values: IPv4 addresses, absolute paths, cloud account IDs, resource names with generated suffixes, tenant/subscription/project identifiers, and non-local hostnames.
-- Timing hacks: `sleep\(|time\.sleep|Thread\.sleep|setTimeout|setInterval|while True|for \(;;\)|retry|backoff|poll`
-- Security shortcuts: `verify=False|--no-verify|rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0|curl .* -k|chmod 777|chmod 666|shell=True|eval\(|exec\(|allow_origins\s*=\s*\[\s*["']\*["']`
-- Debug leftovers: `print\(|console\.log|debugger;|breakpoint\(|pdb\.set_trace|TODO.*remove|commented out`
+- Marker comments that signal hacks, workarounds, temporary fixes, or debt to remove later.
+- Swallowed errors: broad catch/except handlers, empty handlers, suppressed shell failures, ignored CI failures, and missing logging.
+- Hardcoded sensitive or environment-specific values: secrets, connection strings, machine paths, cloud identifiers, ports, and hostnames.
+- Timing hacks: fixed sleeps, polling, retries, race-condition comments, and unbounded waits.
+- Security shortcuts: disabled verification, auth bypasses, permissive access, dynamic execution, unsafe deserialization, and destructive flags.
+- Debug or rushed-change leftovers: prints/logs, debugger hooks, commented-out blocks, duplicated conditions, unused imports, and stale comments.
+
 
 ## Completion Criteria
 
