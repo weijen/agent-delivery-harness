@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #174)._
+_Last updated: 2026-07-08 (issue #175)._
 
 ---
 
@@ -102,6 +102,33 @@ _Last updated: 2026-07-08 (issue #174)._
 ---
 
 ## Delivered (newest first)
+
+### Trace runtime-state hygiene: GC orphaned .hook-state + session bindings; idempotent reconstruct
+- **#175 — teardown now sweeps orphaned runtime state, and re-running the
+  transcript reconstruction no longer double-counts tool calls.**
+  `scripts/finish-issue.sh` gains a warn-only `best_effort_state_hygiene()` step
+  (runs after the closeout reconstruct) that removes the finished issue's
+  `.copilot-tracking/issues/issue-NN/.hook-state/` dir (orphaned PreToolUse
+  duration state left when a matching PostToolUse never arrived) and expires
+  session bindings under `.copilot-tracking/sessions/` whose content equals the
+  finished issue number (deterministic issue-scoped policy — bindings for other
+  issues are left intact). Hygiene failures never change finish-issue's exit code
+  or block teardown. `scripts/trace-reconstruct.sh` is now **idempotent**: each
+  reconstructed tool span carries `harness.tool_call_id` (the transcript's
+  `data.toolCallId`), and a second run skips any `(harness.session_id,
+  harness.tool_call_id)` already present in the issue trace, appending zero new
+  spans (within-run duplicates collapse too). A pair with no usable toolCallId is
+  skipped with a WARN, never dedup-by-guess (omit-never-fake). The window filter
+  excludes already-reconstructed tool spans so reruns can't drift the window.
+  `docs/evaluation/trace-schema.v1.json` documents `harness.tool_call_id`
+  additively in `.optional_fields` (open-world; not required, dropped from OTLP
+  export); the reconstruct header and `observability-and-trace-schema.md` document
+  the idempotency contract. Sensors: NEW
+  `tests/scripts/test_finish_issue_state_hygiene.sh` proves the issue-scoped sweep
+  (orphaned state + same-issue binding removed, other-issue binding survives,
+  finish still exits 0); `tests/scripts/test_trace_reconstruct.sh` case 6 runs the
+  reconstruction twice and asserts span-count stability + a non-empty
+  `harness.tool_call_id` on every reconstructed span.
 
 ### Deep-trace: parent_span_id linking for runtime model spans (trace tree, not flat list)
 - **#174 — the Stop-event model span is now parent-linked to its agent span, and

@@ -20,8 +20,15 @@
 #                        (whole-second gap * 1000; omitted if not computable)
 #   harness.outcome      pass when data.success is true, else fail
 #   harness.session_id   the transcript filename's session id
+#   harness.tool_call_id the transcript data.toolCallId, used with session id as
+#                        a deterministic identity so a second reconstruction run
+#                        emits no duplicate spans
 # Raw tool arguments are NEVER re-emitted (no leakage; trace-lib redaction is
 # the backstop). Unpaired starts/completes and out-of-window pairs emit nothing.
+# Paired events with an empty or absent data.toolCallId are skipped with a WARN:
+# omit, never fake or guess a dedup identity. Prior reconstructed tool spans are
+# ignored when computing the issue time window, so reruns cannot expand the
+# window with their own append timestamps.
 #
 # Emission reuses scripts/trace-lib.sh so the mandatory common fields
 # (schema_version, timestamp, harness.issue/version/commit), reserved-key
@@ -44,7 +51,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/issue-lib.sh
+# shellcheck source=scripts/issue-lib.sh disable=SC1091
 source "${SCRIPT_DIR}/issue-lib.sh"
 
 # trace_span is the span-emission primitive: reuse the library so redaction,
@@ -52,7 +59,7 @@ source "${SCRIPT_DIR}/issue-lib.sh"
 # missing trace-lib degrades to a warning + exit 0 (nothing to reconstruct
 # into) rather than a hard failure.
 if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
+  # shellcheck source=scripts/trace-lib.sh disable=SC1091
   source "${SCRIPT_DIR}/trace-lib.sh"
 fi
 
@@ -139,7 +146,10 @@ unset TRACE_PARENT_SPAN_ID
 # BEFORE appending anything. jq string min/max is codepoint-wise, which orders
 # ISO-8601 UTC timestamps correctly. No timestamps → nothing to window.
 WINDOW="$(jq -s -r '
-  [ .[].timestamp | select(. != null) ]
+  [ .[]
+    | select((.span != "tool") or ((.["harness.tool_call_id"] // "") == ""))
+    | .timestamp
+    | select(. != null) ]
   | if length == 0 then empty else [min, max] | @tsv end
 ' "$TRACE_FILE" 2>/dev/null || true)"
 if [ -z "$WINDOW" ]; then
@@ -210,23 +220,41 @@ compute_duration_ms() {
   printf '%s' "$diff"
 }
 
+# Existing reconstructed identities already present in the trace. Keep this as a
+# newline-delimited string set for macOS bash 3.2 portability (no associative
+# arrays).
+SEEN_IDENTITY=$'\n'
+if [ -f "$TRACE_FILE" ]; then
+  while IFS=$'\t' read -r seen_sid seen_tcid; do
+    [ -n "$seen_tcid" ] || continue
+    seen_key="${seen_sid}"$'\t'"${seen_tcid}"
+    SEEN_IDENTITY="${SEEN_IDENTITY}${seen_key}"$'\n'
+  done < <(jq -r '
+    select(.span == "tool" and (.["harness.tool_call_id"] // "") != "")
+    | [.["harness.session_id"] // "", .["harness.tool_call_id"]]
+    | @tsv
+  ' "$TRACE_FILE" 2>/dev/null || true)
+fi
+
 # --- Reconstruct --------------------------------------------------------------
 for f in "${TFILES[@]}"; do
   sid="$(basename "$f")"
   sid="${sid%.jsonl}"
 
   # Pair start/complete by toolCallId and keep only in-window pairs. Emits one
-  # TSV row per emit-worthy pair: toolName<TAB>startTs<TAB>completeTs<TAB>success.
+  # TSV row per emit-worthy pair:
+  # toolCallId<TAB>toolName<TAB>startTs<TAB>completeTs<TAB>success.
   pairs="$(jq -s -r --arg wmin "$WMIN" --arg wmax "$WMAX" '
-    (reduce (.[] | select(.type == "tool.execution_start" and .data.toolCallId != null)) as $s
-        ({}; .[$s.data.toolCallId] = $s)) as $starts
-    | (reduce (.[] | select(.type == "tool.execution_complete" and .data.toolCallId != null)) as $c
-        ({}; .[$c.data.toolCallId] = $c)) as $completes
+    (reduce (.[] | select(.type == "tool.execution_start")) as $s
+        ({}; .[($s.data.toolCallId // "")] = $s)) as $starts
+    | (reduce (.[] | select(.type == "tool.execution_complete")) as $c
+        ({}; .[($c.data.toolCallId // "")] = $c)) as $completes
     | ($starts | keys_unsorted[]) as $id
     | $starts[$id] as $s
     | select($completes[$id] != null)
     | select(($s.timestamp >= $wmin) and ($s.timestamp <= $wmax))
-    | [ ($s.data.toolName // ""),
+    | [ $id,
+        ($s.data.toolName // ""),
         $s.timestamp,
         $completes[$id].timestamp,
         ($completes[$id].data.success | tostring) ]
@@ -235,7 +263,15 @@ for f in "${TFILES[@]}"; do
 
   [ -n "$pairs" ] || continue
 
-  while IFS=$'\t' read -r tool_name start_ts complete_ts success; do
+  while IFS=$'\t' read -r tcid tool_name start_ts complete_ts success; do
+    if [ -z "$tcid" ]; then
+      warn "skipping transcript tool pair without data.toolCallId (session ${sid})"
+      continue
+    fi
+    identity_key="${sid}"$'\t'"${tcid}"
+    if [[ "$SEEN_IDENTITY" == *$'\n'"$identity_key"$'\n'* ]]; then
+      continue
+    fi
     [ -n "$tool_name" ] || continue
 
     outcome="fail"
@@ -245,9 +281,14 @@ for f in "${TFILES[@]}"; do
     if dur_ms="$(compute_duration_ms "$start_ts" "$complete_ts")"; then
       span_args+=( "harness.duration_ms=${dur_ms}" )
     fi
-    span_args+=( "harness.outcome=${outcome}" "harness.session_id=${sid}" )
+    span_args+=(
+      "harness.outcome=${outcome}"
+      "harness.session_id=${sid}"
+      "harness.tool_call_id=${tcid}"
+    )
 
     trace_span tool "${span_args[@]}"
+    SEEN_IDENTITY="${SEEN_IDENTITY}${identity_key}"$'\n'
     unset span_args
   done <<<"$pairs"
 done

@@ -32,6 +32,9 @@
 #      is required to compute duration/outcome.
 #   5. validates — after reconstruction the whole issue trace still passes
 #      scripts/validate-trace.sh (the appended spans are schema-v1 conformant).
+#   6. reconstruct_idempotent — a second reconstruction over the identical
+#      transcript/window emits ZERO additional tool spans; deterministic
+#      duplicate detection is anchored by non-empty harness.tool_call_id.
 #
 # Hermetic: every case builds a throwaway git main-root (git init on a
 # feature/issue-42-* branch — no commit, so no signing prompt) with the scripts
@@ -218,6 +221,21 @@ vrc=0
 if grep -q 'VIOLATION' "$OUT" "$ERR"; then
   fail "case validates: reconstructed trace produced VIOLATION findings — appended spans are not schema-v1 conformant"
 fi
+
+# Case 6 — reconstruct_idempotent: running the reconstructor a second time over
+# the exact same transcript/window must append ZERO duplicate tool spans.
+rc1b="$(run_recon "$FIX1" "$TDIR1")"
+[ "$rc1b" = "0" ] \
+  || fail "case reconstruct_idempotent: expected second reconstruction exit 0, got ${rc1b} (stderr: $(tr '\n' '|' < "$ERR"))"
+n1_after_second="$(tool_span_count "$TRACE1")"
+[ "$n1_after_second" -eq "$n1" ] \
+  || fail "case reconstruct_idempotent: duplicate reconstructed tool spans appended on second run; expected tool span count to remain ${n1}, got ${n1_after_second}"
+jq -s -e '
+  all(.[] | select(.span == "tool");
+    ((.["harness.tool_call_id"] // "") | type == "string")
+    and ((.["harness.tool_call_id"] // "") | length > 0))
+' "$TRACE1" >/dev/null 2>&1 \
+  || fail "case reconstruct_idempotent: every reconstructed tool span must carry non-empty harness.tool_call_id for deterministic deduplication"
 
 # =============================================================================
 # Case 3 — absent_transcripts_noop: an empty/nonexistent transcripts dir is a
