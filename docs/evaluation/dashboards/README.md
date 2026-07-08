@@ -65,3 +65,21 @@ are deployed by this pack (out of scope for #113).
 
 Alert thresholds and action groups belong to a future issue; they are named here
 so the observability intent is recorded alongside the charts.
+
+## Agent Delivery Accuracy Matrix — panel mapping
+
+The dashboard pack is a trace workbook, not a complete correctness oracle. It maps existing panels to the layered `agent-delivery-accuracy-matrix` model while leaving direct correctness labels to review, GitHub, and future additive contracts.
+
+| Workbook panel | Matrix layer | Matrix metrics represented | Caveat |
+| --- | --- | --- | --- |
+| Outcome / pass rate | proxy | `main_workflow_pass_rate` | Uses `finished` / `final_outcome` from the finish window; a pass is workflow evidence, not a direct accuracy label or PR merged label. |
+| red_reentry_free_rate | degradation | `red_reentry_free_rate` | Detects no red-after-green re-entry; it is not `first_pass_feature_green_rate`. |
+| Deviation rate | degradation | `deviation_rate` | Measured zero is real only when `deviations` is present. |
+| Tool-call volume | degradation / efficiency | `tool_failure_rate`, `tool_calls_per_accepted_issue` | Tool coverage must be segmented with `tool_coverage`; lifecycle-only runs are not zero-call successes. |
+| Skill-invocation volume | degradation / efficiency | supporting evidence for `role_boundary_violation_rate` and `useful_action_ratio` | Load-scoped skill counts are diagnostic; v1 has no skill-completion or per-feature useful-action attribution. |
+| Wall-clock per lifecycle_step | efficiency | `wall_clock_per_accepted_issue` | Stage duration and whole-run wall clock are different clocks and must not be blended. |
+| Token / cost | efficiency | `tokens_per_accepted_issue` | Coverage-dependent and partly deferred: adapter token spans are charted when present; Copilot-side token/cost capture remains tracked in #163. |
+| Failure-mode view | degradation | supporting evidence for `loop_rate_by_type`, `thrash_rate`, `trace_completeness_rate`, and `role_boundary_violation_rate` | Diagnostic unless tied to a mature blocking metric and explicit denominator. |
+| Deferred metrics | direct / efficiency | `post_merge_bug_rate`, `review_blocking_finding_rate`, `useful_action_ratio` | Not charted from v1 trace fields; absence is unavailable/deferred, never fabricated. |
+
+Direct-layer matrix metrics that are not charted here are `spec_compliance_pass_rate`, `human_approval_first_pass_rate`, `post_merge_bug_rate`, and `review_blocking_finding_rate`. They require review verdicts, GitHub review events, or post-merge defect attribution rather than the current workbook fields. Proxy metrics not charted as first-class panels are `feature_pass_rate`, `first_pass_feature_green_rate`, `sensor_adequacy_pass_rate`, and `red_first_evidence_rate`; the current workbook only provides related trace evidence.

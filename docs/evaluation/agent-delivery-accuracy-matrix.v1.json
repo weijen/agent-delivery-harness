@@ -1,0 +1,248 @@
+{
+  "matrix_schema_version": 1,
+  "description": "Machine-readable Agent Delivery Accuracy Matrix v1 contract for the agent-delivery-harness (issue #158). Companion authority for agent-delivery-accuracy-matrix.md: it defines the layered metric inventory, explicit denominators, absence semantics, blocking posture, and anti-Goodhart guardrails used to evaluate whether agent delivery is correct before it is efficient.",
+  "notes": {
+    "anti_goodhart": "The matrix is quality-gated: lower cost, shorter time, fewer tool calls, or higher merge rate can never offset correctness, review, security, trace, or lifecycle regressions. Metrics must carry explicit denominators and anti-gaming guards so agents cannot improve a number by skipping sensors, suppressing traces, narrowing coverage, or avoiding review.",
+    "absence_semantics": "null means no data; 0 means measured zero; [] means the detector/collector ran and found nothing. Missing fields are not coerced to zero. Rates carry explicit denominators, and coverage fields say whether a denominator is complete enough to compare across runs.",
+    "accuracy_vs_merge": "Merged means delivery COMPLETED, not delivery CORRECT. Accuracy labels come from acceptance criteria, review verdicts, regression/e2e sensors, post-merge defects, and trace evidence; GitHub merge state is only a delivery boundary and must not be used as a correctness label by itself.",
+    "deferred_metrics": "Deferred metrics are labeled honestly and never fabricated. Review-blocking findings per issue and per-feature tool-call attribution need additive trace-summary v1.x fields before they can be computed from trace summaries. Copilot-side token and cost capture is tracked separately in #163. Post-merge bug attribution requires a maintained post-merge issue/incident label source.",
+    "open_world": "Additive top-level keys and metric fields are allowed in later v1.x revisions; existing keys and semantics are frozen. Consumers reject unknown major versions of matrix_schema_version. New metrics must preserve explicit denominators, absence semantics, blocking policy, and Goodhart guards.",
+    "attribution_window": "trace-summary.v1 distinguishes finish from pr_merge: finished/final_outcome are finish-only, while bounded/closed_by may later identify pr_merge as a terminal close edge (#165). Accuracy metrics that judge agent work use the finish window unless they explicitly name a GitHub PR or post-merge source; merge/completion metrics use the PR merge window and are not correctness labels."
+  },
+  "layers": [
+    "direct_label",
+    "proxy_label",
+    "degradation_signal",
+    "efficiency_after_quality"
+  ],
+  "required_top_level": [
+    "matrix_schema_version",
+    "description",
+    "notes",
+    "layers",
+    "required_top_level",
+    "metrics"
+  ],
+  "metrics": [
+    {
+      "id": "spec_compliance_pass_rate",
+      "layer": "direct_label",
+      "numerator": "Issues whose final review verdict records spec compliance as pass against the issue acceptance criteria.",
+      "denominator": "Issues with a completed final review verdict in the evaluation window.",
+      "source": "review-verdict plus GitHub issue acceptance criteria",
+      "coverage_required": "A final review verdict must exist for every evaluated issue.",
+      "absence_semantics": "Missing review verdict is null/no label, not a failed or passed spec label; report coverage separately.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be raised by merging without review or by narrowing the issue acceptance criteria after implementation."
+    },
+    {
+      "id": "human_approval_first_pass_rate",
+      "layer": "direct_label",
+      "numerator": "Pull requests approved by a human reviewer without a prior requested-changes or blocking-comment round.",
+      "denominator": "Pull requests that received at least one human review decision before merge or closure.",
+      "source": "github-pr review events",
+      "coverage_required": "Human PR review data must be available for each included pull request.",
+      "absence_semantics": "No human review means null/no approval label; it is not treated as first-pass approval.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be improved by bypassing human review or merging through automation without a recorded review."
+    },
+    {
+      "id": "post_merge_bug_rate",
+      "layer": "direct_label",
+      "numerator": "Merged issues later linked to a confirmed post-merge bug, regression, revert, or incident attributable to that delivery.",
+      "denominator": "Merged issues whose post-merge observation window has elapsed.",
+      "source": "post-merge-issue labels, linked incidents, or revert records",
+      "coverage_required": "Requires a maintained post-merge defect attribution source and a closed observation window.",
+      "absence_semantics": "Missing post-merge triage data is null/no observation, not a measured zero defects.",
+      "blocking_policy": "deferred",
+      "goodhart_guard": "Cannot be improved by shortening the observation window or failing to link regressions back to merged work."
+    },
+    {
+      "id": "review_blocking_finding_rate",
+      "layer": "direct_label",
+      "numerator": "Review findings marked blocking, major, or must-fix for an issue.",
+      "denominator": "Reviewed issues with a structured final review verdict.",
+      "source": "review-verdict (deferred: trace-summary v1 has no per-verdict finding field)",
+      "coverage_required": "Requires structured review finding counts in a review verdict or additive trace-summary v1.x field.",
+      "absence_semantics": "Missing finding counts are null/no data; they are not zero blocking findings.",
+      "blocking_policy": "deferred",
+      "goodhart_guard": "Cannot be reduced by omitting review output, downgrading severities without rationale, or hiding review findings outside the structured verdict."
+    },
+    {
+      "id": "feature_pass_rate",
+      "layer": "proxy_label",
+      "numerator": "Feature-list items that reached a verified green handback or equivalent passing feature sensor result.",
+      "denominator": "Feature-list items selected and attempted in the evaluated issues.",
+      "source": "feature_list plus trace-summary final_outcome and lifecycle handback spans",
+      "coverage_required": "Every evaluated issue must expose its feature inventory and final feature verification status.",
+      "absence_semantics": "Missing feature status is null/uncovered; do not count it as failed or passed without a sensor result.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be raised by deleting features, merging unverified features, or counting implementation handbacks as verification."
+    },
+    {
+      "id": "first_pass_feature_green_rate",
+      "layer": "proxy_label",
+      "numerator": "Features whose first evaluator verdict was green without an earlier red handback for the same feature.",
+      "denominator": "Features that received at least one evaluator verdict.",
+      "source": "trace lifecycle handback spans; trace-summary red_reentry is only a related no-red-after-green signal",
+      "coverage_required": "Requires ordered per-feature handback spans for each evaluated feature.",
+      "absence_semantics": "If ordered handback spans are missing, the metric is null; red_reentry_free_rate must not be relabeled as first-pass green.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be improved by suppressing red handbacks, skipping evaluator runs, or relabeling reruns as first attempts."
+    },
+    {
+      "id": "sensor_adequacy_pass_rate",
+      "layer": "proxy_label",
+      "numerator": "Features whose declared regression/e2e sensors directly cover the acceptance criterion and were judged adequate.",
+      "denominator": "Features with declared sensors in the feature list.",
+      "source": "feature_list regression_sensor/e2e_sensor fields plus review-verdict sensor adequacy checks",
+      "coverage_required": "Review verdict must assess sensor adequacy for each declared feature sensor.",
+      "absence_semantics": "No adequacy review is null/no adequacy label; a skipped sensor is not adequate by default.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be raised by declaring trivial sensors, weakening assertions, or replacing e2e coverage with unrelated smoke checks."
+    },
+    {
+      "id": "main_workflow_pass_rate",
+      "layer": "proxy_label",
+      "numerator": "Runs whose trace-summary has finished true and final_outcome equal to pass.",
+      "denominator": "Runs aggregated in trace-scorecard by_version[].runs or trace-summary files in the evaluation window.",
+      "source": "trace-summary finished/final_outcome and trace-scorecard by_version[].passed/runs",
+      "coverage_required": "Each run must have a valid trace-summary v1 object or be reported as skipped/missing by the scorecard.",
+      "absence_semantics": "Unfinished runs have final_outcome null; missing summaries are excluded from pass counts and listed as missing/skipped, never treated as pass.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be raised by emitting finish spans early, hiding failed runs, or excluding missing summaries from the coverage denominator."
+    },
+    {
+      "id": "red_first_evidence_rate",
+      "layer": "proxy_label",
+      "numerator": "Features whose verification evidence includes a red result before the first green result for that feature.",
+      "denominator": "Features with ordered evaluator evidence in the trace or feature progress record.",
+      "source": "trace lifecycle handback spans and feature progress evidence",
+      "coverage_required": "Requires ordered evaluator evidence; trace-summary v1 red_reentry alone is insufficient because it detects red after green.",
+      "absence_semantics": "Missing ordered evidence is null/no TDD evidence, not a measured absence of red-first proof.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be raised by fabricating a red run, weakening tests to fail trivially, or counting production errors unrelated to the target sensor."
+    },
+    {
+      "id": "loop_rate_by_type",
+      "layer": "degradation_signal",
+      "numerator": "Loop indicator groups by signature/type with count at or above the trace-summary threshold.",
+      "denominator": "Runs with a valid trace-summary loop_indicators detector result.",
+      "source": "trace-summary loop_indicators and trace-scorecard by_version[].issues[].loop_indicator_groups",
+      "coverage_required": "Valid trace-summary v1 loop_indicators array for every included run.",
+      "absence_semantics": "[] means the loop detector ran and found no repeated groups; missing loop_indicators is null/no detector output.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be reduced by changing volatile span fields, dropping repeated spans, or splitting one loop across artificial signatures."
+    },
+    {
+      "id": "deviation_rate",
+      "layer": "degradation_signal",
+      "numerator": "Deviation lifecycle events counted across evaluated runs.",
+      "denominator": "Runs aggregated in the same evaluation window.",
+      "source": "trace-summary deviations {count, feature_ids} and trace-scorecard by_version[].deviations",
+      "coverage_required": "Valid trace-summary deviations object for every included run.",
+      "absence_semantics": "deviations.count 0 with feature_ids [] is a measured zero; missing deviations is null/no data.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be reduced by avoiding deviation logging when harness rules are bypassed."
+    },
+    {
+      "id": "red_reentry_free_rate",
+      "layer": "degradation_signal",
+      "numerator": "Finished passing runs whose trace-summary red_reentry array is empty.",
+      "denominator": "Runs in the bucket, reported as trace-scorecard by_version[].red_reentry_free_rate.of.",
+      "source": "trace-summary red_reentry and trace-scorecard by_version[].red_reentry_free_rate {free, of}",
+      "coverage_required": "Valid trace-summary red_reentry array and scorecard explicit of denominator.",
+      "absence_semantics": "[] means no red-after-green re-entry was detected; missing red_reentry is null and must not be counted free.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be improved by hiding red handbacks after green or by relabeling the metric as first-pass green."
+    },
+    {
+      "id": "role_boundary_violation_rate",
+      "layer": "degradation_signal",
+      "numerator": "Detected violations of conductor/generator/evaluator/reviewer role boundaries, such as implementation touching tests or evaluator editing production.",
+      "denominator": "Issues or feature phases with role-scoped handbacks/reviews in the evaluation window.",
+      "source": "review-verdict, git diff file classes, and role handback logs",
+      "coverage_required": "Requires role identity plus changed-file classification for each phase.",
+      "absence_semantics": "Missing role or diff classification is null/no boundary audit, not zero violations.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be reduced by omitting handbacks, combining roles in one unclassified session, or moving tests outside tests/."
+    },
+    {
+      "id": "trace_completeness_rate",
+      "layer": "degradation_signal",
+      "numerator": "Runs with valid summaries, no invalid trace lines, required top-level summary fields present, and expected coverage fields for the instrumentation tier.",
+      "denominator": "Runs discovered by the scorecard input scan, including missing and skipped summaries in the coverage report.",
+      "source": "trace-scorecard inputs {summaries_found, missing_summaries, skipped} and trace-summary span_counts.invalid_lines/coverage",
+      "coverage_required": "Scorecard input scan must include discovered, missing, and skipped summary counts.",
+      "absence_semantics": "Missing or skipped summaries are coverage gaps; invalid_lines 0 is a measured zero only when span_counts is present.",
+      "blocking_policy": "blocking",
+      "goodhart_guard": "Cannot be raised by ignoring unreadable traces, deleting failed trace files, or suppressing invalid-line counts."
+    },
+    {
+      "id": "tool_failure_rate",
+      "layer": "degradation_signal",
+      "numerator": "Failed tool calls summed across runs.",
+      "denominator": "Tool calls summed across the same runs.",
+      "source": "trace-summary tools[] {calls, fail_calls} and trace-scorecard by_version[].tool_calls {calls, fail_calls}",
+      "coverage_required": "Use trace-scorecard tool_coverage {runs_with_tool_spans, of} to separate instrumented runs from lifecycle-only runs.",
+      "absence_semantics": "No tool spans with coverage false is null/no tool-call data, not zero failures; fail_calls 0 with calls > 0 is measured zero failures.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be improved by disabling tool instrumentation, avoiding necessary tools, or counting lifecycle-only runs as zero-call successes."
+    },
+    {
+      "id": "thrash_rate",
+      "layer": "degradation_signal",
+      "numerator": "Repeated-loop groups, repeated failed sensor attempts, or repeated same-step handbacks indicating non-progressing work.",
+      "denominator": "Runs with loop_indicators and ordered lifecycle handback data.",
+      "source": "trace-summary loop_indicators plus lifecycle handback spans",
+      "coverage_required": "Requires loop_indicators and ordered handback evidence for each included run.",
+      "absence_semantics": "[] loop_indicators is measured no exact-repeat loops; missing handback ordering is null for handback-thrash subsignals.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be reduced by renaming repeated actions, dropping spans, or splitting one repeated attempt across multiple superficial steps."
+    },
+    {
+      "id": "tokens_per_accepted_issue",
+      "layer": "efficiency_after_quality",
+      "numerator": "Input plus output tokens for accepted issues when token data is captured by instrumentation.",
+      "denominator": "Accepted issues with token coverage in trace-scorecard token_coverage.runs_with_tokens.",
+      "source": "trace-summary tokens and trace-scorecard by_version[].tokens plus token_coverage; Copilot-side token/cost tracked in #163",
+      "coverage_required": "Coverage-dependent: only comparable when token_coverage.runs_with_tokens equals the accepted-issue denominator or gaps are segmented.",
+      "absence_semantics": "tokens null means token data unavailable; never average missing token runs as zero.",
+      "blocking_policy": "deferred",
+      "goodhart_guard": "Cannot be optimized until correctness gates pass, and cannot be lowered by disabling token capture or excluding expensive accepted runs."
+    },
+    {
+      "id": "wall_clock_per_accepted_issue",
+      "layer": "efficiency_after_quality",
+      "numerator": "wall_clock.elapsed_seconds summed for accepted issues with wall-clock data.",
+      "denominator": "Accepted issues with non-null trace-summary wall_clock.elapsed_seconds.",
+      "source": "trace-summary wall_clock.elapsed_seconds and trace-scorecard by_version[].issues[].wall_clock_elapsed_seconds",
+      "coverage_required": "Wall-clock data must be non-null for included accepted issues; missing timestamps are reported separately.",
+      "absence_semantics": "wall_clock null means no timestamp data; do not treat it as zero seconds.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be improved by ending traces early, dropping timestamps, or accepting lower quality for faster completion."
+    },
+    {
+      "id": "tool_calls_per_accepted_issue",
+      "layer": "efficiency_after_quality",
+      "numerator": "Tool calls summed for accepted issues.",
+      "denominator": "Accepted issues with tool span coverage, using tool_coverage.runs_with_tool_spans as the honest coverage denominator.",
+      "source": "trace-summary tools[] and trace-scorecard by_version[].tool_calls plus tool_coverage",
+      "coverage_required": "Coverage-dependent: compare only runs with tool spans or segment lifecycle-only runs.",
+      "absence_semantics": "No tool coverage is null/uninstrumented, not zero tool calls; calls 0 is measured only when tool coverage is present.",
+      "blocking_policy": "diagnostic",
+      "goodhart_guard": "Cannot be lowered by avoiding required tools, disabling adapters, or skipping validation steps."
+    },
+    {
+      "id": "useful_action_ratio",
+      "layer": "efficiency_after_quality",
+      "numerator": "Tool calls, handbacks, or lifecycle actions that directly advance an accepted feature according to per-feature attribution.",
+      "denominator": "All attributed tool calls, handbacks, and lifecycle actions for accepted issues.",
+      "source": "trace-summary tools[] and lifecycle spans (deferred for per-feature attribution; v1 tools[] has no feature dimension)",
+      "coverage_required": "Requires additive trace-summary v1.x per-feature tool/action attribution before comparable computation.",
+      "absence_semantics": "Without per-feature attribution the metric is null/deferred, never inferred from aggregate tool volume.",
+      "blocking_policy": "deferred",
+      "goodhart_guard": "Cannot be raised by deleting exploratory evidence, hiding failed attempts, or counting only successful actions after the fact."
+    }
+  ]
+}
