@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #173)._
+_Last updated: 2026-07-08 (issue #178)._
 
 ---
 
@@ -103,6 +103,18 @@ _Last updated: 2026-07-08 (issue #173)._
 
 ## Delivered (newest first)
 
+### Skill-prompt modernization — imported-skill replacement (epic #176)
+- **#178 — rewrite the imported generic `security-audit`; trim `code-review`
+  worked examples.** Replaced `security-audit` (imported wholesale from
+  awesome-ai-agent-skills — fabricated cloud/web findings, mandated absent
+  scanners, deployed-app scope) with a ~36-line repo-scoped skill: shell/CI
+  script injection, GitHub Actions workflow permissions, dependency/action
+  pinning, and secrets handling, built-in-tools-first with scanners optional.
+  Cut both fabricated worked examples (~115 lines) from `code-review`, keeping
+  the 6-step workflow, checklist, Critical/Warning/Info vocabulary, reviewer
+  etiquette, and edge cases. New sensor
+  `tests/meta/test_imported_skills_repo_scoped.sh` pins both against re-import.
+
 ### Trace schema single-source: numeric-key/role enum authority + drift sensor
 - **#173 — schema-derived enums are now single-sourced in the frozen contract
   and drift-guarded.** `docs/evaluation/trace-schema.v1.json` gains additive,
@@ -133,8 +145,6 @@ _Last updated: 2026-07-08 (issue #173)._
   on disk is unreachable from the map or if the map names a nonexistent file (#173
   pattern); `tests/meta/test_subagent_profile_instructions.sh` rewritten to assert
   the single-source structure. Full sensor suite + L0 + shellcheck green.
-
-## Delivered (newest first)
 
 ### Skill-prompt modernization — cleanup (epic #176)
 - **#177 — remove obsolete `general` skill, fix `create-pr` dead references,
