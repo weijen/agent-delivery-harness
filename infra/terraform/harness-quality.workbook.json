@@ -110,9 +110,9 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "customEvents | where timestamp {TimeRange} | extend hv = tostring(customDimensions['harness.version']), model = tostring(customDimensions['gen_ai.request.model']) | extend input_tokens = toreal(measurements['gen_ai.usage.input_tokens']), output_tokens = toreal(measurements['gen_ai.usage.output_tokens']) | summarize input_tokens = sum(input_tokens), output_tokens = sum(output_tokens), runs_with_tokens = countif(isnotnull(input_tokens)), runs = count() by hv, model | extend tokens_status = iff(runs_with_tokens == 0, 'unavailable-until-issue-96', 'measured') | order by hv asc",
+        "query": "customEvents | where timestamp {TimeRange} | extend hv = tostring(customDimensions['harness.version']), model = tostring(customDimensions['gen_ai.request.model']) | extend input_tokens = toreal(measurements['gen_ai.usage.input_tokens']), output_tokens = toreal(measurements['gen_ai.usage.output_tokens']) | summarize input_tokens = sum(input_tokens), output_tokens = sum(output_tokens), runs_with_tokens = countif(isnotnull(input_tokens)), runs = count() by hv, model | extend tokens_status = iff(runs_with_tokens == 0, 'unavailable', 'measured') | order by hv asc",
         "size": 0,
-        "title": "Token / cost (customEvents measurements) - unavailable until #96",
+        "title": "Token / cost (customEvents measurements) - measured when an adapter emits gen_ai.usage.*; remaining gap Copilot-side (#163)",
         "queryType": 0,
         "visualization": "table"
       },
@@ -133,7 +133,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Deferred metrics - explicitly UNAVAILABLE\n\nThe following contract-deferred metrics are NOT charted because trace-summary.v1.json does not carry them. They are shown here as explicitly unavailable / deferred / n/a, never fabricated:\n\n- Review-blocking findings per issue: DEFERRED / unavailable / n/a - trace-summary v1 carries no per-verdict field (per-stage handback counts are only a labeled proxy). Needs an additive trace-summary v1.x extension.\n- Per-feature attribution of tool calls: DEFERRED / unavailable / n/a - v1 tools[] has no feature dimension. Needs an additive trace-summary v1.x extension.\n\nThe red_reentry_free_rate panel above measures no-red-after-green re-entry. The token/cost panel is likewise unavailable-until-#96 and renders an honest null (never a fabricated 0) when no run carried gen_ai.usage.* numbers."
+        "json": "## Deferred metrics - explicitly UNAVAILABLE\n\nThe following contract-deferred metrics are NOT charted because trace-summary.v1.json does not carry them. They are shown here as explicitly unavailable / deferred / n/a, never fabricated:\n\n- Review-blocking findings per issue: DEFERRED / unavailable / n/a - trace-summary v1 carries no per-verdict field (per-stage handback counts are only a labeled proxy). Needs an additive trace-summary v1.x extension.\n- Per-feature attribution of tool calls: DEFERRED / unavailable / n/a - v1 tools[] has no feature dimension. Needs an additive trace-summary v1.x extension.\n\nThe red_reentry_free_rate panel above measures no-red-after-green re-entry. The token/cost panel measures tokens whenever an adapter provides gen_ai.usage.* (the Claude Code hook does) and renders an honest null (never a fabricated 0) when no run carried gen_ai.usage.* numbers. The remaining gap is Copilot-side token/cost capture, tracked in #163."
       },
       "name": "deferred-metrics"
     }

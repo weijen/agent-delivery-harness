@@ -92,25 +92,26 @@ Shipped (low-leak by construction):
   `gen_ai.request.model`, version/SHA fields (`harness.review_gate_sha`),
   issue/PR numbers (`harness.pr_number`), and `harness.require_complete`.
 
-### The four by-name exclusions (the free-text / path leak surface)
+### The five by-name exclusions (the free-text / path leak surface)
 
-Four fields are excluded **by name**, deliberately, because they are the
+Five fields are excluded **by name**, deliberately, because they are the
 free-text and local-path surface where a leak would most plausibly hide:
 
 | Excluded field | Why it never ships (v1) |
 | --- | --- |
 | `harness.args_summary` | Redacted-then-capped tool arguments are still free text: paths, repo names, prompt fragments — the largest leak surface in the trace. |
+| `harness.result_summary` | Redacted-then-capped tool result text (command output, test failures, stack traces): free text, and capped at 500 rather than 200 — the largest single-field leak surface. |
 | `harness.summary` | Free-text handback prose; same reasoning. |
 | `harness.worktree` | Absolute, home-rooted local paths (exactly what `sanitize-trace.sh` scrubs). |
 | `harness.branch` | Naming leak surface, and derivable from the issue number anyway. |
 
-These four are dropped by the allowlist projection and re-checked by name in
+These five are dropped by the allowlist projection and re-checked by name in
 the output gate, so a projection regression that re-admitted one of them would
 still be refused before shipping.
 
 **Revisit note (#113):** shipping *redacted* summaries as an explicit opt-in
 is tracked in this issue. Until that is designed and reviewed, exclusion
-remains the policy — the four fields do not ship.
+remains the policy — the five fields do not ship.
 
 ## PII Posture
 
@@ -129,7 +130,7 @@ The redaction gates are:
 2. **Output audit** — the staged envelope array must be a `trace_redact`
    fixed point, must pass a hardcoded secret-shape backstop that does **not**
    depend on `trace_redact` working (a no-op redactor cannot blind it), and
-   must contain none of the four excluded field names. A broken or missing
+   must contain none of the five excluded field names. A broken or missing
    redactor fails closed — "the auditor broke" never degrades to "ship anyway".
 
 ### Hardenings landing in #113

@@ -12,9 +12,9 @@
 #       if variables.tf changes the default (e.g. 30 -> 60) the doc must
 #       change too; if the doc states a different number than the live
 #       Terraform default, the sensor fails.
-#   D2. All FOUR allowlist-excluded fields, BY NAME
-#       (harness.args_summary, harness.summary, harness.worktree,
-#       harness.branch) — the same four the exporter (#112) drops
+#   D2. All FIVE allowlist-excluded fields, BY NAME
+#       (harness.args_summary, harness.result_summary, harness.summary,
+#        harness.worktree, harness.branch) — the same five the exporter (#112) drops
 #       deny-by-default.
 #   D3. The 'deny-by-default' policy language AND a deletion/purge path
 #       (the telemetry auditability / rollback story).
@@ -116,11 +116,11 @@ if [ -n "$STALE" ]; then
 fi
 
 # ==============================================================================
-# D2. All four allowlist-excluded fields named explicitly.
+# D2. All five allowlist-excluded fields named explicitly.
 # ==============================================================================
-for excluded in 'harness.args_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
+for excluded in 'harness.args_summary' 'harness.result_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
   grep -qF -- "$excluded" "$DOC" \
-    || fail "doc must name the excluded field ${excluded} explicitly (the exporter drops all four deny-by-default) (D2)"
+    || fail "doc must name the excluded field ${excluded} explicitly (the exporter drops all five deny-by-default) (D2)"
 done
 
 # ==============================================================================

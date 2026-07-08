@@ -28,7 +28,7 @@ Every panel:
 | Tool-call volume | `dependencies` | `trace-scorecard.v1.json` `by_version[].tool_calls {calls, fail_calls}`; `trace-summary.v1.json` `tools[]` | `harness.version`, `gen_ai.tool.name`, `harness.exit_status` | Aggregate only; per-feature tool-call attribution is **deferred** (see below). |
 | Skill-invocation volume | `dependencies` | `trace-scorecard.v1.json` `by_version[].skills`; `trace-summary.v1.json` `skills[]` | `harness.version`, `harness.skill.name`, `harness.outcome` | Which skills were invoked (loaded) per version (issue #139); `fail_calls` counts load failures (`harness.outcome == 'fail'`). Load-scoped, not skill-completion (deferred). |
 | Wall-clock per lifecycle_step | `dependencies` | `trace-summary.v1.json` `stages[].duration_ms` | `harness.version`, `harness.lifecycle_step`, `harness.duration_ms` | Sums `harness.duration_ms`; this is a different clock from `wall_clock.elapsed_seconds` and is never blended with it. |
-| Token / cost | `customEvents` | `trace-scorecard.v1.json` `by_version[].tokens {input, output}` + `token_coverage`; `trace-summary.v1.json` `tokens` | `harness.version`, `gen_ai.request.model`, `measurements['input_tokens']`, `measurements['output_tokens']` | **Unavailable until #96** wires `gen_ai.usage.*` onto model spans. Renders an honest null (`tokens_status = unavailable-until-#96`), never a fabricated 0. `runs_with_tokens` is the honest denominator. |
+| Token / cost | `customEvents` | `trace-scorecard.v1.json` `by_version[].tokens {input, output}` + `token_coverage`; `trace-summary.v1.json` `tokens` | `harness.version`, `gen_ai.request.model`, `measurements['input_tokens']`, `measurements['output_tokens']` | **Measured when an adapter emits `gen_ai.usage.*`** onto model spans (the Claude Code hook does). Renders an honest null (`tokens_status = unavailable`) rather than a fabricated 0 when no run carried token numbers. `runs_with_tokens` is the honest denominator. The remaining gap is Copilot-side token/cost capture, tracked in **#163**. |
 | Failure-mode view | `dependencies` | `trace-summary.v1.json` `final_outcome` (fail) + `harness.failure_mode` taxonomy | `harness.version`, `harness.failure_mode`, `harness.outcome` | Counts failures by taxonomy bucket. |
 | Deferred metrics | (none) | see below | (none charted) | Explicitly unavailable / deferred — never fabricated. |
 
@@ -44,8 +44,10 @@ never charted or fabricated:
 - **Per-feature tool-call attribution** — deferred / unavailable: v1 `tools[]`
   has no feature dimension. Needs an additive trace-summary v1.x extension.
 
-The token/cost panel is likewise unavailable-until-#96 and emits an honest null
-rather than a fabricated 0.
+The token/cost panel measures tokens whenever an adapter provides `gen_ai.usage.*`
+(the Claude Code hook does) and emits an honest null rather than a fabricated 0
+when no run carried token numbers. The remaining gap is Copilot-side token/cost
+capture, tracked in #163.
 
 ## Suggested alerts (spec only — not deployed)
 

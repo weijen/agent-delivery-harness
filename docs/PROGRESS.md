@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #172)._
+_Last updated: 2026-07-08 (issue #171)._
 
 ---
 
@@ -100,6 +100,20 @@ _Last updated: 2026-07-08 (issue #172)._
 ---
 
 ## Delivered (newest first)
+
+### Trace docs drift: honest token labels + complete PII exclusion list
+- **#171 — dashboards token labels de-#96'd; retention exclusion list completed.**
+  `docs/evaluation/dashboards/README.md` and the workbook token panel
+  (`infra/terraform/harness-quality.workbook.json`) no longer point at the
+  closed #96 as the token-gap blocker: tokens are *measured when an adapter
+  emits `gen_ai.usage.*`* (the Claude Code hook does), rendered as an honest
+  `tokens_status = unavailable` null when absent, and the honest remaining gap
+  is Copilot-side capture tracked in **#163**. `docs/evaluation/telemetry-retention-pii.md`
+  now lists all **five** by-name allowlist exclusions — `harness.result_summary`
+  was added to match `docs/runtime-adapters/otlp-azure-monitor.md` and
+  `trace-schema.v1.json`. Sensors extended: `test_trace_dashboard_pack.sh`
+  asserts no stale `until #96` and a `#163` pointer; `test_telemetry_retention_docs.sh`
+  asserts the full 5-field exclusion list. Docs-only; full suite 119/0.
 
 ### Trace redaction: close secret-shape gaps + single-source the backstop
 - **#172 — `trace_redact` masks four more secret shapes; secret-shape backstop
