@@ -129,6 +129,10 @@ fi
 # trace_span resolves the target trace file from TRACE_ISSUE; pin it so the
 # reconstructed spans land in the same issue trace we window against.
 export TRACE_ISSUE="$ISSUE_NUM"
+# Reconstructed spans have no deterministic in-window parent (issue #174):
+# clear any inherited TRACE_PARENT_SPAN_ID so the omit contract holds even if
+# the caller happened to export it — omit, never fake.
+unset TRACE_PARENT_SPAN_ID
 
 # --- Compute the reconstruction window ----------------------------------------
 # [earliest, latest] timestamp among the harness spans ALREADY present. Read

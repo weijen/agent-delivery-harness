@@ -190,6 +190,7 @@ hook__on_stop() {
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${agent_name}"
+  local agent_span_id="${TRACE_LAST_SPAN_ID:-}"
 
   transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
   if [ -z "$transcript" ] || [ ! -f "$transcript" ] || [ ! -r "$transcript" ]; then
@@ -217,10 +218,13 @@ hook__on_stop() {
       || ! [[ "$out_tokens" =~ ^[0-9]+$ ]]; then
     return 0
   fi
-  trace_span model \
+  local -a model_attrs=(
     "gen_ai.request.model=${model}" \
     "gen_ai.usage.input_tokens=${in_tokens}" \
     "gen_ai.usage.output_tokens=${out_tokens}"
+  )
+  [ -n "$agent_span_id" ] && model_attrs+=("parent_span_id=${agent_span_id}")
+  trace_span model "${model_attrs[@]}"
   return 0
 }
 

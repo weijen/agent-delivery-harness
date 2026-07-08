@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (subagent review report)._
+_Last updated: 2026-07-08 (issue #174)._
 
 ---
 
@@ -103,10 +103,33 @@ _Last updated: 2026-07-08 (subagent review report)._
 
 ## Delivered (newest first)
 
+### Deep-trace: parent_span_id linking for runtime model spans (trace tree, not flat list)
+- **#174 — the Stop-event model span is now parent-linked to its agent span, and
+  the parent-linking policy + trace identity are decided and documented.**
+  `scripts/trace-lib.sh` `trace_span` now exposes the span_id it wrote via a new
+  global `TRACE_LAST_SPAN_ID` (set on a successful append, cleared to `""` on
+  every drop path), so a caller can parent a following span to it without
+  re-parsing the trace. Both runtime stop hooks
+  (`scripts/claude-code-trace-hook.sh`, `scripts/copilot-trace-hook.sh`) capture
+  that id right after emitting the agent span and add
+  `parent_span_id=<agent span_id>` to the model span — **omit, never fake**: when
+  the agent span was dropped the model span stays flat. Tool spans and
+  `trace-reconstruct.sh` spans deliberately omit `parent_span_id` because no
+  deterministic in-window parent exists at emission time (the Stop-time agent
+  span does not exist when tools run); reconstruct now also `unset`s any inherited
+  `TRACE_PARENT_SPAN_ID` so the omit contract is environment-independent. Decision:
+  a per-run `trace_id` is **rejected** in schema v1 (spans are scoped by
+  `harness.issue`, linked by `span_id`/`parent_span_id`); the OTLP export-time
+  `traceId` fabrication from `harness.issue` stays the single source. Documented in
+  a new "Span Linkage And Trace Identity" section of
+  `docs/evaluation/observability-and-trace-schema.md`. Sensors:
+  `test_claude_hook_stop_span.sh` / `test_copilot_hook_stop_span.sh` assert
+  `model.parent_span_id == agent.span_id` by equality; `test_trace_lib.sh` covers
+  the `TRACE_LAST_SPAN_ID` set/clear contract; `test_trace_reconstruct.sh`
+  non-vacuously locks reconstructed-span parent absence.
+
 ### Land subagent-prompt-modernization review report
 - **Companion review report brought into the repo.** `docs/subagent-prompt-modernization-review.md` (the `.copilot/agents/` counterpart to `docs/skill-prompt-modernization-review.md`, epic #176) was previously an untracked working file; it is now tracked so the A-X1..A-X6 findings referenced by the subagent-modernization follow-ups (#182/#183/#184) have a stable in-repo source.
-
-## Delivered (newest first)
 
 ### Skill-prompt modernization — strip anti-derailment scaffolding
 - **#180 — old-model recovery scaffolding and command recipes were removed from audit skills.** `dead-code-detection` drops its tool-retry/path-hallucination/YAML-parser step while retaining reproducible command capture and public-API Defer-protect; `sync-docs` removes generic inventory recipes and false-positive warnings while preserving tiers, live-probe rules, high-rot claims, fix guidance, reporting, and completion criteria. The three `find-*` audit skills keep Common Search Seed categories as prose but no longer carry literal regex alternation recipe lines, and `find-over-design` no longer duplicates its pattern table. New sensor `tests/meta/test_no_antiderailment_scaffolding.sh` guards the cleanup.

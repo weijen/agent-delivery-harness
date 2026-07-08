@@ -192,10 +192,15 @@ rc1="$(run_recon "$FIX1" "$TDIR1")"
 
 # Case 1 — exactly the two in-window pairs became tool spans.
 n1="$(tool_span_count "$TRACE1")"
+[ "$n1" -gt 0 ] \
+  || fail "case parent_span_id_omitted: expected at least one reconstructed span before asserting parent_span_id absence; issue #174 requires a non-vacuous omit-never-fake lock"
 [ "$n1" -eq 2 ] \
   || fail "case windowed_pairs_emitted: expected exactly 2 in-window tool spans appended, got ${n1} (out-of-window pair must NOT emit)"
 assert_tool_span "$TRACE1" "run_in_terminal" 2000 "pass"
 assert_tool_span "$TRACE1" "read_file" 1000 "fail"
+if jq -e 'select(.span == "tool" and has("parent_span_id"))' "$TRACE1" >/dev/null 2>&1; then
+  fail "case parent_span_id_omitted: reconstructed spans must OMIT parent_span_id (issue #174 omit-never-fake deterministic-absence contract; no deterministic in-window parent may be fabricated)"
+fi
 jq -s -e 'any(.[]; .span == "tool" and (.["gen_ai.tool.name"] == "grep_search")) | not' \
   "$TRACE1" >/dev/null 2>&1 \
   || fail "case windowed_pairs_emitted: the out-of-window pair (grep_search) must NOT produce a tool span"

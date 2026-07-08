@@ -270,6 +270,19 @@ check_model_span() {
     || fail "${label}: model span must carry the LAST assistant entry's model '${FIX_MODEL}' and numeric usage ${FIX_IN}/${FIX_OUT} (S2 — last entry, JSON numbers, no swap): ${line}"
 }
 
+check_model_parent_link() {
+  local label="$1" agent_line="$2" model_line="$3"
+  local agent_span_id model_parent_span_id
+  agent_span_id="$(printf '%s\n' "$agent_line" | jq -r '.span_id // ""')"
+  model_parent_span_id="$(printf '%s\n' "$model_line" | jq -r '.parent_span_id // ""')"
+  [ -n "$agent_span_id" ] \
+    || fail "${label}: agent span_id must be non-empty before asserting model parent_span_id link: ${agent_line}"
+  [ -n "$model_parent_span_id" ] \
+    || fail "${label}: model span must carry parent_span_id equal to the same stop event's agent span_id (${agent_span_id}); parent_span_id is absent/empty: ${model_line}"
+  [ "$model_parent_span_id" = "$agent_span_id" ] \
+    || fail "${label}: model parent_span_id (${model_parent_span_id}) must equal the same stop event's agent span_id (${agent_span_id})"
+}
+
 # appended_lines <label> <count-before> <expected-appended>  → prints the
 # appended lines; fails when the appended count is off.
 appended_lines() {
@@ -296,6 +309,7 @@ case1_model="$(printf '%s\n' "$case1_lines" | jq -c 'select(.span == "model")')"
   || fail "case1: no model span among the appended lines (S2): ${case1_lines}"
 check_agent_span "case1" "$case1_agent" "claude-code"
 check_model_span "case1" "$case1_model"
+check_model_parent_link "case1" "$case1_agent" "$case1_model"
 
 # =============================================================================
 # Case 2 — SubagentStop + good transcript: subagent-named agent span + model
@@ -312,6 +326,7 @@ case2_model="$(printf '%s\n' "$case2_lines" | jq -c 'select(.span == "model")')"
   || fail "case2: no model span among the appended lines (S2, symmetric): ${case2_lines}"
 check_agent_span "case2" "$case2_agent" "claude-code-subagent"
 check_model_span "case2" "$case2_model"
+check_model_parent_link "case2" "$case2_agent" "$case2_model"
 
 # =============================================================================
 # Case 3 — degraded transcript access: agent span ONLY (one line each)

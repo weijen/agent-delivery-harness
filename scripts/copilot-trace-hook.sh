@@ -267,6 +267,7 @@ hook__on_stop() {
     agent_attrs+=("harness.session_id=${sid_span}")
   fi
   trace_span agent "${agent_attrs[@]}"
+  local agent_span_id="${TRACE_LAST_SPAN_ID:-}"
 
   [ "$token_source" = "cli" ] || return 0
   [ -n "${HOME:-}" ] || return 0
@@ -308,10 +309,13 @@ hook__on_stop() {
       || ! [[ "$out_tokens" =~ ^[0-9]+$ ]]; then
     return 0
   fi
-  trace_span model \
+  local -a model_attrs=(
     "gen_ai.request.model=${model}" \
     "gen_ai.usage.input_tokens=${in_tokens}" \
     "gen_ai.usage.output_tokens=${out_tokens}"
+  )
+  [ -n "$agent_span_id" ] && model_attrs+=("parent_span_id=${agent_span_id}")
+  trace_span model "${model_attrs[@]}"
   return 0
 }
 
