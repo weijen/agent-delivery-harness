@@ -49,7 +49,7 @@ The goal is proportional design, not minimal design. Some complexity is earned b
 
 4. Inspect abstractions and count consumers.
    - For each abstraction, identify what variation it supports and how many real consumers use that variation.
-   - Watch for abstract base classes, protocols/interfaces, factories, registries, callback systems, visitors, generic walkers, extension hooks, dependency-injection layers, service locators, and framework wrappers.
+   - Watch for base interfaces, factories, registries, callbacks/hooks, generic walkers, dependency-injection layers, and framework wrappers.
    - An abstraction with one implementation or two nearly identical consumers is suspicious unless it protects a public API, isolates a dependency, enables testing, or is preparing for a committed near-term requirement.
 
 5. Inspect indirection and call chains.
@@ -58,7 +58,7 @@ The goal is proportional design, not minimal design. Some complexity is earned b
    - Accept indirection when it cleanly isolates external systems, lifecycle management, security checks, telemetry, resource cleanup, or test seams.
 
 6. Inspect parameterization and configurability.
-   - Look for functions with many optional parameters, callback arguments, feature flags, environment variables, config knobs, strategy objects, or modes.
+   - Look for optional parameters, callbacks, feature flags, config knobs, strategy objects, or modes.
    - Check call sites. If callers all pass the same values, pass `None`, or use defaults, the interface may be designed for hypothetical flexibility.
    - Accept configurability when it is exercised by real environments, customers, tests that represent real variation, public API guarantees, or deployment constraints.
 
@@ -114,18 +114,6 @@ The goal is proportional design, not minimal design. Some complexity is earned b
    - Explicitly list well-designed and proportional areas to prevent one-sided over-correction.
    - Include recommended validation for each possible simplification, especially tests and migration checks.
 
-## Over-Design Patterns
-
-| Category | Signals |
-| --- | --- |
-| Premature generalization | Generic hook/callback systems with few users, base classes with one implementation, factories creating one type, visitors/walkers used once, config knobs with one known value. |
-| Unnecessary indirection | Pass-through wrappers, one-line adapters, single-use dataclasses, deep call chains for simple operations, context managers with trivial cleanup. |
-| Dual implementations | Same behavior in app code and scripts, CI logic repeated in source, docs snippets as canonical logic, heredocs duplicating modules, `keep in sync` comments. |
-| Over-parameterized interfaces | Many optional args, callbacks mostly passed as `None`, defaults never overridden, modes that no caller uses, feature flags with one state. |
-| Documentation/meta-work sprawl | Docs outweigh simple implementation, stale plans, duplicate docs, historical records in active docs, long instructions for tiny operations. |
-| Enterprise ceremony | Heavy governance, scheduling, state tracking, plugin systems, or observability layers beyond current users and failure modes. |
-| Wrong abstraction | Three or more near-identical functions/files where a data table or focused helper would be simpler. |
-
 ## Well-Designed Complexity To Accept
 
 - Infrastructure modules that map cleanly to real resource boundaries.
@@ -140,14 +128,15 @@ The goal is proportional design, not minimal design. Some complexity is earned b
 
 ## Common Search Seeds
 
-Adapt these to the project language and scope:
+Adapt these categories to the project language and scope:
 
-- Abstractions: `abstract|interface|protocol|base class|factory|registry|provider|adapter|strategy|visitor|hook|callback|plugin|extension`
-- Pass-through layers: `return .*\(|def .*\(.*\):\s*$|class .*Base|NotImplemented|raise NotImplementedError`
-- Sync markers: `mirrors|same as|keep in sync|copied from|based on|duplicate|see also|TODO.*generalize|TODO.*abstract`
-- Optional knobs: `callback|hook|on_|before_|after_|enable_|disable_|mode|strategy|options|kwargs|**kwargs|Optional`
-- Meta-work: `plan|phase|roadmap|tracking|handoff|runbook|checklist|governance|process|workflow`
-- Repetition: distinctive verbs repeated across sibling files, such as `create`, `find`, `deploy`, `patch`, `validate`, `backup`, `restore`, `restart`, `poll`, `verify`, and `normalize`.
+- Abstraction and extension signals: interfaces, factories, registries, providers, adapters, strategies, hooks, callbacks, and plugins.
+- Pass-through layers: wrappers, base classes, one-line adapters, trivial context managers, and deep chains that add no behavior.
+- Sync markers and dual implementations that must stay aligned across source, scripts, CI, IaC, or docs.
+- Optional knobs that callers rarely vary: callbacks, modes, strategy options, feature toggles, and kwargs-style interfaces.
+- Meta-work and ceremony: plans, roadmaps, handoffs, runbooks, checklists, governance, process, and workflow layers.
+- Repetition across sibling files where a table or focused helper may be simpler.
+
 
 ## Implementation-Usefulness Nuance
 

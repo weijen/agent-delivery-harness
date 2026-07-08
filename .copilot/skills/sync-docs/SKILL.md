@@ -42,14 +42,12 @@ Treat code, configuration, build scripts, tests, generated manifests, and live s
 | Tier 2: Historical docs | Link/path integrity only. Fix broken links and renamed paths, but do not update prose to later state. | Archived implementation notes, completed plans, old design snapshots, migration records. |
 | Tier 3: Published/immutable docs | Surface-only. Report broken references or stale claims; do not edit. | Published blog snapshots, release notes preserved as artifacts, external-facing frozen docs, legal/compliance records. |
 
-If the repository has its own archive or published-doc conventions, use those. If not, infer from folder names such as `archive/`, `archived/`, `historical/`, `plans-completed/`, `blog/`, `blogs/`, `release-notes/`, and `snapshots/`.
+If the repository has its own archive or published-doc conventions, use those. If not, infer from representative folder names such as `archive/`.
 
 3. Build the source-of-truth inventory.
-   - Inventory files in scope, excluding generated/vendor/build/dependency directories such as `.git/`, `.venv/`, `venv/`, `node_modules/`, `dist/`, `build/`, `target/`, `.terraform/`, `.next/`, `.nuxt/`, `coverage/`, caches, lockfiles when irrelevant, and generated outputs.
-   - Inventory commands from project-native sources: `README`, task runners, package scripts, CLI `--help`, Makefiles, Taskfiles, npm/pnpm/yarn scripts, Python entry points, console scripts, shell scripts, route listings, and workflow files.
-   - Inventory config keys and schemas from typed config models, JSON/YAML schemas, examples, templates, environment variable loaders, and defaults.
-   - Inventory tests from the project-native test collector when practical.
-   - Inventory infrastructure resources from Terraform, Bicep, ARM, CloudFormation, Kubernetes manifests, Helm charts, Docker Compose files, CI/CD definitions, or deployment manifests used by the repo.
+   - Inventory files in scope, excluding generated/vendor/build/dependency directories such as `.git/`, `node_modules/`, and build outputs.
+   - Inventory commands from project-native sources such as task runners, package scripts, CLI help, workflow files, and shell entrypoints.
+   - Inventory config, test, infrastructure, and generated-artifact claims from their native schemas, collectors, manifests, and source files.
    - Capture commands that were run and commands that could not run, so the report is reproducible.
 
 4. Run optional live probes only when relevant and safe.
@@ -76,7 +74,6 @@ If the repository has its own archive or published-doc conventions, use those. I
 6. Audit customization and skill files when present.
    - For `SKILL.md`, prompt, instruction, agent, and similar customization files, verify structural sanity as documentation that drives agent behavior.
    - Check that required frontmatter exists, the `name` matches its folder or file convention, descriptions include useful trigger phrases, paths and commands are current, and the body is actionable.
-   - Use semantic judgment. Do not flag examples inside fenced code blocks as unfinished instructions, and do not treat regex examples as stale prose.
    - Auto-fix unambiguous structural issues such as a name/folder mismatch or broken path. Flag wording and workflow-quality issues for user review when the right fix requires judgment.
 
 7. Fix unambiguous stale references.
@@ -133,27 +130,6 @@ Editing rules:
 - Archived plans that still appear active after implementation shipped.
 - Skills/customization files that reference removed commands, renamed paths, stale workflow assumptions, or missing frontmatter.
 - Stale model-pin frontmatter: a `model:` key in agent/skill frontmatter that names a retired model generation. An unknown pin either silently falls back to a default model or fails to launch, both invisible to the caller. Prefer inheriting the session model (no pin) unless a pin is deliberately maintained against a current, verified model id.
-
-## Useful Inventory Commands
-
-Adapt these to the project. Prefer repository-native commands when available.
-
-```bash
-# File inventory, excluding common noise
-rg --files -g '!**/.git/**' -g '!**/.venv/**' -g '!**/venv/**' -g '!**/node_modules/**' -g '!**/dist/**' -g '!**/build/**' -g '!**/target/**' -g '!**/.terraform/**' -g '!**/coverage/**'
-
-# Markdown/docs inventory
-rg --files -g '*.md' -g '*.mdx' -g '!**/node_modules/**' -g '!**/.git/**'
-
-# Path-like references in docs
-rg '([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+' README* docs .github 2>/dev/null
-
-# Workspace-specific absolute paths
-rg '<absolute-local-path-patterns>' README* docs .github .devcontainer 2>/dev/null
-
-# Common stale setup patterns
-rg 'source .*activate|pip install|npm install|yarn install|pnpm install|uv run|make |task |docker compose' README* docs .github .devcontainer 2>/dev/null
-```
 
 ## Report Template
 
