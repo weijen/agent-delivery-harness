@@ -184,6 +184,13 @@ the other six lifecycle steps of the frozen enum — `preflight`, `worktree_crea
   `<feature_id|->`, outcome `blocked`) before continuing recovery; a rejected alternative during a feature is the
   same call attributed to the deciding role.
 
+**Subagent handback payload line (single source).** Each subagent ends its handback with the structured payload line
+the conductor feeds **verbatim** to `scripts/log-handback.sh`: `[<role>] <step> <feature_id> <outcome> — <summary>`
+(`<lifecycle_step>` is accepted for `<step>`). `<role>` is the emitting role, `<step>` its role-correct lifecycle step
+from the mapping above, `<feature_id>` the feature id (or `-` for a whole-issue/closeout span), `<outcome>` the closed
+enum `pass|fail|blocked`, and `<summary>` a one-line summary. Each agent prompt names only its own role and valid
+step(s) and points here — the template is defined once, not restated per agent.
+
 **Token usage — omit, never fake.** Export `TRACE_INPUT_TOKENS` / `TRACE_OUTPUT_TOKENS` so the helper forwards
 `gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` only when the runtime actually displayed real counts;
 never estimate or invent token counts — an absent field is correct, a fabricated one is not.

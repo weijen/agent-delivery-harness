@@ -25,11 +25,10 @@ From the conductor:
 - Review mode: `full` or `concise`
 
 Return any substantive review action or verdict that the conductor should record in the issue progress Action Log.
-End every review handback (the `Action Log` field of your output) with the structured payload line the conductor
-feeds **verbatim** to `scripts/log-handback.sh`: `[<role>] <step> <feature_id> <outcome> — <summary>` — role
-`code-review-subagent`, step `review_verdict`, the feature id (or `-` for a closeout diff), outcome
-`pass|fail|blocked` (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`), and a one-line summary. Include token counts
-only when the runtime actually displayed them — never estimate or invent counts.
+End every review handback (the `Action Log` field of your output) with the structured payload line defined in
+`.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions), fed **verbatim** to
+`scripts/log-handback.sh`: role `code-review-subagent`, step `review_verdict` (`APPROVED` → `pass`,
+`NEEDS_REVISION` → `fail`).
 
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
@@ -245,10 +244,10 @@ investigations. Keeping the passes distinct preserves recall.
 - **MAJOR** — Significant quality issues that should be fixed. Blocks approval.
 - **MINOR** — Suggestions for improvement. Does NOT block approval.
 
-Any BLOCKING, CRITICAL, or MAJOR finding makes the final verdict `NEEDS_REVISION`, and **blocking findings are reported
-first** so they are impossible to miss. Only return `APPROVED` when all four verdicts pass: acceptance criteria are
-satisfied, every `passes:true` claim maps to a sensor that was actually run and recorded, no out-of-scope behaviour was
-introduced, the lifecycle/role boundaries held, and no blocking quality/security/documentation finding remains.
+Any BLOCKING, CRITICAL, or MAJOR finding makes the final verdict `NEEDS_REVISION`. Only return `APPROVED` when all four
+verdicts pass: acceptance criteria are satisfied, every `passes:true` claim maps to a sensor that was actually run and
+recorded, no out-of-scope behaviour was introduced, the lifecycle/role boundaries held, and no blocking
+quality/security/documentation finding remains.
 
 **Confidence ladder:**
 
@@ -263,14 +262,14 @@ Both modes use the same finding pass. They differ only in what gets reported.
 ### `concise`
 
 Use for low-risk or batched small changes. Spec-compliance summary in 3 bullet points (acceptance met / over-built /
-under-built). Then BLOCKING, CRITICAL and MAJOR findings (with confidence), blocking first. Trim MINOR findings from the output — but do not skip
+under-built). Then BLOCKING, CRITICAL and MAJOR findings (with confidence). Trim MINOR findings from the output — but do not skip
 the investigation that would have produced them. Omit strengths and broad commentary unless they are necessary to
 explain approval.
 
 ### `full`
 
 Use for higher-risk reviews unless the conductor explicitly asks for concise mode. Full spec-compliance table, then
-CRITICAL, MAJOR, and useful MINOR findings (with confidence), blocking findings first. Include strengths only when they add useful context.
+CRITICAL, MAJOR, and useful MINOR findings (with confidence). Include strengths only when they add useful context.
 
 ## Output Format
 
@@ -343,57 +342,6 @@ problem, the expected fix direction, and the sensor or review to re-run on the n
 subagents directly — the conductor owns the loop.}
 ```
 
-### Worked example — APPROVED, concise mode
-
-```
-## Code Review: Add MCP server health-check endpoint
-
-**Status:** APPROVED
-
-**Spec:**
-- Acceptance met: yes — endpoint returns 200/503 per spec
-- Over-building: None
-- Under-building: None
-
-**Findings:** None
-
-**Action Log:** code-review-subagent APPROVED add MCP server health-check endpoint; no follow-up required.
-
-**Summary:** New endpoint reuses the existing dependency-injection pattern; tests cover both healthy and degraded paths.
-```
-
-### Worked example — NEEDS_REVISION, full mode
-
-```
-## Code Review: Refactor billing-balance tool retry logic
-
-**Status:** NEEDS_REVISION
-
-**Summary:** Spec is met but a logging leak and unbounded retry must be fixed before merge.
-
-**Spec Compliance:**
-- ✅ Retries on 5xx with exponential backoff (acceptance #1)
-- ✅ Surfaces a typed error after final attempt (acceptance #2)
-- ✅ Test `test_retry_exhausted_raises` written and passing (acceptance #3)
-
-**Over-building:** None
-
-**Under-building:** None
-
-**Plan Wording Deviations:** Helper renamed from `fetch_balance` to `get_balance` — equivalent and matches sibling tools.
-
-**Quality Issues:**
-- **[CRITICAL][confidence: high]** `src/.../billing.py:142` — SAS token is logged at INFO level; redact before logging.
-- **[MAJOR][confidence: high]** `src/.../billing.py:88` — Retry loop has no upper bound; an upstream 503 will spin the worker.
-- **[MINOR][confidence: medium]** `tests/.../test_billing.py:55` — Asserts `result is not None` only; consider asserting on the actual returned balance.
-
-**Strengths:** Refactor collapsed two callers into one shared helper without adding new abstractions.
-
-**Action Log:** code-review-subagent NEEDS_REVISION billing-balance retry logic; redact SAS token logging and bound retries before re-review.
-
-**Next Steps:** Redact the SAS token in the log line, add `max_attempts=5` + exponential backoff to the retry, then re-request review.
-```
-
 ## Rules
 
 - Be strict about acceptance criteria — if required criteria are not met, that's NEEDS_REVISION.
@@ -402,4 +350,3 @@ subagents directly — the conductor owns the loop.}
 - Be specific — always reference file paths and line numbers.
 - Suggest only refactors that reduce complexity. Do not propose abstractions that add layers.
 - Review only; do not implement fixes.
-- Keep findings first so blocking issues are easy to scan.
