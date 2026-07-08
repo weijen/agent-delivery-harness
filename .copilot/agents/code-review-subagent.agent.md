@@ -192,6 +192,8 @@ When the issue workflow is active, also judge whether the work respected the har
    test-subagent did not edit production; nobody weakened, deleted, or skipped a declared sensor to pass)? A
    role-boundary violation is **BLOCKING**.
 3. **Action Log** — are the conductor handbacks, subagent actions, and verdicts recorded so the lifecycle is auditable?
+4. **Trace / Process Evidence** — when a local trace exists, the required trace review section below is part of every
+   issue/PR review and feeds this verdict.
 
 Each audit skill now emits an **implementation-usefulness decision** per finding (for example
 `Fix now` / `Plan first` / `Defer-accept`, or `Delete now` / `Plan first` / `Defer-protect`). When you apply a
@@ -203,6 +205,37 @@ a `Plan first` finding is **MAJOR** when in-scope, otherwise a tracked **MINOR**
 finding is **MINOR** at most. A high usefulness score never downgrades a blocking severity, and it never justifies an
 unsafe deletion, a premature abstraction, or collapsing a justified boundary. Loop every BLOCKING/CRITICAL/MAJOR finding back to
 the implementer and name the sensor that must re-run before re-review.
+
+## Trace / Process Evidence
+
+When a local trace exists, this is a required section of every issue/PR review. It reports process evidence separately
+from behaviour: passing trace discipline **does not prove** the implementation is correct, and clean code does not excuse
+a **process violation**.
+
+1. **Locate and read local trace artifacts.** For issue `NN`, inspect
+   `.copilot-tracking/issues/issue-NN/trace.jsonl` and `.copilot-tracking/issues/issue-NN/trace-summary.json` when they
+   exist.
+2. **Run trace tooling when the local trace exists.** Use `scripts/validate-trace.sh NN` for schema/redaction validation
+   and `scripts/check-trace-consistency.sh NN` for lifecycle/process consistency.
+3. **Report trace coverage separately from behaviour.** State whether a trace exists and whether `schema` validation
+   passed; whether tool spans exist, remembering that `has_tool_spans=false` means runtime **instrumentation** was
+   **absent**, NOT that no tools ran; model/token coverage, remembering that `tokens=null` means token data is
+   **unavailable**, not zero cost; and whether the run finished plus the final outcome (`pass` / `fail` / `n-a`).
+4. **Apply the evidence-authority split.** Role-attributed handback **agent** spans are **authoritative** for red-first
+   evidence. Runtime **tool** spans are **corroborating** process evidence only, until deterministic per-feature/per-sensor
+   attribution exists. Use an `agent span` to establish red-first handback evidence and a `tool span` only to corroborate
+   process context; never treat tool spans alone as sufficient proof of TDD order.
+5. **Check process evidence for each coded feature.** Verify `red_handback` -> `impl_handback` -> `green_handback`
+   ordering unless the feature carries a governed `waiver` (waived). Confirm there is no unexplained `red_reentry`,
+   deviations are resolved or justified, and repeated-loop indicators were reviewed.
+6. **Check role attribution.** `red_handback` and `green_handback` must be attributed to `test-subagent`;
+   `impl_handback` must be attributed to `implementation-subagent`. Missing instrumentation must be reported as the
+   exact phrase `trace evidence unavailable`, never inferred as pass.
+7. **Treat blocking process violations as BLOCKING.** A schema/redaction failure, missing red-first evidence reported as
+   `red_first_evidence_missing`, wrong role reported as `red_first_role_mismatch`, unresolved `deviation`s, and
+   repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even when the code diff is clean.
+8. **Feed the verdict explicitly.** Blocking process violations produce `NEEDS_REVISION` (or `BLOCKED`). Unavailable
+   trace evidence is explicit residual risk, never silently ignored.
 
 ## What You Do NOT Check
 
