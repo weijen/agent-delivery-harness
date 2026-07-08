@@ -223,14 +223,14 @@ else
     err "leak audit: a Windows home path (C:\\Users\\...) survived in a decoded string value"
     audit_failed=1
   fi
-  if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}' "$TMP_DECODED"; then
+  if grep -qE "$TRACE_SECRET_SHAPE_RE" "$TMP_DECODED"; then
     err "leak audit: a secret-shaped token survived in a decoded string value"
     audit_failed=1
   fi
 fi
 
 # 3. Well-known secret shapes (audit backstop, not the redaction policy).
-if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}' "$TMP_OUT"; then
+if grep -qE "$TRACE_SECRET_SHAPE_RE" "$TMP_OUT"; then
   err "leak audit: a secret-shaped token survived sanitization (redactor broken or bypassed)"
   audit_failed=1
 fi
