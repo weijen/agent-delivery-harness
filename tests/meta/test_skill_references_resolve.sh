@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Regression sensor (issue #177): skill references must resolve.
 #   - The obsolete `general` skill is deleted and no tracked file still points at
-#     .copilot/skills/general/ (the review report is the single allowed mention).
+#     .copilot/skills/general/ (the modernization review reports, which document
+#     the deletion decision, are the only allowed mentions).
 #   - create-pr's pre-PR quality gates reference only skills that exist; the dead
 #     `skills/typescript` / `skills/python` / `skills/testing` refs stay removed.
 set -euo pipefail
@@ -17,11 +18,13 @@ skills_dir=".copilot/skills"
 # 1. The general skill is gone.
 [ ! -e "${skills_dir}/general" ] || note "${skills_dir}/general must be deleted"
 
-# 2. No tracked file references the deleted general skill (the review report,
-#    which documents the deletion decision, is the sole allowed exception).
+# 2. No tracked file references the deleted general skill (the modernization
+#    review reports, which document the deletion decision, are the only allowed
+#    exceptions).
 while IFS= read -r f; do
   case "$f" in
     docs/skill-prompt-modernization-review.md) continue ;;
+    docs/subagent-prompt-modernization-review.md) continue ;;
     tests/meta/test_skill_references_resolve.sh) continue ;;
   esac
   note "$f still references the deleted skills/general path"
