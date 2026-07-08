@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #158)._
+_Last updated: 2026-07-08 (issue #201)._
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08 (issue #158)._
 ---
 
 ## Delivered (newest first)
+
+### Skill-modernize (#201): single-source the product-quality rubric in the subagents
+- **#201 — the four blocking gates and six-dimension scorecard now live only in `docs/evaluation/product-quality-rubric.md`.** `test-subagent.agent.md` and `code-review-subagent.agent.md` previously restated the gate definitions (twice in the reviewer) and the full 0–12 scorecard bands; they now keep only a pointer to the rubric doc, the gate/dimension **names**, and their agent-specific evidence/routing rules. The numeric score bands moved into the sensor's `test_doc` (single source), the agent band-restatement assertions were relaxed, and a new `drift` subcommand in `tests/meta/test_product_quality_rubric.sh` parses the canonical gate/dimension names from the rubric doc headings and fails if either agent drifts from them (with a 4-gate/6-dimension count guard). Proven red-first via doc gate-rename and dimension-count mutations.
 
 ### Agent Delivery Accuracy Matrix from review, outcome, and trace evidence
 - **#158 — the harness now has a first-class Agent Delivery Accuracy Matrix that

@@ -103,51 +103,25 @@ A passing build is not proof. Judge whether the sensors actually establish the c
 
 #### Four Blocking Gates (Product-Quality Rubric)
 
-Per the product-quality rubric, a `passes:true` claim must clear **four blocking gates**. Failure at any gate is
-**BLOCKING** — it overrides a clean code-quality scorecard:
-
-1. **Spec fidelity** — All acceptance criteria are satisfied; no criterion is missing, partial, or contradicted.
-2. **Executable verification** — Every `passes:true` claim maps to a sensor that was **actually run** for the reviewed
-   HEAD, and the result is **recorded** (in the feature `verification` field and/or the Action Log).
-3. **Main workflow works** — The happy-path behaviour specified in the acceptance criteria executes without error.
-4. **No known critical breakage** — Required failure modes (reject/abort/clean up) are proven with negative/mutation
-   checks; the sensor would **not** still pass if the guard were deleted.
-
-When a gate fails, route the finding: to **test-subagent** for missing or weak sensors, to **implementation-subagent**
-for unmet spec or unproven guards, or to the **conductor** for scope/planning gaps.
+Per the product-quality rubric (`docs/evaluation/product-quality-rubric.md`), a `passes:true` claim must clear **four
+blocking gates** — Spec fidelity, Executable verification, Main workflow works, and No known critical breakage. Read
+the rubric for each gate's definition rather than restating it here. Failure at any gate is
+**BLOCKING** — it overrides a clean code-quality scorecard. When a gate fails, route the finding: to **test-subagent**
+for missing or weak sensors, to **implementation-subagent** for unmet spec or unproven guards, or to the **conductor**
+for scope/planning gaps.
 
 ### Verdict 3 — Code Quality Scorecard
 
 #### Six-Dimension Scorecard (Product-Quality Rubric)
 
-Per the product-quality rubric, Verdict 3 uses a **six-dimension scorecard** to evaluate the depth and robustness of the
-implementation **after the four blocking gates pass**. Failed blocking gates override this score. For each dimension,
-rate **0** (absent/broken), **1** (present but shallow), or **2** (robust):
-
-1. **Workflow completeness** — Does the change implement the full workflow (happy path + required failure modes), or
-   only part of it?
-2. **Failure and edge handling** — Are system-boundary failures (user input, external APIs, IO) surfaced to the caller?
-   Are required guards/validations in place?
-3. **State and data coherence** — Do data structures stay consistent across operations? Are lifecycle transitions
-   clean?
-4. **Integration depth** — Does the change integrate with the surrounding codebase (config, logging, error reporting),
-   or is it isolated?
-5. **Recoverability and operability** — Can failures be diagnosed from logs/errors? Are destructive operations
-   reversible or protected?
-6. **Verification adequacy** — Do sensors prove the behaviour (not just presence), including negative/mutation checks
-   for required failure modes?
-
-Sum the six scores (0–12 range) and interpret:
-
-- **0–5: FAIL** — Critical quality gaps; implementation needs major revision.
-- **6–8: NEEDS_REVISION** — Adequate for basic functionality but has notable weaknesses; should be revised before merging.
-- **9–10: PASS** — Good quality; minor improvements possible but not blocking.
-- **11–12: STRONG_PASS** — Excellent quality; exemplar implementation.
-
-**Failed blocking gates override the scorecard.** A failed blocking gate forces a `FAIL` verdict regardless of the
-dimension scores. Route
-scorecard findings: to **implementation-subagent** for production/code/prompt/config gaps, to **test-subagent** for
-sensor/verification gaps, or to the **conductor** for scope/planning decisions.
+Per the product-quality rubric, Verdict 3 uses a **six-dimension scorecard** — Workflow completeness,
+Failure and edge handling, State and data coherence, Integration depth, Recoverability and operability, and
+Verification adequacy — scored **0/1/2** per dimension, **after** the four blocking gates pass. Sum the scores and
+interpret the total against the rubric's score bands (`docs/evaluation/product-quality-rubric.md`); do not restate the
+bands here. **Failed blocking gates override the scorecard** — a failed blocking gate forces a `FAIL` verdict
+regardless of the dimension scores. Route scorecard findings: to **implementation-subagent** for
+production/code/prompt/config gaps, to **test-subagent** for sensor/verification gaps, or to the **conductor** for
+scope/planning decisions.
 
 #### General Quality Checks
 

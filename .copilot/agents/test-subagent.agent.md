@@ -39,23 +39,13 @@ the feature does not pass.
 
 ### Product-Quality Blocking Gates
 
-Every feature must pass the **product-quality rubric** gates defined in `docs/evaluation/product-quality-rubric.md`
-before you mark `passes:true`. You must **check all product-quality gates and collect gate evidence before marking passes:true**. These gates are **BLOCKING** — a failed gate is a mandatory handback with evidence,
-expected fix direction, and the sensor or review to rerun.
-
-The four gates:
-
-1. **Spec fidelity** — the implementation delivers the acceptance criterion as written, without drift or omission.
-2. **Executable verification** — the declared `regression_sensor` and `e2e_sensor` (when applicable) exist, run, and
-   prove the criterion on the current workspace state.
-3. **Main workflow works** — the feature's primary happy path executes without error in a clean environment.
-4. **No known critical breakage** — no P0/P1 defect is known in the implemented scope (unhandled exceptions, data loss,
-   auth bypass, breaking changes to published contracts).
-
-You must report gate evidence (which gate, the sensor or check that proves it, and the result) in your Pass status
-output. A missing gate check or a failed gate is a **BLOCKING handback** — include the gate name, evidence of failure,
-the expected fix direction, and the sensor or review to rerun. Never mark `passes:true` with a failed or unchecked
-gate.
+Every feature must clear the **four product-quality blocking gates** defined in
+`docs/evaluation/product-quality-rubric.md` — **Spec fidelity**, **Executable verification**, **Main workflow works**,
+and **No known critical breakage**. Read the rubric for each gate's definition rather than restating it here. Check all
+four gates and **collect gate evidence before you mark `passes:true`** (which gate, the check that proves it, the
+result), and report the blocking-gate results in your Pass status output. These gates are **BLOCKING**: a missing check
+or a failed gate is a mandatory handback that names the gate, evidence of failure, the expected fix direction, and the
+sensor or review to rerun. Never mark `passes:true` with a failed or unchecked gate.
 
 ### Sensor Coverage Gaps
 
