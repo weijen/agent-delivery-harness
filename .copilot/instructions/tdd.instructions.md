@@ -37,9 +37,9 @@ This is the "snapshot test" pattern — the fixture IS the test.
 - Use `pytest.fixture` for setup; prefer function-scoped fixtures.
 - Use `@pytest.mark.parametrize` for table-driven cases instead of copy-pasting tests.
 - Use `tmp_path` / `monkeypatch` fixtures instead of touching the real filesystem or env.
-- Mock at the **Foundry boundary** (the model client, the CU client, the Code Interpreter
-  session); never mock our own orchestrator/tool logic. The unit under test is the boundary
-  parser + the orchestration step, NOT the network.
+- Mock at the **external-service boundary** (the model/service client, any managed session such
+  as a code-interpreter session); never mock our own orchestrator/tool logic. The unit under test
+  is the boundary parser + the orchestration step, NOT the network.
 - Assert on observable behavior and public API, not private internals.
 
 ## What to test

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (health-check report)._
+_Last updated: 2026-07-08 (issue #199)._
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08 (health-check report)._
 ---
 
 ## Delivered (newest first)
+
+### Genericize extracted product references in instruction files
+- **#199 — Azure AI Foundry / Content Understanding extraction residue removed from the reusable instruction files.** `harness`, `tdd`, and `python` instructions now speak of "the external service boundary", "the model/service client", and secrets-from-env without naming the extracted product; the Azure-scoped `terraform-azure` file drops the specific Foundry/CU coupling and the "1-week POC" assumption and trims ~46 lines of generic Terraform ceremony a modern model already knows, keeping the real policy (azapi for uncovered resources, `prevent_destroy` on data stores, the data-agreement destroy rule). `REQUIRE_AZ` and every genericized principle are preserved; the only remaining product nouns are explicitly-marked `e.g.` examples. New sensor `tests/meta/test_instructions_product_generic.sh` fails if unmarked residue reappears.
 
 ### Land `.copilot/` full health-check report
 - **Point-in-time `.copilot/` review brought into the repo.** `docs/copilot-health-check.md` (rolls up the skills + subagents reviews and adds the first `instructions/`+`prompts/` review — findings C-1..C-4) was previously an untracked working file; it is now tracked so the `Report:` citations in the follow-up issues #199 and #200 resolve to a stable in-repo source.

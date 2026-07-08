@@ -45,8 +45,8 @@ applyTo: '**/*.py'
 
 ## Logging & config
 - Use the `logging` module, not `print`, in library code.
-- Read secrets/config from environment variables, never hard-code them. Foundry endpoint, key,
-  deployment names, blob container, and resource group all come from env.
+- Read secrets/config from environment variables, never hard-code them. Service endpoints, keys,
+  deployment/model names, storage locations, and resource identifiers all come from env.
 
 ## Quality gates (run before declaring work done)
 ```sh
