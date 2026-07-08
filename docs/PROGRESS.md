@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #199)._
+_Last updated: 2026-07-08 (issue #158)._
 
 ---
 
@@ -102,6 +102,32 @@ _Last updated: 2026-07-08 (issue #199)._
 ---
 
 ## Delivered (newest first)
+
+### Agent Delivery Accuracy Matrix from review, outcome, and trace evidence
+- **#158 — the harness now has a first-class Agent Delivery Accuracy Matrix that
+  translates ML-style accuracy monitoring into coding-agent delivery quality,
+  and names which signals are labels vs proxies vs degradation vs efficiency.**
+  New machine-readable contract `docs/evaluation/agent-delivery-accuracy-matrix.v1.json`
+  (20 metrics across four layers — `direct_label`, `proxy_label`,
+  `degradation_signal`, `efficiency_after_quality`); every metric carries an
+  explicit `numerator`, `denominator`, `source`, `coverage_required`,
+  `absence_semantics`, `blocking_policy`, and `goodhart_guard`. Companion doc
+  `docs/evaluation/agent-delivery-accuracy-matrix.md` defines agent-delivery
+  accuracy as **distinct** from merge completion (`merged` = delivery completed,
+  not correct), test pass, trajectory quality, and cost efficiency; references
+  the seven existing contracts (`trace-summary.v1.json`, `trace-scorecard.v1.json`,
+  `evaluation-matrix.md`, `outcome-evals.md`, `product-quality-rubric.md`,
+  `trajectory-evals.md`, `cost-efficiency-evals.md`); states the anti-Goodhart
+  rule (lower cost / higher merge rate cannot offset correctness/review/security/
+  trace/lifecycle regressions); labels deferred metrics honestly
+  (`post_merge_bug_rate`, `review_blocking_finding_rate`, token/cost — never
+  fabricated zeros); and records the finish-vs-`pr_merge` attribution-window
+  distinction. `docs/evaluation/dashboards/README.md` gains a matrix panel→layer
+  mapping note (which panels map to which layer, which metrics are deferred).
+  Two deterministic sensors: `tests/meta/test_agent_delivery_accuracy_matrix_contract.sh`
+  (fails if any metric lacks a non-empty denominator OR absence_semantics, or if
+  a layer is missing) and `tests/meta/test_agent_delivery_accuracy_matrix_doc.sh`
+  (docs-content).
 
 ### Genericize extracted product references in instruction files
 - **#199 — Azure AI Foundry / Content Understanding extraction residue removed from the reusable instruction files.** `harness`, `tdd`, and `python` instructions now speak of "the external service boundary", "the model/service client", and secrets-from-env without naming the extracted product; the Azure-scoped `terraform-azure` file drops the specific Foundry/CU coupling and the "1-week POC" assumption and trims ~46 lines of generic Terraform ceremony a modern model already knows, keeping the real policy (azapi for uncovered resources, `prevent_destroy` on data stores, the data-agreement destroy rule). `REQUIRE_AZ` and every genericized principle are preserved; the only remaining product nouns are explicitly-marked `e.g.` examples. New sensor `tests/meta/test_instructions_product_generic.sh` fails if unmarked residue reappears.
