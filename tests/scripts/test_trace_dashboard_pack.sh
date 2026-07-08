@@ -382,6 +382,24 @@ if [ "$deferred_named" -eq 0 ]; then
 	note "honest-metrics: the pack/README must name the deferred metrics (review-blocking findings AND per-feature attribution) as explicitly unavailable/deferred (checked: $honesty_targets)"
 fi
 
+# (i-b) #171: no stale "until #96" token-gap pointer. #96 (Claude Code adapter)
+#       is CLOSED and its hook emits gen_ai.usage.* — the remaining token/cost
+#       gap is Copilot-side, tracked in #163. The token panel must say so.
+for f in $honesty_targets; do
+	[ -f "$f" ] || continue
+	if grep -Eiq 'until[- ](issue-)?#?96' "$f"; then
+		note "honest-metrics: $f still points at #96 as the token-gap blocker — #96 is closed and its adapter emits gen_ai.usage.*; the honest remaining gap is Copilot-side (#163)"
+	fi
+done
+token_gap_pointer=0
+for f in $honesty_targets; do
+	[ -f "$f" ] || continue
+	if grep -Eq '#163|issue-163' "$f"; then token_gap_pointer=1; fi
+done
+if [ "$token_gap_pointer" -eq 0 ]; then
+	note "honest-metrics: neither the workbook nor $DASH_README points at #163 for the remaining Copilot-side token/cost gap"
+fi
+
 # (ii) NEVER relabel red_reentry_free_rate as "first-pass green".
 for f in $honesty_targets; do
 	[ -f "$f" ] || continue
