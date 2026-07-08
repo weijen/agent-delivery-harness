@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
-# Regression sensor: the subagent prompt templates and the harness doctrine must
-# route language instruction files by the files being changed (profile-aware),
-# not by a hard-coded Python-only rule.
+# Regression sensor (issues #22, #36, #182): the profile-aware language-instruction
+# routing map is SINGLE-SOURCED in .copilot/instructions/harness.instructions.md.
 #
 # Issue #22 established that a fresh-context subagent does not inherit Copilot
 # instruction resolution, so each agent prompt must explicitly require reading the
-# applicable instruction files. Issue #36 generalizes that rule across languages:
+# applicable instruction files. Issue #36 generalized the rule across languages.
+# Issue #182 removes the ~12-15 line routing map that was copy-pasted into all four
+# agents (four of the five mapped files did not exist; the map omitted the two that
+# do — bash and terraform-azure) and makes harness.instructions.md the one place the
+# map lives. Each agent now carries a one-line REFERENCE to that map, not a copy.
 #
-#   - Python diffs still load python.instructions.md (AC#2).
-#   - Each agent must describe the generic per-language routing using the
-#     <language>.instructions.md pattern, not Python alone (AC#1, AC#6).
-#   - Mixed-language diffs load every applicable language instruction plus the
-#     core harness and tdd.instructions.md (AC#4).
-#   - A missing <language>.instructions.md falls back to the harness contract and the
-#     harness contract without inventing conventions (AC#5).
-#
-# This sensor RED-fails on Python-only routing prose and GREEN-passes once the
-# routing is profile-aware.
+# This sensor RED-fails if the full map drifts back into an agent, if the harness
+# map loses a required language, or if an agent stops pointing at the single source.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -30,65 +25,49 @@ impl=".copilot/agents/implementation-subagent.agent.md"
 test_agent=".copilot/agents/test-subagent.agent.md"
 review=".copilot/agents/code-review-subagent.agent.md"
 harness=".copilot/instructions/harness.instructions.md"
+
+generic='<language>.instructions.md'
 py="python.instructions.md"
 tdd="tdd.instructions.md"
-
-# Generic per-language routing token (literal "<language>.instructions.md"); the
-# presence of this placeholder is what proves routing is profile-aware, not
-# Python-only.
-generic='<language>.instructions.md'
 
 for f in "$plan" "$impl" "$test_agent" "$review" "$harness"; do
   [ -f "$f" ] || note "missing $f"
 done
 
-# Every routing surface (4 agents + harness doctrine) must:
-#   (a) describe the generic per-language routing token (AC#1/#6),
-#   (b) describe the mixed-language "all applicable" rule (AC#4),
-#   (c) describe the missing-file fallback to the harness contract + AGENTS.md conventions (AC#5).
-for f in "$plan" "$impl" "$test_agent" "$review" "$harness"; do
-  [ -f "$f" ] || continue
-  grep -qF "$generic" "$f" || note "$f must route via the generic $generic pattern (not Python-only)"
-  grep -qi 'mixed-language' "$f" || note "$f must describe the mixed-language all-applicable rule"
-  grep -qi 'harness contract' "$f" || note "$f must describe falling back to the harness contract when an instruction file is missing"
-  grep -qi 'AGENTS.md conventions' "$f" || note "$f must name AGENTS.md conventions as the missing-instruction-file fallback"
-  grep -Eqi 'fall back|missing|absent|when present' "$f" || note "$f must state the missing-instruction-file fallback condition"
-done
+# --- Single source: harness.instructions.md carries the WHOLE routing map ------
+if [ -f "$harness" ]; then
+  grep -qF "$generic" "$harness" || note "harness map must use the generic $generic token (profile-aware routing)"
+  grep -qi 'mixed-language' "$harness" || note "harness map must state the mixed-language all-applicable rule"
+  grep -Eqi 'fall back|fallback' "$harness" || note "harness map must state the missing-instruction-file fallback"
+  grep -qF "$tdd" "$harness" || note "harness map must keep $tdd as a required instruction"
+  grep -qF "$py" "$harness" || note "harness map must resolve Python diffs to $py"
+  grep -Eqi '\.py\b' "$harness" || note "harness map must scope the Python case to .py files"
+  grep -Eqi '\b(go|node|java|ruby)\b' "$harness" || note "harness map must name languages beyond Python"
+  grep -qF 'bash.instructions.md' "$harness" || note "harness map must route shell (.sh) to bash.instructions.md"
+  grep -qF 'terraform-azure.instructions.md' "$harness" || note "harness map must route .tf/.bicep to terraform-azure.instructions.md"
+  grep -Eqi 'subagent prompt|into the subagent|pass(ed|es)? .*instruction|instruction file' "$harness" ||
+    note "harness must explain how applicable instruction files are passed into subagent prompts"
+fi
 
-# The implementation, test, review, and harness surfaces must keep loading the
-# core harness + TDD instructions for mixed diffs (AC#4) ...
-for f in "$impl" "$test_agent" "$review" "$harness"; do
+# --- Each agent REFERENCES the single source; it must not re-encode the map -----
+for f in "$plan" "$impl" "$test_agent" "$review"; do
   [ -f "$f" ] || continue
-  grep -qF "$tdd" "$f" || note "$f must keep $tdd as a required instruction"
-done
-
-# ... and Python diffs must still resolve to the Python instruction file (AC#2),
-# scoped to .py, on the editing/testing/review surfaces.
-for f in "$impl" "$test_agent" "$review"; do
-  [ -f "$f" ] || continue
-  grep -qF "$py" "$f" || note "$f must still resolve Python diffs to $py (AC#2)"
-  grep -Eqi '\.py\b' "$f" || note "$f must still scope the Python case to .py files (AC#2)"
-done
-
-# Guard against reintroduction of Python-ONLY routing: any agent that names the
-# Python instruction file must also name at least one other built-in language so
-# the routing cannot silently collapse back to Python-only.
-for f in "$plan" "$impl" "$test_agent" "$review" "$harness"; do
-  [ -f "$f" ] || continue
-  if grep -qF "$py" "$f"; then
-    grep -Eqi '\b(go|node|java|ruby)\b' "$f" ||
-      note "$f references Python instructions but names no other language — routing looks Python-only"
+  grep -qi 'profile-aware' "$f" || note "$f must frame instruction loading as profile-aware routing"
+  grep -qF 'harness.instructions.md' "$f" ||
+    note "$f must reference the single-source routing map in harness.instructions.md"
+  grep -qF "$generic" "$f" || note "$f must keep the generic $generic token in its one-line reference"
+  if grep -qi 'mixed-language' "$f"; then
+    note "$f re-encodes the mixed-language rule — that detail belongs only in the harness map (single-source)"
   fi
 done
 
-# Conductor doctrine must explain that applicable instruction files are passed
-# into subagent prompts (per touched-file language).
-if [ -f "$harness" ]; then
-  grep -Eqi 'subagent prompt|into the subagent|pass(ed|es)? .*instruction|instruction file' "$harness" ||
-    note "$harness must explain when/how applicable instruction files are passed into subagent prompts"
-fi
+# --- TDD stays binding on the editing/testing/review references -----------------
+for f in "$impl" "$test_agent" "$review"; do
+  [ -f "$f" ] || continue
+  grep -qF "$tdd" "$f" || note "$f must keep $tdd binding in its routing reference"
+done
 
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
-echo "subagent profile-aware instruction checks passed"
+echo "subagent profile-aware routing (single-source) checks passed"

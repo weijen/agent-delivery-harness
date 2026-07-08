@@ -44,16 +44,7 @@ runnable-but-shallow work from production-ready changes and routes product-quali
 `implementation-subagent` for production/code/prompt/config gaps, `test-subagent` for sensor/verification gaps, or the
 **conductor/human gate** for scope/planning decisions.
 
-**Applicable instruction files are part of the review contract (profile-aware routing).** Select the instruction file
-that matches each changed file, by extension, under `.copilot/instructions/<language>.instructions.md`:
-`.py` → `python`, `.go` → `go`, `.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a
-mixed-language diff, treat **every** applicable language instruction file plus `.copilot/instructions/tdd.instructions.md`
-as binding review criteria alongside the acceptance criteria. For example, a Python change that violates
-`.copilot/instructions/python.instructions.md` or `.copilot/instructions/tdd.instructions.md` (e.g. ignores pathlib,
-parses external responses without typing, weakens or skips a sensor, or abandons RED→GREEN discipline) is a finding.
-You run in a fresh context, so read the applicable files from the repo when they are not already in your prompt. If a
-`<language>.instructions.md` file does not exist yet, fall back to the harness contract and the
-AGENTS.md conventions rather than inventing language conventions to enforce.
+**Applicable instruction files are part of the review contract (profile-aware routing).** Treat the `<language>.instructions.md` file(s) matching each changed file — selected from the single-source routing map in `.copilot/instructions/harness.instructions.md`, always with `.copilot/instructions/tdd.instructions.md` — as binding review criteria alongside the acceptance criteria; a diff that violates them (e.g. ignores pathlib, weakens or skips a sensor, abandons RED→GREEN) is a finding. You run in a fresh context, so read the applicable files from the repo when they are not in your prompt.
 
 ## Review Verdicts
 

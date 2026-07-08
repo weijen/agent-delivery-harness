@@ -161,14 +161,7 @@ For each phase:
 For non-behavior changes (docs, prompts, config, mechanical refactors), TDD order is not required. List the tasks in
 logical order instead.
 
-**Profile-aware instruction routing (call it out in the plan).** When a phase edits source files, name which language
-instruction files the implementation and test subagents must load, selected by extension under
-`.copilot/instructions/<language>.instructions.md`: `.py` → `python`, `.go` → `go`,
-`.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a mixed-language phase, name **every**
-applicable language instruction file plus the harness contract and `tdd.instructions.md`. If a matching
-`<language>.instructions.md` file does not exist yet (only some languages are provisioned — see `profiles/`), have the
-plan fall back to the harness contract and the AGENTS.md conventions rather than
-inventing language conventions.
+**Profile-aware instruction routing (call it out in the plan).** When a phase edits source files, name the `<language>.instructions.md` file(s) the implementation and test subagents must load, selected from the single-source routing map in `.copilot/instructions/harness.instructions.md` (always alongside `.copilot/instructions/tdd.instructions.md`).
 
 For complex or non-obvious parts, include code examples showing the approach. For straightforward parts, a description
 referencing files and functions is sufficient.
