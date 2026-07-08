@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #182)._
+_Last updated: 2026-07-08 (issue #173)._
 
 ---
 
@@ -102,6 +102,25 @@ _Last updated: 2026-07-08 (issue #182)._
 ---
 
 ## Delivered (newest first)
+
+### Trace schema single-source: numeric-key/role enum authority + drift sensor
+- **#173 — schema-derived enums are now single-sourced in the frozen contract
+  and drift-guarded.** `docs/evaluation/trace-schema.v1.json` gains additive,
+  open-world arrays — `numeric_keys` (the five #103 trace-gate count keys),
+  `numeric_key_prefixes` (`gen_ai.usage.`), `structural_numeric_keys`
+  (`harness.issue`, `schema_version`), and `roles` (the five closed
+  log-handback/consistency roles) — as the single authority for values that
+  were previously hand-copied into script bodies with "keep in step" comments.
+  The script-local copies in `trace-lib.sh` (numeric typing + span-type case),
+  `validate-trace.sh` (`$numeric_keys`), `check-trace-consistency.sh`
+  (`$roles`), and `log-handback.sh` (role `case`) are wrapped in
+  `# >>> trace-schema:<name> … # <<< trace-schema:<name>` sentinel markers and
+  enforced by a new meta drift sensor
+  `tests/meta/test_trace_schema_single_source.sh`, which fails set-equivalence
+  when any copy drifts (proven non-vacuous by mutation). `test_trace_schema.sh`
+  now locks the new arrays with hardcoded backstops. No change to existing v1
+  required-field/enum semantics (frozen-contract discipline preserved); numeric
+  typing verified end-to-end.
 
 ### Skill-modernize (#176): single-source the subagent routing map
 - **#182 — profile-aware routing map is single-sourced and matches reality.** The

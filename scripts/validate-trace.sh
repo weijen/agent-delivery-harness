@@ -217,11 +217,15 @@ $contract[0] as $c
 # above stays diffable against test_trace_schema.sh). Numeric keys must be
 # JSON numbers; every other key must be a JSON string. Body lifted from the
 # #97 validate-types.jq, extended in #103 with the trace-gate count keys
-# (keep in step with trace-lib.sh's exact-key numeric list).
+# (single-sourced by docs/evaluation/trace-schema.v1.json .numeric_keys +
+#  .structural_numeric_keys; drift-guarded by
+#  tests/meta/test_trace_schema_single_source.sh).
 def types_valid:
+# >>> trace-schema:numeric_keys
 ["harness.exit_status", "harness.duration_ms", "harness.incomplete_count",
  "harness.issue", "schema_version",
  "harness.violation_count", "harness.warning_count"] as $numeric_keys
+# <<< trace-schema:numeric_keys
 | to_entries
 | all(.[];
     .key as $k

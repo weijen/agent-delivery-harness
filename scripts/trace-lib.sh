@@ -193,7 +193,9 @@ trace_span() {
   fi
   shift
   case "$span_type" in
+    # >>> trace-schema:span_types (authority docs/evaluation/trace-schema.v1.json .span_types; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
     agent|model|tool|lifecycle) ;;
+    # <<< trace-schema:span_types
     *)
       trace_warn "trace_span: unknown span type '${span_type}' — span dropped"
       return 0
@@ -338,12 +340,14 @@ trace_span() {
           | ($kv[:$i]) as $k
           | ($kv[$i + 1:]) as $v
           | . + { ($k):
+              # >>> trace-schema:numeric_keys (authority docs/evaluation/trace-schema.v1.json .numeric_keys + .numeric_key_prefixes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
               (if (($k | startswith("gen_ai.usage."))
                    or ($k == "harness.exit_status")
                    or ($k == "harness.duration_ms")
                    or ($k == "harness.incomplete_count")
                    or ($k == "harness.violation_count")
                    or ($k == "harness.warning_count"))
+              # <<< trace-schema:numeric_keys
                   and ($v | test("^[0-9]+$"))
                then ($v | tonumber)
                else $v
