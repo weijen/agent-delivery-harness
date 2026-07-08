@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #179)._
+_Last updated: 2026-07-08 (issue #170)._
 
 ---
 
@@ -102,6 +102,24 @@ _Last updated: 2026-07-08 (issue #179)._
 ---
 
 ## Delivered (newest first)
+
+## Delivered (newest first)
+
+### Trace report: distinguish bounded-by-pr-merge from unfinished runs
+- **#170 — the run summary now separates a bounded trace from a truly open
+  one.** `scripts/trace-report.sh` emits two additive, v1.x-compatible summary
+  fields: `bounded` (true iff any `finish` OR `pr_merge` lifecycle span exists)
+  and `closed_by` (`"finish"` when a finish span exists, else `"pr_merge"`, else
+  `null`; finish takes precedence). The markdown final-outcome line stops
+  calling a `pr_merge`-closed trace an "unfinished run" — it now states the
+  final outcome is unavailable from a finish span but the attribution window is
+  bounded by the `pr_merge` close edge (ref #165), with a distinct wording for a
+  genuinely open/unbounded run. Existing `finished`/`final_outcome` semantics are
+  unchanged (finish-only). `docs/evaluation/trace-summary.v1.json` documents the
+  additive fields without adding them to `required_top_level`. New regression
+  sensor `tests/scripts/test_trace_report_bounded.sh` proves all three cases
+  (finish, pr_merge-only, neither) on JSON + markdown; `test_trace_report_summary_json.sh`
+  now locks `bounded==true`/`closed_by=="finish"` on the core fixture.
 
 ### Skill audit conventions single-source
 - **#179 — shared audit-skill boilerplate is now single-sourced.** The four
