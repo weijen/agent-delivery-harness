@@ -62,6 +62,7 @@
     "harness.feature_id": "string; feature id from feature_list.json",
     "harness.commit": "string; short git SHA of the harness scripts at emit time, for exact provenance. Optional companion to harness.version (the SemVer release from the VERSION file).",
     "harness.session_id": "string; runtime/conversation session identity for the GitHub Copilot session that produced runtime spans (aligned with OTel gen_ai.conversation.id). Optional and open-world: distinct from harness.issue (a session may span multiple issues; runtime spans are attributed to an issue by time window). Stamped by runtime capture (transcript reconstruction / hooks); absent on script-emitted lifecycle/handback spans.",
+    "harness.tool_call_id": "string; the runtime tool-call id (transcript data.toolCallId) stamped on reconstructed tool spans as the deterministic dedup identity enabling idempotent re-reconstruction (issue #175). Optional; absent on hook-emitted tool spans.",
     "harness.outcome": "enum: pass | fail | blocked",
     "harness.review_gate_sha": "string; commit SHA approved at the review gate",
     "gen_ai.operation.name": "string; also allowed on non-agent spans",

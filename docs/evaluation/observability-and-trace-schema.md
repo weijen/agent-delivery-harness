@@ -257,7 +257,13 @@ no `parent_span_id` is always legal.
   from a transcript by time-window intersection; it emits no agent span of its
   own and has no deterministic parent within the reconstructed window, so it
   omits `parent_span_id`. Absence here is the intended, deterministic default,
-  not a gap.
+  not a gap. Each reconstructed tool span instead carries
+  `harness.tool_call_id` (the transcript's `data.toolCallId`); together with
+  `harness.session_id` this is the deterministic identity that makes
+  reconstruction **idempotent** — a second run over the same transcript skips
+  any `(session_id, tool_call_id)` already present and appends zero new spans.
+  A pair with no usable `toolCallId` is skipped with a WARN rather than
+  deduplicated by guess (omit-never-fake).
 
 **Trace identity: no per-run `trace_id` in the schema.** Schema v1 deliberately
 has **no** `trace_id` field, and this issue's decision is to keep it that way —

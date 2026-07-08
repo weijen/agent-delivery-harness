@@ -161,6 +161,36 @@ best_effort_trace_reconstruct() {
   return 0
 }
 
+best_effort_state_hygiene() {
+  declare -F trace__main_root >/dev/null 2>&1 || return 0
+
+  local main_root="" issue_pad="" state_dir="" sessions_dir="" f bound
+  main_root="$(trace__main_root 2>/dev/null)" || return 0
+  [ -n "$main_root" ] || return 0
+  issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
+
+  state_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/.hook-state"
+  if [ -d "$state_dir" ]; then
+    if rm -rf "$state_dir" 2>/dev/null; then
+      green "✓ Swept orphaned hook-state for issue ${ISSUE_NUM}"
+    else
+      yellow "⚠ could not sweep ${state_dir} — continuing teardown (best-effort)"
+    fi
+  fi
+
+  sessions_dir="${main_root}/.copilot-tracking/sessions"
+  if [ -d "$sessions_dir" ]; then
+    for f in "$sessions_dir"/*; do
+      [ -f "$f" ] || continue
+      bound="$(cat "$f" 2>/dev/null || true)"
+      if [ "$bound" = "$ISSUE_NUM" ]; then
+        rm -f "$f" 2>/dev/null || yellow "⚠ could not expire session binding $(basename "$f") — best-effort"
+      fi
+    done
+  fi
+  return 0
+}
+
 # The worktree's own checked-out branch is the deterministic source of truth —
 # prefer it over a slug recomputed from the (mutable) issue title.
 if [ -e "$WORKTREE_DIR" ]; then
@@ -235,6 +265,10 @@ best_effort_trace_export
 # no-ops when the transcript dir is absent.
 TRACE_STAGE="trace_reconstruct"
 best_effort_trace_reconstruct
+
+# --- Best-effort closeout state hygiene (issue #175) -------------------------
+TRACE_STAGE="state_hygiene"
+best_effort_state_hygiene
 
 green "✓ Pruned stale worktree metadata"
 
