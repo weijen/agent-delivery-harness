@@ -327,8 +327,8 @@ hook__on_stop() {
 # An issue's window is [open, close]:
 #   open  = EARLIEST `harness.lifecycle_step == worktree_create` timestamp
 #           (an issue with no worktree_create line has no window → skipped).
-#   close = LATEST `harness.lifecycle_step == finish` timestamp; absent → the
-#           window is open-ended [open, +inf).
+#   close = LATEST `harness.lifecycle_step == finish|pr_merge` timestamp;
+#           pr_merge closes the window even without finish; absent → [open, +inf).
 # The window CONTAINS ts iff open <= ts AND (close empty OR ts <= close).
 # Timestamps are ISO-8601 `...Z` strings → lexicographic `[[ a < b ]]`/`=`
 # comparison is correct for the shared same-format Z shape.
@@ -385,8 +385,9 @@ hook__resolve_issue_by_interval() {
         | sort_by(.timestamp) | (.[0].timestamp // empty)' \
       "$f" 2>/dev/null || true)"
     [ -n "$open" ] || continue
+    # Close on the latest finish or pr_merge lifecycle edge.
     close="$(jq -rs '
-        map(select(.["harness.lifecycle_step"] == "finish"))
+        map(select(.["harness.lifecycle_step"] == "finish" or .["harness.lifecycle_step"] == "pr_merge"))
         | sort_by(.timestamp) | (.[-1].timestamp // empty)' \
       "$f" 2>/dev/null || true)"
     # open <= ts ?
@@ -400,6 +401,48 @@ hook__resolve_issue_by_interval() {
 
   [ "${#matched[@]}" -eq 1 ] || return 1
   printf '%s' "${matched[0]}"
+  return 0
+}
+
+# hook__session_sanitize <sid>
+hook__session_sanitize() {
+  local sid="$1"
+  [[ "$sid" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+  case "$sid" in
+    .|..) return 1 ;;
+  esac
+  printf '%s' "$sid"
+  return 0
+}
+
+# hook__session_bind <main_root> <sid> <issue>
+hook__session_bind() {
+  local main_root="$1" sid="$2" issue="$3"
+  local safe_sid="" sessions_dir="" target="" tmp=""
+
+  safe_sid="$(hook__session_sanitize "$sid")" || return 0
+  [[ "$issue" =~ ^[0-9]+$ ]] || return 0
+
+  sessions_dir="${main_root}/.copilot-tracking/sessions"
+  mkdir -p "$sessions_dir" || return 0
+  target="${sessions_dir}/${safe_sid}"
+  tmp="${sessions_dir}/.${safe_sid}.$$.tmp"
+  printf '%s' "$issue" >"$tmp" || return 0
+  mv "$tmp" "$target" || return 0
+  return 0
+}
+
+# hook__session_lookup <main_root> <sid>
+hook__session_lookup() {
+  local main_root="$1" sid="$2"
+  local safe_sid="" target="" issue=""
+
+  safe_sid="$(hook__session_sanitize "$sid")" || return 1
+  target="${main_root}/.copilot-tracking/sessions/${safe_sid}"
+  [ -f "$target" ] && [ -r "$target" ] || return 1
+  issue="$(cat "$target" 2>/dev/null || true)"
+  [[ "$issue" =~ ^[0-9]+$ ]] || return 1
+  printf '%s' "$issue"
   return 0
 }
 
@@ -430,23 +473,40 @@ hook__main() {
   # shellcheck source=/dev/null
   source "$lib" 2>/dev/null || return 0
 
-  # G4 — issue context: GIT-FIRST, then interval fallback (#146).
+  # G4 — issue context: git, then session binding, then interval fallback.
   # trace__resolve_issue honors TRACE_ISSUE → feature/issue-NN-* branch →
   # issue-NN worktree basename. When git resolves an issue, proceed unchanged
-  # (the CLI-from-worktree and TRACE_ISSUE paths are untouched — zero
-  # regression). When git resolves NOTHING (the VS Code conductor topology:
-  # cwd = main checkout on `main`), attempt interval attribution by the
-  # payload timestamp against the per-issue active windows on disk. Every
-  # fallback failure leg is a warn + return-0 no-op — never now(), never
-  # mis-attribute, never fabricate.
-  if ! trace__resolve_issue >/dev/null 2>&1; then
-    local ts="" main_root="" matched_issue=""
+  # and persist a best-effort session binding. When git resolves NOTHING (the
+  # VS Code conductor topology: cwd = main checkout on `main`), a matching
+  # session binding wins before the interval ambiguity guard. Every fallback
+  # failure leg is a warn + return-0 no-op — never now(), never mis-attribute,
+  # never fabricate.
+  local sid="" resolved="" main_root="" bound="" ts="" matched_issue=""
+  sid="$(printf '%s' "$payload" | jq -r '.sessionId // .session_id // empty' 2>/dev/null || true)"
+  resolved="$(trace__resolve_issue 2>/dev/null || true)"
+  if [ -n "$resolved" ]; then
+    if [ -n "$sid" ]; then
+      main_root="$(trace__main_root 2>/dev/null || true)"
+      if [ -n "$main_root" ]; then
+        hook__session_bind "$main_root" "$sid" "$resolved"
+      fi
+    fi
+  else
+    main_root="$(trace__main_root 2>/dev/null || true)"
+    if [ -n "$main_root" ] && [ -n "$sid" ]; then
+      bound="$(hook__session_lookup "$main_root" "$sid" 2>/dev/null || true)"
+      if [ -n "$bound" ]; then
+        export TRACE_ISSUE="$bound"
+      fi
+    fi
+  fi
+
+  if [ -z "$resolved" ] && [ -z "$bound" ]; then
     ts="$(printf '%s' "$payload" | jq -r '.timestamp // empty' 2>/dev/null || true)"
     if [ -z "$ts" ]; then
       trace_warn "copilot-trace-hook: no payload timestamp for interval attribution — span dropped"
       return 0
     fi
-    main_root="$(trace__main_root 2>/dev/null || true)"
     if [ -z "$main_root" ]; then
       trace_warn "copilot-trace-hook: cannot resolve main checkout root for interval attribution (ts=${ts}) — span dropped"
       return 0

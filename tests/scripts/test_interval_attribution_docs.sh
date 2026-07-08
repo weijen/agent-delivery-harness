@@ -88,6 +88,22 @@ if ! { grep -qiE 'cwd' "$FLAT" && grep -qiE 'main checkout|main' "$FLAT"; }; the
 fi
 
 # ==============================================================================
+# 6. sessionId->issue binding wins before interval fallback.
+# ==============================================================================
+if ! { grep -qiE 'bind' "$FLAT" \
+  && grep -qiE '\.copilot-tracking/sessions|sessions/' "$FLAT" \
+  && grep -qiE 'before[^A-Za-z]+(the[^A-Za-z]+)?interval|binding[^A-Za-z]+first|precedence|git[^A-Za-z]+(→|->|then)?[^A-Za-z]*binding' "$FLAT"; }; then
+  fail "github-copilot.md must document the sessionId->issue binding that is persisted per-session under .copilot-tracking/sessions/ and consulted BEFORE the interval fallback (concept 6: binding precedence) — missing in ${DOC}"
+fi
+
+# ==============================================================================
+# 7. pr_merge closes the interval window.
+# ==============================================================================
+if ! { grep -qiE 'pr_merge' "$FLAT" && grep -qiE 'close|closes|closing|bounded|latest' "$FLAT"; }; then
+  fail "github-copilot.md must document that the interval window also closes at pr_merge — LATEST{finish, pr_merge} — so a merged-but-unfinished issue is bounded (concept 7: pr_merge close edge) — missing in ${DOC}"
+fi
+
+# ==============================================================================
 # Verdict.
 # ==============================================================================
 if [ "$fails" -ne 0 ]; then

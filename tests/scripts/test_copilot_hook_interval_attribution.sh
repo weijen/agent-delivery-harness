@@ -484,4 +484,48 @@ printf '%s\n' "$c7_new" | jq -e '
     and .["harness.session_id"] == "S7" and .["harness.issue"] == 206' >/dev/null \
   || fail "C7: the interval-attributed camelCase epoch-ms span must be a tool span for issue-206 carrying gen_ai.tool.name=bash and harness.session_id=S7: ${c7_new}"
 
+# =============================================================================
+# C8 — pr_merge closes an interval window even without a finish span. A payload
+# after the merge must no-op+WARN, while one before the merge still attributes.
+# =============================================================================
+MAIN8="${TMP_DIR}/main-c8"
+make_main_repo "$MAIN8"
+seed_lifecycle "$MAIN8" 210 worktree_create 2026-07-07T10:00:00Z
+seed_lifecycle "$MAIN8" 210 pr_merge        2026-07-07T10:30:00Z
+C8_T210="$(trace_path "$MAIN8" 210)"
+c8_before210="$(line_count "$C8_T210")"
+[ "$c8_before210" = "2" ] \
+  || fail "C8: fixture seed wrong (want 2 lifecycle lines for issue-210, got ${c8_before210})"
+run_hook "c8-after" "$MAIN8" <(
+  snake_post_ts "$MAIN8" "S8" "bash" '{"command":"echo after-merge"}' 2026-07-07T10:45:00Z
+)
+assert_session_safe "c8-after"
+c8_after210="$(line_count "$C8_T210")"
+[ "$c8_after210" = "$c8_before210" ] \
+  || fail "C8: a payload after pr_merge (window closed at merge) must NOT be interval-attributed to now-completed issue-210 — got before=${c8_before210} after=${c8_after210}; the window must close at LATEST{finish, pr_merge}, not stay open-ended when finish is absent"
+assert_warn_on_stderr "c8-after"
+
+MAIN8B="${TMP_DIR}/main-c8-before"
+make_main_repo "$MAIN8B"
+seed_lifecycle "$MAIN8B" 210 worktree_create 2026-07-07T10:00:00Z
+seed_lifecycle "$MAIN8B" 210 pr_merge        2026-07-07T10:30:00Z
+C8B_T210="$(trace_path "$MAIN8B" 210)"
+c8b_before210="$(line_count "$C8B_T210")"
+[ "$c8b_before210" = "2" ] \
+  || fail "C8: before-edge fixture seed wrong (want 2 lifecycle lines for issue-210, got ${c8b_before210})"
+run_hook "c8-before" "$MAIN8B" <(
+  snake_post_ts "$MAIN8B" "S8" "bash" '{"command":"echo pre-merge"}' 2026-07-07T10:15:00Z
+)
+assert_session_safe "c8-before"
+c8b_after210="$(line_count "$C8B_T210")"
+[ "$c8b_after210" = "$((c8b_before210 + 1))" ] \
+  || fail "C8: a payload before pr_merge (inside issue-210's [10:00,10:30] window) must append EXACTLY one tool span to issue-210/trace.jsonl — got before=${c8b_before210} after=${c8b_after210}; the pr_merge close edge must not over-close the interval"
+c8b_new="$(nth_line "$C8B_T210" "$c8b_after210")"
+validate_span "$c8b_new" \
+  || fail "C8: the appended before-pr_merge span is rejected by the #92 contract filter (fixture broken, not a merge-close regression): ${c8b_new}"
+printf '%s\n' "$c8b_new" | jq -e '
+    .span == "tool" and .["gen_ai.tool.name"] == "bash"
+    and .["harness.session_id"] == "S8" and .["harness.issue"] == 210' >/dev/null \
+  || fail "C8: the before-pr_merge span must be a tool span for issue-210 carrying gen_ai.tool.name=bash and harness.session_id=S8: ${c8b_new}"
+
 printf 'PASS: copilot-trace-hook.sh attributes runtime spans git-first, falls back to per-issue interval windows including camelCase epoch-ms timestamps, and no-ops+WARNs on no-match / ambiguity / missing timestamp\n'

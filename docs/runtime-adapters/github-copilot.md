@@ -144,17 +144,40 @@ issues in sequence; each span lands in whichever issue was active at its own
 time, so one `session_id` is split across issues by the `interval` its events
 fall into rather than by a single fixed label.
 
-Resolution is **git-first, interval-fallback**. Git resolution runs first, so a
-CLI session driven from inside a worktree is unchanged — its `cwd` still
-resolves the issue directly. Interval attribution is the `fallback` used only
-when git resolves nothing (the VS Code main-checkout case above).
+Resolution runs in three tiers. **Git resolution runs first** for any session
+whose `cwd` is inside a worktree — that CLI path is unchanged and always
+authoritative. A persisted **session binding** is the next tier, consulted
+*before* the interval fallback, so once a session's issue is known the exact
+key lookup wins over a timestamp guess. The effective order is therefore
+**git → binding → interval**: git when the worktree is visible, the recorded
+binding when it is not, and interval only when neither resolves. Binding never
+overrides an unambiguous git resolution — it removes the *need* to guess when
+git is blind, it does not second-guess git.
+
+The binding is a per-session `sessionId → issue` map, one file per session
+under `${main_checkout}/.copilot-tracking/sessions/<sessionId>` (its content is
+the unpadded issue number). The hook **writes** the binding whenever git
+resolves an issue for a session (it then knows both the `sessionId` and the
+issue), and on the main-checkout path where git resolves nothing it **reads**
+the binding first: a hit attributes the span to the bound issue directly and
+skips interval attribution entirely. So once any span of a session has been
+git-resolved, every later span from that same `sessionId` is bound by exact
+lookup — this is what removes the cross-issue overlap ambiguity that pure
+interval matching hits when two windows are open at once. Only a session with
+no binding (and no git resolution) falls through to interval, the `fallback`
+used for the VS Code main-checkout case above.
 
 The switch boundaries come from the harness lifecycle, not from guesswork. An
-issue's window is `[worktree_create, finish]`: the `worktree_create` span from
-start-issue opens it and the `finish` span from finish-issue closes it, both
-already recorded in that issue's
-`.copilot-tracking/issues/issue-NN/trace.jsonl` (an issue with no `finish` yet
-has an open-ended window). Every emitted span also carries a
+issue's window is `[worktree_create, close]`, where `close` is the **LATEST**
+of its `finish` and `pr_merge` lifecycle spans — `LATEST{finish, pr_merge}`.
+The `worktree_create` span from start-issue opens it; either the `finish` span
+from finish-issue or the `pr_merge` span from merge-pr closes it. Because
+`merge-pr` is the reliable merge gate that always runs, a **merged**-but-not-
+finished issue is still `bounded` (its window `closes` at the merge) rather than
+staying open-ended, so a later session's spans do not leak into a completed
+issue. All boundary spans are already recorded in that issue's
+`.copilot-tracking/issues/issue-NN/trace.jsonl` (an issue with neither `finish`
+nor `pr_merge` yet has an open-ended window). Every emitted span also carries a
 `harness.session_id` (#147) alongside the attributed issue.
 
 Attribution never guesses. If zero or more than one issue window contains the
