@@ -51,8 +51,8 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
     `feature/issue-NN-<slug>` and an isolated worktree at
     `../<repo>-worktrees/issue-NN`, scaffolds
      `.copilot-tracking/issues/issue-NN/`, and prints the `cd` path. Work happens **in that
-     worktree**, never directly on the main checkout. For Foundry / Terraform / deploy work,
-     run `REQUIRE_AZ=1 ./scripts/start-issue.sh <N>`.
+     worktree**, never directly on the main checkout. For cloud / infrastructure / deploy work
+     (e.g. an Azure / Foundry project), run `REQUIRE_AZ=1 ./scripts/start-issue.sh <N>`.
    - **Resuming an issue:** `cd` into its existing worktree and run `./scripts/init.sh` for a fresh
      preflight.
    - `./scripts/init.sh` is the preflight sensor itself: `gh` login HARD-FAIL, `az` login WARN unless
@@ -266,8 +266,8 @@ subagent loads them.
   front; coding sessions must not weaken those fields. During implementation, edit
   `feature_list.json` only to flip `passes`, add factual `blocked_on` / `verification` status,
   or **strengthen** sensors when a real gap is found.
-- Verify the feature **end-to-end** as a user would (Foundry call on a fixed fixture, agent
-  loop on representative input, CLI report against known-good structured data) — not just unit
+- Verify the feature **end-to-end** as a user would (an external-service call on a fixed fixture,
+  agent loop on representative input, CLI report against known-good structured data) — not just unit
   tests or a green type-check. Only then set `passes:true`.
 
 ## 4. Sensors — run to self-correct (quality-left)
@@ -295,8 +295,8 @@ runnable through the real boundary.
   that would fail if the completed behaviour regresses (unit test, contract test,
   architecture-fitness test, golden fixture/checksum, local gate, or — for prompt/analyzer
   assets — a snapshot test of expected structured output on fixed test input).
-- **End-to-end starts when there is a runnable boundary.** Once a feature exposes a Foundry
-  call, an agent loop, a CLI report, or a deployed endpoint, its feature-completion sensor
+- **End-to-end starts when there is a runnable boundary.** Once a feature exposes an
+  external-service call, an agent loop, a CLI report, or a deployed endpoint, its feature-completion sensor
   must exercise that boundary as a user/system would. Do not mark it `passes:true` on unit
   tests or API-shape checks alone.
 - **Write sensors into `feature_list.json`.** Prefer simple per-feature string fields:
@@ -440,13 +440,14 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
 
 Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 
-- Parse/validate structured outputs from Foundry or other external services at the boundary
+- Parse/validate structured outputs from external services at the boundary
   with typed models matching the canonical project schemas; never build on guessed shapes.
 - Once Python lands, respect the layered architecture: `apps/` may depend on `packages/`,
   never the reverse, and an app must not import a sibling app. The first app that introduces
   multiple modules should also introduce `tests/meta/test_architecture.py` to enforce it.
-- Config/secrets come from env, never hard-coded. Foundry endpoints + keys live in `.env` /
-  Key Vault; never embed a `<resource>.openai.azure.com` URL or `sk-...`-style key in source.
+- Config/secrets come from env, never hard-coded. Service endpoints + keys live in `.env` /
+  a secrets manager; never embed a live endpoint URL (e.g. a `<resource>.openai.azure.com` host)
+  or `sk-...`-style key in source.
 - Every generated artifact carries enough source identifiers and producer metadata to be
   traced back to its inputs and producing component.
 - Customer-confidential material (raw media, decks, screenshots, exports, secrets) is never
