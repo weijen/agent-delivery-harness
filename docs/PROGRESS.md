@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #201)._
+_Last updated: 2026-07-08_
 
 ---
 
@@ -102,6 +102,9 @@ _Last updated: 2026-07-08 (issue #201)._
 ---
 
 ## Delivered (newest first)
+
+### Skill-modernize (#200): prune stale Taskfile references and duplicated doctrine
+- **#200 — instruction files no longer reference the retired `task preflight` / `task init-issue` / `task finish-issue` Taskfile workflow, and duplicated stop/retry/feedback doctrine is deduped.** `workflow-tiers.instructions.md` replaced the stale "Optional: Issue-driven harness" Taskfile section with a generic note, genericized the init-issue step, and collapsed the repeated stop/retry/feedback rules; `harness.instructions.md` §3 tightened the non-delegable block and hoisted the Red→Green→Refactor bullet. A new `tests/meta/test_instructions_no_stale_repetition.sh` regression sensor guards against the stale phrasing and repetition (proven red-first). _(PR #209)_
 
 ### Skill-modernize (#201): single-source the product-quality rubric in the subagents
 - **#201 — the four blocking gates and six-dimension scorecard now live only in `docs/evaluation/product-quality-rubric.md`.** `test-subagent.agent.md` and `code-review-subagent.agent.md` previously restated the gate definitions (twice in the reviewer) and the full 0–12 scorecard bands; they now keep only a pointer to the rubric doc, the gate/dimension **names**, and their agent-specific evidence/routing rules. The numeric score bands moved into the sensor's `test_doc` (single source), the agent band-restatement assertions were relaxed, and a new `drift` subcommand in `tests/meta/test_product_quality_rubric.sh` parses the canonical gate/dimension names from the rubric doc headings and fails if either agent drifts from them (with a 4-gate/6-dimension count guard). Proven red-first via doc gate-rename and dimension-count mutations.

@@ -82,8 +82,8 @@ draft an issue first.
 
 1. Draft a title and body (background, expected behavior, acceptance criteria).
 2. Present the draft to the user; ask for approval before creating it.
-3. On approval, run `gh issue create --title "…" --body "…"` and, if the host repo provides `task init-issue`, also
-   run `task init-issue ISSUE=<N>`.
+3. On approval, run `gh issue create --title "…" --body "…"` and, if the host repo provides an issue-init command,
+   run it to snapshot the issue and a test baseline.
 4. If the user declines: stop. Do not implement inline.
 
 **Tier 0 is exempt.** The handshake only fires when files will be modified.
@@ -158,25 +158,16 @@ asks for one.
 ### Mid-pipeline rules
 
 - Every 3 phases, or at the end: pause, summarise progress, wait for user confirmation before continuing.
-- If a subagent blocks (missing dependency, unclear instruction, repeated test failure), stop and consult the user.
-  Never retry the same operation more than twice.
-- When relaying review feedback for revision, include the **full** feedback — don't summarise or soften.
 
-## Optional: Issue-driven harness (when the host repo provides it)
+For blocker, retry, and review-feedback handling, see **When to Stop and Ask** and **Important Rules** below — those
+rules are stated once there.
 
-If the host repo carries Taskfile targets like `task preflight`, `task init-issue ISSUE=<N>`, `task finish-issue
-ISSUE=<N>`, and a `.github/templates/feature_list.json` template, you may use them as the shell layer around the
-pipeline above:
+## Optional: host-repo issue-lifecycle commands
 
-1. `task preflight` — verify dev environment.
-2. `task init-issue ISSUE=<N>` — snapshot the issue body and a test baseline.
-3. Have `planning-subagent` produce the plan (or, when working from `feature_list.json`, treat each feature as a
-   phase).
-4. Implement + review per the pipeline above.
-5. `task finish-issue ISSUE=<N>` — gate on lint/format/test green and an issue-closing trailer.
-
-The harness is **optional**. It is a convenience for repos that have invested in it. When it isn't present, the
-chat-to-issue handshake plus the standard pipeline is sufficient.
+When the host repo provides its own issue-lifecycle commands (preflight, issue init, finish/close), prefer them over
+this file's defaults as the shell layer around the pipeline above. This repo's own harness is script-based
+(`scripts/start-issue.sh`, `scripts/finish-issue.sh`, `.copilot-tracking/issues/`) — there is no Taskfile — so treat
+any `task …` invocation as illustrative, not a command to hunt for.
 
 ## When to Stop and Ask
 
@@ -213,5 +204,4 @@ Do not reference plan phases or internal workflow in commit messages.
 - Never force-push or amend commits that have already been pushed.
 - Never proceed past a mandatory pause (plan approval, final review, every-3-phase milestone) without user
   confirmation.
-- If a subagent fails or gets stuck, consult the user rather than retrying indefinitely.
 - When relaying review feedback to revision, include the full feedback — don't summarise or soften it.

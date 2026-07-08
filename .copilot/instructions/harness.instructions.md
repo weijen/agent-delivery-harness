@@ -94,6 +94,10 @@ similar names by collapsing one into the other.
 ## 3. Implement one feature (TDD, incremental)
 
 - **Never one-shot** a feature or a whole issue. One `feature_list` item at a time.
+- **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
+  other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
+  smoke run): write the smallest failing test that expresses the feature; confirm it fails for
+  the right reason; write minimal code to pass; refactor with the suite green.
 - For Copilot-assisted issue work, keep the roles separate:
   - **Conductor** chooses the issue, reads the GitHub contract, selects one `passes:false`
     feature, owns commits/PRs, and records substantive conductor actions in the issue progress Action Log.
@@ -126,21 +130,18 @@ is provable in isolation.
 
 #### The conductor's feature work is non-delegable to itself (MANDATORY)
 
-When the issue workflow is active, the conductor **must not directly** perform feature work. This is a
-**non-delegable** boundary: it **cannot be delegated** back to the conductor by convenience, time pressure, or
-"it's just a small change". In plain terms: the conductor must not directly write tests, must not directly write
-sensors, and must not directly write production implementation for the feature. Specifically, the conductor
-**must not**:
+When the issue workflow is active, the conductor must not directly perform feature work — a **non-delegable**
+boundary that **cannot be delegated** back to the conductor by convenience, time pressure, or "it's just a small
+change". The conductor **must not**:
 
 - **write tests or sensors** (no test-writing, no sensor implementation, no RED/GREEN authoring) for the feature;
 - write the feature's **production implementation** (no production code / production assets changes);
 - flip a feature to `passes:true` or otherwise own verification.
 
-The conductor **does not** implement and the conductor **never** writes the feature's tests. Those acts belong to
-the `implementation-subagent` (production) and `test-subagent` (sensors + `passes:true`). The conductor's own job is
-strictly orchestration: select the issue and one `passes:false` feature, prepare context, invoke the correct
-subagent, record handbacks, own commits/pushes/PRs/merge, and stop on blockers. If no subagent is available, **stop
-and report the blocker** — do not silently absorb the implementation or test role.
+Those acts belong to the `implementation-subagent` (production) and `test-subagent` (sensors + `passes:true`). The
+conductor's own job is strictly orchestration: select the issue and one `passes:false` feature, prepare context, invoke
+the correct subagent, record handbacks, own commits/pushes/PRs/merge, and stop on blockers. If no subagent is
+available, **stop and report the blocker** — do not silently absorb the implementation or test role.
 
 #### Required per-feature handoff sequence
 
@@ -257,10 +258,6 @@ How to pass them: either paste the file contents into the subagent prompt, or gi
 instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
 `<language>.instructions.md` files, so this is a belt-and-suspenders contract: the conductor supplies them and the
 subagent loads them.
-- **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
-  other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
-  smoke run): write the smallest failing test that expresses the feature; confirm it fails for
-  the right reason; write minimal code to pass; refactor with the suite green.
 - **Never edit, weaken, or delete a test/feature/sensor to make things pass.** Initializer or
   planning work may define feature `steps`, `regression_sensor`, and `e2e_sensor` fields up
   front; coding sessions must not weaken those fields. During implementation, edit
