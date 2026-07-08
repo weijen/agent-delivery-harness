@@ -132,6 +132,7 @@ Editing rules:
 - Documentation indexes that claim to list every guide, skill, command, scenario, or module.
 - Archived plans that still appear active after implementation shipped.
 - Skills/customization files that reference removed commands, renamed paths, stale workflow assumptions, or missing frontmatter.
+- Stale model-pin frontmatter: a `model:` key in agent/skill frontmatter that names a retired model generation. An unknown pin either silently falls back to a default model or fails to launch, both invisible to the caller. Prefer inheriting the session model (no pin) unless a pin is deliberately maintained against a current, verified model id.
 
 ## Useful Inventory Commands
 
