@@ -8,7 +8,24 @@
     "schema_version_per_span": "Every span line carries schema_version so a trace surviving a harness upgrade mid-issue remains interpretable line by line.",
     "harness_version": "harness.version is the harness SemVer release read from the top-level VERSION file (fallback 0.0.0-dev); it is stable across commits so by_version aggregation is meaningful. The exact commit is the optional harness.commit field. Mandatory on every span."
   },
+  "single_source_note": "numeric_keys / numeric_key_prefixes / structural_numeric_keys / roles are the additive single-source authority (issue #173) for values previously hand-copied into script bodies. numeric_keys + numeric_key_prefixes are the keys trace-lib.sh types as JSON numbers (the #103 trace-gate counts + the gen_ai.usage.* token prefix). structural_numeric_keys (harness.issue, schema_version) are additionally required to be numeric by validate-trace.sh's type check but are set structurally by the emitter, not via the trace-lib numeric-typing predicate — so validate-trace.sh's list is numeric_keys + structural_numeric_keys. roles is the closed log-handback / check-trace-consistency role enum. Script-local copies are wrapped in '# >>> trace-schema:<name> ... # <<< trace-schema:<name>' markers and drift-guarded by tests/meta/test_trace_schema_single_source.sh. Additive and open-world: no change to existing v1 required-field/enum semantics.",
   "span_types": ["agent", "model", "tool", "lifecycle"],
+  "numeric_keys": [
+    "harness.exit_status",
+    "harness.duration_ms",
+    "harness.incomplete_count",
+    "harness.violation_count",
+    "harness.warning_count"
+  ],
+  "numeric_key_prefixes": ["gen_ai.usage."],
+  "structural_numeric_keys": ["harness.issue", "schema_version"],
+  "roles": [
+    "conductor",
+    "planning-subagent",
+    "implementation-subagent",
+    "test-subagent",
+    "code-review-subagent"
+  ],
   "required_common": ["schema_version", "timestamp", "span", "harness.issue", "harness.version"],
   "required_by_span": {
     "agent": ["gen_ai.operation.name", "gen_ai.agent.name"],

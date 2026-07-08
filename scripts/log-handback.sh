@@ -89,7 +89,9 @@ shift 4
 SUMMARY="$*"
 
 case "$ROLE" in
+  # >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
   conductor|planning-subagent|implementation-subagent|test-subagent|code-review-subagent) ;;
+  # <<< trace-schema:roles
   *) usage; fail "unknown role '${ROLE}' (closed enum)" ;;
 esac
 

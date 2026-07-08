@@ -242,8 +242,10 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
 STATE_FILTER="${TMP_DIR}/consistency-state.jq"
 cat > "$STATE_FILTER" <<'JQ'
+# >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
 ["conductor", "planning-subagent", "implementation-subagent",
  "test-subagent", "code-review-subagent"] as $roles
+# <<< trace-schema:roles
 | [inputs] as $lines
 | range(0; $lines | length) as $i
 | ($i + 1) as $n

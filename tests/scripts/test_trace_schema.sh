@@ -104,6 +104,39 @@ jq -e '.optional_fields["harness.failure_mode"] | (type == "string") and contain
   "$CONTRACT" >/dev/null \
   || fail "optional_fields entry harness.failure_mode must reference the closed failure_modes enum"
 
+# Single-source enum authority (issue #173): the numeric-key map and role enum
+# that scripts previously hand-copied now live in the contract as additive
+# arrays. Backstop lists are hardcoded here (sorted, order-insensitive) so a
+# contract edit cannot silently drift them; tests/meta/test_trace_schema_single_source.sh
+# enforces that each script-local copy matches these arrays.
+expected_numeric_keys='["harness.duration_ms","harness.exit_status","harness.incomplete_count","harness.violation_count","harness.warning_count"]'
+jq -e --argjson want "$expected_numeric_keys" \
+  '(.numeric_keys // [] | sort) == $want' "$CONTRACT" >/dev/null \
+  || fail "contract .numeric_keys must be exactly the 5 trace-gate count keys (issue #173)"
+
+expected_numeric_prefixes='["gen_ai.usage."]'
+jq -e --argjson want "$expected_numeric_prefixes" \
+  '(.numeric_key_prefixes // [] | sort) == $want' "$CONTRACT" >/dev/null \
+  || fail "contract .numeric_key_prefixes must be exactly [gen_ai.usage.] (issue #173)"
+
+expected_structural_numeric='["harness.issue","schema_version"]'
+jq -e --argjson want "$expected_structural_numeric" \
+  '(.structural_numeric_keys // [] | sort) == $want' "$CONTRACT" >/dev/null \
+  || fail "contract .structural_numeric_keys must be exactly harness.issue and schema_version (issue #173)"
+
+expected_roles='["code-review-subagent","conductor","implementation-subagent","planning-subagent","test-subagent"]'
+jq -e --argjson want "$expected_roles" \
+  '(.roles // [] | sort) == $want' "$CONTRACT" >/dev/null \
+  || fail "contract .roles must be exactly the 5 closed log-handback/consistency roles (issue #173)"
+
+# All authority arrays must be non-empty arrays of strings.
+for arr in numeric_keys numeric_key_prefixes structural_numeric_keys roles; do
+  jq -e --arg a "$arr" \
+    '(.[$a] | type) == "array" and (.[$a] | length > 0) and (.[$a] | all(type == "string"))' \
+    "$CONTRACT" >/dev/null \
+    || fail "contract .$arr must be a non-empty array of strings (issue #173)"
+done
+
 # --- 3. jq validation filter: contract-driven span accept/reject -------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
