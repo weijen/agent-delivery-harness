@@ -48,14 +48,18 @@ sanitize_refs="$(grep -c 'TRACE_SECRET_SHAPE_RE' "$SANITIZE")"
 [ "$sanitize_refs" -ge 2 ] \
   || fail "sanitize-trace.sh must reference TRACE_SECRET_SHAPE_RE in both audit sites (found ${sanitize_refs})"
 
-# 3. No forked literal backstop copy may survive in either consumer.
+# 3. No forked literal backstop copy may survive in either consumer. Check
+# several distinctive fragments so a rewritten-but-equivalent fork is caught.
 for f in "$EXPORT" "$SANITIZE"; do
-  if grep -qF 'AKIA[0-9A-Z]{16}' "$f"; then
-    fail "forked backstop literal (AKIA[0-9A-Z]{16}) still present in ${f} — must reference the shared source"
-  fi
-  if grep -qF 'gh[pousr]_[A-Za-z0-9_]{20,}' "$f"; then
-    fail "forked backstop literal (gh[pousr]_...) still present in ${f} — must reference the shared source"
-  fi
+  for frag in \
+    'AKIA[0-9A-Z]{16}' \
+    'gh[pousr]_[A-Za-z0-9_]{20,}' \
+    'github_pat_[A-Za-z0-9_]{20,}' \
+    'sk-ant-[A-Za-z0-9_-]{20,}'; do
+    if grep -qF "$frag" "$f"; then
+      fail "forked backstop literal (${frag}) still present in ${f} — must reference the shared source"
+    fi
+  done
 done
 
 printf 'secret-shape backstop is single-sourced\n'

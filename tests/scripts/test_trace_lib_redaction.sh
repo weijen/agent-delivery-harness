@@ -331,4 +331,26 @@ pem_line="$(nth_line "$TRACE_FILE" 12)"
 printf '%s\n' "$pem_line" | jq -e '.["harness.note2"] == "keep-me-visible"' >/dev/null \
   || fail "PEM redaction mangled the co-located innocent value harness.note2: ${pem_line}"
 
+# Two PEM blocks on ONE serialized line, separated by an innocent attribute:
+# the rule must redact each block independently (block-local) and must NOT
+# greedily merge across the intervening JSON field.
+trace_span tool "gen_ai.tool.name=openssl" \
+  "harness.pem1=-----BEGIN EC PRIVATE KEY-----
+firstbodysynthetic1234==
+-----END EC PRIVATE KEY-----" \
+  "harness.between=innocent-between-blocks" \
+  "harness.pem2=-----BEGIN RSA PRIVATE KEY-----
+secondbodysynthetic5678==
+-----END RSA PRIVATE KEY-----" \
+  || fail "trace_span (two PEM blocks) returned non-zero"
+two_pem_line="$(nth_line "$TRACE_FILE" 13)"
+printf '%s\n' "$two_pem_line" | jq empty 2>/dev/null \
+  || fail "two-PEM-block line is not valid JSON (greedy merge across a field?): ${two_pem_line}"
+printf '%s\n' "$two_pem_line" | jq -e '
+    (.["harness.pem1"] == "[REDACTED]")
+    and (.["harness.pem2"] == "[REDACTED]")
+    and (.["harness.between"] == "innocent-between-blocks")
+  ' >/dev/null \
+  || fail "two PEM blocks must each be masked with the innocent field intact: ${two_pem_line}"
+
 printf 'trace-lib redaction contract honored\n'
