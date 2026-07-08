@@ -232,7 +232,8 @@ Subagents run in a **fresh context** and do **not** inherit the conductor's Copi
 conductor must make the relevant instruction files part of the subagent prompt, not assume the subagent already has
 them. Routing is **profile-aware**: select the instruction file that matches the files the feature changes, by
 extension, under `.copilot/instructions/<language>.instructions.md` — `.py` → `python`, `.go` → `go`,
-`.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`. For a **mixed-language** feature, pass **every**
+`.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`, `.sh` → `bash`,
+`.tf`/`.bicep` → `terraform-azure`. For a **mixed-language** feature, pass **every**
 applicable language instruction file, always alongside `.copilot/instructions/tdd.instructions.md` and this harness
 contract. For example, when the selected feature touches Python (`.py`):
 
@@ -249,7 +250,8 @@ inventing language conventions.
 
 When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
 `.copilot/instructions/bash.instructions.md`: include/point to it for the implementation and test work, and name it as
-a review criterion for the shell diff.
+a review criterion for the shell diff. Likewise, when the feature touches Terraform/Azure surfaces (`*.tf` or
+`*.bicep`), apply the same pattern with `.copilot/instructions/terraform-azure.instructions.md`.
 
 How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
 instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
