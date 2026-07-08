@@ -12,6 +12,8 @@ Find implementation shortcuts that may work locally or temporarily but create re
 
 This skill is an audit workflow. It gathers evidence, filters false positives, classifies findings by impact, and recommends concrete next actions. Do not treat keyword hits as findings until the surrounding code has been reviewed.
 
+> Apply the shared audit conventions in `.copilot/skills/_audit-conventions.md` (exclusions, "search broadly / judge narrowly", implementation-usefulness priority decisions using the Fix now / Plan first / Defer-accept grading vocabulary, and the report shape) before auditing. This priority grading is separate from severity, and the priority decision does not override severity.
+
 ## When to Use
 
 Use this skill when the user asks to:
@@ -22,16 +24,11 @@ Use this skill when the user asks to:
 - Investigate why the same bug keeps recurring.
 - Check whether code is production-ready before release or deployment.
 
-## Core Principle
-
-Search broadly, judge narrowly. Suspicious patterns are clues, not verdicts. A good audit distinguishes harmful shortcuts from intentional compatibility code, tests, documented fallbacks, local development helpers, generated files, and operational scripts.
-
 ## Procedure
 
 1. Define scope and context.
    - Use the scope provided by the user. If no scope is provided, inspect the workspace structure and focus on source, scripts, infrastructure, config, and tests that are relevant to the request.
    - Identify languages and frameworks before choosing scan patterns.
-   - Exclude generated files, vendored dependencies, virtual environments, package caches, build output, lockfiles, minified bundles, and dependency directories such as `.venv/`, `venv/`, `node_modules/`, `dist/`, `build/`, `target/`, `.terraform/`, `.next/`, `.nuxt/`, `coverage/`, and `.git/`.
    - If this audit follows a specific incident or fix, inspect the touched files and adjacent call paths first, then broaden the scan.
 
 2. Run language-aware and text searches.
@@ -111,117 +108,6 @@ Adapt these to the project language and scope:
 - Timing hacks: `sleep\(|time\.sleep|Thread\.sleep|setTimeout|setInterval|while True|for \(;;\)|retry|backoff|poll`
 - Security shortcuts: `verify=False|--no-verify|rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*0|curl .* -k|chmod 777|chmod 666|shell=True|eval\(|exec\(|allow_origins\s*=\s*\[\s*["']\*["']`
 - Debug leftovers: `print\(|console\.log|debugger;|breakpoint\(|pdb\.set_trace|TODO.*remove|commented out`
-
-## Implementation-Usefulness Grading
-
-After a finding is classified and assigned a severity, grade how useful and safe it
-is to act on it **now**. This grading is **separate from severity**: severity ranks
-how harmful the smell is; usefulness ranks how worthwhile and tractable the fix is.
-Score every confirmed finding on five dimensions (High / Medium / Low):
-
-- **Evidence strength** — how certain you are this is a real shortcut, not intentional code.
-- **Payoff clarity** — how clearly the fix improves correctness, safety, or maintainability.
-- **Tractability** — how bounded and well-understood the fix is.
-- **Verification clarity** — whether a concrete sensor, test, or review step can confirm the fix.
-- **Pattern fit** — whether the fix aligns with an existing accepted pattern in the codebase.
-
-Roll the scores into one **implementation decision** per finding:
-
-- **Fix now** — strong evidence, clear payoff, bounded change, verifiable. Safe to fix in this pass.
-- **Plan first** — real but broad or risky; route to a phased remediation plan before touching code.
-- **Defer-accept** — low payoff or speculative; record under Accepted Patterns and leave as-is.
-
-**The decision does not override severity.** A high usefulness score never licenses an
-unsafe shortcut: a blocking Critical (security, data loss, destructive operation) still
-blocks regardless of decision, and a high score must not justify a hasty fix that swaps
-one hardcoded value or swallowed error for another. When evidence is weak, prefer
-Defer-accept over Fix now.
-
-## Report Template
-
-````markdown
-## Brute-Force and Code Smell Audit: <scope>
-
-**Overall:** <clean | minor debt | needs attention | critical>
-**Findings:** <N critical, N high, N medium, N low, N accepted>
-
-### Findings
-
-| ID | Sev | File | Category | Decision | Description |
-| --- | --- | --- | --- | --- | --- |
-| BF-1 | High | path/to/file.py:42 | Hardcoded value | Fix now | Environment-specific resource name embedded in runtime logic. |
-| BF-2 | Low | scripts/setup.sh:18 | Swallowed error | Defer-accept | Suppressed command failure has fallback logging and bounded impact. |
-
-### Details
-
-#### BF-1: <title>
-
-**File:** `path/to/file.py:42`
-**Category:** Hardcoded value
-
-```python
-# relevant snippet
-```
-
-**Concern:** <why this is risky>
-**Implementation decision:** <Fix now | Plan first | Defer-accept> — <one-line rationale from the five dimensions>
-**Recommended fix:** <specific fix strategy>
-**Verification:** <targeted command or review step>
-
-### Accepted Patterns
-
-- `path/to/test_file.py:12` — hardcoded token is a test fixture, not a real credential.
-- `scripts/bootstrap.sh:40` — `|| true` is followed by explicit fallback handling and diagnostics.
-
-### Remediation Plan
-
-Create a separate plan only when the user asks for one, or when Critical/High/Medium findings are numerous enough that implementation needs phased tracking. Use the repository's existing planning location and conventions if present; otherwise provide the plan inline.
-````
-
-## Remediation Plan Template
-
-Use this template when a plan is requested or clearly helpful.
-
-````markdown
-# Plan: Fix <topic> (Brute-Force Audit)
-
-## Background
-
-Audit findings BF-X, BF-Y, and BF-Z identified <summary of the problem>.
-
-## Fix 1: <title> (BF-X, BF-Y)
-
-**Problem:** <one-line description>
-
-**Current code** (`path/to/file.ext`):
-
-```<language>
-# problematic code
-```
-
-**Proposed fix** (`path/to/file.ext`):
-
-```<language>
-# replacement code
-```
-
-**Files changed:**
-
-- Edit: `path/to/file.ext`
-- Edit: `path/to/other.ext`
-
-**Rationale:** <why this approach fits existing project patterns>
-
-## Test Impact
-
-- `tests/test_example.ext` — update expected behavior for <specific scenario>.
-- Add coverage for <new fallback/config/error path>, or explain why no new tests are needed.
-
-## Verification
-
-1. `<targeted test/lint/security command>`
-2. `<integration, smoke, or manual verification step if relevant>`
-````
 
 ## Completion Criteria
 

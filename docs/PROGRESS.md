@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #178)._
+_Last updated: 2026-07-08 (issue #179)._
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-08 (issue #178)._
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 106 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 107 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow; a green run is a hard merge precondition
   (enforced by `merge-pr.sh`).
 - **Red-first evidence is enforced, not just counted (#144):** the PR path
@@ -102,6 +102,18 @@ _Last updated: 2026-07-08 (issue #178)._
 ---
 
 ## Delivered (newest first)
+
+### Skill audit conventions single-source
+- **#179 — shared audit-skill boilerplate is now single-sourced.** The four
+  audit skills (`find-brute-force`, `find-duplicates`, `find-over-design`, and
+  `dead-code-detection`) now reference `.copilot/skills/_audit-conventions.md`
+  for common exclusions, search-broadly/judge-narrowly guidance, compact
+  implementation-usefulness vocabulary, report shape, and remediation-plan
+  expectations. The duplicated 5-dimension H/M/L rubrics and three remediation
+  plan templates were removed, while `dead-code-detection` keeps its public-API
+  Defer-protect default. New sensor `tests/meta/test_audit_conventions_shared.sh`
+  guards the extraction and public-exposure audit now uses the shared
+  Fix-now/Plan-first/Defer-accept vocabulary.
 
 ### Skill-prompt modernization — imported-skill replacement (epic #176)
 - **#178 — rewrite the imported generic `security-audit`; trim `code-review`

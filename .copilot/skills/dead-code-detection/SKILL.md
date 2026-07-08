@@ -16,6 +16,8 @@ Find code that is dead in more than one sense:
 - Dynamically dead code: code not executed by representative tests, evals, traces, telemetry, or branch coverage, especially when static references exist only through wrappers, registries, mocks, tests, migrations, or obsolete adapters.
 - Oxbow code: retained legacy compatibility or historical code that may still be intentionally shipped; classify separately instead of deleting by default.
 
+> Apply the shared audit conventions in `.copilot/skills/_audit-conventions.md` (exclusions, "search broadly / judge narrowly", implementation-usefulness priority decisions using the Fix now / Plan first / Defer-accept grading vocabulary, and the report shape) before auditing. This priority grading is separate from severity, and the priority decision does not override severity.
+
 ## When to Use
 
 Use this skill when the user asks to detect, audit, remove, review, or explain:
@@ -108,25 +110,9 @@ For each candidate, collect as many as apply:
 - Tests or smoke flows run after proposed removal
 - Reason it is not generated/vendor/public compatibility code
 
-## Implementation-Usefulness Grading
+## Implementation-Usefulness Nuance
 
-After a candidate is classified (confirmed dead / suspect / intentional) and its impact
-assessed, grade how useful and safe it is to remove **now**. This grading stays **separate from**
-the dead/suspect classification: classification says whether the code runs;
-usefulness says whether acting on it is worthwhile and safe. Score each candidate on five
-dimensions (High / Medium / Low):
-
-- **Evidence strength** — how conclusively static, runtime, and coverage evidence prove unreachability.
-- **Payoff clarity** — how clearly removal reduces confusion, surface area, or maintenance.
-- **Tractability** — how bounded the removal is, including transitive now-dead references.
-- **Verification clarity** — whether a sensor, test, or smoke flow can confirm nothing breaks.
-- **Reuse risk** — whether anything external or deferred might still need the symbol.
-
-Roll the scores into one **implementation decision** per candidate:
-
-- **Delete now** — conclusive evidence of unreachability, bounded blast radius, verifiable.
-- **Plan first** — likely dead but broad or cross-module; route to a phased removal plan.
-- **Defer-protect** — evidence is weak or the symbol is an external/contract surface; keep and annotate.
+For dead-code findings, **Fix now** means **Delete now** only when evidence is conclusive, removal is bounded, and validation is clear; otherwise use **Plan first** or **Defer-protect**.
 
 **The decision does not override classification or evidence.** A high usefulness score
 never licenses an unsafe deletion. **Default to Defer-protect** for public APIs, exported
