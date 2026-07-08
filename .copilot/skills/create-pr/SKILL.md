@@ -1,27 +1,35 @@
 ---
 name: create-pr
-description: Create well-structured pull requests with meaningful titles, descriptions, and proper branch management.
+description: Open a pull request that follows this repository's issue-driven harness conventions — branch naming, issue-scoped Conventional Commits, HEAD-bound review, and the CI-green squash-merge discipline.
 argument-hint: 'issue number, change summary, base branch, optional fork/remote'
 ---
 
 # Create Pull Request
 
+Open a PR the way this repo actually works: one issue per branch, gates recorded before the push, and a
+CI-green merge through the harness scripts. Prefer the scripts (`scripts/start-issue.sh`, `scripts/create-pr.sh`,
+`scripts/merge-pr.sh`) over hand-run `git`/`gh` — they encode the rules below as actions.
+
 ## Workflow
 
-1. **Branch** — name it `<type>/<short-description>` (e.g. `feat/add-user-auth`, `fix/null-pointer-login`,
-   `docs/update-readme`).
-2. **Commit** — group related changes into atomic commits in Conventional Commits format
-   (`<type>(<scope>): <summary>` with an optional body). Types: `feat`, `fix`, `docs`, `style`, `refactor`,
-   `test`, `chore`.
-3. **Pre-PR quality gates** — before pushing, run the companion skills that exist in this repo:
-   - **`code-review`** — self-review the diff for bugs, logic errors, and DRY violations; fix Critical/Warning
-     findings first.
-   - **`security-audit`** — scan the diff for injection, secrets, missing auth, and insecure dependencies; no
-     Critical findings.
-   Stage only the files you intend to publish (respect this repo's public-exposure hygiene); never blanket-stage.
-4. **Push** the branch only after the gates pass.
-5. **Open the PR** with a clear title, the description template below (include gate results), and a `Closes #<n>`
-   link to the issue.
+1. **Branch** — one branch per issue, named `feature/issue-<NN>-<slug>` (e.g. `feature/issue-181-codify-create-pr`).
+   `scripts/start-issue.sh <NN>` creates it (plus the isolated worktree) off `main`.
+2. **Commit** — Conventional Commits. Scope with the driving **issue number** when a single issue owns the change
+   (`feat(#181): …`, `fix(#177): …`); use a **component** scope otherwise (`feat(trace): …`, `docs(ci-gate): …`).
+   Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`. Keep the subject ≤ ~72 chars; put detail in the body.
+   Keep commit signing on, and end the message with the repo's `Co-authored-by: Copilot …` trailer.
+3. **Pre-PR gates** — before pushing, run the companion skills that exist here and record the HEAD review:
+   - **`code-review`** — self-review the diff; fix Critical/Warning findings first.
+   - **`security-audit`** — scan the diff for injection, secrets, workflow-permission and pinning gaps.
+   - **`scripts/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
+   Stage only the files you intend to publish (respect public-exposure hygiene); never blanket-stage with `git add -A`.
+4. **Update `docs/PROGRESS.md`** — add/extend the *Delivered* entry for this issue and bump *Last updated*. The
+   `review-gate.sh status-doc` gate blocks a PR whose branch did not change this file — there is no opt-out.
+5. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` re-syncs onto latest `main`, re-checks the review
+   approval, pushes, and opens the PR. Use the template below and link the issue with `Closes #<NN>`.
+6. **Merge** — only after the `Harness smoke` CI run is green. `scripts/merge-pr.sh --squash` verifies `gh pr checks`
+   is green, then squash-merges (the PR number is appended to the subject automatically). A green CI run is a hard
+   precondition; do **not** enable GitHub auto-merge as a standing practice.
 
 ## PR Description Template
 
@@ -35,15 +43,18 @@ Brief description of what this PR does and why.
 ## Quality Checks
 - [x] Code review: no critical/warning issues
 - [x] Security: no findings
+- [x] docs/PROGRESS.md updated
 
 ## Testing
-- How the changes were tested
+- How the changes were verified (name the sensor(s) run)
 
 ## Related Issues
-Closes #<issue-number>
+Closes #<NN>
 ```
 
 ## Edge Cases
 
-- **Fork workflows** — create the PR with `gh pr create --head user:branch`.
+- **Fork workflows** — `gh pr create --head user:branch`.
 - **Multiple remotes** — disambiguate with `gh pr create --repo owner/repo`.
+- **`merge-pr.sh` resolves the PR from the current worktree branch** — run it from the issue's worktree and pass only
+  flags (no PR number).

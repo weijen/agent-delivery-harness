@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-08 (issue #170)._
+_Last updated: 2026-07-08 (issue #181)._
 
 ---
 
@@ -104,6 +104,18 @@ _Last updated: 2026-07-08 (issue #170)._
 ## Delivered (newest first)
 
 ## Delivered (newest first)
+
+### create-pr codifies repo PR conventions
+- **#181 — the `create-pr` skill now encodes this repo's issue-driven harness
+  conventions instead of generic PR advice.** Branch naming
+  `feature/issue-<NN>-<slug>` (via `scripts/start-issue.sh`), issue-scoped
+  Conventional Commit scope `feat(#NN)`/`fix(#NN)` (component scope otherwise),
+  the HEAD-bound `review-gate.sh approve` + `docs/PROGRESS.md` status-doc
+  requirement, PR creation through `scripts/create-pr.sh`, and the CI-green
+  squash-merge discipline through `scripts/merge-pr.sh` (no standing
+  auto-merge). New sensor `tests/meta/test_create_pr_conventions.sh` guards the
+  conventions and blocks a revert to the generic `<type>/<short-description>`
+  advice or `git add -A`.
 
 ### Trace report: distinguish bounded-by-pr-merge from unfinished runs
 - **#170 — the run summary now separates a bounded trace from a truly open
