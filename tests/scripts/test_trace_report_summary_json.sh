@@ -165,6 +165,7 @@ else
   expect_summary "issue number"         '.issue == 98 and (.issue | type) == "number"'
   expect_summary "finished flag"        '.finished == true'
   expect_summary "final outcome"        '.final_outcome == "pass"'
+  expect_summary "bounded close edge"   '.bounded == true and .closed_by == "finish"'
   expect_summary "span_counts totals"   '.span_counts.total == 16 and .span_counts.invalid_lines == 2'
   expect_summary "span_counts by_type"  '.span_counts.by_type == {"agent":2,"lifecycle":6,"tool":8}'
   expect_summary "skills aggregate (#139: find-over-design, 1 call, 0 fail)" \

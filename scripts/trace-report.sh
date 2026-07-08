@@ -165,6 +165,7 @@ def ts_secs:
 | (($lines | length) - ($spans | length)) as $invalid
 | [$spans[] | .timestamp? | strings] as $ts
 | [$spans[] | select(.["harness.lifecycle_step"] == "finish")] as $finishes
+| [$spans[] | select(.["harness.lifecycle_step"] == "pr_merge")] as $pr_merges
 | [$spans[]
    | select(.span == "model")
    | select(((.["gen_ai.usage.input_tokens"]?  | type) == "number")
@@ -220,6 +221,14 @@ def ts_secs:
     final_outcome:
       (if ($finishes | length) > 0
        then ($finishes[-1]["harness.outcome"]? // null)
+       else null
+       end),
+    bounded: ((($finishes | length) > 0) or (($pr_merges | length) > 0)),
+    closed_by:
+      (if ($finishes | length) > 0
+       then "finish"
+       elif ($pr_merges | length) > 0
+       then "pr_merge"
        else null
        end),
     tokens:
@@ -347,7 +356,9 @@ def na: if . == null then "n/a" else tostring end;
     "",
     (if $s.finished
      then "Final outcome: \($s.final_outcome | na)"
-     else "Final outcome: n/a (unfinished run — no finish lifecycle span)"
+     elif $s.closed_by == "pr_merge"
+     then "Final outcome: n/a (unavailable from a finish span; attribution window bounded by pr_merge close edge — issue #165)"
+     else "Final outcome: n/a (open/unbounded run — no terminal close edge yet: no finish or pr_merge lifecycle span)"
      end)
   ]
 | .[]
