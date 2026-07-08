@@ -183,7 +183,7 @@ redaction_gate() { # redaction_gate <staged-envelope-file>
   # 2b. HARDCODED secret-shape backstop, deliberately INDEPENDENT of
   #     trace_redact (a broken/no-op redactor cannot blind it). Audit-only:
   #     the redaction POLICY stays trace_redact's alone.
-  if grep -qE 'gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}' "$staged"; then
+  if grep -qE "$TRACE_SECRET_SHAPE_RE" "$staged"; then
     red "error: export gate: a well-known secret shape survived into the staged envelopes (hardcoded backstop) — refusing (nothing written)" >&2
     return 1
   fi

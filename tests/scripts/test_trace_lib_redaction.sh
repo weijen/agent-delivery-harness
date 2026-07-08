@@ -273,4 +273,62 @@ printf '%s\n' "$header_line" | jq empty 2>/dev/null \
 validate_span "$header_line" \
   || fail "env/header secret line rejected by the #92 contract-driven jq filter: ${header_line}"
 
+# --- 6. Issue #172: close secret-shape gaps -------------------------------------
+# Synthetic (never real) values for four shapes the earlier rules missed:
+# bare JWTs, Azure SAS `sig=` query values, storage `AccountKey=` values, and
+# escaped PEM PRIVATE KEY blocks. Each must be masked, stay valid JSON/schema,
+# and leave co-located innocent content intact.
+JWT_SECRET='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6InN5bnRoZXRpYyJ9.SflKxwRJSMeKKF2QT4fwpMeJf36POk6ySYNTHETICsig01'
+SAS_SIG_SECRET='aB3dEf2gHiJkLmNoP0987654321syntheticSIGvalue'
+ACCOUNT_KEY_SECRET='abcDEF123synthetic4567890base64padSYNTHETIC=='
+PEM_BODY_SECRET='MIIEowIBAAKCAQEAsyntheticPRIVATEkeybodyLine1'
+
+trace_span tool "gen_ai.tool.name=curl" \
+  "http.header=Authorization: ${JWT_SECRET}" \
+  || fail "trace_span (bare JWT) returned non-zero"
+trace_span tool "gen_ai.tool.name=az" \
+  "harness.sas=https://acct.blob.core.windows.net/c/b?sv=2021-06-08&ss=b&sig=${SAS_SIG_SECRET}" \
+  || fail "trace_span (SAS sig=) returned non-zero"
+trace_span tool "gen_ai.tool.name=az" \
+  "harness.conn=DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=${ACCOUNT_KEY_SECRET};EndpointSuffix=core.windows.net" \
+  || fail "trace_span (AccountKey=) returned non-zero"
+trace_span tool "gen_ai.tool.name=openssl" \
+  "harness.pem=-----BEGIN RSA PRIVATE KEY-----
+${PEM_BODY_SECRET}
+morebase64synthetic==
+-----END RSA PRIVATE KEY-----" \
+  "harness.note2=keep-me-visible" \
+  || fail "trace_span (PEM block) returned non-zero"
+
+[ "$(line_count "$TRACE_FILE")" = "12" ] \
+  || fail "issue #172 fixtures must append 4 lines (expected 12, got $(line_count "$TRACE_FILE"))"
+
+assert_absent "bare JWT" "$JWT_SECRET"
+assert_absent "SAS sig= value" "$SAS_SIG_SECRET"
+assert_absent "AccountKey= value" "$ACCOUNT_KEY_SECRET"
+assert_absent "PEM private-key body" "$PEM_BODY_SECRET"
+
+for i in 9 10 11 12; do
+  line="$(nth_line "$TRACE_FILE" "$i")"
+  printf '%s\n' "$line" | grep -qF '[REDACTED]' \
+    || fail "issue #172 secret-carrying line ${i} carries no [REDACTED] marker: ${line}"
+  printf '%s\n' "$line" | jq empty 2>/dev/null \
+    || fail "issue #172 redacted line ${i} is no longer valid JSON: ${line}"
+  validate_span "$line" \
+    || fail "issue #172 redacted line ${i} rejected by the #92 contract-driven jq filter: ${line}"
+done
+
+# Key kept, value masked for AccountKey= (co-located AccountName survives).
+conn_line="$(nth_line "$TRACE_FILE" 11)"
+printf '%s\n' "$conn_line" | jq -e '
+    (.["harness.conn"] | contains("AccountName=acct"))
+    and (.["harness.conn"] | contains("AccountKey=[REDACTED]"))
+  ' >/dev/null \
+  || fail "AccountKey= redaction must keep AccountName and mask only the key value: ${conn_line}"
+
+# PEM redaction must not corrupt the co-located innocent attribute.
+pem_line="$(nth_line "$TRACE_FILE" 12)"
+printf '%s\n' "$pem_line" | jq -e '.["harness.note2"] == "keep-me-visible"' >/dev/null \
+  || fail "PEM redaction mangled the co-located innocent value harness.note2: ${pem_line}"
+
 printf 'trace-lib redaction contract honored\n'
