@@ -86,6 +86,17 @@ test_doc() {
   grep -Eqi 'STRONG_PASS|STRONG PASS' "$doc" ||
     "$note_fn" "$doc score interpretation must include STRONG_PASS"
 
+  # Numeric score bands are single-sourced here (issue #201): the agents point at
+  # this doc instead of restating the bands, so the bands must live in the doc.
+  grep -Eq '0[–-]5.*FAIL|FAIL.*0[–-]5' "$doc" ||
+    "$note_fn" "$doc must map score 0-5 to FAIL"
+  grep -Eq '6[–-]8.*NEEDS_REVISION|NEEDS_REVISION.*6[–-]8|6[–-]8.*NEEDS REVISION|NEEDS REVISION.*6[–-]8' "$doc" ||
+    "$note_fn" "$doc must map score 6-8 to NEEDS_REVISION"
+  grep -Eq '9[–-]10.*PASS|PASS.*9[–-]10' "$doc" ||
+    "$note_fn" "$doc must map score 9-10 to PASS"
+  grep -Eq '11[–-]12.*STRONG_PASS|STRONG_PASS.*11[–-]12|11[–-]12.*STRONG PASS|STRONG PASS.*11[–-]12' "$doc" ||
+    "$note_fn" "$doc must map score 11-12 to STRONG_PASS"
+
   # Handback routing to the three roles.
   grep -Eqi 'handback routing|routing handback' "$doc" ||
     "$note_fn" "$doc must document handback routing"
@@ -271,25 +282,11 @@ test_code_review_subagent() {
   grep -Eqi 'verification adequacy' "$agent" ||
     "$note_fn" "$agent scorecard must include 'verification adequacy' dimension"
 
-  # Requires 0/1/2 scoring and FAIL/NEEDS_REVISION/PASS/STRONG_PASS interpretation.
+  # Scores each dimension 0/1/2. The numeric score bands
+  # (0-5/6-8/9-10/11-12 → FAIL/NEEDS_REVISION/PASS/STRONG_PASS) are single-sourced
+  # in the rubric doc (asserted by test_doc), not restated in the agent (issue #201).
   if ! grep -Eqi '\b0\b.*\b1\b.*\b2\b|\b2\b.*\b1\b.*\b0\b|0/1/2' "$agent"; then
-    "$note_fn" "$agent must require 0/1/2 scoring"
-  fi
-  if ! grep -Eqi '\bFAIL\b' "$agent" || ! grep -Eqi 'NEEDS_REVISION|NEEDS REVISION' "$agent" ||
-     ! grep -Eqi '\bPASS\b' "$agent" || ! grep -Eqi 'STRONG_PASS|STRONG PASS' "$agent"; then
-    "$note_fn" "$agent must include FAIL/NEEDS_REVISION/PASS/STRONG_PASS interpretation"
-  fi
-  if ! grep -Eq '0[–-]5.*FAIL|FAIL.*0[–-]5' "$agent"; then
-    "$note_fn" "$agent must map score 0-5 to FAIL, matching the product-quality rubric"
-  fi
-  if ! grep -Eq '6[–-]8.*NEEDS_REVISION|NEEDS_REVISION.*6[–-]8|6[–-]8.*NEEDS REVISION|NEEDS REVISION.*6[–-]8' "$agent"; then
-    "$note_fn" "$agent must map score 6-8 to NEEDS_REVISION, matching the product-quality rubric"
-  fi
-  if ! grep -Eq '9[–-]10.*PASS|PASS.*9[–-]10' "$agent"; then
-    "$note_fn" "$agent must map score 9-10 to PASS, matching the product-quality rubric"
-  fi
-  if ! grep -Eq '11[–-]12.*STRONG_PASS|STRONG_PASS.*11[–-]12|11[–-]12.*STRONG PASS|STRONG PASS.*11[–-]12' "$agent"; then
-    "$note_fn" "$agent must map score 11-12 to STRONG_PASS, matching the product-quality rubric"
+    "$note_fn" "$agent must reference 0/1/2 dimension scoring"
   fi
 
   # Failed blocking gates override the score.
@@ -377,6 +374,58 @@ test_lifecycle_docs() {
   return "$fail"
 }
 
+# Single-source drift check (issue #201): the canonical gate and dimension NAMES
+# live only in the rubric doc headings. The agents must reference those names
+# (pointer + names, not restated definitions). If the doc renames a gate or
+# dimension, an agent that still uses the old name fails here.
+test_name_drift() {
+  local fail=0
+  local note_fn="$1"
+  local doc="docs/evaluation/product-quality-rubric.md"
+  local review_agent=".copilot/agents/code-review-subagent.agent.md"
+  local test_agent=".copilot/agents/test-subagent.agent.md"
+
+  [ -f "$doc" ] || { "$note_fn" "missing $doc"; return 1; }
+
+  # Parse canonical names from '### N. Name' headings inside the named sections.
+  extract_names() {
+    local section="$1"
+    awk -v section="$section" '
+      /^## / { in_section = (index($0, section) > 0); next }
+      in_section && /^### [0-9]+\. / {
+        sub(/^### [0-9]+\. /, "")
+        print
+      }
+    ' "$doc"
+  }
+
+  local gates dims
+  mapfile -t gates < <(extract_names "Blocking Gates")
+  mapfile -t dims < <(extract_names "Scorecard Dimensions")
+
+  # Guard the doc structure: exactly four gates and six dimensions.
+  [ "${#gates[@]}" -eq 4 ] ||
+    "$note_fn" "$doc must define exactly 4 blocking-gate names under '## Blocking Gates' (found ${#gates[@]})"
+  [ "${#dims[@]}" -eq 6 ] ||
+    "$note_fn" "$doc must define exactly 6 dimension names under '## Scorecard Dimensions' (found ${#dims[@]})"
+
+  # Both agents reference the four blocking gates; only the reviewer owns the
+  # six-dimension scorecard, so dimension names are required there only.
+  local name
+  for name in "${gates[@]}"; do
+    grep -qiF "$name" "$review_agent" ||
+      "$note_fn" "$review_agent must reference canonical gate name '$name' (drift from $doc)"
+    grep -qiF "$name" "$test_agent" ||
+      "$note_fn" "$test_agent must reference canonical gate name '$name' (drift from $doc)"
+  done
+  for name in "${dims[@]}"; do
+    grep -qiF "$name" "$review_agent" ||
+      "$note_fn" "$review_agent must reference canonical dimension name '$name' (drift from $doc)"
+  done
+
+  return "$fail"
+}
+
 test_evaluation_readme() {
   local fail=0
   local note_fn="$1"
@@ -455,6 +504,13 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric evaluation README checks pass"
     ;;
+  drift)
+    fail=0
+    note() { echo "✗ $*"; fail=1; }
+    test_name_drift note
+    [ "$fail" -eq 0 ] || exit 1
+    echo "✓ product-quality rubric name-drift checks pass"
+    ;;
   all)
     fail=0
     note() { echo "✗ $*"; fail=1; }
@@ -464,12 +520,13 @@ case "$subcommand" in
     test_code_review_subagent note
     test_lifecycle_docs note
     test_evaluation_readme note
+    test_name_drift note
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ all product-quality rubric checks pass"
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|evaluation-readme|all}" >&2
+    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|evaluation-readme|drift|all}" >&2
     exit 1
     ;;
 esac
