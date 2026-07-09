@@ -492,7 +492,7 @@ else
   if [ "$dark_has_worktree_create" != "true" ] || [ "$dark_has_finish" != "true" ]; then
     printf 'NOTE: dark_run check skipped (issue window not complete — needs worktree_create and finish)\n'
   elif [ "$dark_runtime_tool_count" = "0" ]; then
-    printf 'VIOLATION consistency: dark_run %s\n' "$dark_issue"
+    printf 'VIOLATION consistency: dark_run %s\n' "${dark_issue:-unknown}"
     violations=$((violations + 1))
   fi
 fi
