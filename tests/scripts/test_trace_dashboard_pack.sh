@@ -502,6 +502,25 @@ else
 	note "$WB_JSON: no per-feature TDD loop strip for {Issue} — #223 panel 2 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', grouped by harness.feature_id, counting red_handback/impl_handback/green_handback)"
 fi
 
+# #223 panel 3 — per-run tool/skill calls. The drill-down tab must also carry a
+# KQL panel that surfaces the selected run's tool and skill invocations: a
+# dependencies query scoped to the exported {Issue} on harness.issue that
+# references BOTH gen_ai.tool.name (tool calls) AND harness.skill.name (skill
+# calls) — the volume/failures/top-durations view. Reuse the same flattened
+# tab-drilldown query lines and require a single query to carry ALL the markers
+# (issue filter + both the tool-name and skill-name dimensions) so the
+# lifecycle-timeline query (harness.lifecycle_step) and the TDD-loop strip
+# (harness.feature_id) — neither of which names both tool and skill — cannot
+# satisfy this by accident.
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'gen_ai.tool.name' \
+	| grep -Fq 'harness.skill.name'; then
+	ok "#223: drilldown tab carries a per-run tool/skill calls panel for {Issue} (panel 3)"
+else
+	note "$WB_JSON: no per-run tool/skill panel for {Issue} — #223 panel 3 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing gen_ai.tool.name AND harness.skill.name, for call volume/failures/top-durations)"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================

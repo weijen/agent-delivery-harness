@@ -386,6 +386,43 @@
               }
             },
             "name": "drilldown-tdd-loop-strip"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), tool = tostring(customDimensions['gen_ai.tool.name']), skill = tostring(customDimensions['harness.skill.name']), status = tostring(customDimensions['harness.exit_status']), dur_ms = todouble(customDimensions['harness.duration_ms']) | where issue == '{Issue}' and (isnotempty(tool) or isnotempty(skill)) | extend call = coalesce(tool, skill), kind = iff(isnotempty(tool), 'tool', 'skill') | summarize calls = count(), fail_calls = countif(status != '0' and isnotempty(status)), max_ms = max(dur_ms) by call, kind | order by calls desc",
+              "size": 0,
+              "title": "Tool & skill calls (this run)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "fail_calls",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": ">",
+                          "thresholdValue": "0",
+                          "representation": "redBright",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-tool-skill-calls"
           }
         ]
       },
