@@ -157,7 +157,7 @@ make_finish_fixture() {
   local dir="$1" issue="$2" with_lib="$3" list="$4" pad
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts"
-  for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh; do
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   if [ "$with_lib" = "1" ]; then

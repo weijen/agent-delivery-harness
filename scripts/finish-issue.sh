@@ -46,6 +46,24 @@ if ! declare -F trace_span >/dev/null 2>&1; then
   trace_lifecycle_arm() { :; }
 fi
 
+# --- Closeout helpers (issue #215, scripts-portfolio P-4) --------------------
+# The best-effort export/reconstruct/hygiene helpers and the two-phase trace
+# gate live in finish-lib.sh so this script stays a thin teardown orchestrator.
+# Guarded source: a missing finish-lib.sh must never break teardown — fall back
+# to no-op helpers (the optional closeout steps are skipped and the gate lets
+# teardown proceed, exactly as when their underlying tooling is absent).
+if [ -f "${SCRIPT_DIR}/finish-lib.sh" ]; then
+  # shellcheck source=scripts/finish-lib.sh
+  source "${SCRIPT_DIR}/finish-lib.sh"
+fi
+if ! declare -F finish_trace_gate >/dev/null 2>&1; then
+  printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
+  finish_trace_gate() { return 0; }
+  best_effort_trace_export() { return 0; }
+  best_effort_trace_reconstruct() { return 0; }
+  best_effort_state_hygiene() { return 0; }
+fi
+
 # Terminal `finish` lifecycle span via the shared EXIT-trap helper (issue #213
 # P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
 # survives teardown only because trace-lib pins the trace file to the MAIN
@@ -104,81 +122,6 @@ check_feature_completion() {
   "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
 }
 
-# Best-effort closeout trace export (issue #144). Ships the issue's spans to
-# Azure Monitor ONLY when explicitly configured (opt-in flag + connection
-# string). It ALWAYS returns 0: a missing/failing exporter must never change
-# finish-issue's exit code or block teardown. It reads the MAIN-checkout trace
-# file (which survives worktree removal), so it runs AFTER the worktree is gone.
-best_effort_trace_export() {
-  [ "${TRACE_EXPORT_OTLP:-}" = "1" ] || return 0
-  [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ] || return 0
-  if [ ! -x "${SCRIPT_DIR}/trace-export.sh" ]; then
-    yellow "⚠ trace export skipped: scripts/trace-export.sh not executable"
-    return 0
-  fi
-  local rc=0
-  "${SCRIPT_DIR}/trace-export.sh" "$ISSUE_NUM" || rc=$?
-  if [ "$rc" -ne 0 ]; then
-    yellow "⚠ trace export failed (exit ${rc}) — continuing teardown (best-effort)"
-  else
-    green "✓ Exported trace for issue ${ISSUE_NUM}"
-  fi
-  return 0
-}
-
-# Best-effort closeout trace reconstruction (issue #149). Rebuilds runtime
-# `tool` spans from the local Copilot transcript. Unlike the OTLP export this is
-# a LOCAL-ONLY, no-secret step, so it needs NO opt-in flag — it runs
-# unconditionally at closeout (the reconstruct script itself no-ops when the
-# transcript dir is absent). It reads the MAIN-checkout trace file (which
-# survives worktree removal), so it runs AFTER the worktree is gone. It ALWAYS
-# returns 0: a missing/failing reconstructor must never change finish-issue's
-# exit code or block teardown.
-best_effort_trace_reconstruct() {
-  if [ ! -x "${SCRIPT_DIR}/trace-reconstruct.sh" ]; then
-    yellow "⚠ trace reconstruct skipped: scripts/trace-reconstruct.sh not executable"
-    return 0
-  fi
-  local rc=0
-  "${SCRIPT_DIR}/trace-reconstruct.sh" "$ISSUE_NUM" || rc=$?
-  if [ "$rc" -ne 0 ]; then
-    yellow "⚠ trace reconstruct failed (exit ${rc}) — continuing teardown (best-effort)"
-  else
-    green "✓ Reconstructed trace for issue ${ISSUE_NUM}"
-  fi
-  return 0
-}
-
-best_effort_state_hygiene() {
-  declare -F trace__main_root >/dev/null 2>&1 || return 0
-
-  local main_root="" issue_pad="" state_dir="" sessions_dir="" f bound
-  main_root="$(trace__main_root 2>/dev/null)" || return 0
-  [ -n "$main_root" ] || return 0
-  issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
-
-  state_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/.hook-state"
-  if [ -d "$state_dir" ]; then
-    if rm -rf "$state_dir" 2>/dev/null; then
-      green "✓ Swept orphaned hook-state for issue ${ISSUE_NUM}"
-    else
-      yellow "⚠ could not sweep ${state_dir} — continuing teardown (best-effort)"
-    fi
-  fi
-
-  sessions_dir="${main_root}/.copilot-tracking/sessions"
-  if [ -d "$sessions_dir" ]; then
-    for f in "$sessions_dir"/*; do
-      [ -f "$f" ] || continue
-      bound="$(cat "$f" 2>/dev/null || true)"
-      if [ "$bound" = "$ISSUE_NUM" ]; then
-        rm -f "$f" 2>/dev/null || yellow "⚠ could not expire session binding $(basename "$f") — best-effort"
-      fi
-    done
-  fi
-  return 0
-}
-
 # The worktree's own checked-out branch is the deterministic source of truth —
 # prefer it over a slug recomputed from the (mutable) issue title.
 if [ -e "$WORKTREE_DIR" ]; then
@@ -194,32 +137,12 @@ TRACE_STAGE="completion_check"
 trace_lifecycle_arm
 check_feature_completion
 
-# --- Two-phase trace gate (issue #103, feature trace-gate-two-phase) ---------
-# Run the trace gate BEFORE teardown, mirroring the REQUIRE_FEATURES_COMPLETE
-# pattern: warn-only by default (findings print, teardown proceeds); under
-# REQUIRE_TRACE_CONSISTENCY=1 findings turn into a refusal BEFORE
-# worktree_remove, leaving the worktree intact. TRACE_ISSUE is already
-# exported above, so the gate resolves the right issue from the main
-# checkout. A missing review-gate.sh degrades to a warn-and-skip — the gate
-# never breaks teardown on a checkout that predates the trace tooling.
+# Two-phase trace gate (issue #103) — run BEFORE teardown so that under
+# REQUIRE_TRACE_CONSISTENCY=1 findings refuse the finish while the worktree is
+# still intact. See finish-lib.sh for the full doctrine; it returns 1 to block.
 TRACE_STAGE="trace_gate"
-if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-  if ! "${SCRIPT_DIR}/review-gate.sh" trace; then
-    if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
-      red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
-      echo "  Resolve the findings above (or unset the flag) and re-run:"
-    else
-      # Warn-only without the flag, so a non-zero exit here is unexpected
-      # (a broken gate, not a policy block) — say so honestly (loop-2 F4).
-      red "✗ trace gate failed unexpectedly (it is warn-only without REQUIRE_TRACE_CONSISTENCY=1)."
-      echo "  Inspect the output above, then re-run:"
-    fi
-    echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
-    echo "  The worktree is left intact."
-    exit 1
-  fi
-else
-  yellow "⚠ trace gate skipped: scripts/review-gate.sh not found"
+if ! finish_trace_gate; then
+  exit 1
 fi
 
 TRACE_STAGE="worktree_remove"

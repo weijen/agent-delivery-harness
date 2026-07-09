@@ -92,7 +92,7 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in review-gate.sh finish-issue.sh validate-trace.sh check-trace-consistency.sh \
+for s in review-gate.sh finish-issue.sh finish-lib.sh validate-trace.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
@@ -131,7 +131,7 @@ make_gate_fixture() {
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
-  for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh \
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
            review-gate.sh trace-lib.sh validate-trace.sh check-trace-consistency.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done

@@ -56,6 +56,9 @@ scripts:
   - id: finish-issue
     path: scripts/finish-issue.sh
     role: Tear down the worktree after the PR merges.
+  - id: finish-lib
+    path: scripts/finish-lib.sh
+    role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort export/reconstruct/state-hygiene); sourced, not executed.
   - id: trace-export
     path: scripts/trace-export.sh
     role: Opt-in trace exporter; best-effort closeout export target.
@@ -151,7 +154,7 @@ env_flags:
     owner: scripts/review-gate.sh
     present: SKIP_CI_GATE
   - name: TRACE_EXPORT_OTLP
-    owner: scripts/finish-issue.sh
+    owner: scripts/finish-lib.sh
     present: TRACE_EXPORT_OTLP
   - name: TRACE_EXPORT_OTLP_HTTP
     owner: scripts/trace-export.sh

@@ -249,7 +249,7 @@ require_contract_record scripts path scripts/trace-export.sh
 require_contract_record lifecycle id local-hook-seeding scripts/start-issue.sh
 require_contract_record lifecycle id trace-export scripts/finish-issue.sh
 require_contract_record lifecycle id interval-attribution scripts/copilot-trace-hook.sh
-require_contract_record env_flags name TRACE_EXPORT_OTLP 'scripts/finish-issue.sh|scripts/trace-export.sh'
+require_contract_record env_flags name TRACE_EXPORT_OTLP 'scripts/finish-issue.sh|scripts/finish-lib.sh|scripts/trace-export.sh'
 require_contract_record env_flags name TRACE_EXPORT_OTLP_HTTP scripts/trace-export.sh
 require_contract_record failure_modes id missing-red-first-evidence scripts/review-gate.sh
 require_contract_record failure_modes id wrong-red-first-role-attribution scripts/review-gate.sh

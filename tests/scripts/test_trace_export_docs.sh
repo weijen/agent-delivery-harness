@@ -79,11 +79,13 @@ finish() {
 coupled=""
 for script in "${ROOT}"/scripts/*.sh; do
   case "$(basename "$script")" in
-    # trace-export.sh is the exporter itself. finish-issue.sh is the ONE
-    # sanctioned lifecycle caller: it wires a best-effort closeout export
-    # (issue #144) that no-ops unless configured and never blocks teardown.
-    # Every OTHER core script must stay decoupled, so they are still scanned.
-    trace-export.sh | finish-issue.sh) continue ;;
+    # trace-export.sh is the exporter itself. finish-lib.sh is the ONE
+    # sanctioned lifecycle caller: best_effort_trace_export (extracted from
+    # finish-issue.sh in #215) wires a best-effort closeout export (issue #144)
+    # that no-ops unless configured and never blocks teardown. finish-issue.sh
+    # only invokes that helper by name, so it stays decoupled. Every OTHER core
+    # script must stay decoupled, so they are still scanned.
+    trace-export.sh | finish-issue.sh | finish-lib.sh) continue ;;
   esac
   if grep -q 'trace-export' "$script"; then
     coupled="${coupled} $(basename "$script")"

@@ -188,7 +188,7 @@ set +e
   set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts"
-for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh init.sh; do
+for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh init.sh; do
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/"
 done
 # Pin a PATH that includes jq + a fake gh so the completion check actually runs,
