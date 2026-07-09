@@ -409,7 +409,7 @@ hook__events_agent_name() {
   [ -d "$dir" ] || return 0
   local f name=""
   for f in "$dir"/*/events.jsonl; do
-    [ -f "$f" ] && [ -r "$f" ] || continue
+    { [ -f "$f" ] && [ -r "$f" ]; } || continue
     grep -qF "$toolu" "$f" 2>/dev/null || continue
     name="$(jq -r --arg tid "$toolu" '
         select((type == "object") and (.type? == "subagent.started")

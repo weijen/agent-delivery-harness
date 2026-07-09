@@ -392,7 +392,7 @@ printf '%s\n' "$t1_new" | jq -e '
     and .["harness.skill.name"] == "find-over-design"' >/dev/null \
   || fail "T1(#227): the toolu_ tool span must carry harness.subagent=\"true\" and keep harness.skill.name=find-over-design: ${t1_new}"
 T1_BIND="${DIRT1}/.copilot-tracking/sessions/toolu_01AaBbCc"
-[ -f "$T1_BIND" ] && [ "$(cat "$T1_BIND" 2>/dev/null)" = "601" ] \
+{ [ -f "$T1_BIND" ] && [ "$(cat "$T1_BIND" 2>/dev/null)" = "601" ]; } \
   || fail "T1(#227): the toolu_ session must persist a binding keyed by the toolu_ id (=601) so later calls skip the scan; got: $(cat "$T1_BIND" 2>/dev/null)"
 
 # T2 — main-checkout topology, single #216 marker: the toolu_ session resolves
@@ -416,7 +416,7 @@ printf '%s\n' "$t2_new" | jq -e '
     .span == "tool" and .["harness.issue"] == 602 and .["harness.subagent"] == "true"' >/dev/null \
   || fail "T2(#227): the marker-resolved toolu_ span must be attributed to issue-602 with harness.subagent=\"true\": ${t2_new}"
 T2_BIND="${MAINT2}/.copilot-tracking/sessions/toolu_02MarkerX"
-[ -f "$T2_BIND" ] && [ "$(cat "$T2_BIND" 2>/dev/null)" = "602" ] \
+{ [ -f "$T2_BIND" ] && [ "$(cat "$T2_BIND" 2>/dev/null)" = "602" ]; } \
   || fail "T2(#227): a toolu_ session resolved via marker/interval must persist a binding keyed by the toolu_ id (=602) so later calls skip the scan; got: $(cat "$T2_BIND" 2>/dev/null)"
 
 # T3 — unbindable + interval-ambiguous toolu_ session STILL DROPS (never
@@ -433,7 +433,7 @@ run_hook "t3" "$MAINT3" <(
   camel_post_ts "$MAINT3" "toolu_03Ambig" "bash" '{"command":"echo x"}' 2026-07-07T10:00:00Z
 )
 assert_session_safe "t3"
-[ "$(line_count "$T3_T603")" = "$t3_before603" ] && [ "$(line_count "$T3_T604")" = "$t3_before604" ] \
+{ [ "$(line_count "$T3_T603")" = "$t3_before603" ] && [ "$(line_count "$T3_T604")" = "$t3_before604" ]; } \
   || fail "T3(#227): an unbindable, interval-ambiguous toolu_ session must DROP (append no span to either overlapping window) — 603 ${t3_before603}->$(line_count "$T3_T603"), 604 ${t3_before604}->$(line_count "$T3_T604")"
 assert_warn_on_stderr "t3"
 
