@@ -634,6 +634,67 @@ if [ "$reentry_named" -eq 0 ]; then
 fi
 
 # =============================================================================
+# #223: deferred log panel + map coherence. The out-of-scope failure-detail LOG
+# panel (Tab 2 panel 4) is deferred to a separate #220-gated issue. Honesty
+# doctrine: the pack must NAME it as deferred rather than silently omit it — in
+# BOTH the workbook Tab 2 header AND the README panel->contract map. F1 already
+# added the deferred note to the workbook drilldown header and a tabs bullet, so
+# this leg guards the README MAP surface, which the tabs bullet alone does not
+# satisfy: (a) the "Panel -> contract-field map" section must carry a row/entry
+# naming the deferred failure-detail LOG panel as deferred/unavailable gated on
+# #220 (not merely the tabs bullet), AND (b) that same map must carry a row for
+# EVERY shipped Tab 2 panel (all five), so the deferred note lands beside the
+# panels it accompanies rather than orphaned. Scope strictly to the map section
+# (its heading to the next top-level "## " heading) so the tabs-list bullet
+# cannot satisfy the row assertion by accident.
+map_section="$extract_dir/readme-panel-map.section"
+if [ -f "$DASH_README" ]; then
+	awk '
+		/^## Panel -> contract-field map/ { grab = 1; next }
+		grab && /^## / { grab = 0 }
+		grab { print }
+	' "$DASH_README" > "$map_section" 2>/dev/null || true
+else
+	: > "$map_section"
+fi
+# (a) a map TABLE row naming the deferred failure-detail LOG panel, #220-gated.
+log_row_deferred=0
+while IFS= read -r map_line; do
+	case "$map_line" in
+	'|'*) : ;;
+	*) continue ;;
+	esac
+	if printf '%s\n' "$map_line" | grep -Eiq 'log'; then
+		if printf '%s\n' "$map_line" | grep -Eq '#?220'; then
+			if printf '%s\n' "$map_line" | grep -Eiq 'deferred|unavailable|not available|n/?a\b'; then
+				log_row_deferred=1
+			fi
+		fi
+	fi
+done < "$map_section"
+if [ "$log_row_deferred" -eq 0 ]; then
+	note "#223: the README panel->contract map has no row naming the deferred failure-detail LOG panel as deferred/unavailable gated on #220 (Tab 2 panel 4 must be named in the map itself, not just the tabs bullet)"
+fi
+# (b) every shipped Tab 2 panel appears as a row in that same map section.
+missing_tab2_panel=""
+for tab2_panel in \
+	"Lifecycle step timeline" \
+	"Per-feature TDD loop strip" \
+	"Tool & skill calls" \
+	"Cost strip" \
+	"Transaction-view deep link"; do
+	if ! grep -Fq "$tab2_panel" "$map_section"; then
+		missing_tab2_panel="$tab2_panel"
+	fi
+done
+if [ -n "$missing_tab2_panel" ]; then
+	note "#223: the README panel->contract map is missing a row for a shipped Tab 2 panel ('$missing_tab2_panel') — the deferred-#220 log note must sit beside a complete Tab 2 panel map"
+fi
+if [ "$log_row_deferred" -eq 1 ] && [ -z "$missing_tab2_panel" ]; then
+	ok "#223: README panel map names the deferred #220 log panel and rows every shipped Tab 2 panel"
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then
