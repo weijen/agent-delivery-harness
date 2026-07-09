@@ -40,7 +40,7 @@ if ! command -v terraform >/dev/null 2>&1; then
   exit 1
 fi
 
-connection_string="$(cd "$TF_DIR" && terraform output -raw connection_string 2>/dev/null || true)"
+connection_string="$( { cd "$TF_DIR" && terraform output -raw connection_string 2>/dev/null; } || true )"
 if [ -z "$connection_string" ]; then
   log "error: 'terraform output -raw connection_string' returned nothing (cd ${TF_DIR}). .env not updated."
   log "       Run 'terraform apply' first, or set APPLICATIONINSIGHTS_CONNECTION_STRING in .env by hand."
