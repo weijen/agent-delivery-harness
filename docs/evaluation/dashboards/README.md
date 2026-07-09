@@ -2,9 +2,27 @@
 
 The [Harness Quality Workbook](../../../infra/terraform/harness-quality.workbook.json)
 is a live-deployed Azure Workbook (Terraform:
-[`infra/terraform/workbook.tf`](../../../infra/terraform/workbook.tf)) that charts
-cross-run quality for the agent-delivery-harness, keyed on
-`customDimensions['harness.version']`.
+[`infra/terraform/workbook.tf`](../../../infra/terraform/workbook.tf)) that monitors
+**issue runs** for the agent-delivery-harness. Its primary job is answering "how did
+the issue-NN run go?", so the `harness.issue` field (mandatory on every span) is the
+front-page dimension; `harness.version` is retained as the unit of cross-release
+comparison.
+
+## Workbook structure (tabs)
+
+A tabs links item (`"style": "tabs"`) drives a `selectedTab` parameter; three group
+items switch on it:
+
+- **Fleet health** (`selectedTab == fleet`) — KPI panels over {TimeRange}: runs
+  finished vs. **in-flight** (a run seen at `worktree_create` with no `finish` span
+  yet — previously invisible), pass rate (explicit `runs` denominator), fleet
+  `red_reentry_free_rate`, deviation count, and token spend with `tokens_status`
+  honesty.
+- **Issue runs** (`selectedTab == issues`) — one row per (issue, version) run.
+  Clicking a row exports the `{Issue}` parameter (grid `exportParameterName = Issue`),
+  the drill-through the single-run tab (#223) consumes.
+- **Version comparison** (`selectedTab == compare`) — the original by-`harness.version`
+  aggregates and the deferred-metrics block, kept verbatim.
 
 Every panel:
 
@@ -20,17 +38,23 @@ Every panel:
 
 ## Panel -> contract-field map
 
-| Panel | Table | Contract field | Keys used | Honest caveat |
-|-------|-------|----------------|-----------|---------------|
-| Outcome / pass rate | `dependencies` | `trace-scorecard.v1.json` `by_version[].passed` / `runs`; `trace-summary.v1.json` `final_outcome`, `finished` | `harness.version`, `harness.outcome`, `harness.lifecycle_step` | Pass rate carries an explicit `runs` denominator; a run is counted only at its `finish` lifecycle step. |
-| red_reentry_free_rate | `dependencies` | `trace-scorecard.v1.json` `by_version[].red_reentry_free_rate {free, of}`; `trace-summary.v1.json` `red_reentry` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | Measures no-red-after-green re-entry (a red before a feature's earliest green is invisible to trace-summary v1). Referred to only by its honest contract name `red_reentry_free_rate`. `of` is the explicit denominator. |
-| Deviation rate | `dependencies` | `trace-scorecard.v1.json` `by_version[].deviations {count, feature_ids}`; `trace-summary.v1.json` `deviations` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | A measured zero is a real 0, not absence. |
-| Tool-call volume | `dependencies` | `trace-scorecard.v1.json` `by_version[].tool_calls {calls, fail_calls}`; `trace-summary.v1.json` `tools[]` | `harness.version`, `gen_ai.tool.name`, `harness.exit_status` | Aggregate only; per-feature tool-call attribution is **deferred** (see below). |
-| Skill-invocation volume | `dependencies` | `trace-scorecard.v1.json` `by_version[].skills`; `trace-summary.v1.json` `skills[]` | `harness.version`, `harness.skill.name`, `harness.outcome` | Which skills were invoked (loaded) per version (issue #139); `fail_calls` counts load failures (`harness.outcome == 'fail'`). Load-scoped, not skill-completion (deferred). |
-| Wall-clock per lifecycle_step | `dependencies` | `trace-summary.v1.json` `stages[].duration_ms` | `harness.version`, `harness.lifecycle_step`, `harness.duration_ms` | Sums `harness.duration_ms`; this is a different clock from `wall_clock.elapsed_seconds` and is never blended with it. |
-| Token / cost | `customEvents` | `trace-scorecard.v1.json` `by_version[].tokens {input, output}` + `token_coverage`; `trace-summary.v1.json` `tokens` | `harness.version`, `gen_ai.request.model`, `measurements['input_tokens']`, `measurements['output_tokens']` | **Measured when an adapter emits `gen_ai.usage.*`** onto model spans (the Claude Code hook does). Renders an honest null (`tokens_status = unavailable`) rather than a fabricated 0 when no run carried token numbers. `runs_with_tokens` is the honest denominator. The remaining gap is Copilot-side token/cost capture, tracked in **#163**. |
-| Failure-mode view | `dependencies` | `trace-summary.v1.json` `final_outcome` (fail) + `harness.failure_mode` taxonomy | `harness.version`, `harness.failure_mode`, `harness.outcome` | Counts failures by taxonomy bucket. |
-| Deferred metrics | (none) | see below | (none charted) | Explicitly unavailable / deferred — never fabricated. |
+| Panel | Tab | Table | Contract field | Keys used | Honest caveat |
+|-------|-----|-------|----------------|-----------|---------------|
+| Runs: finished vs in-flight | Fleet health | `dependencies` | `trace-summary.v1.json` `worktree_create` / `finish` lifecycle steps | `harness.issue`, `harness.version`, `harness.lifecycle_step` | In-flight = runs with a `worktree_create` and no `finish` span (`runs_started - runs_finished`); explicit `runs_started` denominator. First visibility for mid-flight runs. |
+| Pass rate (fleet) | Fleet health | `dependencies` | `trace-scorecard.v1.json` `passed` / `runs`; `trace-summary.v1.json` `final_outcome` | `harness.outcome`, `harness.lifecycle_step` | Counted only at `finish`; `pass_rate` is an explicit `real(null)` over an empty window (measured-zero vs. absent), never a fabricated 0. |
+| red_reentry_free_rate (fleet) | Fleet health | `dependencies` | `trace-scorecard.v1.json` `red_reentry_free_rate {free, of}` | `harness.lifecycle_step`, `harness.feature_id` | Fleet-wide roll-up of the version panel; `of` is the explicit denominator, `real(null)` when `of == 0`. Named only by its honest contract name. |
+| Deviation count (fleet) | Fleet health | `dependencies` | `trace-scorecard.v1.json` `deviations {count, feature_ids}` | `harness.lifecycle_step`, `harness.feature_id` | A measured zero is a real 0, not absence. |
+| Token spend (fleet) | Fleet health | `customEvents` | `trace-scorecard.v1.json` `tokens` + `token_coverage` | `gen_ai.request.model`, `measurements['gen_ai.usage.input_tokens']`, `measurements['gen_ai.usage.output_tokens']` | `tokens_status = unavailable` (honest null) when no run carried `gen_ai.usage.*`; `runs_with_tokens` is the denominator. Remaining gap is Copilot-side, tracked in **#163**. |
+| Issue-run grid | Issue runs | `dependencies` | `trace-summary.v1.json` `final_outcome`, `finished`, per-feature `green_handback`, `deviations`, `stages` | `harness.issue`, `harness.version`, `harness.lifecycle_step`, `harness.outcome`, `harness.feature_id` | One row per (issue, version): started/finished, `state` (in-flight when `finished` is null), `final_outcome` (the finish span's outcome via `anyif`), `features_green`, `deviations`, `steps_seen`. Conditional formatting: fail=red, in-flight=blue, deviations>0=amber. Row click exports `{Issue}` (drill-through to #223's Tab 2). |
+| Outcome / pass rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].passed` / `runs`; `trace-summary.v1.json` `final_outcome`, `finished` | `harness.version`, `harness.outcome`, `harness.lifecycle_step` | Pass rate carries an explicit `runs` denominator; a run is counted only at its `finish` lifecycle step. |
+| red_reentry_free_rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].red_reentry_free_rate {free, of}`; `trace-summary.v1.json` `red_reentry` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | Measures no-red-after-green re-entry (a red before a feature's earliest green is invisible to trace-summary v1). Referred to only by its honest contract name `red_reentry_free_rate`. `of` is the explicit denominator. |
+| Deviation rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].deviations {count, feature_ids}`; `trace-summary.v1.json` `deviations` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | A measured zero is a real 0, not absence. |
+| Tool-call volume | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].tool_calls {calls, fail_calls}`; `trace-summary.v1.json` `tools[]` | `harness.version`, `gen_ai.tool.name`, `harness.exit_status` | Aggregate only; per-feature tool-call attribution is **deferred** (see below). |
+| Skill-invocation volume | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].skills`; `trace-summary.v1.json` `skills[]` | `harness.version`, `harness.skill.name`, `harness.outcome` | Which skills were invoked (loaded) per version (issue #139); `fail_calls` counts load failures (`harness.outcome == 'fail'`). Load-scoped, not skill-completion (deferred). |
+| Wall-clock per lifecycle_step | Version comparison | `dependencies` | `trace-summary.v1.json` `stages[].duration_ms` | `harness.version`, `harness.lifecycle_step`, `harness.duration_ms` | Sums `harness.duration_ms`; this is a different clock from `wall_clock.elapsed_seconds` and is never blended with it. |
+| Token / cost | Version comparison | `customEvents` | `trace-scorecard.v1.json` `by_version[].tokens {input, output}` + `token_coverage`; `trace-summary.v1.json` `tokens` | `harness.version`, `gen_ai.request.model`, `measurements['input_tokens']`, `measurements['output_tokens']` | **Measured when an adapter emits `gen_ai.usage.*`** onto model spans (the Claude Code hook does). Renders an honest null (`tokens_status = unavailable`) rather than a fabricated 0 when no run carried token numbers. `runs_with_tokens` is the honest denominator. The remaining gap is Copilot-side token/cost capture, tracked in **#163**. |
+| Failure-mode view | Version comparison | `dependencies` | `trace-summary.v1.json` `final_outcome` (fail) + `harness.failure_mode` taxonomy | `harness.version`, `harness.failure_mode`, `harness.outcome` | Counts failures by taxonomy bucket. |
+| Deferred metrics | Version comparison | (none) | see below | (none charted) | Explicitly unavailable / deferred — never fabricated. |
 
 ## Deferred metrics — explicitly unavailable
 

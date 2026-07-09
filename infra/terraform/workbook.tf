@@ -1,5 +1,6 @@
-# Harness Quality Workbook (issue #113). A live-deployed Azure Workbook that
-# charts cross-run quality keyed on customDimensions['harness.version'],
+# Harness Quality Workbook (issue #113; issue-run redesign #222). A live-deployed
+# Azure Workbook that monitors issue runs (front-page dimension
+# customDimensions['harness.issue']) with a by-harness.version comparison tab,
 # reading the module's OWN Application Insights component. The serialized
 # Workbook JSON lives in harness-quality.workbook.json so its embedded KQL is
 # statically lintable (allowlist / table / timespan). Azure requires the
