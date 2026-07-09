@@ -295,6 +295,43 @@ runs:
 Do not mix third-party trace fields into harness scorecards without mapping them
 to the local schema and recording the mapping version.
 
+## Step-level Logs (log.jsonl)
+
+The trace is the **shape** stream; it is not the whole story. Alongside
+`trace.jsonl` the harness writes a second, separately-governed **detail** stream,
+`log.jsonl`, whose closed vocabulary lives in its own machine-readable contract,
+[log-schema.v1.json](log-schema.v1.json). This is the classic OpenTelemetry
+two-stream split: **traces carry shape** (the span vocabulary, closed enums, one
+line per span) and **logs carry detail** (a free-form `message` plus an optional
+structured `payload`, one line per step-level event). Keeping detail out of the
+span schema is what lets the trace stay a stable, low-cardinality shape contract
+while step-level diagnostics grow freely in the log stream. A log record is
+**never** a span: it is versioned by `log_schema_version` (a JSON number),
+**not** the span schema's `schema_version`, so a shared validator can never
+mistake a log line for a span. Where a record belongs to a span it may reference
+it with `span_id`/`parent_span_id`, linking detail back to shape.
+
+Every record carries the five `required_common` fields —
+`log_schema_version`, `timestamp`, `level` (the closed `info` | `warn` | `error`
+enum), `harness.issue`, and `message` — with optional fields such as
+`harness.lifecycle_step`, `harness.stage`, `harness.outcome`, and `payload`
+adding structured context.
+
+Governance mirrors the trace stream, with one stricter twist:
+
+- **Local-only, main-root-pinned.** `log.jsonl` is written beside `trace.jsonl`
+  at `.copilot-tracking/issues/issue-NN/log.jsonl`, pinned to the main checkout
+  root, and is **gitignored** by the same `.copilot-tracking/issues/issue-*/`
+  rule. It is never committed.
+- **On by default, with a kill switch.** Log emission is on by default; set
+  `HARNESS_LOG=0` to disable it entirely.
+- **Redact-before-cap.** The log stream's free-form `message`/`payload` demand a
+  stricter discipline than the trace stream: secret-shaped input is **redacted
+  before** any truncation, so a truncation boundary can never bisect and leak a
+  partially-redacted secret. Only after redaction is a per-record `payload`
+  truncated to its default 4096-byte cap (`HARNESS_LOG_PAYLOAD_CAP`). Redaction
+  always precedes the cap.
+
 ## Relationship To The Action Log
 
 The human-readable Action Log in `progress.md` and the structured trace are two
