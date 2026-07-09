@@ -48,7 +48,7 @@ fail() {
 command -v jq >/dev/null 2>&1 \
   || fail "jq is required (check-feature-list.sh validates the feature_list)"
 
-for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh trace-lib.sh; do
+for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || fail "required harness script missing: scripts/${s}"
 done
@@ -102,7 +102,7 @@ make_export_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts"
-  for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh trace-lib.sh; do
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   # The fake exporter REPLACES the real one — finish-issue resolves it via

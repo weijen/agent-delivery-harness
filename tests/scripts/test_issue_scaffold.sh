@@ -39,6 +39,7 @@ mkdir -p "${TMP_DIR}/repo/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/finish-issue.sh" "${TMP_DIR}/repo/scripts/finish-issue.sh"
+cp "${ROOT}/scripts/finish-lib.sh" "${TMP_DIR}/repo/scripts/finish-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 

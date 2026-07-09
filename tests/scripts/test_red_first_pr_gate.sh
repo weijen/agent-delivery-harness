@@ -143,7 +143,7 @@ make_fixture() {
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
-  for s in issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh \
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
            review-gate.sh create-pr.sh log-handback.sh trace-lib.sh \
            validate-trace.sh check-trace-consistency.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
