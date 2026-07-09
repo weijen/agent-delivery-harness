@@ -209,6 +209,8 @@ hook__on_post_tool_use() {
   trace_span tool "${attrs[@]}"
   return 0
 }
+
+# Stop / SubagentStop — spans per stop-span sensor conventions S1–S4
 # (plan D4, single-model-span-v1). Stateless: no .hook-state reads/writes.
 #   S1. ALWAYS one `agent` span: gen_ai.operation.name=invoke_agent,
 #       gen_ai.agent.name = $2 ("claude-code" | "claude-code-subagent").
@@ -220,13 +222,30 @@ hook__on_post_tool_use() {
 #       JSON numbers.
 #   S3. Anything degraded or partial → agent span only, zero fake keys.
 hook__on_stop() {
-  local payload="$1" agent_name="$2"
+  local payload="$1" agent_name="$2" is_subagent="${3:-0}"
   local transcript="" extracted=""
   local model="" in_tokens="" out_tokens=""
 
-  trace_span agent \
-    "gen_ai.operation.name=invoke_agent" \
-    "gen_ai.agent.name=${agent_name}"
+  local -a agent_attrs=("gen_ai.operation.name=invoke_agent")
+
+  # SubagentStop enrichment (#228 Task 2): the payload carries `agent_type`
+  # (the real subagent identity) and the parent `session_id`. Replace the bare
+  # "claude-code-subagent" placeholder with agent_type when present, and stamp
+  # harness.session_id so a subagent's span links back to its parent session.
+  # A plain conductor Stop is untouched (no agent_type read, no session linkage)
+  # to keep that span byte-stable. Both values omitted when absent — never fake.
+  if [ "$is_subagent" = "1" ]; then
+    local agent_type="" parent_sid=""
+    agent_type="$(printf '%s' "$payload" | jq -r '.agent_type // empty' 2>/dev/null || true)"
+    [ -n "$agent_type" ] && agent_name="$agent_type"
+    parent_sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
+    agent_attrs+=("gen_ai.agent.name=${agent_name}")
+    [ -n "$parent_sid" ] && agent_attrs+=("harness.session_id=${parent_sid}")
+  else
+    agent_attrs+=("gen_ai.agent.name=${agent_name}")
+  fi
+
+  trace_span agent "${agent_attrs[@]}"
   local agent_span_id="${TRACE_LAST_SPAN_ID:-}"
 
   transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
@@ -298,8 +317,8 @@ hook__main() {
   case "$event" in
     PreToolUse)   hook__on_pre_tool_use "$payload" ;;
     PostToolUse)  hook__on_post_tool_use "$payload" ;;
-    Stop)         hook__on_stop "$payload" "claude-code" ;;
-    SubagentStop) hook__on_stop "$payload" "claude-code-subagent" ;;
+    Stop)         hook__on_stop "$payload" "claude-code" 0 ;;
+    SubagentStop) hook__on_stop "$payload" "claude-code-subagent" 1 ;;
     *)            return 0 ;;
   esac
   return 0
