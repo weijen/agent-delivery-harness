@@ -575,6 +575,10 @@ trace_lifecycle_init() {
 trace_lifecycle_arm() {
   TRACE_LIFECYCLE_ARMED=1
   TRACE_LIFECYCLE_T0="$(trace_now_ms)"
+  if [ -n "${TRACE_LIFECYCLE_STEP:-}" ]; then
+    trace_log info "lifecycle ${TRACE_LIFECYCLE_STEP} start" \
+      "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}"
+  fi
 }
 
 __trace_lifecycle_exit() {
@@ -596,6 +600,10 @@ __trace_lifecycle_exit() {
       done < <("${TRACE_LIFECYCLE_ATTR_FN}")
     fi
     trace_span lifecycle "${attrs[@]}"
+    trace_log info "lifecycle ${TRACE_LIFECYCLE_STEP} end" \
+      "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}" \
+      "harness.outcome=${outcome}" \
+      "harness.exit_status=${rc}"
   fi
   exit "$rc"
 }
