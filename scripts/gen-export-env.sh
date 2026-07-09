@@ -53,7 +53,7 @@ sq_escape() { printf "%s" "$1" | sed "s/'/'\\\\''/g"; }
 
 upsert() { # upsert <key> <value>
   local key="$1" value="$2" tmp
-  tmp="$(mktemp)"
+  tmp="$(mktemp "${ENV_FILE}.XXXXXX")"
   grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
   printf "%s='%s'\n" "$key" "$(sq_escape "$value")" >> "$tmp"
   mv "$tmp" "$ENV_FILE"

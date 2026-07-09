@@ -95,23 +95,24 @@ if command -v git >/dev/null 2>&1; then
     || fail "case3: .env must be gitignored in the repo"
 fi
 
-# --- Case 4: missing terraform output fails without writing a secret ----------
-ENV4="${TMP_DIR}/env4"
-EMPTYBIN="${TMP_DIR}/emptybin"; mkdir -p "$EMPTYBIN"
-cat > "${EMPTYBIN}/terraform" <<'EOF'
-#!/usr/bin/env bash
-exit 1
-EOF
-chmod +x "${EMPTYBIN}/terraform"
-set +e
-PATH="${EMPTYBIN}:${PATH}" ENV_FILE="$ENV4" TF_DIR="$TF_DIR" ENV_EXAMPLE="$ENV_EXAMPLE_COPY" \
-  bash "$GEN" > "${TMP_DIR}/run4.log" 2>&1
-rc4=$?
-set -e
-[ "$rc4" -ne 0 ] || fail "case4: generator must FAIL when terraform yields no connection string"
-if [ -f "$ENV4" ]; then
-  grep -qE '^APPLICATIONINSIGHTS_CONNECTION_STRING=.+' "$ENV4" \
-    && fail "case4: no connection string must be written when terraform output is empty"
-fi
+# --- Case 4: missing/empty terraform output fails without writing a secret ----
+# Covers BOTH the terraform-nonzero and the terraform-succeeds-but-empty paths
+# of the `[ -z "$connection_string" ]` guard.
+for tf_body in 'exit 1' 'exit 0'; do
+  ENV4="${TMP_DIR}/env4-${tf_body// /_}"
+  EMPTYBIN="${TMP_DIR}/emptybin-${tf_body// /_}"; mkdir -p "$EMPTYBIN"
+  printf '#!/usr/bin/env bash\n%s\n' "$tf_body" > "${EMPTYBIN}/terraform"
+  chmod +x "${EMPTYBIN}/terraform"
+  set +e
+  PATH="${EMPTYBIN}:${PATH}" ENV_FILE="$ENV4" TF_DIR="$TF_DIR" ENV_EXAMPLE="$ENV_EXAMPLE_COPY" \
+    bash "$GEN" > "${TMP_DIR}/run4.log" 2>&1
+  rc4=$?
+  set -e
+  [ "$rc4" -ne 0 ] || fail "case4[${tf_body}]: generator must FAIL when terraform yields no connection string"
+  if [ -f "$ENV4" ]; then
+    grep -qE '^APPLICATIONINSIGHTS_CONNECTION_STRING=.+' "$ENV4" \
+      && fail "case4[${tf_body}]: no connection string must be written when terraform output is empty"
+  fi
+done
 
 printf 'PASS: gen-export-env.sh upserts a quoted, gitignored .env from terraform output without echoing the secret\n'
