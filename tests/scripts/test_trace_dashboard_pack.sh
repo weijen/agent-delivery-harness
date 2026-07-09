@@ -454,6 +454,33 @@ else
 	note "$WB_JSON: no type:12 group gated on selectedTab == \"drilldown\" with a header text item referencing {Issue} — #223 Tab 2 container"
 fi
 
+# #223 panel 1 — lifecycle-step timeline. The drill-down tab must carry a KQL
+# panel that renders the selected run's lifecycle as a time-ordered table: a
+# dependencies query scoped to the exported {Issue} on harness.issue, reading
+# harness.lifecycle_step, ordered by timestamp ascending. Extract ONLY the
+# tab-drilldown group's KqlItem (type:3) query strings — flattened one-per-line
+# — so a compare-tab or fleet-health query cannot satisfy this by accident, and
+# require a single query to carry all three markers (issue filter + lifecycle
+# step + timestamp ordering) at once.
+dd_timeline="$extract_dir/drilldown-queries.flat"
+jq -r '
+	.items[]
+	| select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	| .content.items[]?
+	| select(.type == 3)
+	| .content.query? // empty
+	| select(type == "string")
+	| gsub("[[:space:]]+"; " ")
+' "$WB_JSON" > "$dd_timeline" 2>/dev/null || true
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'harness.lifecycle_step' \
+	| grep -Eiq 'order by timestamp'; then
+	ok "#223: drilldown tab carries a lifecycle-step timeline for {Issue} (panel 1)"
+else
+	note "$WB_JSON: no lifecycle-step timeline for {Issue} — #223 panel 1 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing harness.lifecycle_step, order by timestamp)"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================

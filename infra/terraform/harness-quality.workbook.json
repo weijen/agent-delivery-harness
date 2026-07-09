@@ -306,6 +306,49 @@
               "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Deferred:** the failure-detail **log** panel is deferred / unavailable (gated on #220) and is intentionally not shipped in this tab."
             },
             "name": "drilldown-header"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), step = tostring(customDimensions['harness.lifecycle_step']), outcome = tostring(customDimensions['harness.outcome']), dur_ms = todouble(customDimensions['harness.duration_ms']) | where issue == '{Issue}' and isnotempty(step) | project timestamp, step, outcome, duration_ms = dur_ms | order by timestamp asc",
+              "size": 0,
+              "title": "Lifecycle step timeline (ordered by span timestamp)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "outcome",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "fail",
+                          "representation": "redBright",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "pass",
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "gray",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-lifecycle-timeline"
           }
         ]
       },
