@@ -8,6 +8,12 @@ paths, and — in §4 — records the **live Copilot CLI capture** that settled 
 one thing static analysis could not: whether a skill invocation surfaces as a
 tool call (it does; see §4).
 
+> **Sibling spike:** the *subagent* case — whether these same hooks fire for
+> tool/skill calls made *inside* a subagent, and how to attribute them — is
+> settled separately in
+> [`github-copilot.subagent-spike.md`](github-copilot.subagent-spike.md)
+> (issue #226).
+
 Like [`github-copilot.md`](github-copilot.md), this doc states its
 empirical-verification status inline. The headline is a deliberate **honest
 unknown**: *no evidence in this repo or in the linked Copilot docs says a skill
