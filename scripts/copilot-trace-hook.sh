@@ -333,6 +333,35 @@ hook__on_stop() {
   return 0
 }
 
+# subagentStart / SubagentStart — emit ONE agent span symmetric with the
+# subagentStop span (#227 Task 2). The payload carries the CONDUCTOR's
+# sessionId plus the child's agentName, but NO child sessionId / toolCallId
+# (spike §4d), so this is an agent-identity marker, not a session binding.
+#   - gen_ai.operation.name=invoke_agent
+#   - gen_ai.agent.name = payload agentName (camel) / agent_name (snake);
+#     absent → the generic subagent name (as subagentStop does) so the span
+#     stays schema-valid and the start/stop bracket is never half-missing.
+#   - harness.session_id from the conductor sessionId when present.
+# The built-in general-purpose agent is NOT special-cased silent — v1.0.69
+# measured it emitting subagentStart/subagentStop despite the docs (spike §4).
+# hook__on_subagent_start <payload> <fallback_agent_name>
+hook__on_subagent_start() {
+  local payload="$1" fallback_name="$2"
+  local agent_name="" sid=""
+  agent_name="$(printf '%s' "$payload" | jq -r '.agentName // .agent_name // empty' 2>/dev/null || true)"
+  [ -n "$agent_name" ] || agent_name="$fallback_name"
+  sid="$(printf '%s' "$payload" | jq -r '.sessionId // .session_id // empty' 2>/dev/null || true)"
+  local -a attrs=(
+    "gen_ai.operation.name=invoke_agent"
+    "gen_ai.agent.name=${agent_name}"
+  )
+  if [ -n "$sid" ]; then
+    attrs+=("harness.session_id=${sid}")
+  fi
+  trace_span agent "${attrs[@]}"
+  return 0
+}
+
 # --- Interval fallback (#146) --------------------------------------------------
 
 # hook__resolve_issue_by_interval <main_root> <ts>
@@ -632,8 +661,10 @@ hook__main() {
     postToolUseFailure) hook__on_post_tool_use "$payload" camel fail ;;
     PostToolUse)        hook__on_post_tool_use "$payload" snake "" ;;
     agentStop)          hook__on_stop "$payload" "github-copilot" cli ;;
+    subagentStart)      hook__on_subagent_start "$payload" "github-copilot-subagent" ;;
     subagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     Stop)               hook__on_stop "$payload" "github-copilot" none ;;
+    SubagentStart)      hook__on_subagent_start "$payload" "github-copilot-subagent" ;;
     SubagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     "")
       # CLI v1.0.69 (#137) sends NO event / hook_event_name field. Infer a
