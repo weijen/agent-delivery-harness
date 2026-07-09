@@ -72,6 +72,14 @@
             "style": "link"
           },
           {
+            "id": "tab-drilldown-link",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Single-run drill-down",
+            "subTarget": "drilldown",
+            "style": "link"
+          },
+          {
             "id": "tab-compare-link",
             "cellValue": "selectedTab",
             "linkTarget": "parameter",
@@ -280,6 +288,28 @@
         ]
       },
       "name": "tab-issues"
+    },
+    {
+      "type": 12,
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "drilldown"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Deferred:** the failure-detail **log** panel is deferred / unavailable (gated on #220) and is intentionally not shipped in this tab."
+            },
+            "name": "drilldown-header"
+          }
+        ]
+      },
+      "name": "tab-drilldown"
     },
     {
       "type": 12,

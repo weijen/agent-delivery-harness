@@ -10,7 +10,7 @@ comparison.
 
 ## Workbook structure (tabs)
 
-A tabs links item (`"style": "tabs"`) drives a `selectedTab` parameter; three group
+A tabs links item (`"style": "tabs"`) drives a `selectedTab` parameter; four group
 items switch on it:
 
 - **Fleet health** (`selectedTab == fleet`) — KPI panels over {TimeRange}: runs
@@ -21,6 +21,9 @@ items switch on it:
 - **Issue runs** (`selectedTab == issues`) — one row per (issue, version) run.
   Clicking a row exports the `{Issue}` parameter (grid `exportParameterName = Issue`),
   the drill-through the single-run tab (#223) consumes.
+- **Single-run drill-down** (`selectedTab == drilldown`) — parameterized on `{Issue}`;
+  panels 1-3,5-6 for the selected run. Panel 4 (failure-detail log join) is deferred
+  to a #220-gated issue. When no run is selected the panels are honestly empty.
 - **Version comparison** (`selectedTab == compare`) — the original by-`harness.version`
   aggregates and the deferred-metrics block, kept verbatim.
 

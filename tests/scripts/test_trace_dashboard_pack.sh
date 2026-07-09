@@ -411,6 +411,50 @@ else
 fi
 
 # =============================================================================
+# #223 — Tab 2 "Single-run drill-down" container. #222 wired the {Issue}
+# drill-through export; this feature adds the tab that consumes it. Mirrors the
+# #222 tab mechanism exactly: a links (type:11 "tabs") subTarget entry writing
+# selectedTab, plus a type:12 group gated via conditionalVisibility on
+# selectedTab. This leg pins BOTH halves of the container:
+#   (1) the tabs links component carries a subTarget:"drilldown" entry
+#       positioned BETWEEN the issues and compare entries, AND
+#   (2) a type:12 group whose conditionalVisibility.value == "drilldown"
+#       exists and carries a header text item (type:1) that names {Issue}.
+# A flat pack, or a drilldown entry appended out of order, or a group with no
+# {Issue} header, must fail — the tab that consumes the drill-through is absent.
+# =============================================================================
+# (1) drilldown links entry, ordered between issues and compare (all jq logic,
+#     so a null index cannot become a false pass).
+dd_between="$(jq -r '
+	[.items[] | select(.name == "tabs") | .content.links[].subTarget] as $s
+	| ($s | index("drilldown")) as $d
+	| ($s | index("issues")) as $i
+	| ($s | index("compare")) as $c
+	| ($d != null and $i != null and $c != null and $i < $d and $d < $c)
+' "$WB_JSON" 2>/dev/null || echo false)"
+if [ "$dd_between" = "true" ]; then
+	ok "#223: tabs carries a 'drilldown' subTarget positioned between issues and compare"
+else
+	note "$WB_JSON: tabs links component has no subTarget:\"drilldown\" entry positioned between the issues and compare entries — #223 Tab 2 container"
+fi
+
+# (2) a type:12 group gated on selectedTab == "drilldown" carrying a header text
+#     item that names {Issue}.
+dd_group_hdr="$(jq -r '
+	[ .items[]
+	  | select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	  | .content.items[]?
+	  | select(.type == 1)
+	  | .content.json
+	  | select(type == "string" and test("Issue")) ] | length
+' "$WB_JSON" 2>/dev/null || echo 0)"
+if [ "${dd_group_hdr:-0}" -gt 0 ]; then
+	ok "#223: drilldown group (conditionalVisibility == drilldown) has a header text item naming {Issue}"
+else
+	note "$WB_JSON: no type:12 group gated on selectedTab == \"drilldown\" with a header text item referencing {Issue} — #223 Tab 2 container"
+fi
+
+# =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
 honesty_targets="$WB_JSON $DASH_README"
