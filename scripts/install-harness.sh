@@ -77,45 +77,32 @@ list_files() {
 	fi
 }
 
+# The shared dry/write/update three-way reconcile skeleton.
+# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/reconcile-lib.sh"
+
+# Reconcile hooks for install-harness: the desired content is a real source file
+# ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
+# are invoked indirectly by reconcile_entry (SC2329).
+# shellcheck disable=SC2329
+rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
+# shellcheck disable=SC2329
+rc_write() {
+	mkdir -p "$(dirname "$RC_DST")"
+	cp "$RC_SRC" "$RC_DST"
+}
+# shellcheck disable=SC2329
+rc_diff() { diff -u "$RC_DST" "$RC_SRC" || true; }
+
 # Reconcile one source file against the target. Returns non-zero only when it
 # refuses to overwrite a differing file in --write mode.
 reconcile() {
 	local rel="$1"
-	local src="${REPO_ROOT}/${rel}" dst="${TARGET_DIR}/${rel}"
-	if [ ! -e "$dst" ]; then
-		if [ "$MODE" = "dry" ]; then
-			printf '  would create %s\n' "$rel"
-		else
-			mkdir -p "$(dirname "$dst")"
-			cp "$src" "$dst"
-			printf '  created %s\n' "$rel"
-		fi
-		return 0
-	fi
-	if cmp -s "$src" "$dst"; then
-		printf '  up to date %s\n' "$rel"
-		return 0
-	fi
-	# Exists and differs.
-	case "$MODE" in
-	update)
-		printf '  updating %s (diff):\n' "$rel"
-		diff -u "$dst" "$src" || true
-		cp "$src" "$dst"
-		printf '  updated %s\n' "$rel"
-		return 0
-		;;
-	write)
-		printf '  refusing to overwrite %s — pass --update to overwrite (diff):\n' "$rel"
-		diff -u "$dst" "$src" || true
-		return 1
-		;;
-	*)
-		printf '  differs %s — pass --update to overwrite (diff):\n' "$rel"
-		diff -u "$dst" "$src" || true
-		return 0
-		;;
-	esac
+	RC_SRC="${REPO_ROOT}/${rel}"
+	RC_DST="${TARGET_DIR}/${rel}"
+	local missing=0
+	[ -e "$RC_DST" ] || missing=1
+	reconcile_entry "$rel" "$MODE" 1 "$missing"
 }
 
 # --- Argument parsing --------------------------------------------------------
