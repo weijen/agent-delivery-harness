@@ -213,6 +213,20 @@ hook__on_post_tool_use() {
     attrs+=("harness.session_id=${sid}")
   fi
 
+  # Subagent tool/skill call (#227 Task 1): a `toolu_`-prefixed sessionId is
+  # the spawning `task` tool-use id, i.e. this call was made INSIDE a subagent
+  # (docs/runtime-adapters/github-copilot.subagent-spike.md §4). Stamp
+  # harness.subagent so skill/tool spans split conductor-vs-subagent in
+  # analytics (schema v1 open-world). The deterministic value is the string
+  # "true"; best-effort OTel Path O enrichment (#227 Task 3) may upgrade it to
+  # the real agent name. harness.skill.name handling above is unchanged.
+  case "$sid" in
+    toolu_*)
+      local subagent_value="true"
+      attrs+=("harness.subagent=${subagent_value}")
+      ;;
+  esac
+
   trace_span tool "${attrs[@]}"
   return 0
 }
@@ -576,14 +590,34 @@ hook__main() {
       # Active-issue marker fast-path (P-5): start-issue.sh recorded the sole
       # live issue. Force trace__resolve_issue to it and skip the interval scan.
       export TRACE_ISSUE="$matched_issue"
+      # #227 Task 1: a subagent's toolu_ session is never git-bound (it carries
+      # no worktree cwd of its own). Once the still-valid conductor context
+      # (marker) resolves it, persist a binding keyed by the toolu_ id so every
+      # subsequent subagent call skips the interval scan entirely.
+      case "$sid" in
+        toolu_*) hook__session_bind "$main_root" "$sid" "$matched_issue" ;;
+      esac
     elif matched_issue="$(hook__resolve_issue_by_interval "$main_root" "$ts")" \
         && [ -n "$matched_issue" ]; then
       # Interval fallback (last resort): no usable marker — reconstruct the
       # owning window from on-disk lifecycle spans. Force trace__resolve_issue to
       # the matched issue so the fallback span lands in that issue's own trace.
       export TRACE_ISSUE="$matched_issue"
+      case "$sid" in
+        toolu_*) hook__session_bind "$main_root" "$sid" "$matched_issue" ;;
+      esac
     else
-      trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"
+      # #227 Task 5: keep the strict drop rule — an unbindable, interval-
+      # ambiguous session is never mis-attributed. A dropped subagent (toolu_)
+      # session gets a distinct diagnostic so subagent-span loss is visible.
+      case "$sid" in
+        toolu_*)
+          trace_warn "copilot-trace-hook: unbindable subagent (toolu_) session ${sid} interval-ambiguous for ts=${ts} — span dropped"
+          ;;
+        *)
+          trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"
+          ;;
+      esac
       return 0
     fi
   fi

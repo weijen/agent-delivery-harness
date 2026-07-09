@@ -94,6 +94,27 @@ snake_post_ts() {
     + (if $ts == "-" then {} else {timestamp: $ts} end)'
 }
 
+# CLI camelCase postToolUse — a subagent's tool/skill calls arrive on THIS
+# dialect carrying a `toolu_`-prefixed sessionId (the spawning task tool-use
+# id), per docs/runtime-adapters/github-copilot.subagent-spike.md §4. toolArgs
+# is a JSON string (CLI dialect). sessionId/timestamp omitted when passed "-".
+# camel_post_ts <cwd> <session_id|-> <tool_name> <tool_args-json-string> <timestamp|->
+camel_post_ts() {
+  local cwd="$1" sid="$2" tool="$3" args="$4" ts="$5"
+  jq -cn \
+    --arg cwd "$cwd" --arg sid "$sid" --arg tool "$tool" \
+    --arg args "$args" --arg ts "$ts" '
+    {
+      event: "postToolUse",
+      cwd: $cwd,
+      toolName: $tool,
+      toolArgs: $args,
+      toolResult: { resultType: "success", textResultForLlm: "ok" }
+    }
+    + (if $sid == "-" then {} else {sessionId: $sid} end)
+    + (if $ts == "-" then {} else {timestamp: $ts} end)'
+}
+
 # --- Fixture builders ---------------------------------------------------------
 # A fresh MAIN checkout repo on branch `main` with the hook + emitter copied
 # beside each other under scripts/. Checked out on `main` so
@@ -331,3 +352,89 @@ printf '%s\n' "$b5_new" | jq -e '
   || fail "B5: stale issue-999 binding must not receive a span when git resolves issue-505; issue-999 line count is $(line_count "$B5_T999")"
 
 printf 'PASS: copilot-trace-hook.sh honors session binding before interval attribution, writes/refreshes git-resolved bindings, keeps git-over-stale-binding precedence, and safely falls back when absent or garbage\n'
+
+# =============================================================================
+# T-block (#227 feature toolu-bind-and-stamp) — a subagent's tool/skill calls
+# arrive with a `toolu_`-prefixed sessionId. They must be recognized as a
+# subagent session (harness.subagent=true), attributed via the still-valid
+# conductor context, persist a binding keyed by the toolu_ id, and still DROP
+# when unbindable + interval-ambiguous (never mis-attribute).
+# =============================================================================
+
+# seed_marker <repo_root> <issue> <start-ts>  — the #216 active-issue marker.
+seed_marker() {
+  local repo="$1" issue="$2" ts="$3"
+  mkdir -p "${repo}/.copilot-tracking/active-issues"
+  printf '%s' "$ts" > "${repo}/.copilot-tracking/active-issues/${issue}"
+}
+
+# T1 — git-resolved worktree: toolu_ tool span attributed to the branch issue,
+# harness.subagent=true stamped, harness.skill.name kept, binding persisted
+# keyed by the toolu_ id.
+DIRT1="${TMP_DIR}/issue-601-repo"
+make_issue_branch_repo "$DIRT1" "feature/issue-601-subagent"
+T1_TRACE="$(trace_path "$DIRT1" 601)"
+t1_before="$(line_count "$T1_TRACE")"
+run_hook "t1" "$DIRT1" <(
+  camel_post_ts "$DIRT1" "toolu_01AaBbCc" "skill" '{"skill":"find-over-design"}' 2026-07-07T10:00:00Z
+)
+assert_session_safe "t1"
+t1_after="$(line_count "$T1_TRACE")"
+[ "$t1_after" = "$((t1_before + 1))" ] \
+  || fail "T1(#227): a toolu_ subagent postToolUse in a git-resolved worktree must append EXACTLY one tool span to issue-601 — before=${t1_before} after=${t1_after}"
+t1_new="$(nth_line "$T1_TRACE" "$t1_after")"
+validate_span "$t1_new" \
+  || fail "T1(#227): the appended span is rejected by the #92 contract filter (fixture broken): ${t1_new}"
+printf '%s\n' "$t1_new" | jq -e '
+    .span == "tool" and .["gen_ai.tool.name"] == "skill"
+    and .["harness.issue"] == 601
+    and .["harness.subagent"] == "true"
+    and .["harness.skill.name"] == "find-over-design"' >/dev/null \
+  || fail "T1(#227): the toolu_ tool span must carry harness.subagent=\"true\" and keep harness.skill.name=find-over-design: ${t1_new}"
+T1_BIND="${DIRT1}/.copilot-tracking/sessions/toolu_01AaBbCc"
+[ -f "$T1_BIND" ] && [ "$(cat "$T1_BIND" 2>/dev/null)" = "601" ] \
+  || fail "T1(#227): the toolu_ session must persist a binding keyed by the toolu_ id (=601) so later calls skip the scan; got: $(cat "$T1_BIND" 2>/dev/null)"
+
+# T2 — main-checkout topology, single #216 marker: the toolu_ session resolves
+# via the marker, stamps harness.subagent=true, and PERSISTS a binding keyed by
+# the toolu_ id so a subsequent call is bound (skips the interval scan).
+MAINT2="${TMP_DIR}/main-t2"
+make_main_repo "$MAINT2"
+seed_lifecycle "$MAINT2" 602 worktree_create 2026-07-07T09:00:00Z
+seed_marker "$MAINT2" 602 2026-07-07T09:00:00Z
+T2_TRACE="$(trace_path "$MAINT2" 602)"
+t2_before="$(line_count "$T2_TRACE")"
+run_hook "t2" "$MAINT2" <(
+  camel_post_ts "$MAINT2" "toolu_02MarkerX" "view" '{"path":"README.md"}' 2026-07-07T10:00:00Z
+)
+assert_session_safe "t2"
+t2_after="$(line_count "$T2_TRACE")"
+[ "$t2_after" = "$((t2_before + 1))" ] \
+  || fail "T2(#227): a toolu_ session in the main checkout must resolve via the #216 marker and append one tool span to issue-602 — before=${t2_before} after=${t2_after}"
+t2_new="$(nth_line "$T2_TRACE" "$t2_after")"
+printf '%s\n' "$t2_new" | jq -e '
+    .span == "tool" and .["harness.issue"] == 602 and .["harness.subagent"] == "true"' >/dev/null \
+  || fail "T2(#227): the marker-resolved toolu_ span must be attributed to issue-602 with harness.subagent=\"true\": ${t2_new}"
+T2_BIND="${MAINT2}/.copilot-tracking/sessions/toolu_02MarkerX"
+[ -f "$T2_BIND" ] && [ "$(cat "$T2_BIND" 2>/dev/null)" = "602" ] \
+  || fail "T2(#227): a toolu_ session resolved via marker/interval must persist a binding keyed by the toolu_ id (=602) so later calls skip the scan; got: $(cat "$T2_BIND" 2>/dev/null)"
+
+# T3 — unbindable + interval-ambiguous toolu_ session STILL DROPS (never
+# mis-attribute), with a visible warn on stderr.
+MAINT3="${TMP_DIR}/main-t3"
+make_main_repo "$MAINT3"
+seed_lifecycle "$MAINT3" 603 worktree_create 2026-07-07T09:00:00Z
+seed_lifecycle "$MAINT3" 604 worktree_create 2026-07-07T09:05:00Z
+T3_T603="$(trace_path "$MAINT3" 603)"
+T3_T604="$(trace_path "$MAINT3" 604)"
+t3_before603="$(line_count "$T3_T603")"
+t3_before604="$(line_count "$T3_T604")"
+run_hook "t3" "$MAINT3" <(
+  camel_post_ts "$MAINT3" "toolu_03Ambig" "bash" '{"command":"echo x"}' 2026-07-07T10:00:00Z
+)
+assert_session_safe "t3"
+[ "$(line_count "$T3_T603")" = "$t3_before603" ] && [ "$(line_count "$T3_T604")" = "$t3_before604" ] \
+  || fail "T3(#227): an unbindable, interval-ambiguous toolu_ session must DROP (append no span to either overlapping window) — 603 ${t3_before603}->$(line_count "$T3_T603"), 604 ${t3_before604}->$(line_count "$T3_T604")"
+assert_warn_on_stderr "t3"
+
+printf 'PASS: copilot-trace-hook.sh binds+stamps toolu_ subagent sessions (git/marker), persists a toolu_-keyed binding, and drops unbindable+ambiguous toolu_ sessions\n'
