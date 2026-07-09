@@ -13,6 +13,7 @@ The machine-readable companion is `agent-delivery-accuracy-matrix.v1.json`. This
 - `evaluation-matrix.md` supplies the eval-case vocabulary: ids, targets, capabilities, fixtures, expected outcomes, grader, blocking policy, trials, thresholds, and contract refs.
 - `trace-summary.v1.json` is the per-run source for `finished`, `final_outcome`, `bounded`, `closed_by`, `wall_clock`, `stages`, `tools`, `tokens`, `loop_indicators`, `red_reentry`, and `deviations`. Its absence semantics are honest: `null` means no data, `0` means measured zero, and `[]` means the detector ran and found nothing.
 - `trace-scorecard.v1.json` aggregates trace-summary v1 into version buckets with explicit denominators such as `runs`, `red_reentry_free_rate.of`, `token_coverage`, `tool_coverage`, `inputs.missing_summaries`, and `inputs.skipped`.
+- `log.jsonl` step-level logs (schema `log-schema.v1.json`) are the per-run failure-detail evidence source: they supply the actual failing output behind a process/gate finding (the detail behind a span's capped summary). They are the detail stream, not itself a correctness label; consistent with the honesty/absence rules above, absence is `null` (log evidence unavailable), never zero failures.
 
 ## Anti-Goodhart rules
 

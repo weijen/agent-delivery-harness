@@ -207,6 +207,12 @@ a **process violation**.
 7. **Treat blocking process violations as BLOCKING.** A schema/redaction failure, missing red-first evidence reported as
    `red_first_evidence_missing`, wrong role reported as `red_first_role_mismatch`, unresolved `deviation`s, and
    repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even when the code diff is clean.
+   - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
+     trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
+     the `error`-level record with `harness.outcome == "fail"` for that `harness.stage` — and cite its (redacted,
+     capped) `payload` (the actual failing output), instead of only the span's capped summary. When `log.jsonl` is
+     absent or carries no matching record, state `log evidence unavailable` — never inferred as a pass — mirroring the
+     `trace evidence unavailable` rule.
 8. **Feed the verdict explicitly.** Blocking process violations produce `NEEDS_REVISION` (or `BLOCKED`). Unavailable
    trace evidence is explicit residual risk, never silently ignored.
 

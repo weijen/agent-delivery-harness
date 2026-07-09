@@ -47,6 +47,23 @@ done
 grep -Fq 'agent-delivery-accuracy-matrix.v1.json' "$matrix" \
   || note "$matrix must reference agent-delivery-accuracy-matrix.v1.json"
 
+# Registers step-level logs (log.jsonl / log-schema.v1.json) as a per-run
+# failure-detail evidence source with an explicit can/cannot-prove boundary.
+{ grep -Fq 'log.jsonl' "$matrix" && grep -Fq 'log-schema.v1.json' "$matrix"; } \
+  || note "$matrix must register log.jsonl (schema log-schema.v1.json) as an evidence source"
+grep -Eiq 'failure.detail' "$matrix" \
+  || note "$matrix must describe log.jsonl as a failure-detail evidence source"
+grep -Eiq 'actual failing output' "$matrix" \
+  || note "$matrix must say log.jsonl supplies the actual failing output behind a process/gate finding"
+grep -Fiq 'detail stream' "$matrix" \
+  || note "$matrix must describe log.jsonl as a detail stream"
+grep -Eiq 'not itself a correctness label' "$matrix" \
+  || note "$matrix must say the log stream is not itself a correctness label"
+grep -Fiq 'log evidence unavailable' "$matrix" \
+  || note "$matrix must say log absence is null (log evidence unavailable)"
+grep -Eiq 'never zero failures' "$matrix" \
+  || note "$matrix must say log absence is never zero failures"
+
 # Anti-Goodhart rule: cost or merge-rate gains cannot offset quality regressions.
 grep -Eiq 'goodhart' "$matrix" || note "$matrix must state the anti-Goodhart rule"
 grep -Eiq 'cost.*(cannot|offset)|(cannot|offset).*cost' "$matrix" \
