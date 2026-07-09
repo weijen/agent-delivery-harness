@@ -6,6 +6,9 @@ attributed back to the subagent that produced them?** It is the sibling of
 [`github-copilot.skill-spike.md`](github-copilot.skill-spike.md) (#121, which
 settled that a *top-level* skill invocation surfaces as `toolName == "skill"`).
 It gates the follow-up binding issue [#227](https://github.com/weijen/agent-delivery-harness/issues/227).
+**Extended by [#231](https://github.com/weijen/agent-delivery-harness/issues/231)
+(§7): a third capture path — the official OTel file export — plus async/background
+coverage.**
 
 Like the other adapter docs, every claim below is labelled **MEASURED**
 (observed in a live run, with the CLI version stamped) or **DOCUMENTED** (stated
@@ -243,6 +246,149 @@ reliance on an undocumented file.
    bound and is interval-ambiguous must still drop rather than mis-attribute.
 4. **Do not rely on the `general-purpose` no-event exception** — it fired here.
 
+## §7 — Path O (official OTel file export) + async coverage (issue #231)
+
+Follow-up spike [#231](https://github.com/weijen/agent-delivery-harness/issues/231)
+adds a **third** capture path the #226 spike did not test — the **official
+OpenTelemetry file export** (Path O) — and stress-tests the hook path against
+**async / background** subagents (community bugs
+[#3013](https://github.com/github/copilot-cli/issues/3013) /
+[#2293](https://github.com/github/copilot-cli/issues/2293)). Same discipline:
+live capture, versioned redacted evidence, no production code. CLI **v1.0.69**
+(macOS), inside the issue-231 worktree, custom probe `spike231-probe` (one
+`skill` → one `view` → one `bash`).
+
+**How Path O is enabled (local, non-enterprise-gated — MEASURED):**
+
+```sh
+COPILOT_OTEL_ENABLED=true \
+COPILOT_OTEL_FILE_EXPORTER_PATH=/tmp/otel.jsonl \
+OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true \  # optional; content only
+copilot -p "…"
+```
+
+Output is JSON-lines: one object per line, `type:"span"` or `type:"metric"`.
+
+### (a) The subagent nests natively in one trace — **the headline Path O win**
+
+Unlike hooks (which leak only a synthetic `toolu_` id) and `events.jsonl` (which
+needs a post-hoc join), the OTel span tree **nests the subagent under the
+conductor by context propagation**, and every span shares **one `traceId`**.
+Redacted `spanId`/`parentSpanId` tree from a sync run:
+
+```
+invoke_agent                     bd615161  ROOT      ← conductor
+└─ execute_tool task             bab539db  bd615161  ← the spawning task call
+   └─ invoke_agent spike231-probe cafa94e8  bab539db  ← THE SUBAGENT (parent = task span)
+      ├─ execute_tool skill       5e53a062  cafa94e8
+      ├─ execute_tool view        bfe46298  cafa94e8
+      ├─ execute_tool bash        e12c1f77  cafa94e8
+      └─ chat claude-opus-4.8     dce4b9fc  cafa94e8
+```
+
+The subagent's `invoke_agent` span carries **native agent identity — NOT
+content-gated** (present with `CAPTURE_MESSAGE_CONTENT` unset):
+
+| Attribute | Value (redacted) |
+| --- | --- |
+| `gen_ai.agent.name` | `spike231-probe` |
+| `gen_ai.agent.id` | `user:spike231-probe` |
+| `gen_ai.request.model` | `claude-opus-4.8` |
+| `gen_ai.agent.version` | `1.0.69` |
+| `github.copilot.agent.type` | `custom` |
+| `github.copilot.context.custom_agent_names` | `["…","spike231-probe"]` |
+| `gen_ai.conversation.id` | **the conductor's session UUID** (same on root + subagent span) |
+| `gen_ai.usage.{input,output,cache_*}_tokens` | per-subagent token split |
+
+Only `gen_ai.output.messages` (the assistant transcript) is content-gated. So
+**Path O answers #227's core question — "which subagent produced this span?" —
+natively, with no undocumented-file dependency.**
+
+### (b) #3725 RESOLVED — the CLI *does* carry skill attribution in OTel
+
+Community issue [#3725](https://github.com/github/copilot-cli/issues/3725)
+claims Copilot **CLI** traces have no skill attribution (only VS Code does). On
+v1.0.69 this is **WRONG**: the subagent's `execute_tool skill` span carries a
+first-class **`github.copilot.tool.parameters.skill_name`** attribute that
+**survives with content capture OFF**.
+
+| `execute_tool skill` attribute | content ON | content OFF |
+| --- | :---: | :---: |
+| `github.copilot.tool.parameters.skill_name` (`= find-over-design`) | ✅ | ✅ **kept** |
+| `gen_ai.tool.name` / `gen_ai.tool.type` / `gen_ai.tool.call.id` | ✅ | ✅ |
+| `gen_ai.tool.call.arguments` | ✅ | ❌ dropped |
+| `gen_ai.tool.call.result` | ✅ | ❌ dropped |
+| `gen_ai.tool.description` | ✅ | ❌ dropped |
+
+So skill attribution is available **without** enabling message-content capture —
+the deterministic, PII-safe subset already names the skill.
+
+### (c) Async / background subagents do **not** bypass hooks (#3013 / #2293 not reproduced)
+
+Two async runs, both with all three sources on:
+
+- **Run 3 — awaited background:** conductor launches the subagent with
+  `mode:"background"`, then `read_agent wait:true`.
+- **Run 4 — fire-and-forget:** conductor launches background then ends its turn
+  **without** `read_agent`.
+
+In **both**, the background subagent's `skill` / `view` / `bash` calls fired
+`preToolUse` **and** `postToolUse` under the same `toolu_`-prefixed `sessionId`
+as sync, the OTel tree still nested `invoke_agent spike231-probe` under
+`execute_tool task`, and `events.jsonl` still recorded the subagent events. Run 4
+additionally fired an **async-specific `notification` event**:
+
+```json
+{ "notification_type": "agent_completed",
+  "title": "Agent spike231-probe completed",
+  "message": "Agent \"spike231-probe\" (spike231-probe) has completed successfully. …" }
+```
+
+So on v1.0.69 **background dispatch keeps the session alive via the completion
+notification and does not escape hooks** — #3013 / #2293 are **not reproduced**.
+
+> **Scope caveat (MEASURED honestly).** Both runs were in `-p` (headless) mode
+> where the CLI held the session open until the child finished. A *true*
+> fire-and-forget where the **parent process terminates before the child
+> completes** was not exercised; that residual case is the one the community
+> bugs describe and remains unverified here. Watch #3013/#2293 for it.
+
+### (d) Cross-source join key — `toolu_<taskId>` unifies all three paths
+
+The spawning `task` tool-use id ties hooks, `events.jsonl`, and OTel together —
+verified **equal in the async run** (`toolu_01QyJadd…`):
+
+| Source | Field carrying the join key |
+| --- | --- |
+| Hook | subagent tool-call `sessionId` (`^toolu_`) |
+| `events.jsonl` | `subagent.started.data.toolCallId` **and** each subagent tool event's `agentId` |
+| OTel | the parent `execute_tool task` span's `gen_ai.tool.call.id` (that span is the subagent `invoke_agent` span's parent) |
+
+Consequence for #227: a deterministic **hook** span can be enriched with the
+real agent name by joining on `toolu_<taskId>` to **either** OTel (documented)
+**or** `events.jsonl` (undocumented). Prefer OTel for the enrichment source.
+
+### §7 verdict — three-path comparison (H / E / O)
+
+| | Path H — hooks | Path E — `events.jsonl` | **Path O — OTel file export** |
+| --- | --- | --- | --- |
+| Detect a subagent tool/skill call | ✅ `sessionId ^toolu_` | ✅ non-null `agentId` | ✅ span nested under subagent `invoke_agent` |
+| Attribute to the **agent name** | ❌ (no agent field) | ✅ via `toolCallId`→`agentName` | ✅ **native** `gen_ai.agent.name` on the span |
+| Skill attribution | ✅ `toolName:"skill"`+`toolArgs` | ✅ event `toolName` | ✅ `…tool.parameters.skill_name` (**kept content-OFF**) |
+| Parent/child linkage | ❌ synthetic id only | ✅ `agentId`/`parentId` | ✅ **`parentSpanId` + shared `traceId`** |
+| Async / background coverage | ✅ fires (run3+run4) | ✅ recorded | ✅ tree unchanged |
+| Cross-source join key | `toolu_` `sessionId` | `subagent.started.toolCallId` | `execute_tool task` `gen_ai.tool.call.id` |
+| Content-gating | n/a | n/a | only `output.messages` / tool `arguments`/`result`/`description` gated |
+| Trust class | runtime hook (used today) | **undocumented** file, may drift | **DOCUMENTED** (`copilot help monitoring`), OTel-standard |
+
+**Recommendation (feeds #227):** Path O is the strongest attribution source —
+documented, standards-shaped, and it names the subagent and its skill natively
+without message-content capture. Keep the hook path as the deterministic runtime
+sensor, and prefer **OTel over `events.jsonl`** for post-hoc agent-name
+enrichment, joining on `toolu_<taskId>`. Async is not a coverage gap on v1.0.69
+(the awaited + fire-and-forget cases both fire hooks); only the
+parent-exits-before-child case remains open.
+
 ## Empirical-verification status
 
 - `preToolUse`/`postToolUse` fire inside subagents (custom + `general-purpose`):
@@ -257,3 +403,18 @@ reliance on an undocumented file.
 - Subagent spans live in the conductor's `events.jsonl` with `agentId` /
   `subagent.started.toolCallId` join keys: **MEASURED** (undocumented CLI file;
   may drift).
+- **Path O (OTel file export) nests the subagent `invoke_agent` span under the
+  conductor's `execute_tool task` span in one `traceId`, with native
+  `gen_ai.agent.name`/`agent.id`/`request.model`/`agent.type=custom` (NOT
+  content-gated): MEASURED** (CLI v1.0.69, #231).
+- **`execute_tool skill` span carries `github.copilot.tool.parameters.skill_name`
+  even with content capture OFF — resolves #3725 (its "CLI has no skill
+  attribution" claim is wrong for v1.0.69): MEASURED** (#231).
+- **Async/background subagents (awaited + fire-and-forget) still fire
+  `preToolUse`/`postToolUse`; the fire-and-forget run additionally emits an
+  `agent_completed` notification; OTel tree unchanged — #3013/#2293 NOT
+  reproduced on v1.0.69: MEASURED** (#231).
+  Caveat: the parent-exits-before-child case was not exercised in `-p` mode.
+- **Cross-source join key `toolu_<taskId>` is equal across hook `sessionId`,
+  `events.jsonl` `subagent.started.toolCallId`, and OTel `execute_tool task`
+  `gen_ai.tool.call.id` (sync + async): MEASURED** (#231).
