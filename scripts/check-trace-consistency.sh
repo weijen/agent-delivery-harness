@@ -461,6 +461,42 @@ else
   printf 'NOTE: pr_mismatch check skipped (no PR reference in progress.md)\n'
 fi
 
+# --- State: dark_run (completed issue window with no runtime tools) ------------
+if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
+  printf 'NOTE: dark_run check skipped (TRACE_ALLOW_DARK_RUN=1)\n'
+else
+  dark_run_facts="$(jq -nRr '
+    reduce inputs as $line
+      ({worktree_create: false, finish: false, runtime_tools: 0, issue: ""};
+       [ $line | fromjson? | objects ][0] as $span
+       | if $span == null then .
+         else
+           .worktree_create = (.worktree_create or
+             ($span.span == "lifecycle" and
+              $span["harness.lifecycle_step"] == "worktree_create"))
+           | .finish = (.finish or
+             ($span.span == "lifecycle" and
+              $span["harness.lifecycle_step"] == "finish"))
+           | .runtime_tools +=
+             (if $span.span == "tool" and
+                 (($span["harness.session_id"] | type) == "string")
+              then 1 else 0 end)
+           | .issue =
+             (if .issue == "" and (($span["harness.issue"] | type) == "number")
+              then ($span["harness.issue"] | tostring) else .issue end)
+         end)
+    | [.worktree_create, .finish, .runtime_tools, .issue] | @tsv
+  ' < "$TRACE_FILE")"
+  IFS=$'\t' read -r dark_has_worktree_create dark_has_finish \
+    dark_runtime_tool_count dark_issue <<< "$dark_run_facts"
+  if [ "$dark_has_worktree_create" != "true" ] || [ "$dark_has_finish" != "true" ]; then
+    printf 'NOTE: dark_run check skipped (issue window not complete — needs worktree_create and finish)\n'
+  elif [ "$dark_runtime_tool_count" = "0" ]; then
+    printf 'VIOLATION consistency: dark_run %s\n' "$dark_issue"
+    violations=$((violations + 1))
+  fi
+fi
+
 # --- Report tail + exit semantics (house family) --------------------------------
 printf '%d violation(s)\n' "$violations"
 if [ "$violations" -gt 0 ]; then
