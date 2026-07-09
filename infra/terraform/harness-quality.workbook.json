@@ -354,7 +354,7 @@
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), feature = tostring(customDimensions['harness.feature_id']), step = tostring(customDimensions['harness.lifecycle_step']), role = tostring(customDimensions['harness.subagent']) | where issue == '{Issue}' and isnotempty(feature) | summarize reds = countif(step == 'red_handback'), impls = countif(step == 'impl_handback'), greens = countif(step == 'green_handback'), roles = make_set_if(role, isnotempty(role)) by feature | extend reentries = reds + impls + greens - 3, red_after_green = reds > 0 and greens > 0 | project feature, reds, impls, greens, reentries, roles | order by feature asc",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), feature = tostring(customDimensions['harness.feature_id']), step = tostring(customDimensions['harness.lifecycle_step']), role = tostring(customDimensions['harness.subagent']) | where issue == '{Issue}' and isnotempty(feature) | summarize reds = countif(step == 'red_handback'), impls = countif(step == 'impl_handback'), greens = countif(step == 'green_handback'), roles = make_set_if(role, isnotempty(role)) by feature | extend reentries = max_of(0, reds + impls + greens - 3) | project feature, reds, impls, greens, reentries, roles | order by feature asc",
               "size": 0,
               "title": "Per-feature TDD loop strip (reentries > 0 = red_reentry)",
               "queryType": 0,
@@ -454,7 +454,7 @@
                   "linkTarget": "Url",
                   "linkLabel": "Open end-to-end transaction view \u2192",
                   "style": "link",
-                  "cellValue": "https://portal.azure.com/#blade/AppInsightsExtension/BladeRedirect/BladeName/searchV1/ResourceId//BladeInputs/%7B%22tables%22%3A%5B%22requests%22%2C%22dependencies%22%5D%2C%22query%22%3A%22union%20requests%2Cdependencies%20%7C%20where%20operation_Id%20%3D%3D%20'issue-%7BIssue%7D'%22%7D",
+                  "cellValue": "https://portal.azure.com/#blade/AppInsightsExtension/BladeRedirect/BladeName/searchV1/ResourceId//BladeInputs/%7B%22tables%22%3A%5B%22requests%22%2C%22dependencies%22%5D%2C%22query%22%3A%22union%20requests%2Cdependencies%20%7C%20where%20operation_Id%20%3D%3D%20'issue-{Issue:urlencode}'%22%7D",
                   "preText": "The workbook resolves its own Application Insights component from its Terraform source_id; this link carries no committed resource id.",
                   "postText": "Opens the native span-tree waterfall for operation_Id == 'issue-{Issue}'. The OTLP path derives a deterministic per-issue TraceId and preserves parent_span_id (#174); the App Insights path tags every envelope ai.operation.id = issue-<issue>. The workbook does not rebuild the tree in KQL."
                 }

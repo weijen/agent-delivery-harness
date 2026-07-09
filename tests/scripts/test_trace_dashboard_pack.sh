@@ -578,6 +578,31 @@ else
 	ok "#223: Tab 2 does not rebuild the transaction waterfall in KQL (no parent_span_id in drilldown queries)"
 fi
 
+# #223: transaction deep-link uses substitutable {Issue} token. The
+# drilldown-transaction-deeplink item's cellValue is a portal URL whose query
+# embeds the run key. Azure Workbook parameter substitution ONLY matches a
+# LITERAL {Issue} (or {Issue:urlencode}) token — a percent-encoded %7BIssue%7D
+# is NEVER substituted and will always query the literal string "issue-%7BIssue%7D".
+# Assert: (1) cellValue contains a literal (un-encoded) {Issue token, AND
+#         (2) cellValue does NOT contain the percent-encoded %7BIssue%7D form.
+dd_cellvalue="$(jq -r '
+	.. | objects
+	| select(.name? == "drilldown-transaction-deeplink")
+	| .content.links[]?
+	| select(.id? == "drilldown-transaction-deeplink")
+	| .cellValue
+	| select(type == "string")
+' "$WB_JSON" 2>/dev/null || true)"
+dd_has_literal=0
+dd_has_encoded=0
+if printf '%s' "$dd_cellvalue" | grep -Fq '{Issue'; then dd_has_literal=1; fi
+if printf '%s' "$dd_cellvalue" | grep -Fq '%7BIssue%7D'; then dd_has_encoded=1; fi
+if { [ "$dd_has_literal" -eq 1 ] && [ "$dd_has_encoded" -eq 0 ]; }; then
+	ok "#223: transaction deep-link cellValue uses a substitutable literal {Issue} token (not percent-encoded)"
+else
+	note "#223: transaction deep-link cellValue must contain a literal {Issue} token (not percent-encoded %7BIssue%7D) — Azure Workbook only substitutes {Issue} or {Issue:urlencode}, never %7BIssue%7D; has_literal=$dd_has_literal has_encoded=$dd_has_encoded"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
