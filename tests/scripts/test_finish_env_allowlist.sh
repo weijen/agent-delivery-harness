@@ -106,6 +106,15 @@ load_env_allowlist "$env3"
   || fail "process-precedence: pre-set APPLICATIONINSIGHTS_CONNECTION_STRING must survive"
 CASE
 
+run_case "empty pre-set process env wins over .env values" <<'CASE'
+reset_allowlist_env
+export TRACE_EXPORT_OTLP=''
+env_empty="$(write_env empty-process-precedence "TRACE_EXPORT_OTLP='1'")"
+load_env_allowlist "$env_empty"
+[ -z "${TRACE_EXPORT_OTLP}" ] && [ "${TRACE_EXPORT_OTLP+set}" = "set" ] \
+  || fail "empty-process-precedence: empty pre-set TRACE_EXPORT_OTLP must survive"
+CASE
+
 run_case "no command substitution or backtick execution" <<'CASE'
 reset_allowlist_env
 pwn1="${TMP_DIR}/pwned_244_$$_dollar"

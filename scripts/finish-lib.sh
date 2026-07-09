@@ -72,13 +72,14 @@ load_env_allowlist() {
   single_quote_escape="'\\''"
   single_quote="'"
   while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
     trimmed="${line#"${line%%[![:space:]]*}"}"
     [ -n "$trimmed" ] || continue
     [ "${trimmed:0:1}" != "#" ] || continue
-    [ "$line" != "${line%%=*}" ] || continue
+    [ "$trimmed" != "${trimmed%%=*}" ] || continue
 
-    key="${line%%=*}"
-    value="${line#*=}"
+    key="${trimmed%%=*}"
+    value="${trimmed#*=}"
     case "$key" in
       TRACE_EXPORT_OTLP|APPLICATIONINSIGHTS_CONNECTION_STRING|TRACE_EXPORT_OTLP_HTTP|\
         OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_EXPORTER_OTLP_TRACES_ENDPOINT|OTEL_EXPORTER_OTLP_HEADERS)

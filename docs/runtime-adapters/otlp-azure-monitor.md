@@ -130,7 +130,8 @@ Three flows put values into that `.env`:
    `finish-issue.sh`, the best-effort closeout export (below) still uses those
    process variables first. After one `scripts/gen-export-env.sh`, closeout needs no manual source.
    The finish-issue closeout auto-loads the main-checkout `.env`
-   automatically, even when finishing from a worktree.
+   automatically — including for issues whose work happened in a worktree — so
+   no manual source is needed.
 
 **Never commit `.env` or paste the connection string into `.env.example`,**
 tracked files, or trace artifacts. The template stays secret-free; the secret
