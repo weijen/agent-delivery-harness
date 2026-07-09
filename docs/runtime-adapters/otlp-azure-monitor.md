@@ -88,6 +88,52 @@ export APPLICATIONINSIGHTS_CONNECTION_STRING="$(terraform output -raw connection
 trace artifacts. It lives in your shell environment for the duration of a
 ship, nothing more (see the sensitivity rules in `AGENTS.md`).
 
+## Local `.env` setup
+
+The one shared, tracked template `.env.example` carries **empty, non-secret
+placeholders** for every export variable (alongside the `COPILOT_OTEL_*` keys).
+Your real values live only in a local `.env`, which is **gitignored** — there is
+exactly one local-config file, never a second env-loading path, and nothing is
+auto-sourced. Load it explicitly when you want export on:
+
+```sh
+set -a; source .env; set +a
+```
+
+Three flows put values into that `.env`:
+
+1. **Generated setup (recommended).** Run the generator to source the sensitive
+   connection string straight from Terraform and write it into `.env` **without
+   ever echoing it**:
+
+   ```sh
+   ./scripts/gen-export-env.sh          # seeds .env from .env.example if absent,
+                                        # then upserts TRACE_EXPORT_OTLP=1 and
+                                        # APPLICATIONINSIGHTS_CONNECTION_STRING
+   set -a; source .env; set +a          # load it into your shell
+   ```
+
+   The generator reads `terraform output -raw connection_string` (the output is
+   `sensitive = true`), single-quotes the value so `;`/`=`/`/` survive sourcing,
+   and preserves any other keys already in `.env`.
+
+2. **Manual export run.** Copy `.env.example` to `.env`, fill the values by hand
+   (or export them inline), then run the exporter directly:
+
+   ```sh
+   set -a; source .env; set +a
+   ./scripts/trace-export.sh <issue-number>
+   ```
+
+3. **Closeout export.** With the same `.env` loaded in the shell that runs
+   `finish-issue.sh`, the best-effort closeout export (below) picks the two
+   variables up automatically — no extra step.
+
+**Never commit `.env` or paste the connection string into `.env.example`,**
+tracked files, or trace artifacts. The template stays secret-free; the secret
+lives only in your gitignored `.env` / shell environment (see the sensitivity
+rules in `AGENTS.md`).
+
 ## Best-effort closeout export from finish-issue
 
 `finish-issue.sh` now attempts this exporter **best-effort** at issue closeout,
