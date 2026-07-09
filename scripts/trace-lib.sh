@@ -425,12 +425,22 @@ trace_log() {
   # by a caller. Each reserved key is dropped with a warning and the record is
   # still emitted. parent_span_id and harness.* attributes are caller-winnable.
   local -a attrs=()
-  local key
+  local key payload_value payload_redacted
   for kv in "$@"; do
     key="${kv%%=*}"
     case "$key" in
       log_schema_version|timestamp|level|harness.issue|message|span_id)
         trace_warn "trace_log: reserved key '${key}' cannot be overridden — attribute dropped"
+        ;;
+      payload)
+        # redact-before-cap (issue #242): mask secrets in the payload VALUE
+        # first, THEN bound it, so a truncation boundary can never orphan a
+        # partially-redacted secret fragment.
+        payload_value="${kv#*=}"
+        payload_redacted="$(printf '%s' "$payload_value" | trace_redact 2>/dev/null)" \
+          || payload_redacted=""
+        payload_value="${payload_redacted:0:${HARNESS_LOG_PAYLOAD_CAP:-4096}}"
+        attrs+=("payload=${payload_value}")
         ;;
       *)
         attrs+=("$kv")
@@ -508,12 +518,24 @@ trace_log() {
     return 0
   }
 
+  # Final whole-line redaction (mirrors trace_span) so message and every other
+  # field is covered, not just the payload attribute.
+  local redacted=""
+  redacted="$(printf '%s\n' "$line" | trace_redact 2>/dev/null)" || {
+    trace_warn "trace_log: redaction filter failed — log dropped"
+    return 0
+  }
+  if [ -z "$redacted" ]; then
+    trace_warn "trace_log: redaction produced an empty line — log dropped"
+    return 0
+  fi
+
   local log_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
   mkdir -p "$log_dir" 2>/dev/null || {
     trace_warn "trace_log: cannot create ${log_dir} — log dropped"
     return 0
   }
-  printf '%s\n' "$line" >> "${log_dir}/log.jsonl" 2>/dev/null || {
+  printf '%s\n' "$redacted" >> "${log_dir}/log.jsonl" 2>/dev/null || {
     trace_warn "trace_log: cannot append to ${log_dir}/log.jsonl — log dropped"
     return 0
   }
