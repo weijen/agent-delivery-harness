@@ -368,6 +368,58 @@ Consequence for #227: a deterministic **hook** span can be enriched with the
 real agent name by joining on `toolu_<taskId>` to **either** OTel (documented)
 **or** `events.jsonl` (undocumented). Prefer OTel for the enrichment source.
 
+### (e) v1.0.70 MEASURED addendum — exporter shape and structural join
+
+CLI **v1.0.70** was re-checked with a live nested Path O capture:
+`COPILOT_OTEL_ENABLED=true COPILOT_OTEL_FILE_EXPORTER_PATH=… copilot -p …`
+spawned an `explore` subagent and wrote **28 JSON-lines**: **20 metric** lines
+plus **8 span** lines. This **MEASURED** capture supersedes the earlier §7
+wording that treated the OTel side as keyed directly by `toolu_<taskId>`; the
+safe join is structural and shape-driven.
+
+**Line shape (v1.0.70, MEASURED):**
+
+- Output is JSON-lines with exactly two observed top-level `type` values:
+  `type:"span"` and `type:"metric"`.
+- Span lines carry these top-level keys:
+  `attributes`, `endTime`, `events`, `instrumentationScope`, `kind`, `name`,
+  `parentSpanId`, `resource`, `spanId`, `startTime`, `status`, `traceId`, and
+  `type`; the root span omits `parentSpanId`.
+- Span `startTime` and `endTime` are `[seconds, nanos]` arrays.
+- Span `attributes` is an object on every span line, not an OTLP kv-array.
+  metric lines have no `.attributes` and carry `dataPoints`.
+  Therefore jq readers must skip `type:"metric"` lines and tolerate missing or
+  non-object attributes.
+
+**Flush timing (v1.0.70, MEASURED and decisive):**
+
+- File append order equals span-END order; children flush before parents.
+- Observed end order:
+  `execute_tool bash` → `execute_tool view` → `chat claude-haiku-4.5` →
+  `invoke_agent explore` → `execute_tool task` → `chat claude-opus-4.8` (×2) →
+  `invoke_agent` (root).
+- Consequence: at an inner subagent tool's `postToolUse`, the
+  `invoke_agent <name>` wrapper span is not yet in the file; it flushes only
+  after the subagent's own children complete. Live enrichment at `postToolUse`
+  for inner tool calls is therefore fundamentally too early. The wrapper is
+  present by the parent `execute_tool task` span's `postToolUse`, but that is
+  the parent's own call, not the inner tool hook.
+
+**Corrected structural join (v1.0.70, MEASURED):**
+
+- The subagent `invoke_agent <name>` span carries native `gen_ai.agent.name`
+  (for example, `"explore"`), `github.copilot.agent.type` (for example,
+  `"builtin"`), and `github.copilot.context.custom_agent_names`.
+- `github.copilot.context.custom_agent_names` is a JSON-array string of the
+  available registered custom agents, not the invoked agent.
+- The join is structural: the `invoke_agent <name>` span's `parentSpanId`
+  equals the `execute_tool task` span's `spanId`; the `invoke_agent` span's own
+  `gen_ai.tool.call.id` is null.
+- To attribute an inner tool call `toolu_X` to an agent name: find the
+  `execute_tool <tool>` span whose `gen_ai.tool.call.id == toolu_X`, take its
+  `spanId`, find the child `invoke_agent` span whose `parentSpanId` equals that
+  `spanId`, then read its `gen_ai.agent.name`.
+
 ### §7 verdict — three-path comparison (H / E / O)
 
 | | Path H — hooks | Path E — `events.jsonl` | **Path O — OTel file export** |
@@ -418,3 +470,13 @@ parent-exits-before-child case remains open.
 - **Cross-source join key `toolu_<taskId>` is equal across hook `sessionId`,
   `events.jsonl` `subagent.started.toolCallId`, and OTel `execute_tool task`
   `gen_ai.tool.call.id` (sync + async): MEASURED** (#231).
+- **Path O exporter line shape on CLI v1.0.70 is MEASURED:** JSON-lines contain
+  `type:"span"` and `type:"metric"`; span `attributes` is an object, while
+  metric lines have no `.attributes` and carry `dataPoints`.
+- **Path O flush timing on CLI v1.0.70 is MEASURED:** append order equals
+  span-END order, and children flush before parents, so inner-tool
+  `postToolUse` enrichment is too early to see its `invoke_agent` wrapper span.
+- **Path O attribution on CLI v1.0.70 is MEASURED:** the safe join is
+  structural, from `toolu_` to `execute_tool` `gen_ai.tool.call.id`, then to
+  the child `invoke_agent` by `parentSpanId`, then to `gen_ai.agent.name`;
+  this supersedes the earlier "keyed by `toolu_<taskId>`" shorthand for OTel.
