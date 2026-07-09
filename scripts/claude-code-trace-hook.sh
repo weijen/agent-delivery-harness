@@ -58,19 +58,28 @@ HOOK_RESULT_SUMMARY_CAP=500
 # unresolvable — callers then omit duration, never fake it.
 hook__state_file() {
   local payload="$1"
-  local sid="" tuid="" main_root="" issue_num="" issue_pad=""
+  local sid="" tuid="" aid="" main_root="" issue_num="" issue_pad=""
   sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
   tuid="$(printf '%s' "$payload" | jq -r '.tool_use_id // empty' 2>/dev/null || true)"
   if [ -z "$sid" ] || [ -z "$tuid" ]; then
     return 1
   fi
+  # Agent scoping (#228 Task 4): a subagent runs concurrently with the
+  # conductor and both can drive the same tool_use_id; keying only on
+  # session_id+tool_use_id would let a subagent PostToolUse consume the
+  # conductor's PreToolUse state (or vice versa), cross-wiring durations.
+  # Fold agent_id (present only in subagent context) into the key so each
+  # agent has its own state slot. Conductor calls (no agent_id) collapse to
+  # an empty segment, which still never collides with a subagent's key.
+  aid="$(printf '%s' "$payload" | jq -r '.agent_id // empty' 2>/dev/null || true)"
   # Filename-safe: collapse anything exotic to '_' before building a path.
   sid="$(printf '%s' "$sid" | tr -c 'A-Za-z0-9._-' '_')"
   tuid="$(printf '%s' "$tuid" | tr -c 'A-Za-z0-9._-' '_')"
+  aid="$(printf '%s' "$aid" | tr -c 'A-Za-z0-9._-' '_')"
   main_root="$(trace__main_root)" || return 1
   issue_num="$(trace__resolve_issue)" || return 1
   issue_pad="$(printf '%02d' "$issue_num" 2>/dev/null)" || return 1
-  printf '%s' "${main_root}/.copilot-tracking/issues/issue-${issue_pad}/.hook-state/${sid}-${tuid}"
+  printf '%s' "${main_root}/.copilot-tracking/issues/issue-${issue_pad}/.hook-state/${sid}-${aid}-${tuid}"
 }
 
 # PreToolUse — duration correlation start (plan D5, C2): record trace_now_ms
