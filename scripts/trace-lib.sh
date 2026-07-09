@@ -389,6 +389,137 @@ trace_span() {
   return 0
 }
 
+# trace_log <level> <message> [key=value]...
+# Appends one schema-v1 JSONL log record (the detail stream) to the
+# main-root-pinned .copilot-tracking/issues/issue-NN/log.jsonl, a sibling of
+# trace.jsonl. Mirrors trace_span's structure and reuses its helpers. All
+# failure modes are warn-and-return-0; malformed input is rejected without
+# writing.
+trace_log() {
+  local level="${1:-}"
+  case "$level" in
+    info|warn|error) ;;
+    *)
+      trace_warn "trace_log: unknown level '${level}' (expected info|warn|error) — log dropped"
+      return 0
+      ;;
+  esac
+  shift
+
+  local message="${1:-}"
+  if [ -z "$message" ]; then
+    trace_warn "trace_log: missing message — log dropped"
+    return 0
+  fi
+  shift
+
+  local kv
+  for kv in "$@"; do
+    if [[ "$kv" != *=* ]] || [ -z "${kv%%=*}" ]; then
+      trace_warn "trace_log: malformed argument '${kv}' (expected key=value) — log dropped"
+      return 0
+    fi
+  done
+
+  # Reserved-key protection: the auto-stamped identity fields cannot be spoofed
+  # by a caller. Each reserved key is dropped with a warning and the record is
+  # still emitted. parent_span_id and harness.* attributes are caller-winnable.
+  local -a attrs=()
+  local key
+  for kv in "$@"; do
+    key="${kv%%=*}"
+    case "$key" in
+      log_schema_version|timestamp|level|harness.issue|message|span_id)
+        trace_warn "trace_log: reserved key '${key}' cannot be overridden — attribute dropped"
+        ;;
+      *)
+        attrs+=("$kv")
+        ;;
+    esac
+  done
+
+  if ! command -v jq >/dev/null 2>&1; then
+    trace_warn "trace_log: jq not found — log dropped"
+    return 0
+  fi
+
+  local issue_num=""
+  issue_num="$(trace__resolve_issue)" || {
+    trace_warn "trace_log: cannot resolve issue number (set TRACE_ISSUE, or use a feature/issue-NN-* branch or issue-NN worktree) — log dropped"
+    return 0
+  }
+  local issue_pad=""
+  issue_pad="$(printf '%02d' "$issue_num" 2>/dev/null)" || {
+    trace_warn "trace_log: cannot pad issue number '${issue_num}' — log dropped"
+    return 0
+  }
+
+  local main_root=""
+  main_root="$(trace__main_root)" || {
+    trace_warn "trace_log: cannot resolve the main checkout root — log dropped"
+    return 0
+  }
+
+  local timestamp=""
+  timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" || {
+    trace_warn "trace_log: cannot produce a UTC timestamp — log dropped"
+    return 0
+  }
+
+  # Build the record with jq -n so arbitrary values are JSON-escaped correctly.
+  # Auto-stamps first; span_id is stamped from TRACE_LAST_SPAN_ID only when set
+  # (omit-never-fake); parent_span_id from TRACE_PARENT_SPAN_ID when set. Caller
+  # key=value pairs fold in afterwards so an explicit parent_span_id= wins.
+  # Numeric typing mirrors trace_span: integer-looking values on gen_ai.usage.*
+  # and the exact keys harness.exit_status / harness.duration_ms become JSON
+  # numbers; everything else stays a string.
+  local line=""
+  line="$(jq -cn \
+    --arg timestamp "$timestamp" \
+    --arg level "$level" \
+    --arg message "$message" \
+    --arg span_id "${TRACE_LAST_SPAN_ID:-}" \
+    --arg parent "${TRACE_PARENT_SPAN_ID:-}" \
+    --argjson issue "$issue_num" \
+    --args '
+      ({
+        log_schema_version: 1,
+        timestamp: $timestamp,
+        level: $level,
+        "harness.issue": $issue,
+        message: $message
+       }
+       + (if $span_id != "" then {span_id: $span_id} else {} end)
+       + (if $parent != "" then {parent_span_id: $parent} else {} end))
+      | reduce $ARGS.positional[] as $kv (.;
+          ($kv | index("=")) as $i
+          | ($kv[:$i]) as $k
+          | ($kv[$i + 1:]) as $v
+          | . + { ($k):
+              (if (($k | startswith("gen_ai.usage."))
+                   or ($k == "harness.exit_status")
+                   or ($k == "harness.duration_ms"))
+                  and ($v | test("^[0-9]+$"))
+               then ($v | tonumber)
+               else $v
+               end) })
+    ' ${attrs[@]+"${attrs[@]}"} 2>/dev/null)" || {
+    trace_warn "trace_log: jq failed to serialize the record — log dropped"
+    return 0
+  }
+
+  local log_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
+  mkdir -p "$log_dir" 2>/dev/null || {
+    trace_warn "trace_log: cannot create ${log_dir} — log dropped"
+    return 0
+  }
+  printf '%s\n' "$line" >> "${log_dir}/log.jsonl" 2>/dev/null || {
+    trace_warn "trace_log: cannot append to ${log_dir}/log.jsonl — log dropped"
+    return 0
+  }
+  return 0
+}
+
 # --- Shared terminal lifecycle-span EXIT trap (issue #213, P-1) ---------------
 # trace_lifecycle_init <lifecycle_step> [attr_fn]
 #   Installs the stage-tracking state + an EXIT trap that emits EXACTLY ONE
