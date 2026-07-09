@@ -1,0 +1,39 @@
+{
+  "log_schema_version": 1,
+  "description": "Step-level log schema v1 contract for the agent-delivery-harness (issue #219). Machine-readable authority for the harness local log stream (log.jsonl), a sibling of the frozen span schema (trace-schema.v1.json). A DISTINCT schema so a shared validator can never confuse a log line for a span: its version key is log_schema_version (a JSON number), NOT the span schema's schema_version. Traces carry shape; logs carry detail — the two-stream OTel split. Parsed with jq by tests/scripts/test_log_schema.sh.",
+  "notes": {
+    "field_names": "Common fields are flat dotted keys (e.g. \"harness.issue\", \"harness.lifecycle_step\") following the same OpenTelemetry-aligned naming as the span schema, jq-addressable as .[\"harness.issue\"].",
+    "timestamp_format": "timestamp is an ISO 8601 UTC string, e.g. 2026-07-04T12:00:00Z (shell: date -u +%Y-%m-%dT%H:%M:%SZ).",
+    "extra_fields": "Unknown extra fields are allowed on a log record (open-world for additions); the closed levels enum and required_common set below are frozen.",
+    "two_stream_split": "Traces are the shape stream (span vocabulary, closed enums, one line per span); logs are the detail stream (free-form message plus structured payload, one line per step-level event). A log record MAY reference the span it belongs to via span_id/parent_span_id, but it is never a span and never carries schema_version."
+  },
+  "levels": ["info", "warn", "error"],
+  "required_common": ["log_schema_version", "timestamp", "level", "harness.issue", "message"],
+  "optional_fields": {
+    "harness.lifecycle_step": "string; the lifecycle step the record was emitted under, drawn from the span schema's lifecycle_steps enum (trace-schema.v1.json).",
+    "harness.stage": "string; sub-stage label within a gate or lifecycle operation (e.g. push, rebase, ci_checks, review_gate, completion_check).",
+    "harness.outcome": "enum: pass | fail | blocked.",
+    "span_id": "string; id of the span this log record is associated with, when known, linking the detail stream back to the shape stream.",
+    "parent_span_id": "string; id of the enclosing span when known, mirroring the span schema's linkage field.",
+    "harness.session_id": "string; runtime/conversation session identity, aligned with the span schema's harness.session_id.",
+    "payload": "object or string; the free-form structured detail for this record (command excerpt, result excerpt, diagnostic context). High-leakage: redacted then length-capped per the redaction rule below.",
+    "harness.version": "string; the harness SemVer release read from the top-level VERSION file (fallback 0.0.0-dev), mirroring the span schema's harness.version."
+  },
+  "log_file": {
+    "path": ".copilot-tracking/issues/issue-NN/log.jsonl",
+    "format": "append-only JSONL, one log record object per line; a sibling of trace.jsonl in the same per-issue directory, pinned to the main checkout root.",
+    "visibility": "local-only, never committed; covered by the existing .gitignore rule .copilot-tracking/issues/issue-*/.",
+    "kill_switch": "on by default; set HARNESS_LOG=0 to disable log emission entirely."
+  },
+  "redaction": {
+    "rule": "redact-before-cap: secret-shaped input (secrets, tokens, .env content, customer-supplied sensitive data) is redacted BEFORE any truncation, so a truncation boundary can never bisect and leak a partially-redacted secret. Redaction always precedes the payload cap.",
+    "ordering": "redact, then cap (redact-before-cap).",
+    "payload_cap_bytes": 4096,
+    "payload_cap_env": "HARNESS_LOG_PAYLOAD_CAP",
+    "payload_cap_note": "per-record payload is truncated to a default 4096-byte cap (override via HARNESS_LOG_PAYLOAD_CAP) only AFTER redaction has run.",
+    "authorities": [
+      "docs/evaluation/security-evals.md",
+      "docs/evaluation/dataset-governance.md"
+    ]
+  }
+}
