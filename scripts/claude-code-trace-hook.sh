@@ -103,8 +103,25 @@ hook__on_post_tool_use() {
 
   tool_name="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   [ -n "$tool_name" ] || return 0
+
+  # Skill identity (#228 Task 1, parity with the Copilot adapter #138): Claude
+  # Code surfaces a skill invocation as a first-class tool call named "Skill".
+  # Mint harness.skill.name (an enum-like identifier, allowlisted for export)
+  # and normalize gen_ai.tool.name to the canonical lowercase "skill" so live
+  # skill spans are the identity F3's SubagentStop transcript inventory dedups
+  # against. The skill name field is not strongly documented, so read it
+  # tolerantly (.command → .name → .skill); omit when none parse — the span
+  # stays a plain tool span (omit, never fake).
+  local skill_name="" emit_tool_name="$tool_name"
+  if [ "$tool_name" = "Skill" ] || [ "$tool_name" = "skill" ]; then
+    skill_name="$(printf '%s' "$payload" | jq -r '
+        (.tool_input.command // .tool_input.name // .tool_input.skill // empty)
+        | strings' 2>/dev/null || true)"
+    [ -n "$skill_name" ] && emit_tool_name="skill"
+  fi
+
   attrs=(
-    "gen_ai.tool.name=${tool_name}"
+    "gen_ai.tool.name=${emit_tool_name}"
     "gen_ai.operation.name=execute_tool"
   )
 
@@ -167,11 +184,31 @@ hook__on_post_tool_use() {
     fi
   fi
 
+  if [ -n "$skill_name" ]; then
+    attrs+=("harness.skill.name=${skill_name}")
+  fi
+
+  # Subagent identity (#228 Task 1): the Claude Code hooks contract fires
+  # PreToolUse/PostToolUse for tool calls made INSIDE a subagent, and the
+  # payload then carries `agent_id` (present ONLY in subagent context) and
+  # `agent_type`. Stamp harness.subagent so subagent tool/skill spans split
+  # conductor-vs-subagent in analytics (schema v1 open-world). Prefer the real
+  # agent_type; degrade to the deterministic string "true" when agent_id is
+  # present but agent_type is absent. No agent_id → conductor call → omit.
+  local agent_id="" agent_type=""
+  agent_id="$(printf '%s' "$payload" | jq -r '.agent_id // empty' 2>/dev/null || true)"
+  if [ -n "$agent_id" ]; then
+    agent_type="$(printf '%s' "$payload" | jq -r '.agent_type // empty' 2>/dev/null || true)"
+    if [ -n "$agent_type" ]; then
+      attrs+=("harness.subagent=${agent_type}")
+    else
+      attrs+=("harness.subagent=true")
+    fi
+  fi
+
   trace_span tool "${attrs[@]}"
   return 0
 }
-
-# Stop / SubagentStop — spans per stop-span sensor conventions S1–S4
 # (plan D4, single-model-span-v1). Stateless: no .hook-state reads/writes.
 #   S1. ALWAYS one `agent` span: gen_ai.operation.name=invoke_agent,
 #       gen_ai.agent.name = $2 ("claude-code" | "claude-code-subagent").
