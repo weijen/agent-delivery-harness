@@ -396,6 +396,7 @@ trace_span() {
 # failure modes are warn-and-return-0; malformed input is rejected without
 # writing.
 trace_log() {
+  if [ "${HARNESS_LOG:-1}" = "0" ]; then return 0; fi
   local level="${1:-}"
   case "$level" in
     info|warn|error) ;;
