@@ -363,6 +363,54 @@ else
 fi
 
 # =============================================================================
+# #222 — workbook redesign Tabs 0-1. The workbook's primary job is to monitor
+# each issue's run, but the original pack was 100% by_version aggregates with
+# zero per-issue view. This leg pins the Tabs 0-1 redesign: a tab container, a
+# fleet-health in-flight tile (started, no finish — previously invisible), an
+# issue-run grid keyed on the mandatory harness.issue field, and the {Issue}
+# drill-through parameter export Tab 2 will consume.
+# =============================================================================
+# Tab container: restructured into tabs — a links item styled as tabs driving a
+# selectedTab parameter. A flat single-page workbook fails this.
+if grep -Eq '"style"[[:space:]]*:[[:space:]]*"tabs"' "$WB_JSON" && grep -q 'selectedTab' "$WB_JSON"; then
+	ok "#222: workbook restructured into tabs (links item styled tabs drives selectedTab)"
+else
+	note "$WB_JSON: workbook is not restructured into tabs (need a links item with \"style\":\"tabs\" driving a selectedTab parameter) — #222 Tab container"
+fi
+
+# Tab 0 fleet health: in-flight runs (counted at worktree_create, no finish span
+# yet) must be surfaced — the new visibility. One query references BOTH
+# worktree_create and an in_flight / in-flight count. Match against a flattened
+# whole-query stream so a future multi-line KQL edit cannot silently pass.
+qflat="$extract_dir/queries.flat"
+jq -r '.. | objects | .query? // empty | select(type=="string") | gsub("[[:space:]]+"; " ")' "$WB_JSON" > "$qflat" 2>/dev/null || true
+if grep 'worktree_create' "$qflat" | grep -Eq 'in[_-]flight'; then
+	ok "#222: fleet-health surfaces in-flight runs (worktree_create without finish)"
+else
+	note "$WB_JSON: no fleet-health tile surfaces in-flight runs (a query over worktree_create producing an in_flight / in-flight count) — #222 Tab 0"
+fi
+
+# Tab 1 issue-run grid: one row per issue run — a query keyed on the mandatory
+# harness.issue field (summarize ... by issue). Every original panel ignored it.
+if grep -F "customDimensions['harness.issue']" "$qflat" | grep -Eq 'by[[:space:]]+issue' ; then
+	ok "#222: issue-run grid groups by harness.issue (per-issue view)"
+else
+	note "$WB_JSON: no panel builds a per-issue-run grid keyed on harness.issue (summarize ... by issue) — #222 Tab 1"
+fi
+
+# Drill-through: Tab 1 row-click exports an {Issue} parameter (the wiring Tab 2
+# depends on) — an Issue parameter is declared AND a grid exports to it.
+dt_param=0
+grep -Eq '"name"[[:space:]]*:[[:space:]]*"Issue"' "$WB_JSON" && dt_param=1
+dt_export=0
+grep -Eq '"(exportParameterName|parameterName)"[[:space:]]*:[[:space:]]*"Issue"' "$WB_JSON" && dt_export=1
+if [ "$dt_param" -eq 1 ] && [ "$dt_export" -eq 1 ]; then
+	ok "#222: Tab 1 exports the {Issue} parameter on row selection (drill-through wiring)"
+else
+	note "$WB_JSON: Tab 1 issue-run grid does not export an {Issue} parameter (declare an Issue parameter AND set the grid's exported parameter) — #222 drill-through"
+fi
+
+# =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
 honesty_targets="$WB_JSON $DASH_README"
