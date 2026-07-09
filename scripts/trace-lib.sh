@@ -77,6 +77,8 @@ trace_warn() {
 # that cannot occur in JSON structure (jq -c never emits '=' or a space-free
 # 'word: ' outside string values), so redaction can never truncate an
 # unquoted JSON number (e.g. gen_ai.usage.token_total=42) or break a line.
+# Unquoted value rules also exclude backslash so they do not consume JSON
+# escape introducers before embedded quotes (for example token_source=\"$3\").
 trace_redact() {
   sed -E \
     -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
@@ -87,9 +89,9 @@ trace_redact() {
     -e 's/sk-[A-Za-z0-9]{20,}/[REDACTED]/g' \
     -e 's/[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+=-]+/Bearer [REDACTED]/g' \
     -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"[[:space:]]*:[[:space:]]*")[^"]*/\1\2[REDACTED]/g' \
-    -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"[:space:]]+/\1\2[REDACTED]/g' \
-    -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"[:space:]]+/\1[REDACTED]/g' \
-    -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"[:space:]]+/\1[REDACTED]/g' \
+    -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"\\[:space:]]+/\1\2[REDACTED]/g' \
+    -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"\\[:space:]]+/\1[REDACTED]/g' \
+    -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"\\[:space:]]+/\1[REDACTED]/g' \
     -e 's/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/[REDACTED]/g' \
     -e 's/([?&][Ss][Ii][Gg]=)[^"&[:space:]]+/\1[REDACTED]/g' \
     -e 's/([Aa]ccount[Kk]ey=)[^";[:space:]]+/\1[REDACTED]/g' \

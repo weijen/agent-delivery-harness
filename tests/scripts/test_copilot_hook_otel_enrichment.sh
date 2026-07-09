@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 # test_copilot_hook_otel_enrichment.sh — regression sensor for
-# scripts/copilot-trace-hook.sh best-effort OTel Path O agent-name enrichment
-# (issue #227, feature otel-agent-name-enrichment, Task 3).
+# scripts/copilot-trace-hook.sh stop-time subagent-name retro-upgrade.
 #
-# When the harness launches Copilot with the official OTel file export enabled
-# (COPILOT_OTEL_FILE_EXPORTER_PATH), a subagent tool span's deterministic
-# harness.subagent="true" is UPGRADED to the real agent name by joining
-# toolu_<taskId> -> the OTel `execute_tool task` span's gen_ai.tool.call.id ->
-# the child invoke_agent span's gen_ai.agent.name (spike §7). This enrichment
-# is best-effort, same trust class as the token-count read: any failure
-# (missing/corrupt file, no match) must NEVER drop the deterministic hook span
-# — it degrades to harness.subagent="true".
+# F5 changes the enrichment timing: postToolUse only stamps the deterministic
+# harness.subagent="true" marker for toolu_ session ids. The later stop path
+# retro-upgrades existing tool spans in trace.jsonl after Copilot's OTel
+# invoke_agent span has had time to flush. Any resolver failure must preserve
+# the deterministic tool span and keep the hook session-safe.
 #
 # Session ids, agent names, spanIds, and timestamps here are SYNTHETIC.
 #
@@ -47,6 +43,23 @@ camel_post() {
   }'
 }
 
+# camelCase subagentStop payload — conductor sessionId + cwd + agentName; no
+# child sessionId/toolCallId. This mirrors the measured subagentStart shape and
+# drives the same subagentStop dispatch path as test_copilot_hook_stop_span.sh.
+camel_subagent_stop() {
+  local cwd="$1" sid="$2" agent="$3" ts="$4"
+  jq -cn --arg cwd "$cwd" --arg sid "$sid" --arg agent "$agent" --arg ts "$ts" '{
+    event: "subagentStop",
+    cwd: $cwd,
+    sessionId: $sid,
+    transcriptPath: ($cwd + "/events.jsonl"),
+    agentName: $agent,
+    agentDisplayName: $agent,
+    agentDescription: "synthetic test subagent",
+    timestamp: $ts
+  }'
+}
+
 make_issue_branch_repo() {
   local dir="$1" branch="$2"
   mkdir -p "${dir}/scripts"
@@ -73,17 +86,60 @@ write_otel_fixture() {
   } > "$path"
 }
 
+write_mixed_otel_v1070_fixture() {
+  local path="$1"
+  cat > "$path" <<'JSONL'
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"task070","parentSpanId":"root070","name":"execute_tool task","kind":0,"startTime":[1783621296,937160000],"endTime":[1783621302,848114000],"attributes":{"gen_ai.operation.name":"execute_tool","gen_ai.tool.name":"task","gen_ai.tool.call.id":"toolu_TEST2","gen_ai.tool.type":"function","gen_ai.provider.name":"github"},"status":{"code":0},"events":[],"resource":{"attributes":{"service.name":"github-copilot","service.version":"1.0.70-0"},"schemaUrl":"https://opentelemetry.io/schemas/1.43.0"},"instrumentationScope":{"name":"github.copilot","version":"1.0.70-0"}}
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"child070","parentSpanId":"task070","name":"invoke_agent explore","kind":0,"startTime":[1783621296,945332000],"endTime":[1783621302,847014000],"attributes":{"gen_ai.operation.name":"invoke_agent","gen_ai.provider.name":"github","gen_ai.request.model":"claude-haiku-4.5","gen_ai.agent.id":"builtin:explore","gen_ai.agent.name":"explore","gen_ai.agent.description":"sanitized fixture agent","gen_ai.agent.version":"1.0.70-0"},"status":{"code":0},"events":[],"resource":{"attributes":{"service.name":"github-copilot","service.version":"1.0.70-0"},"schemaUrl":"https://opentelemetry.io/schemas/1.43.0"},"instrumentationScope":{"name":"github.copilot","version":"1.0.70-0"}}
+{"type":"metric","name":"gen_ai.client.operation.duration","description":"GenAI operation duration.","unit":"s","dataPoints":[{"attributes":{"gen_ai.operation.name":"invoke_agent","gen_ai.provider.name":"github","gen_ai.request.model":"claude-haiku-4.5","gen_ai.response.model":"claude-haiku-4.5"},"startTime":[1783621291,525194000],"endTime":[1783621304,165523000],"value":{"buckets":{"boundaries":[0.01,0.02,0.04,0.08,0.16,0.32,0.64,1.28,2.56,5.12,10.24,20.48,40.96,81.92],"counts":[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]},"count":1,"sum":5.901595042,"min":5.901595042,"max":5.901595042}}]}
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"array070","parentSpanId":"root070","name":"execute_tool view","kind":0,"startTime":[1783621300,747268000],"endTime":[1783621300,762243000],"attributes":["non-object-attributes"],"status":{"code":0},"events":[]}
+JSONL
+  printf '%s' '{"type":"span","traceId":"00000000000000000000000000000000","spanId":"truncated070","parentSpanId":"root070","name":"chat claude-haiku-4.5","kind":2,"attributes":{"gen_ai.operation.name":"chat","gen_ai.provider.name":"github"' >> "$path"
+}
+
+hook_otel_agent_name() {
+  local otel="$1" toolu="$2" defs=""
+  defs="$(sed -n '/^hook__otel_agent_name() {/,/^# hook__events_agent_name /p' "$HOOK")"
+  bash -c 'eval "$1"; hook__otel_agent_name "$2" "$3"' _ "$defs" "$otel" "$toolu"
+}
+
+hook_resolve_subagent_name() {
+  local home="$1" toolu="$2" otel_enabled="$3" otel_path="$4" defs=""
+  local env_args=()
+  defs="$(sed -n '/^hook__otel_agent_name() {/,/^# hook__issue_trace_file/p' "$HOOK")"
+  (
+    env_args=(-i PATH="$PATH" HOME="$home")
+    if [ "$otel_enabled" != "__unset__" ]; then
+      env_args+=(COPILOT_OTEL_ENABLED="$otel_enabled")
+    fi
+    if [ "$otel_path" != "__unset__" ]; then
+      env_args+=(COPILOT_OTEL_FILE_EXPORTER_PATH="$otel_path")
+    fi
+    env "${env_args[@]}" bash -c "eval \"\$1\"; hook__resolve_subagent_name \"\$2\"" _ "$defs" "$toolu"
+  )
+}
+
+write_events_fixture() {
+  local conductor_sid="$1" toolu="$2" agent="$3"
+  mkdir -p "${FIXHOME}/.copilot/session-state/${conductor_sid}"
+  jq -cn --arg tid "$toolu" --arg agent "$agent" \
+    '{type:"subagent.started",data:{toolCallId:$tid,agentName:$agent,model:"gpt-5.5"},agentId:$tid}' \
+    > "${FIXHOME}/.copilot/session-state/${conductor_sid}/events.jsonl"
+}
+
 FIXHOME="${TMP_DIR}/home"; mkdir -p "$FIXHOME"
 HOOK_RC=0; HOOK_OUT=""; HOOK_ERR=""
-# run_hook <label> <workdir> <stdin-file> [otel-path]
+# run_hook <label> <workdir> <stdin-file> [otel-path] [otel-enabled]
 run_hook() {
-  local label="$1" workdir="$2" stdin_file="$3" otel="${4:-}"
+  local label="$1" workdir="$2" stdin_file="$3" otel="${4:-}" otel_enabled="${5:-}"
+  local env_args=()
   HOOK_OUT="${TMP_DIR}/${label}.out"; HOOK_ERR="${TMP_DIR}/${label}.err"; HOOK_RC=0
+  env_args=(-i PATH="$PATH" HOME="$FIXHOME" COPILOT_TRACE_HOOK_DEBUG=1)
+  if [ -n "$otel" ]; then env_args+=(COPILOT_OTEL_FILE_EXPORTER_PATH="$otel"); fi
+  if [ -n "$otel_enabled" ]; then env_args+=(COPILOT_OTEL_ENABLED="$otel_enabled"); fi
   set +e
   ( cd "$workdir" || exit 97
-    if [ -n "$otel" ]; then export COPILOT_OTEL_FILE_EXPORTER_PATH="$otel"; else unset COPILOT_OTEL_FILE_EXPORTER_PATH; fi
-    HOME="$FIXHOME" COPILOT_TRACE_HOOK_DEBUG=1 \
-      bash "${workdir}/scripts/copilot-trace-hook.sh" < "$stdin_file"
+    env "${env_args[@]}" bash "${workdir}/scripts/copilot-trace-hook.sh" < "$stdin_file"
   ) > "$HOOK_OUT" 2> "$HOOK_ERR"
   HOOK_RC=$?; set -e
   [ "$HOOK_RC" -ne 97 ] || fail "${label}: fixture workdir vanished (${workdir})"
@@ -95,18 +151,38 @@ assert_session_safe() {
 }
 last_span() { local tr="$1"; nth_line "$tr" "$(line_count "$tr")"; }
 
+tool_subagent_value() {
+  local trace="$1" sid="$2"
+  jq -r --arg sid "$sid" '
+      select(.span == "tool" and .["harness.session_id"] == $sid)
+      | .["harness.subagent"] // empty' "$trace" | tail -n 1
+}
+
+assert_tool_subagent_value() {
+  local label="$1" trace="$2" sid="$3" expected="$4" actual=""
+  actual="$(tool_subagent_value "$trace" "$sid")"
+  [ "$actual" = "$expected" ] \
+    || fail "${label}: expected tool span ${sid} harness.subagent=${expected}, got ${actual:-<empty>}: $(jq -c --arg sid "$sid" 'select(.span == "tool" and .["harness.session_id"] == $sid)' "$trace")"
+}
+
 # =============================================================================
-# E1 — OTel join upgrades harness.subagent from "true" to the real agent name.
+# R1 — OTel retro-upgrade: postToolUse stamps true; subagentStop upgrades the
+# same tool span in place after appending only the stop agent span.
 # =============================================================================
-DIRE1="${TMP_DIR}/issue-801-repo"; make_issue_branch_repo "$DIRE1" "feature/issue-801-otel"
-E1_OTEL="${TMP_DIR}/otel-e1.jsonl"; write_otel_fixture "$E1_OTEL" "toolu_0OTELjoin" "spike-probe"
-E1_TRACE="$(trace_path "$DIRE1" 801)"; e1_before="$(line_count "$E1_TRACE")"
-run_hook "e1" "$DIRE1" <(camel_post "$DIRE1" "toolu_0OTELjoin" "skill" '{"skill":"find-over-design"}' 2026-07-07T10:00:00Z) "$E1_OTEL"
-assert_session_safe "e1"
-[ "$(line_count "$E1_TRACE")" = "$((e1_before + 1))" ] || fail "E1: expected one tool span for issue-801"
-printf '%s\n' "$(last_span "$E1_TRACE")" | jq -e '
-    .span == "tool" and .["harness.issue"] == 801 and .["harness.subagent"] == "spike-probe"' >/dev/null \
-  || fail "E1: OTel enrichment must upgrade harness.subagent to the joined agent name \"spike-probe\": $(last_span "$E1_TRACE")"
+DIRR1="${TMP_DIR}/issue-801-repo"; make_issue_branch_repo "$DIRR1" "feature/issue-801-otel"
+R1_TOOLU="toolu_0OTELjoin"; R1_CONDUCTOR="uuid-conductor-801"
+R1_OTEL="${TMP_DIR}/otel-r1.jsonl"; write_otel_fixture "$R1_OTEL" "$R1_TOOLU" "spike-probe"
+R1_TRACE="$(trace_path "$DIRR1" 801)"; r1_before="$(line_count "$R1_TRACE")"
+run_hook "r1-post" "$DIRR1" <(camel_post "$DIRR1" "$R1_TOOLU" "skill" '{"skill":"find-over-design"}' 2026-07-07T10:00:00Z) "$R1_OTEL" "true"
+assert_session_safe "r1-post"
+[ "$(line_count "$R1_TRACE")" = "$((r1_before + 1))" ] || fail "R1: postToolUse must append exactly one tool span for issue-801"
+assert_tool_subagent_value "R1(postToolUse)" "$R1_TRACE" "$R1_TOOLU" "true"
+r1_after_post="$(line_count "$R1_TRACE")"
+run_hook "r1-stop" "$DIRR1" <(camel_subagent_stop "$DIRR1" "$R1_CONDUCTOR" "spike-probe" 2026-07-07T10:00:01Z) "$R1_OTEL" "true"
+assert_session_safe "r1-stop"
+[ "$(line_count "$R1_TRACE")" = "$((r1_after_post + 1))" ] \
+  || fail "R1: subagentStop should append exactly the stop agent span and retro-upgrade in place; expected $((r1_after_post + 1)) lines, got $(line_count "$R1_TRACE")"
+assert_tool_subagent_value "R1(subagentStop)" "$R1_TRACE" "$R1_TOOLU" "spike-probe"
 
 # =============================================================================
 # E2 — OTel env set but the file is CORRUPT: the hook span is unaffected —
@@ -135,19 +211,97 @@ printf '%s\n' "$(last_span "$E3_TRACE")" | jq -e '
   || fail "E3: with OTel off the deterministic stamp must remain harness.subagent=\"true\": $(last_span "$E3_TRACE")"
 
 # =============================================================================
-# E4 — OTel off, events.jsonl fallback: the conductor's events.jsonl in the
-# session-state dir names the agent via subagent.started.data.toolCallId.
+# R2 — events.jsonl retro-upgrade with OTel OFF: postToolUse stamps true;
+# subagentStop resolves from the conductor's session-state events.jsonl.
 # =============================================================================
-DIRE4="${TMP_DIR}/issue-804-repo"; make_issue_branch_repo "$DIRE4" "feature/issue-804-events"
-mkdir -p "${FIXHOME}/.copilot/session-state/uuid-conductor-804"
-jq -cn '{type:"subagent.started",data:{toolCallId:"toolu_04events",agentName:"events-agent",model:"gpt-5.5"},agentId:"toolu_04events"}' \
-  > "${FIXHOME}/.copilot/session-state/uuid-conductor-804/events.jsonl"
-E4_TRACE="$(trace_path "$DIRE4" 804)"; e4_before="$(line_count "$E4_TRACE")"
-run_hook "e4" "$DIRE4" <(camel_post "$DIRE4" "toolu_04events" "bash" '{"command":"echo y"}' 2026-07-07T10:00:00Z)
-assert_session_safe "e4"
-[ "$(line_count "$E4_TRACE")" = "$((e4_before + 1))" ] || fail "E4: expected one tool span for issue-804"
-printf '%s\n' "$(last_span "$E4_TRACE")" | jq -e '
-    .span == "tool" and .["harness.subagent"] == "events-agent"' >/dev/null \
-  || fail "E4: with OTel off, the events.jsonl fallback must upgrade harness.subagent to \"events-agent\": $(last_span "$E4_TRACE")"
+DIRR2="${TMP_DIR}/issue-804-repo"; make_issue_branch_repo "$DIRR2" "feature/issue-804-events"
+R2_TOOLU="toolu_04events"; R2_CONDUCTOR="uuid-conductor-804"
+write_events_fixture "$R2_CONDUCTOR" "$R2_TOOLU" "events-agent"
+R2_TRACE="$(trace_path "$DIRR2" 804)"; r2_before="$(line_count "$R2_TRACE")"
+run_hook "r2-post" "$DIRR2" <(camel_post "$DIRR2" "$R2_TOOLU" "bash" '{"command":"echo y"}' 2026-07-07T10:00:00Z)
+assert_session_safe "r2-post"
+[ "$(line_count "$R2_TRACE")" = "$((r2_before + 1))" ] || fail "R2: postToolUse must append exactly one tool span for issue-804"
+assert_tool_subagent_value "R2(postToolUse)" "$R2_TRACE" "$R2_TOOLU" "true"
+r2_after_post="$(line_count "$R2_TRACE")"
+run_hook "r2-stop" "$DIRR2" <(camel_subagent_stop "$DIRR2" "$R2_CONDUCTOR" "events-agent" 2026-07-07T10:00:01Z)
+assert_session_safe "r2-stop"
+[ "$(line_count "$R2_TRACE")" = "$((r2_after_post + 1))" ] \
+  || fail "R2: subagentStop should append exactly the stop agent span and retro-upgrade in place; expected $((r2_after_post + 1)) lines, got $(line_count "$R2_TRACE")"
+assert_tool_subagent_value "R2(subagentStop)" "$R2_TRACE" "$R2_TOOLU" "events-agent"
 
-printf 'PASS: copilot-trace-hook.sh enriches harness.subagent from OTel Path O (best-effort), degrades to "true" on corrupt/absent OTel, and falls back to events.jsonl when OTel is off\n'
+# =============================================================================
+# R3 — OTel present for postToolUse, gone before stop: events fallback at stop.
+# The current resolver only consults events.jsonl when COPILOT_OTEL_FILE_EXPORTER_PATH
+# is unset, so the stop invocation unsets it to model "OTel gone, events present".
+# =============================================================================
+DIRR3="${TMP_DIR}/issue-805-repo"; make_issue_branch_repo "$DIRR3" "feature/issue-805-otel-gone"
+R3_TOOLU="toolu_05otelgone"; R3_CONDUCTOR="uuid-conductor-805"
+R3_OTEL="${TMP_DIR}/otel-r3.jsonl"; write_otel_fixture "$R3_OTEL" "$R3_TOOLU" "otel-agent-before-gone"
+write_events_fixture "$R3_CONDUCTOR" "$R3_TOOLU" "events-after-otel-gone"
+R3_TRACE="$(trace_path "$DIRR3" 805)"; r3_before="$(line_count "$R3_TRACE")"
+run_hook "r3-post" "$DIRR3" <(camel_post "$DIRR3" "$R3_TOOLU" "bash" '{"command":"echo z"}' 2026-07-07T10:00:00Z) "$R3_OTEL"
+assert_session_safe "r3-post"
+[ "$(line_count "$R3_TRACE")" = "$((r3_before + 1))" ] || fail "R3: postToolUse must append exactly one tool span for issue-805"
+assert_tool_subagent_value "R3(postToolUse)" "$R3_TRACE" "$R3_TOOLU" "true"
+rm -f "$R3_OTEL"
+r3_after_post="$(line_count "$R3_TRACE")"
+run_hook "r3-stop" "$DIRR3" <(camel_subagent_stop "$DIRR3" "$R3_CONDUCTOR" "events-after-otel-gone" 2026-07-07T10:00:01Z)
+assert_session_safe "r3-stop"
+[ "$(line_count "$R3_TRACE")" = "$((r3_after_post + 1))" ] \
+  || fail "R3: subagentStop should append exactly the stop agent span and retro-upgrade in place; expected $((r3_after_post + 1)) lines, got $(line_count "$R3_TRACE")"
+assert_tool_subagent_value "R3(subagentStop)" "$R3_TRACE" "$R3_TOOLU" "events-after-otel-gone"
+
+# =============================================================================
+# F2 — OTel join is tolerant of the real v1.0.70 mixed exporter shape: a task
+# span, its invoke_agent child, metric rows with no top-level attributes, an
+# attributes-as-array span, and a final truncated JSON line.
+# =============================================================================
+F2_OTEL="${TMP_DIR}/otel-f2-v1070-mixed.jsonl"; write_mixed_otel_v1070_fixture "$F2_OTEL"
+F2_NAME="$(hook_otel_agent_name "$F2_OTEL" "toolu_TEST2")"
+[ "$F2_NAME" = "explore" ] \
+  || fail "F2: expected hook__otel_agent_name to resolve toolu_TEST2 to explore from mixed v1.0.70 OTel JSONL, got ${F2_NAME:-<empty>}"
+
+# =============================================================================
+# F4 — resolver gates OTel on a truthy enable flag and falls through to the
+# events.jsonl fallback when OTel is unavailable or misses the tool call.
+# =============================================================================
+F4_FAILURES=0
+
+F4A_TOOLU="toolu_F4A"; F4A_HOME="${TMP_DIR}/home-f4a"; FIXHOME="$F4A_HOME"
+write_events_fixture "uuid-conductor-f4a" "$F4A_TOOLU" "explore"
+F4A_NAME="$(hook_resolve_subagent_name "$F4A_HOME" "$F4A_TOOLU" "__unset__" "${TMP_DIR}/otel-f4a-missing.jsonl")"
+if [ "$F4A_NAME" != "explore" ]; then
+  printf 'FAIL: F4A half-filled .env: expected hook__resolve_subagent_name to fall back to events.jsonl and resolve toolu_F4A to explore, got %s\n' "${F4A_NAME:-<empty>}" >&2
+  F4_FAILURES=$((F4_FAILURES + 1))
+fi
+
+F4B_TOOLU="toolu_F4B"; F4B_HOME="${TMP_DIR}/home-f4b"; FIXHOME="$F4B_HOME"
+write_events_fixture "uuid-conductor-f4b" "$F4B_TOOLU" "planning-subagent"
+F4B_OTEL="${TMP_DIR}/otel-f4b-miss.jsonl"; write_otel_fixture "$F4B_OTEL" "toolu_F4B_OTHER" "other-agent"
+F4B_NAME="$(hook_resolve_subagent_name "$F4B_HOME" "$F4B_TOOLU" "true" "$F4B_OTEL")"
+if [ "$F4B_NAME" != "planning-subagent" ]; then
+  printf 'FAIL: F4B OTel miss fallback: expected hook__resolve_subagent_name to fall through to events.jsonl and resolve toolu_F4B to planning-subagent, got %s\n' "${F4B_NAME:-<empty>}" >&2
+  F4_FAILURES=$((F4_FAILURES + 1))
+fi
+
+unset COPILOT_OTEL_ENABLED COPILOT_OTEL_FILE_EXPORTER_PATH 2>/dev/null || true
+[ "$F4_FAILURES" -eq 0 ] || exit 1
+
+# =============================================================================
+# F3 — events.jsonl fallback caps an overlong subagent name before the
+# export-allowlisted harness.subagent value can ship to App Insights.
+# =============================================================================
+F3_TOOLU="toolu_F3"; F3_HOME="${TMP_DIR}/home-f3"; FIXHOME="$F3_HOME"
+printf -v F3_AGENT '%*s' 300 ''
+F3_AGENT="${F3_AGENT// /A}"
+write_events_fixture "uuid-conductor-f3" "$F3_TOOLU" "$F3_AGENT"
+F3_NAME="$(hook_resolve_subagent_name "$F3_HOME" "$F3_TOOLU" "false" "__unset__")"
+F3_EXPECTED_PREFIX="${F3_AGENT:0:117}"
+[ "${#F3_NAME}" -eq 120 ] \
+  || fail "F3 subagent name cap: expected resolved name length 120, got ${#F3_NAME}"
+[ "${F3_NAME: -3}" = "..." ] \
+  || fail "F3 subagent name cap: expected resolved name to end with ..., got suffix ${F3_NAME: -3}"
+[ "${F3_NAME:0:117}" = "$F3_EXPECTED_PREFIX" ] \
+  || fail "F3 subagent name cap: expected first 117 chars to preserve the original agent name prefix"
+
+printf 'PASS: copilot-trace-hook.sh stamps subagent tool spans at postToolUse, retro-upgrades them at subagentStop from OTel/events.jsonl, and preserves deterministic spans on resolver failure\n'

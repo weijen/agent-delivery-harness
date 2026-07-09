@@ -129,6 +129,35 @@ source "${REPO}/scripts/trace-lib.sh" \
   || fail "sourcing trace-lib.sh failed under set -euo pipefail"
 declare -F trace_span >/dev/null \
   || fail "trace-lib.sh did not define a trace_span function"
+declare -F trace_redact >/dev/null \
+  || fail "trace-lib.sh did not define a trace_redact function"
+
+# --- RED: already-JSON-escaped quoted key=value values stay valid JSON ----------
+# trace_redact runs after trace lines are fully JSON-serialized. If a JSON string
+# value contains shell text such as token_source=\"$3\", password=\"p@ss\", or
+# secret=\"s\", redaction may mask the value but must never consume the JSON
+# escape backslash and introduce an unescaped quote into the line.
+assert_trace_redact_preserves_json() {
+  local label="$1" input="$2" out
+
+  printf '%s\n' "$input" | jq -e . >/dev/null \
+    || fail "test fixture for ${label} is not valid JSON before redaction: ${input}"
+
+  out="$(printf '%s\n' "$input" | trace_redact)"
+  if ! printf '%s\n' "$out" | jq -e . >/dev/null; then
+    fail "trace_redact broke valid JSON for ${label}: ${out}"
+  fi
+}
+
+assert_trace_redact_preserves_json \
+  "JSON-escaped token_source quoted assignment" \
+  "{\"span\":\"tool\",\"harness.result_summary\":\"local token_source=\\\"\$3\\\" here\"}"
+assert_trace_redact_preserves_json \
+  "JSON-escaped password quoted assignment" \
+  '{"span":"tool","harness.result_summary":"local password=\"p@ss\" here"}'
+assert_trace_redact_preserves_json \
+  "JSON-escaped secret quoted assignment" \
+  '{"span":"tool","harness.result_summary":"local secret=\"s\" here"}'
 
 # --- Emit spans carrying the planted secrets -------------------------------------
 # Lines 1-4 carry secrets (embedded in free-text values AND as secret-named

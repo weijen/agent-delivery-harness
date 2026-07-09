@@ -71,6 +71,10 @@ HOOK_ARGS_SUMMARY_CAP=200
 # larger cap never reaches App Insights.
 HOOK_RESULT_SUMMARY_CAP=500
 
+# Hard cap for harness.subagent.name: export-allowlisted to App Insights, so
+# it must stay bounded like the other summaries.
+HOOK_SUBAGENT_NAME_CAP=120
+
 # postToolUse / postToolUseFailure / PostToolUse — emit one schema-valid
 # `tool` span (sensor conventions P2–P5, P7):
 #   gen_ai.tool.name        toolName (camel) / tool_name (snake); absent → no span
@@ -215,22 +219,14 @@ hook__on_post_tool_use() {
 
   # Subagent tool/skill call (#227 Task 1): a `toolu_`-prefixed sessionId is
   # the spawning `task` tool-use id, i.e. this call was made INSIDE a subagent
-  # (docs/runtime-adapters/github-copilot.subagent-spike.md §4). Stamp
-  # harness.subagent so skill/tool spans split conductor-vs-subagent in
-  # analytics (schema v1 open-world). The deterministic value is the string
-  # "true"; best-effort OTel Path O enrichment (#227 Task 3) may upgrade it to
-  # the real agent name. harness.skill.name handling above is unchanged.
+  # (docs/runtime-adapters/github-copilot.subagent-spike.md §4). Stamp the
+  # deterministic harness.subagent marker now; stop-time retro-upgrade may
+  # later enrich already-emitted tool spans with the real agent name after
+  # Copilot's OTel/events data has flushed. harness.skill.name handling above
+  # is unchanged.
   case "$sid" in
     toolu_*)
-      local subagent_value="true"
-      # Best-effort enrichment (#227 Task 3): same trust class as the token
-      # read below — join failures NEVER drop the deterministic stamp.
-      local resolved_name=""
-      resolved_name="$(hook__resolve_subagent_name "$sid" 2>/dev/null || true)"
-      if [ -n "$resolved_name" ]; then
-        subagent_value="$resolved_name"
-      fi
-      attrs+=("harness.subagent=${subagent_value}")
+      attrs+=("harness.subagent=true")
       ;;
   esac
 
@@ -289,6 +285,7 @@ hook__on_stop() {
   fi
   trace_span agent "${agent_attrs[@]}"
   local agent_span_id="${TRACE_LAST_SPAN_ID:-}"
+  hook__retro_upgrade_subagents
 
   [ "$token_source" = "cli" ] || return 0
   [ -n "${HOME:-}" ] || return 0
@@ -381,11 +378,11 @@ hook__on_subagent_start() {
 hook__otel_agent_name() {
   local otel="$1" toolu="$2"
   [ -n "$otel" ] && [ -f "$otel" ] && [ -r "$otel" ] || return 0
-  jq -rs --arg tid "$toolu" '
-    def attr($k): ((.attributes // {})[$k]) // .[$k];
-    [ .[] | select(type == "object") ] as $spans
+  jq -Rrn --arg tid "$toolu" '
+    def attr($k): (if (.attributes | type) == "object" then .attributes else {} end)[$k] // .[$k];
+    [ inputs | fromjson? | select(type == "object") ] as $spans
     | ( $spans | map(select(attr("gen_ai.tool.call.id") == $tid))
-                | (.[0].spanId // .[0].span_id // "") ) as $task
+                 | (.[0].spanId // .[0].span_id // "") ) as $task
     | if ($task | length) == 0 then empty
       else ( $spans
              | map(select(((.parentSpanId // .parent_span_id) == $task)
@@ -424,19 +421,133 @@ hook__events_agent_name() {
 }
 
 # hook__resolve_subagent_name <toolu_id>
-# Prefer the documented OTel file export; fall back to the undocumented
-# events.jsonl only when OTel is OFF (COPILOT_OTEL_FILE_EXPORTER_PATH unset).
+# Prefer the documented OTel file export when enabled and configured; fall
+# through to the undocumented events.jsonl fallback on any OTel miss.
 # Prints a single-line agent name, or nothing (the caller keeps "true").
 hook__resolve_subagent_name() {
-  local toolu="$1" name=""
-  if [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
+  local toolu="$1" name="" cap="${HOOK_SUBAGENT_NAME_CAP:-120}"
+  local otel_enabled="${COPILOT_OTEL_ENABLED:-}"
+  if [ -n "$otel_enabled" ] && [ "$otel_enabled" != "0" ] && [ "$otel_enabled" != "false" ] && [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
     name="$(hook__otel_agent_name "${COPILOT_OTEL_FILE_EXPORTER_PATH}" "$toolu" 2>/dev/null || true)"
-  else
+  fi
+  if [ -z "$name" ]; then
     name="$(hook__events_agent_name "$toolu" 2>/dev/null || true)"
   fi
   name="$(printf '%s' "$name" | tr -d '\n\r' | LC_ALL=C tr -cd '[:print:]')"
   [ -n "$name" ] || return 0
+  if [ "${#name}" -gt "$cap" ]; then
+    name="${name:0:cap-3}..."
+  fi
   printf '%s' "$name"
+}
+
+# hook__issue_trace_file
+# Resolve the same per-issue trace.jsonl path trace_span appends to.
+hook__issue_trace_file() {
+  local issue_num="" issue_pad="" main_root=""
+  issue_num="$(trace__resolve_issue 2>/dev/null || true)"
+  [ -n "$issue_num" ] || return 1
+  issue_pad="$(printf '%02d' "$issue_num" 2>/dev/null)" || return 1
+  main_root="$(trace__main_root 2>/dev/null || true)"
+  [ -n "$main_root" ] || return 1
+  printf '%s/.copilot-tracking/issues/issue-%s/trace.jsonl' "$main_root" "$issue_pad"
+  return 0
+}
+
+# hook__retro_upgrade_subagents
+# Stop-time best-effort enrichment: upgrade already-emitted Copilot tool spans
+# from harness.subagent="true" to a resolved subagent name. Any miss or IO
+# failure leaves the original trace intact and keeps the hook session-safe.
+hook__retro_upgrade_subagents() {
+  local trace_file="" trace_dir="" tmp="" sid="" name=""
+  local line="" upgraded="" redacted="" failed=0 changed=0
+  local -a sids=()
+
+  trace_file="$(hook__issue_trace_file 2>/dev/null || true)"
+  [ -n "$trace_file" ] || return 0
+  { [ -f "$trace_file" ] && [ -r "$trace_file" ] && [ -w "$trace_file" ]; } || return 0
+
+  while IFS= read -r sid; do
+    [ -n "$sid" ] && sids+=("$sid")
+  done < <(jq -Rr '
+      fromjson?
+      | select((.span? == "tool")
+          and (.["harness.subagent"]? == "true")
+          and ((.["harness.session_id"]? | type) == "string")
+          and (.["harness.session_id"] | test("^toolu_")))
+      | .["harness.session_id"]
+    ' "$trace_file" 2>/dev/null | sort -u || true)
+  [ "${#sids[@]}" -gt 0 ] || return 0
+
+  trace_dir="$(dirname "$trace_file")"
+  tmp="${trace_dir}/.trace.$$.retro-upgrade.tmp"
+  : >"$tmp" 2>/dev/null || {
+    trace_warn "copilot-trace-hook: cannot create retro-upgrade temp file for ${trace_file}"
+    return 0
+  }
+
+  for sid in "${sids[@]}"; do
+    name="$(hook__resolve_subagent_name "$sid" 2>/dev/null || true)"
+    if [ -z "$name" ] || [ "$name" = "true" ]; then
+      continue
+    fi
+    failed=0
+    changed=0
+    : >"$tmp" 2>/dev/null || {
+      trace_warn "copilot-trace-hook: cannot reset retro-upgrade temp file for ${trace_file}"
+      rm -f "$tmp" 2>/dev/null || true
+      return 0
+    }
+    while IFS= read -r line || [ -n "$line" ]; do
+      if printf '%s\n' "$line" | jq -e --arg sid "$sid" '
+          (.span? == "tool")
+          and (.["harness.subagent"]? == "true")
+          and (.["harness.session_id"]? == $sid)
+        ' >/dev/null 2>&1; then
+        upgraded="$(printf '%s\n' "$line" | jq -c --arg name "$name" \
+          '. + {"harness.subagent": $name}' 2>/dev/null || true)"
+        if [ -z "$upgraded" ]; then
+          trace_warn "copilot-trace-hook: jq failed during retro-upgrade for ${sid}"
+          failed=1
+          break
+        fi
+        redacted="$(printf '%s\n' "$upgraded" | trace_redact 2>/dev/null || true)"
+        if [ -z "$redacted" ]; then
+          trace_warn "copilot-trace-hook: redaction failed during retro-upgrade for ${sid}"
+          failed=1
+          break
+        fi
+        printf '%s\n' "$redacted" >>"$tmp" 2>/dev/null || {
+          trace_warn "copilot-trace-hook: write failed during retro-upgrade for ${sid}"
+          failed=1
+          break
+        }
+        changed=1
+      else
+        printf '%s\n' "$line" >>"$tmp" 2>/dev/null || {
+          trace_warn "copilot-trace-hook: write failed preserving trace line for ${sid}"
+          failed=1
+          break
+        }
+      fi
+    done < "$trace_file"
+
+    if [ "$failed" -ne 0 ]; then
+      rm -f "$tmp" 2>/dev/null || true
+      return 0
+    fi
+    if [ "$changed" -eq 0 ]; then
+      continue
+    fi
+    if ! mv "$tmp" "$trace_file" 2>/dev/null; then
+      trace_warn "copilot-trace-hook: cannot atomically replace ${trace_file} during retro-upgrade"
+      rm -f "$tmp" 2>/dev/null || true
+      return 0
+    fi
+  done
+
+  rm -f "$tmp" 2>/dev/null || true
+  return 0
 }
 
 # --- Interval fallback (#146) --------------------------------------------------
