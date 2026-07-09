@@ -71,6 +71,10 @@ HOOK_ARGS_SUMMARY_CAP=200
 # larger cap never reaches App Insights.
 HOOK_RESULT_SUMMARY_CAP=500
 
+# Hard cap for harness.subagent.name: export-allowlisted to App Insights, so
+# it must stay bounded like the other summaries.
+HOOK_SUBAGENT_NAME_CAP=120
+
 # postToolUse / postToolUseFailure / PostToolUse — emit one schema-valid
 # `tool` span (sensor conventions P2–P5, P7):
 #   gen_ai.tool.name        toolName (camel) / tool_name (snake); absent → no span
@@ -421,7 +425,7 @@ hook__events_agent_name() {
 # through to the undocumented events.jsonl fallback on any OTel miss.
 # Prints a single-line agent name, or nothing (the caller keeps "true").
 hook__resolve_subagent_name() {
-  local toolu="$1" name=""
+  local toolu="$1" name="" cap="${HOOK_SUBAGENT_NAME_CAP:-120}"
   local otel_enabled="${COPILOT_OTEL_ENABLED:-}"
   if [ -n "$otel_enabled" ] && [ "$otel_enabled" != "0" ] && [ "$otel_enabled" != "false" ] && [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
     name="$(hook__otel_agent_name "${COPILOT_OTEL_FILE_EXPORTER_PATH}" "$toolu" 2>/dev/null || true)"
@@ -431,6 +435,9 @@ hook__resolve_subagent_name() {
   fi
   name="$(printf '%s' "$name" | tr -d '\n\r' | LC_ALL=C tr -cd '[:print:]')"
   [ -n "$name" ] || return 0
+  if [ "${#name}" -gt "$cap" ]; then
+    name="${name:0:cap-3}..."
+  fi
   printf '%s' "$name"
 }
 

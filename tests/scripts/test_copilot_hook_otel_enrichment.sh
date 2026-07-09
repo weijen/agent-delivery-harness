@@ -287,4 +287,21 @@ fi
 unset COPILOT_OTEL_ENABLED COPILOT_OTEL_FILE_EXPORTER_PATH 2>/dev/null || true
 [ "$F4_FAILURES" -eq 0 ] || exit 1
 
+# =============================================================================
+# F3 — events.jsonl fallback caps an overlong subagent name before the
+# export-allowlisted harness.subagent value can ship to App Insights.
+# =============================================================================
+F3_TOOLU="toolu_F3"; F3_HOME="${TMP_DIR}/home-f3"; FIXHOME="$F3_HOME"
+printf -v F3_AGENT '%*s' 300 ''
+F3_AGENT="${F3_AGENT// /A}"
+write_events_fixture "uuid-conductor-f3" "$F3_TOOLU" "$F3_AGENT"
+F3_NAME="$(hook_resolve_subagent_name "$F3_HOME" "$F3_TOOLU" "false" "__unset__")"
+F3_EXPECTED_PREFIX="${F3_AGENT:0:117}"
+[ "${#F3_NAME}" -eq 120 ] \
+  || fail "F3 subagent name cap: expected resolved name length 120, got ${#F3_NAME}"
+[ "${F3_NAME: -3}" = "..." ] \
+  || fail "F3 subagent name cap: expected resolved name to end with ..., got suffix ${F3_NAME: -3}"
+[ "${F3_NAME:0:117}" = "$F3_EXPECTED_PREFIX" ] \
+  || fail "F3 subagent name cap: expected first 117 chars to preserve the original agent name prefix"
+
 printf 'PASS: copilot-trace-hook.sh stamps subagent tool spans at postToolUse, retro-upgrades them at subagentStop from OTel/events.jsonl, and preserves deterministic spans on resolver failure\n'
