@@ -287,11 +287,15 @@ hook__subagent_skill_inventory() {
   local s="" name=""
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    if [ -n "$live_skills" ] && printf '%s\n' "$live_skills" | grep -qxF -- "$s"; then
-      continue
-    fi
+    # Redact BEFORE the dedup lookup: live harness.skill.name values were
+    # written through trace_span (whole-line trace_redact), so comparing the
+    # raw transcript name could re-emit a skill whose name matches a redaction
+    # shape. Redact once, dedup on the redacted value, then cap for emission.
     name="$(printf '%s' "$s" | trace_redact 2>/dev/null || true)"
     [ -n "$name" ] || continue
+    if [ -n "$live_skills" ] && printf '%s\n' "$live_skills" | grep -qxF -- "$name"; then
+      continue
+    fi
     if [ "${#name}" -gt "$HOOK_ARGS_SUMMARY_CAP" ]; then
       name="${name:0:HOOK_ARGS_SUMMARY_CAP-3}..."
     fi
