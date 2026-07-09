@@ -46,37 +46,22 @@ if ! declare -F trace_span >/dev/null 2>&1; then
     return 0
   }
   trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+  trace_lifecycle_init() { :; }
+  trace_lifecycle_arm() { :; }
 fi
 
-# Exactly ONE pr_merge lifecycle terminal span per invocation via a
-# stage-tracked EXIT trap (plan D3). TRACE_STAGE names the last stage reached
-# (resolve_pr|ci_checks|merge|done); it is only set once the stray-positional-
-# arg refusal has passed, so that usage refusal emits nothing.
+# Exactly ONE pr_merge lifecycle terminal span per invocation via the shared
+# EXIT-trap helper (issue #213 P-1, trace_lifecycle_init). TRACE_STAGE names the
+# last stage reached (resolve_pr|ci_checks|merge|done), surfaced as harness.stage
+# by the attr callback; the trap is armed only once the stray-positional-arg
+# refusal has passed, so that usage refusal emits nothing.
 TRACE_STAGE=""
-TRACE_T0=0
 pr_number=""
-trace__merge_pr_exit() {
-  local rc=$?
-  if [ -n "$TRACE_STAGE" ]; then
-    local outcome=pass
-    if [ "$rc" -ne 0 ]; then
-      outcome=fail
-    fi
-    local -a attrs=(
-      "harness.lifecycle_step=pr_merge"
-      "harness.outcome=${outcome}"
-      "harness.exit_status=${rc}"
-      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
-      "harness.stage=${TRACE_STAGE}"
-    )
-    if [ -n "$pr_number" ]; then
-      attrs+=("harness.pr_number=${pr_number}")
-    fi
-    trace_span lifecycle "${attrs[@]}"
-  fi
-  exit "$rc"
+trace__merge_pr_attrs() {
+  printf 'harness.stage=%s\n' "${TRACE_STAGE}"
+  [ -n "$pr_number" ] && printf 'harness.pr_number=%s\n' "${pr_number}"
 }
-trap trace__merge_pr_exit EXIT
+trace_lifecycle_init pr_merge trace__merge_pr_attrs
 
 # --- 0. Reject stray positional args ----------------------------------------
 # This script resolves the target PR from the CURRENT worktree branch (below),
@@ -98,8 +83,8 @@ for arg in "$@"; do
 done
 
 # --- 1. Resolve the PR ------------------------------------------------------
-TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="resolve_pr"
+trace_lifecycle_arm
 pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 if [ -z "$pr_number" ]; then
   red "✗ No open PR found for this branch. Open one first: ./scripts/create-pr.sh --title \"…\""

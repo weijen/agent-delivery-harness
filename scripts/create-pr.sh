@@ -47,47 +47,32 @@ if ! declare -F trace_span >/dev/null 2>&1; then
     return 0
   }
   trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+  trace_lifecycle_init() { :; }
+  trace_lifecycle_arm() { :; }
 fi
 
-# Exactly ONE pr_create lifecycle terminal span per invocation via a
-# stage-tracked EXIT trap (plan D3). TRACE_STAGE names the last stage reached
-# (preconditions|review_gate|rebase|post_sync_gate|push|pr_create|done); it is
-# only set once we are past the on-main refusal, where a feature branch —
+# Exactly ONE pr_create lifecycle terminal span per invocation via the shared
+# EXIT-trap helper (issue #213 P-1, trace_lifecycle_init). TRACE_STAGE names the
+# last stage reached (preconditions|review_gate|rebase|post_sync_gate|push|
+# pr_create|done) and is surfaced as harness.stage by the attr callback; the
+# trap is armed only once past the on-main refusal, where a feature branch —
 # and therefore a resolvable issue — exists, so that refusal emits nothing.
 TRACE_STAGE=""
-TRACE_T0=0
 pr_number=""
-trace__create_pr_exit() {
-  local rc=$?
-  if [ -n "$TRACE_STAGE" ]; then
-    local outcome=pass
-    if [ "$rc" -ne 0 ]; then
-      outcome=fail
-    fi
-    local -a attrs=(
-      "harness.lifecycle_step=pr_create"
-      "harness.outcome=${outcome}"
-      "harness.exit_status=${rc}"
-      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))"
-      "harness.stage=${TRACE_STAGE}"
-      "harness.branch=${branch:-}"
-    )
-    if [ -n "$pr_number" ]; then
-      attrs+=("harness.pr_number=${pr_number}")
-    fi
-    trace_span lifecycle "${attrs[@]}"
-  fi
-  exit "$rc"
+trace__create_pr_attrs() {
+  printf 'harness.stage=%s\n' "${TRACE_STAGE}"
+  printf 'harness.branch=%s\n' "${branch:-}"
+  [ -n "$pr_number" ] && printf 'harness.pr_number=%s\n' "${pr_number}"
 }
-trap trace__create_pr_exit EXIT
+trace_lifecycle_init pr_create trace__create_pr_attrs
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
   red "✗ Refusing to open a PR from '${branch}'. Switch to your feature branch first."
   exit 1
 fi
-TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="preconditions"
+trace_lifecycle_arm
 if [ -n "$(git status --porcelain)" ]; then
   red "✗ Working tree is dirty. Commit or stash before syncing onto main."
   git status --short

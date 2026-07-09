@@ -266,9 +266,13 @@ trace_emission:
   # vocabulary). Spans append to the per-issue trace file at the MAIN
   # checkout root — .copilot-tracking/issues/issue-NN/trace.jsonl —
   # regardless of caller CWD (plan D1), gitignored and never pushed.
+  # The terminal lifecycle-span EXIT trap is emitted through the shared
+  # scripts/trace-lib.sh helper trace_lifecycle_init <step> (issue #213, P-1):
+  # each owner script still DECLARES its terminal lifecycle step by the step it
+  # passes to that helper, so the contract asserts that declaration.
   - id: trace-start-issue
     owner: scripts/start-issue.sh
-    present: harness.lifecycle_step=(preflight|worktree_create)
+    present: harness.lifecycle_step=preflight|trace_lifecycle_init[[:space:]]+worktree_create
   - id: trace-check-feature-list
     owner: scripts/check-feature-list.sh
     present: gen_ai.tool.name=check-feature-list
@@ -277,13 +281,13 @@ trace_emission:
     present: harness.lifecycle_step=review_gate_approve
   - id: trace-create-pr
     owner: scripts/create-pr.sh
-    present: harness.lifecycle_step=pr_create
+    present: trace_lifecycle_init[[:space:]]+pr_create
   - id: trace-merge-pr
     owner: scripts/merge-pr.sh
-    present: harness.lifecycle_step=pr_merge
+    present: trace_lifecycle_init[[:space:]]+pr_merge
   - id: trace-finish-issue
     owner: scripts/finish-issue.sh
-    present: harness.lifecycle_step=finish
+    present: trace_lifecycle_init[[:space:]]+finish
   - id: trace-review-gate-trace
     owner: scripts/review-gate.sh
     present: gen_ai.tool.name=review-gate.trace
