@@ -88,6 +88,10 @@ export TRACE_ISSUE="$ISSUE_NUM"
 ROOT="$(issue_repo_root)"
 cd "$ROOT"
 
+if [ ! -f "${ROOT}/.github/hooks/harness-trace.json" ]; then
+  yellow "⚠ tracing hooks are not configured (${ROOT}/.github/hooks/harness-trace.json missing); runtime spans are only captured when the session is launched from the repo root (a trusted folder containing .github/hooks/), otherwise this is a dark run." >&2
+fi
+
 # Refuse to run from inside a linked worktree — start-issue operates on main.
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   red "✗ run start-issue.sh from the main checkout, not from a worktree."
