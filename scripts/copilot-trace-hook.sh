@@ -223,6 +223,13 @@ hook__on_post_tool_use() {
   case "$sid" in
     toolu_*)
       local subagent_value="true"
+      # Best-effort enrichment (#227 Task 3): same trust class as the token
+      # read below — join failures NEVER drop the deterministic stamp.
+      local resolved_name=""
+      resolved_name="$(hook__resolve_subagent_name "$sid" 2>/dev/null || true)"
+      if [ -n "$resolved_name" ]; then
+        subagent_value="$resolved_name"
+      fi
       attrs+=("harness.subagent=${subagent_value}")
       ;;
   esac
@@ -360,6 +367,76 @@ hook__on_subagent_start() {
   fi
   trace_span agent "${attrs[@]}"
   return 0
+}
+
+# --- Subagent agent-name enrichment (#227 Task 3, Path O) ----------------------
+
+# hook__otel_agent_name <otel_file> <toolu_id>
+# Best-effort OTel Path O join (spike §7): the conductor's OTel file export
+# (COPILOT_OTEL_FILE_EXPORTER_PATH, JSON-lines, one span object per line) nests
+# an `execute_tool task` span whose gen_ai.tool.call.id == the toolu_ id, whose
+# child invoke_agent span carries gen_ai.agent.name. Prints that name, or
+# nothing on ANY miss/parse error. Tolerant of attributes as a nested map OR
+# flattened top-level keys, and of spanId/span_id + parentSpanId/parent_span_id.
+hook__otel_agent_name() {
+  local otel="$1" toolu="$2"
+  [ -n "$otel" ] && [ -f "$otel" ] && [ -r "$otel" ] || return 0
+  jq -rs --arg tid "$toolu" '
+    def attr($k): ((.attributes // {})[$k]) // .[$k];
+    [ .[] | select(type == "object") ] as $spans
+    | ( $spans | map(select(attr("gen_ai.tool.call.id") == $tid))
+                | (.[0].spanId // .[0].span_id // "") ) as $task
+    | if ($task | length) == 0 then empty
+      else ( $spans
+             | map(select(((.parentSpanId // .parent_span_id) == $task)
+                          and (attr("gen_ai.agent.name") != null)))
+             | (.[0] | attr("gen_ai.agent.name")) // empty )
+      end
+  ' "$otel" 2>/dev/null | head -n 1
+  return 0
+}
+
+# hook__events_agent_name <toolu_id>
+# Fallback for when OTel is OFF (spike §6, undocumented events.jsonl): scan the
+# conductor session-state dirs for a subagent.started event whose
+# data.toolCallId == the toolu_ id and read data.agentName. Bounded to files
+# that literally contain the id (cheap grep pre-filter). Best-effort: prints
+# nothing on any miss/parse error.
+hook__events_agent_name() {
+  local toolu="$1"
+  [ -n "${HOME:-}" ] || return 0
+  local dir="${HOME}/.copilot/session-state"
+  [ -d "$dir" ] || return 0
+  local f name=""
+  for f in "$dir"/*/events.jsonl; do
+    [ -f "$f" ] && [ -r "$f" ] || continue
+    grep -qF "$toolu" "$f" 2>/dev/null || continue
+    name="$(jq -r --arg tid "$toolu" '
+        select((type == "object") and (.type? == "subagent.started")
+               and (.data?.toolCallId? == $tid))
+        | .data.agentName // empty' "$f" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$name" ]; then
+      printf '%s' "$name"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# hook__resolve_subagent_name <toolu_id>
+# Prefer the documented OTel file export; fall back to the undocumented
+# events.jsonl only when OTel is OFF (COPILOT_OTEL_FILE_EXPORTER_PATH unset).
+# Prints a single-line agent name, or nothing (the caller keeps "true").
+hook__resolve_subagent_name() {
+  local toolu="$1" name=""
+  if [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
+    name="$(hook__otel_agent_name "${COPILOT_OTEL_FILE_EXPORTER_PATH}" "$toolu" 2>/dev/null || true)"
+  else
+    name="$(hook__events_agent_name "$toolu" 2>/dev/null || true)"
+  fi
+  name="$(printf '%s' "$name" | tr -d '\n\r' | LC_ALL=C tr -cd '[:print:]')"
+  [ -n "$name" ] || return 0
+  printf '%s' "$name"
 }
 
 # --- Interval fallback (#146) --------------------------------------------------
