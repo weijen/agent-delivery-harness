@@ -93,6 +93,14 @@ make_state_hygiene_fixture() {
   printf '%s\n' "$COMPLETE_LIST" \
     > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 
+  # start-issue.sh must have recorded this issue's active-issue marker (#216).
+  [ -f "${dir}/.copilot-tracking/active-issues/${issue}" ] \
+    || fail "setup: start-issue must record an active-issue marker at .copilot-tracking/active-issues/${issue}"
+  # Seed a CONCURRENT issue's marker to prove the sweep is scoped, not blanket.
+  mkdir -p "${dir}/.copilot-tracking/active-issues"
+  printf '2026-01-01T00:00:00Z' \
+    > "${dir}/.copilot-tracking/active-issues/${other_issue}"
+
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state" \
     "${dir}/.copilot-tracking/sessions"
   printf 'orphan\n' \
@@ -124,6 +132,8 @@ make_state_hygiene_fixture "$MAIN" "$ISSUE" "$OTHER_ISSUE"
   || fail "state hygiene: worktree must still be removed"
 [ -e "${MAIN}/.copilot-tracking/sessions/other-issue.binding" ] \
   || fail "state hygiene: other-issue binding must survive (sweep must be scoped, not blanket rm)"
+[ -e "${MAIN}/.copilot-tracking/active-issues/${OTHER_ISSUE}" ] \
+  || fail "state hygiene: a concurrent issue's active-issue marker must survive (marker sweep must be scoped to our own issue)"
 
 defects=()
 if [ -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ]; then
@@ -131,6 +141,9 @@ if [ -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ]; then
 fi
 if [ -e "${MAIN}/.copilot-tracking/sessions/same-issue.binding" ]; then
   defects+=("same-issue session binding still exists")
+fi
+if [ -e "${MAIN}/.copilot-tracking/active-issues/${ISSUE}" ]; then
+  defects+=("own active-issue marker still exists (finish must sweep it)")
 fi
 
 if [ "${#defects[@]}" -ne 0 ]; then

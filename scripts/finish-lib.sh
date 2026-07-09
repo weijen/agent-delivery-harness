@@ -137,5 +137,17 @@ best_effort_state_hygiene() {
       fi
     done
   fi
+
+  # Active-issue marker (issue #216, P-5): remove ONLY our own marker so the
+  # hook stops treating this issue as live. Never touch a concurrent issue's
+  # marker.
+  local marker="${main_root}/.copilot-tracking/active-issues/${ISSUE_NUM}"
+  if [ -f "$marker" ]; then
+    if rm -f "$marker" 2>/dev/null; then
+      green "✓ Swept active-issue marker for issue ${ISSUE_NUM}"
+    else
+      yellow "⚠ could not sweep active-issue marker for issue ${ISSUE_NUM} — best-effort"
+    fi
+  fi
   return 0
 }
