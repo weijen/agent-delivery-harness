@@ -454,18 +454,16 @@ hook__issue_trace_file() {
   return 0
 }
 
-# hook__retro_upgrade_subagents [trace_file]
+# hook__retro_upgrade_subagents
 # Stop-time best-effort enrichment: upgrade already-emitted Copilot tool spans
 # from harness.subagent="true" to a resolved subagent name. Any miss or IO
 # failure leaves the original trace intact and keeps the hook session-safe.
 hook__retro_upgrade_subagents() {
-  local trace_file="${1:-}" trace_dir="" tmp="" sid="" name=""
+  local trace_file="" trace_dir="" tmp="" sid="" name=""
   local line="" upgraded="" redacted="" failed=0 changed=0
   local -a sids=()
 
-  if [ -z "$trace_file" ]; then
-    trace_file="$(hook__issue_trace_file 2>/dev/null || true)"
-  fi
+  trace_file="$(hook__issue_trace_file 2>/dev/null || true)"
   [ -n "$trace_file" ] || return 0
   { [ -f "$trace_file" ] && [ -r "$trace_file" ] && [ -w "$trace_file" ]; } || return 0
 
