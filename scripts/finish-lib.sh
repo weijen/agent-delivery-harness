@@ -62,12 +62,56 @@ finish_trace_gate() {
   return 0
 }
 
+# Safe data-only trace export env allowlist loader (issue #244). Reads optional
+# .env files without evaluating values and only fills unset allowlisted keys.
+load_env_allowlist() {
+  local env_file="$1"
+  [ -r "$env_file" ] || return 0
+
+  local line trimmed key value first_char last_char single_quote_escape single_quote
+  single_quote_escape="'\\''"
+  single_quote="'"
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    [ -n "$trimmed" ] || continue
+    [ "${trimmed:0:1}" != "#" ] || continue
+    [ "$trimmed" != "${trimmed%%=*}" ] || continue
+
+    key="${trimmed%%=*}"
+    value="${trimmed#*=}"
+    case "$key" in
+      TRACE_EXPORT_OTLP|APPLICATIONINSIGHTS_CONNECTION_STRING|TRACE_EXPORT_OTLP_HTTP|\
+        OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_EXPORTER_OTLP_TRACES_ENDPOINT|OTEL_EXPORTER_OTLP_HEADERS)
+        ;;
+      *)
+        continue
+        ;;
+    esac
+    [ -z "${!key+x}" ] || continue
+
+    first_char="${value:0:1}"
+    last_char="${value: -1}"
+    if [ "${#value}" -ge 2 ] && [ "$first_char" = "'" ] && [ "$last_char" = "'" ]; then
+      value="${value:1:${#value}-2}"
+      value="${value//"$single_quote_escape"/$single_quote}"
+    elif [ "${#value}" -ge 2 ] && [ "$first_char" = '"' ] && [ "$last_char" = '"' ]; then
+      value="${value:1:${#value}-2}"
+    fi
+    export "$key=$value"
+  done < "$env_file"
+
+  return 0
+}
+
 # Best-effort closeout trace export (issue #144). Ships the issue's spans to
 # Azure Monitor ONLY when explicitly configured (opt-in flag + connection
 # string). It ALWAYS returns 0: a missing/failing exporter must never change
 # finish-issue's exit code or block teardown. It reads the MAIN-checkout trace
 # file (which survives worktree removal), so it runs AFTER the worktree is gone.
 best_effort_trace_export() {
+  # finish-issue.sh runs from the main checkout; load unset allowlisted .env keys only.
+  load_env_allowlist "${SCRIPT_DIR}/../.env"
   [ "${TRACE_EXPORT_OTLP:-}" = "1" ] || return 0
   [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ] || return 0
   if [ ! -x "${SCRIPT_DIR}/trace-export.sh" ]; then

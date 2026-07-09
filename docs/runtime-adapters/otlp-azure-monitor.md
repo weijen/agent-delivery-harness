@@ -93,8 +93,9 @@ ship, nothing more (see the sensitivity rules in `AGENTS.md`).
 The one shared, tracked template `.env.example` carries **empty, non-secret
 placeholders** for every export variable (alongside the `COPILOT_OTEL_*` keys).
 Your real values live only in a local `.env`, which is **gitignored** — there is
-exactly one local-config file, never a second env-loading path, and nothing is
-auto-sourced. Load it explicitly when you want export on:
+exactly one local-config file, not a second local-config copy. For manual and
+interactive flows, nothing is auto-sourced; load it explicitly when you want
+export on:
 
 ```sh
 set -a; source .env; set +a
@@ -126,8 +127,11 @@ Three flows put values into that `.env`:
    ```
 
 3. **Closeout export.** With the same `.env` loaded in the shell that runs
-   `finish-issue.sh`, the best-effort closeout export (below) picks the two
-   variables up automatically — no extra step.
+   `finish-issue.sh`, the best-effort closeout export (below) still uses those
+   process variables first. After one `scripts/gen-export-env.sh`, closeout needs no manual source.
+   The finish-issue closeout auto-loads the main-checkout `.env`
+   automatically — including for issues whose work happened in a worktree — so
+   no manual source is needed.
 
 **Never commit `.env` or paste the connection string into `.env.example`,**
 tracked files, or trace artifacts. The template stays secret-free; the secret
@@ -144,6 +148,16 @@ contract: it fires **only when configured** — `TRACE_EXPORT_OTLP=1` **and**
 closeout export is a clean no-op; the exporter itself stays **opt-in** and
 **fail-closed**, exactly as on the manual path.
 
+For closeout only, `finish-issue.sh` also reads the main-checkout `.env` as
+data, not shell: it never `source`s the file and never executes shell from it.
+The loader is allowlisted to the trace-export keys only:
+`TRACE_EXPORT_OTLP`, `APPLICATIONINSIGHTS_CONNECTION_STRING`,
+`TRACE_EXPORT_OTLP_HTTP`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, and `OTEL_EXPORTER_OTLP_HEADERS`.
+The process environment overrides the `.env` per key, so explicit shell exports
+still win. An absent or incomplete `.env` remains a clean no-op, and secrets are
+never printed.
+
 Crucially, this closeout hook never gates teardown. Export failures **warn**
 and continue: `finish-issue.sh` prints the warning and proceeds to remove the
 worktree regardless, so a transient sink outage or a fail-closed refusal
@@ -151,8 +165,8 @@ worktree regardless, so a transient sink outage or a fail-closed refusal
 redaction leak or an unconfigured sink refuses to ship — but that refusal is
 surfaced as a warning at closeout, not a hard stop. The **never commit the
 connection string** rule above applies unchanged: closeout sources it from the
-environment for the duration of the export and nothing is written to tracked
-files.
+process environment or the auto-loaded `.env` data for the duration of the
+export and nothing is written to tracked files.
 
 ## Span → envelope mapping
 
