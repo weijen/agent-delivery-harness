@@ -34,7 +34,8 @@ simply lacks those spans; nothing else changes, and nothing is faked.
 | handback `agent` spans | yes | yes | yes | yes |
 | per-tool-call `tool` spans | no | **yes** (v1.0.69: payload is event-less, inferred from shape; failure from a top-level `error` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) |
 | `harness.duration_ms` on tool spans | no | **no** — no Copilot payload documents a correlation id, so duration is omitted (omit, never fake) | no — omitted | no — omitted |
-| runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`) | yes (`Stop`/`SubagentStop`) | yes |
+| runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`; `subagentStart` opens the subagent turn) | yes (`Stop`/`SubagentStop`) | yes |
+| subagent tool/skill capture (`harness.subagent`) | no | **yes** — a `toolu_`-prefixed sessionId marks a subagent tool call; best-effort OTel Path O upgrades `harness.subagent` from `true` to the agent name | partial — stamp only (no VS Code toolu_ signal verified) | no |
 | `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | best-effort — same `events.jsonl` mechanism as the CLI, unverified inside the sandbox; degrades to omission |
 
 The gaps in this table are deliberate, not defects: where Copilot exposes no
@@ -272,6 +273,43 @@ For **VS Code agent mode** no user-accessible per-request token source is
 documented in v1, so on that surface the adapter never emits `model` spans
 and does not read `events.jsonl` at all — an honest gap, stated rather than
 papered over.
+
+## Subagent tool/skill capture (`harness.subagent`)
+
+When the conductor spawns a subagent (the `task`/subagent tool), the tool
+calls made **inside** that subagent arrive on their own hook invocations whose
+`sessionId` is the spawning task's tool-use id — a `toolu_`-prefixed string
+(see `github-copilot.subagent-spike.md` §4). The adapter uses that shape as
+the subagent signal:
+
+- **Stamp.** Every `tool`/`skill` span from a `toolu_` session is stamped
+  `harness.subagent` so analytics can split conductor-vs-subagent work. The
+  deterministic value is the string `"true"`.
+- **`subagentStart` agent span.** The `subagentStart` event mints one
+  `agent` span carrying `gen_ai.agent.name` (falling back to a generic
+  subagent name when the payload omits it), symmetric with `subagentStop`.
+- **Best-effort OTel Path O enrichment.** When Copilot is launched with the
+  official OpenTelemetry file exporter (`COPILOT_OTEL_ENABLED=1` and
+  `COPILOT_OTEL_FILE_EXPORTER_PATH` pointing at a local JSONL sink), the hook
+  joins `toolu_<taskId>` → the OTel `execute_tool task` span's
+  `gen_ai.tool.call.id` → the child `invoke_agent` span's `gen_ai.agent.name`
+  and **upgrades** `harness.subagent` from `"true"` to the real agent name
+  (spike §7). This is **best-effort**: it shares the token-read trust class,
+  so a missing, corrupt, or non-matching OTel file never drops the
+  deterministic hook span — it simply **falls back** to `harness.subagent="true"`.
+  With the exporter off, the hook makes the same best-effort attempt against
+  the (undocumented) conductor `events.jsonl` before degrading to `"true"`.
+
+Turn Path O on locally by copying `.env.example` to `.env`, filling the
+`COPILOT_OTEL_*` values, and loading it explicitly before starting Copilot —
+env is **never** auto-sourced:
+
+```sh
+set -a; source .env; set +a
+```
+
+`harness.subagent` is allowlisted for export (it splits subagent cost in App
+Insights); the local OTel sink dir (`.copilot-tracking/otel/`) is gitignored.
 
 ## Subagent model pins
 

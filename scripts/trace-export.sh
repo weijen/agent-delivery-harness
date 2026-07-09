@@ -541,7 +541,7 @@ if [ -n "$DRY_RUN_OTLP_FILE" ] || [ "${TRACE_EXPORT_OTLP_HTTP:-}" = "1" ]; then
   OTLP_FILTER="${TMP_DIR}/export-otlp.jq"
   cat > "$OTLP_FILTER" <<'JQ'
 # Shippable-attribute ALLOWLIST v1 — the SAME deny-by-default surface the
-# App-Insights projection uses (26 keys + the gen_ai.usage.* prefix family).
+# App-Insights projection uses (27 keys + the gen_ai.usage.* prefix family).
 # Any key not matched here is dropped, so excluded free text
 # (harness.args_summary, harness.summary, harness.worktree, harness.branch)
 # and unknown/future keys are byte-absent from the OTLP output.
@@ -555,7 +555,8 @@ def allowlist:
    "gen_ai.tool.name", "gen_ai.operation.name", "gen_ai.agent.name",
    "gen_ai.request.model",
    "harness.review_gate_sha", "harness.pr_number",
-   "harness.require_complete", "harness.warning", "harness.skill.name"];
+   "harness.require_complete", "harness.warning", "harness.skill.name",
+   "harness.subagent"];
 
 def shippable_key:
   . as $k
@@ -746,7 +747,8 @@ def allowlist:
    "gen_ai.tool.name", "gen_ai.operation.name", "gen_ai.agent.name",
    "gen_ai.request.model",
    "harness.review_gate_sha", "harness.pr_number",
-   "harness.require_complete", "harness.warning", "harness.skill.name"];
+   "harness.require_complete", "harness.warning", "harness.skill.name",
+   "harness.subagent"];
 
 def shippable_key:
   . as $k

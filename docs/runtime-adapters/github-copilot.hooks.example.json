@@ -19,6 +19,12 @@
         "command": "bash scripts/copilot-trace-hook.sh"
       }
     ],
+    "subagentStart": [
+      {
+        "type": "command",
+        "command": "bash scripts/copilot-trace-hook.sh"
+      }
+    ],
     "subagentStop": [
       {
         "type": "command",

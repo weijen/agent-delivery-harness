@@ -213,6 +213,27 @@ hook__on_post_tool_use() {
     attrs+=("harness.session_id=${sid}")
   fi
 
+  # Subagent tool/skill call (#227 Task 1): a `toolu_`-prefixed sessionId is
+  # the spawning `task` tool-use id, i.e. this call was made INSIDE a subagent
+  # (docs/runtime-adapters/github-copilot.subagent-spike.md §4). Stamp
+  # harness.subagent so skill/tool spans split conductor-vs-subagent in
+  # analytics (schema v1 open-world). The deterministic value is the string
+  # "true"; best-effort OTel Path O enrichment (#227 Task 3) may upgrade it to
+  # the real agent name. harness.skill.name handling above is unchanged.
+  case "$sid" in
+    toolu_*)
+      local subagent_value="true"
+      # Best-effort enrichment (#227 Task 3): same trust class as the token
+      # read below — join failures NEVER drop the deterministic stamp.
+      local resolved_name=""
+      resolved_name="$(hook__resolve_subagent_name "$sid" 2>/dev/null || true)"
+      if [ -n "$resolved_name" ]; then
+        subagent_value="$resolved_name"
+      fi
+      attrs+=("harness.subagent=${subagent_value}")
+      ;;
+  esac
+
   trace_span tool "${attrs[@]}"
   return 0
 }
@@ -317,6 +338,105 @@ hook__on_stop() {
   [ -n "$agent_span_id" ] && model_attrs+=("parent_span_id=${agent_span_id}")
   trace_span model "${model_attrs[@]}"
   return 0
+}
+
+# subagentStart / SubagentStart — emit ONE agent span symmetric with the
+# subagentStop span (#227 Task 2). The payload carries the CONDUCTOR's
+# sessionId plus the child's agentName, but NO child sessionId / toolCallId
+# (spike §4d), so this is an agent-identity marker, not a session binding.
+#   - gen_ai.operation.name=invoke_agent
+#   - gen_ai.agent.name = payload agentName (camel) / agent_name (snake);
+#     absent → the generic subagent name (as subagentStop does) so the span
+#     stays schema-valid and the start/stop bracket is never half-missing.
+#   - harness.session_id from the conductor sessionId when present.
+# The built-in general-purpose agent is NOT special-cased silent — v1.0.69
+# measured it emitting subagentStart/subagentStop despite the docs (spike §4).
+# hook__on_subagent_start <payload> <fallback_agent_name>
+hook__on_subagent_start() {
+  local payload="$1" fallback_name="$2"
+  local agent_name="" sid=""
+  agent_name="$(printf '%s' "$payload" | jq -r '.agentName // .agent_name // empty' 2>/dev/null || true)"
+  [ -n "$agent_name" ] || agent_name="$fallback_name"
+  sid="$(printf '%s' "$payload" | jq -r '.sessionId // .session_id // empty' 2>/dev/null || true)"
+  local -a attrs=(
+    "gen_ai.operation.name=invoke_agent"
+    "gen_ai.agent.name=${agent_name}"
+  )
+  if [ -n "$sid" ]; then
+    attrs+=("harness.session_id=${sid}")
+  fi
+  trace_span agent "${attrs[@]}"
+  return 0
+}
+
+# --- Subagent agent-name enrichment (#227 Task 3, Path O) ----------------------
+
+# hook__otel_agent_name <otel_file> <toolu_id>
+# Best-effort OTel Path O join (spike §7): the conductor's OTel file export
+# (COPILOT_OTEL_FILE_EXPORTER_PATH, JSON-lines, one span object per line) nests
+# an `execute_tool task` span whose gen_ai.tool.call.id == the toolu_ id, whose
+# child invoke_agent span carries gen_ai.agent.name. Prints that name, or
+# nothing on ANY miss/parse error. Tolerant of attributes as a nested map OR
+# flattened top-level keys, and of spanId/span_id + parentSpanId/parent_span_id.
+hook__otel_agent_name() {
+  local otel="$1" toolu="$2"
+  [ -n "$otel" ] && [ -f "$otel" ] && [ -r "$otel" ] || return 0
+  jq -rs --arg tid "$toolu" '
+    def attr($k): ((.attributes // {})[$k]) // .[$k];
+    [ .[] | select(type == "object") ] as $spans
+    | ( $spans | map(select(attr("gen_ai.tool.call.id") == $tid))
+                | (.[0].spanId // .[0].span_id // "") ) as $task
+    | if ($task | length) == 0 then empty
+      else ( $spans
+             | map(select(((.parentSpanId // .parent_span_id) == $task)
+                          and (attr("gen_ai.agent.name") != null)))
+             | (.[0] | attr("gen_ai.agent.name")) // empty )
+      end
+  ' "$otel" 2>/dev/null | head -n 1
+  return 0
+}
+
+# hook__events_agent_name <toolu_id>
+# Fallback for when OTel is OFF (spike §6, undocumented events.jsonl): scan the
+# conductor session-state dirs for a subagent.started event whose
+# data.toolCallId == the toolu_ id and read data.agentName. Bounded to files
+# that literally contain the id (cheap grep pre-filter). Best-effort: prints
+# nothing on any miss/parse error.
+hook__events_agent_name() {
+  local toolu="$1"
+  [ -n "${HOME:-}" ] || return 0
+  local dir="${HOME}/.copilot/session-state"
+  [ -d "$dir" ] || return 0
+  local f name=""
+  for f in "$dir"/*/events.jsonl; do
+    { [ -f "$f" ] && [ -r "$f" ]; } || continue
+    grep -qF "$toolu" "$f" 2>/dev/null || continue
+    name="$(jq -r --arg tid "$toolu" '
+        select((type == "object") and (.type? == "subagent.started")
+               and (.data?.toolCallId? == $tid))
+        | .data.agentName // empty' "$f" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$name" ]; then
+      printf '%s' "$name"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# hook__resolve_subagent_name <toolu_id>
+# Prefer the documented OTel file export; fall back to the undocumented
+# events.jsonl only when OTel is OFF (COPILOT_OTEL_FILE_EXPORTER_PATH unset).
+# Prints a single-line agent name, or nothing (the caller keeps "true").
+hook__resolve_subagent_name() {
+  local toolu="$1" name=""
+  if [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
+    name="$(hook__otel_agent_name "${COPILOT_OTEL_FILE_EXPORTER_PATH}" "$toolu" 2>/dev/null || true)"
+  else
+    name="$(hook__events_agent_name "$toolu" 2>/dev/null || true)"
+  fi
+  name="$(printf '%s' "$name" | tr -d '\n\r' | LC_ALL=C tr -cd '[:print:]')"
+  [ -n "$name" ] || return 0
+  printf '%s' "$name"
 }
 
 # --- Interval fallback (#146) --------------------------------------------------
@@ -576,14 +696,34 @@ hook__main() {
       # Active-issue marker fast-path (P-5): start-issue.sh recorded the sole
       # live issue. Force trace__resolve_issue to it and skip the interval scan.
       export TRACE_ISSUE="$matched_issue"
+      # #227 Task 1: a subagent's toolu_ session is never git-bound (it carries
+      # no worktree cwd of its own). Once the still-valid conductor context
+      # (marker) resolves it, persist a binding keyed by the toolu_ id so every
+      # subsequent subagent call skips the interval scan entirely.
+      case "$sid" in
+        toolu_*) hook__session_bind "$main_root" "$sid" "$matched_issue" ;;
+      esac
     elif matched_issue="$(hook__resolve_issue_by_interval "$main_root" "$ts")" \
         && [ -n "$matched_issue" ]; then
       # Interval fallback (last resort): no usable marker — reconstruct the
       # owning window from on-disk lifecycle spans. Force trace__resolve_issue to
       # the matched issue so the fallback span lands in that issue's own trace.
       export TRACE_ISSUE="$matched_issue"
+      case "$sid" in
+        toolu_*) hook__session_bind "$main_root" "$sid" "$matched_issue" ;;
+      esac
     else
-      trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"
+      # #227 Task 5: keep the strict drop rule — an unbindable, interval-
+      # ambiguous session is never mis-attributed. A dropped subagent (toolu_)
+      # session gets a distinct diagnostic so subagent-span loss is visible.
+      case "$sid" in
+        toolu_*)
+          trace_warn "copilot-trace-hook: unbindable subagent (toolu_) session ${sid} interval-ambiguous for ts=${ts} — span dropped"
+          ;;
+        *)
+          trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"
+          ;;
+      esac
       return 0
     fi
   fi
@@ -598,8 +738,10 @@ hook__main() {
     postToolUseFailure) hook__on_post_tool_use "$payload" camel fail ;;
     PostToolUse)        hook__on_post_tool_use "$payload" snake "" ;;
     agentStop)          hook__on_stop "$payload" "github-copilot" cli ;;
+    subagentStart)      hook__on_subagent_start "$payload" "github-copilot-subagent" ;;
     subagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     Stop)               hook__on_stop "$payload" "github-copilot" none ;;
+    SubagentStart)      hook__on_subagent_start "$payload" "github-copilot-subagent" ;;
     SubagentStop)       hook__on_stop "$payload" "github-copilot-subagent" none ;;
     "")
       # CLI v1.0.69 (#137) sends NO event / hook_event_name field. Infer a
