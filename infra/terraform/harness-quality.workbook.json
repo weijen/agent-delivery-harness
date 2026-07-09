@@ -435,6 +435,32 @@
               "visualization": "table"
             },
             "name": "drilldown-cost-strip"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### End-to-end transaction view (link-out)\nThis tab links OUT to the native Application Insights end-to-end transaction (span-tree waterfall) for the selected run \u2014 it does NOT rebuild the tree in KQL. The OTLP path derives a deterministic per-issue TraceId and preserves parent_span_id (#174), and every App Insights envelope is tagged ai.operation.id = issue-<issue>, so the native view (keyed on operation_Id == 'issue-{Issue}') is the source of truth for the span tree."
+            },
+            "name": "drilldown-transaction-deeplink-note"
+          },
+          {
+            "type": 11,
+            "content": {
+              "version": "LinksItem/1.0",
+              "style": "list",
+              "links": [
+                {
+                  "id": "drilldown-transaction-deeplink",
+                  "linkTarget": "Url",
+                  "linkLabel": "Open end-to-end transaction view \u2192",
+                  "style": "link",
+                  "cellValue": "https://portal.azure.com/#blade/AppInsightsExtension/BladeRedirect/BladeName/searchV1/ResourceId//BladeInputs/%7B%22tables%22%3A%5B%22requests%22%2C%22dependencies%22%5D%2C%22query%22%3A%22union%20requests%2Cdependencies%20%7C%20where%20operation_Id%20%3D%3D%20'issue-%7BIssue%7D'%22%7D",
+                  "preText": "The workbook resolves its own Application Insights component from its Terraform source_id; this link carries no committed resource id.",
+                  "postText": "Opens the native span-tree waterfall for operation_Id == 'issue-{Issue}'. The OTLP path derives a deterministic per-issue TraceId and preserves parent_span_id (#174); the App Insights path tags every envelope ai.operation.id = issue-<issue>. The workbook does not rebuild the tree in KQL."
+                }
+              ]
+            },
+            "name": "drilldown-transaction-deeplink"
           }
         ]
       },

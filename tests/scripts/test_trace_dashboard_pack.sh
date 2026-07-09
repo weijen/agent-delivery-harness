@@ -540,6 +540,44 @@ else
 	note "$WB_JSON: no per-run cost strip with tokens_status for {Issue} — #223 panel 5 (need a tab-drilldown KqlItem: customEvents filtered on harness.issue == '{Issue}', tokens by agent/model, emitting a tokens_status column that reads 'unavailable' when no model span carried gen_ai.usage.*)"
 fi
 
+# #223 panel 6 — end-to-end transaction deep link (link-OUT, NOT a re-built
+# waterfall). The drill-down tab must hand the operator across to the NATIVE
+# App Insights end-to-end transaction view for the selected run, keyed on
+# operation_Id == 'issue-{Issue}'. This is a deep link, not a KQL panel: the
+# tab must NOT re-implement the transaction waterfall in KQL (which would need
+# parent_span_id to reconstruct the span tree). Two halves:
+#   (a) the tab-drilldown group carries a link-OUT item (a type:11 LinksItem
+#       whose linkTarget is not the internal "parameter" tab-switch, or a grid
+#       link-formatter column — both surface as a linkTarget != "parameter")
+#       whose serialized content references operation_Id and/or issue-{Issue},
+#       AND
+#   (b) NO tab-drilldown KqlItem query rebuilds the waterfall — the flattened
+#       drilldown query lines must NOT reference parent_span_id.
+# (a) link-OUT item keyed on the run. Collect drilldown items that carry any
+#     non-"parameter" linkTarget (type:11 url link OR grid link formatter), then
+#     grep their serialized form for the run key — a plain KQL panel (no
+#     linkTarget) cannot satisfy this by accident.
+dd_deeplink="$extract_dir/drilldown-linkouts.json"
+jq -c '
+	.items[]
+	| select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	| .content.items[]?
+	| select([.. | objects | select(has("linkTarget") and (.linkTarget != "parameter"))] | length > 0)
+' "$WB_JSON" > "$dd_deeplink" 2>/dev/null || true
+if [ -s "$dd_deeplink" ] && grep -Eq 'operation_Id|issue-\{Issue\}' "$dd_deeplink"; then
+	ok "#223: drilldown tab carries a transaction-view deep link keyed on operation_Id/issue-{Issue} (panel 6)"
+else
+	note "no transaction-view deep link keyed on operation_Id/issue-{Issue} — #223 panel 6 (need a tab-drilldown link-OUT: a type:11 LinksItem or grid link-formatter column, linkTarget != \"parameter\", opening the native App Insights end-to-end transaction view for operation_Id == 'issue-{Issue}')"
+fi
+# (b) waterfall NOT rebuilt in KQL. Reuse the flattened tab-drilldown query
+#     lines ($dd_timeline, one query per line) and require that NONE reference
+#     parent_span_id — the native transaction view owns the span tree.
+if grep -Fq 'parent_span_id' "$dd_timeline"; then
+	note "$WB_JSON: a tab-drilldown KqlItem query references parent_span_id — Tab 2 must NOT rebuild the end-to-end transaction waterfall in KQL; link OUT to the native App Insights transaction view instead — #223 panel 6"
+else
+	ok "#223: Tab 2 does not rebuild the transaction waterfall in KQL (no parent_span_id in drilldown queries)"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
