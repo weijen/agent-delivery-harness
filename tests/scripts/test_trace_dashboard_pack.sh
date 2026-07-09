@@ -411,6 +411,199 @@ else
 fi
 
 # =============================================================================
+# #223 — Tab 2 "Single-run drill-down" container. #222 wired the {Issue}
+# drill-through export; this feature adds the tab that consumes it. Mirrors the
+# #222 tab mechanism exactly: a links (type:11 "tabs") subTarget entry writing
+# selectedTab, plus a type:12 group gated via conditionalVisibility on
+# selectedTab. This leg pins BOTH halves of the container:
+#   (1) the tabs links component carries a subTarget:"drilldown" entry
+#       positioned BETWEEN the issues and compare entries, AND
+#   (2) a type:12 group whose conditionalVisibility.value == "drilldown"
+#       exists and carries a header text item (type:1) that names {Issue}.
+# A flat pack, or a drilldown entry appended out of order, or a group with no
+# {Issue} header, must fail — the tab that consumes the drill-through is absent.
+# =============================================================================
+# (1) drilldown links entry, ordered between issues and compare (all jq logic,
+#     so a null index cannot become a false pass).
+dd_between="$(jq -r '
+	[.items[] | select(.name == "tabs") | .content.links[].subTarget] as $s
+	| ($s | index("drilldown")) as $d
+	| ($s | index("issues")) as $i
+	| ($s | index("compare")) as $c
+	| ($d != null and $i != null and $c != null and $i < $d and $d < $c)
+' "$WB_JSON" 2>/dev/null || echo false)"
+if [ "$dd_between" = "true" ]; then
+	ok "#223: tabs carries a 'drilldown' subTarget positioned between issues and compare"
+else
+	note "$WB_JSON: tabs links component has no subTarget:\"drilldown\" entry positioned between the issues and compare entries — #223 Tab 2 container"
+fi
+
+# (2) a type:12 group gated on selectedTab == "drilldown" carrying a header text
+#     item that names {Issue}.
+dd_group_hdr="$(jq -r '
+	[ .items[]
+	  | select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	  | .content.items[]?
+	  | select(.type == 1)
+	  | .content.json
+	  | select(type == "string" and test("Issue")) ] | length
+' "$WB_JSON" 2>/dev/null || echo 0)"
+if [ "${dd_group_hdr:-0}" -gt 0 ]; then
+	ok "#223: drilldown group (conditionalVisibility == drilldown) has a header text item naming {Issue}"
+else
+	note "$WB_JSON: no type:12 group gated on selectedTab == \"drilldown\" with a header text item referencing {Issue} — #223 Tab 2 container"
+fi
+
+# #223 panel 1 — lifecycle-step timeline. The drill-down tab must carry a KQL
+# panel that renders the selected run's lifecycle as a time-ordered table: a
+# dependencies query scoped to the exported {Issue} on harness.issue, reading
+# harness.lifecycle_step, ordered by timestamp ascending. Extract ONLY the
+# tab-drilldown group's KqlItem (type:3) query strings — flattened one-per-line
+# — so a compare-tab or fleet-health query cannot satisfy this by accident, and
+# require a single query to carry all three markers (issue filter + lifecycle
+# step + timestamp ordering) at once.
+dd_timeline="$extract_dir/drilldown-queries.flat"
+jq -r '
+	.items[]
+	| select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	| .content.items[]?
+	| select(.type == 3)
+	| .content.query? // empty
+	| select(type == "string")
+	| gsub("[[:space:]]+"; " ")
+' "$WB_JSON" > "$dd_timeline" 2>/dev/null || true
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'harness.lifecycle_step' \
+	| grep -Eiq 'order by timestamp'; then
+	ok "#223: drilldown tab carries a lifecycle-step timeline for {Issue} (panel 1)"
+else
+	note "$WB_JSON: no lifecycle-step timeline for {Issue} — #223 panel 1 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing harness.lifecycle_step, order by timestamp)"
+fi
+
+# #223 panel 2 — per-feature TDD-loop strip. The drill-down tab must also carry
+# a KQL panel that summarises each feature's RED/GREEN churn for the selected
+# run: a dependencies query scoped to the exported {Issue} on harness.issue,
+# grouped by feature (harness.feature_id), counting the loop steps
+# red_handback / impl_handback / green_handback (role attribution rides on
+# harness.subagent, not the un-allowlisted harness.role). Reuse the same
+# flattened tab-drilldown query lines and require a single query to carry ALL
+# the markers (issue filter + feature_id + all three handback step names) so the
+# lifecycle-timeline query — which names harness.lifecycle_step but neither
+# feature_id nor the handback trio — cannot satisfy this by accident.
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'harness.feature_id' \
+	| grep -F 'red_handback' \
+	| grep -F 'impl_handback' \
+	| grep -Fq 'green_handback'; then
+	ok "#223: drilldown tab carries a per-feature TDD loop strip for {Issue} (panel 2)"
+else
+	note "$WB_JSON: no per-feature TDD loop strip for {Issue} — #223 panel 2 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', grouped by harness.feature_id, counting red_handback/impl_handback/green_handback)"
+fi
+
+# #223 panel 3 — per-run tool/skill calls. The drill-down tab must also carry a
+# KQL panel that surfaces the selected run's tool and skill invocations: a
+# dependencies query scoped to the exported {Issue} on harness.issue that
+# references BOTH gen_ai.tool.name (tool calls) AND harness.skill.name (skill
+# calls) — the volume/failures/top-durations view. Reuse the same flattened
+# tab-drilldown query lines and require a single query to carry ALL the markers
+# (issue filter + both the tool-name and skill-name dimensions) so the
+# lifecycle-timeline query (harness.lifecycle_step) and the TDD-loop strip
+# (harness.feature_id) — neither of which names both tool and skill — cannot
+# satisfy this by accident.
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'gen_ai.tool.name' \
+	| grep -Fq 'harness.skill.name'; then
+	ok "#223: drilldown tab carries a per-run tool/skill calls panel for {Issue} (panel 3)"
+else
+	note "$WB_JSON: no per-run tool/skill panel for {Issue} — #223 panel 3 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing gen_ai.tool.name AND harness.skill.name, for call volume/failures/top-durations)"
+fi
+
+# #223 panel 5 — per-run cost strip. The drill-down tab must ALSO carry a KQL
+# panel that surfaces the selected run's model token cost. UNLIKE panels 1-3
+# (which read the dependencies table) this panel queries the customEvents table
+# — that is where the exporter maps agent+model spans — scoped to the exported
+# {Issue} on harness.issue, and it must emit a tokens_status honesty column so a
+# run whose model spans carried no gen_ai.usage.* is reported as unavailable
+# rather than a fabricated 0. Reuse the same flattened tab-drilldown query lines
+# and require a single query to carry ALL the markers (customEvents table +
+# issue filter + tokens_status) so the dependencies-based panels 1-3 — none of
+# which name the customEvents table — cannot satisfy this by accident.
+if grep -F 'customEvents' "$dd_timeline" \
+	| grep -F "customDimensions['harness.issue']" \
+	| grep -F '{Issue}' \
+	| grep -Fq 'tokens_status'; then
+	ok "#223: drilldown tab carries a per-run cost strip for {Issue} (panel 5)"
+else
+	note "$WB_JSON: no per-run cost strip with tokens_status for {Issue} — #223 panel 5 (need a tab-drilldown KqlItem: customEvents filtered on harness.issue == '{Issue}', tokens by agent/model, emitting a tokens_status column that reads 'unavailable' when no model span carried gen_ai.usage.*)"
+fi
+
+# #223 panel 6 — end-to-end transaction deep link (link-OUT, NOT a re-built
+# waterfall). The drill-down tab must hand the operator across to the NATIVE
+# App Insights end-to-end transaction view for the selected run, keyed on
+# operation_Id == 'issue-{Issue}'. This is a deep link, not a KQL panel: the
+# tab must NOT re-implement the transaction waterfall in KQL (which would need
+# parent_span_id to reconstruct the span tree). Two halves:
+#   (a) the tab-drilldown group carries a link-OUT item (a type:11 LinksItem
+#       whose linkTarget is not the internal "parameter" tab-switch, or a grid
+#       link-formatter column — both surface as a linkTarget != "parameter")
+#       whose serialized content references operation_Id and/or issue-{Issue},
+#       AND
+#   (b) NO tab-drilldown KqlItem query rebuilds the waterfall — the flattened
+#       drilldown query lines must NOT reference parent_span_id.
+# (a) link-OUT item keyed on the run. Collect drilldown items that carry any
+#     non-"parameter" linkTarget (type:11 url link OR grid link formatter), then
+#     grep their serialized form for the run key — a plain KQL panel (no
+#     linkTarget) cannot satisfy this by accident.
+dd_deeplink="$extract_dir/drilldown-linkouts.json"
+jq -c '
+	.items[]
+	| select(.type == 12 and .conditionalVisibility.value == "drilldown")
+	| .content.items[]?
+	| select([.. | objects | select(has("linkTarget") and (.linkTarget != "parameter"))] | length > 0)
+' "$WB_JSON" > "$dd_deeplink" 2>/dev/null || true
+if [ -s "$dd_deeplink" ] && grep -Eq 'operation_Id|issue-\{Issue\}' "$dd_deeplink"; then
+	ok "#223: drilldown tab carries a transaction-view deep link keyed on operation_Id/issue-{Issue} (panel 6)"
+else
+	note "no transaction-view deep link keyed on operation_Id/issue-{Issue} — #223 panel 6 (need a tab-drilldown link-OUT: a type:11 LinksItem or grid link-formatter column, linkTarget != \"parameter\", opening the native App Insights end-to-end transaction view for operation_Id == 'issue-{Issue}')"
+fi
+# (b) waterfall NOT rebuilt in KQL. Reuse the flattened tab-drilldown query
+#     lines ($dd_timeline, one query per line) and require that NONE reference
+#     parent_span_id — the native transaction view owns the span tree.
+if grep -Fq 'parent_span_id' "$dd_timeline"; then
+	note "$WB_JSON: a tab-drilldown KqlItem query references parent_span_id — Tab 2 must NOT rebuild the end-to-end transaction waterfall in KQL; link OUT to the native App Insights transaction view instead — #223 panel 6"
+else
+	ok "#223: Tab 2 does not rebuild the transaction waterfall in KQL (no parent_span_id in drilldown queries)"
+fi
+
+# #223: transaction deep-link uses substitutable {Issue} token. The
+# drilldown-transaction-deeplink item's cellValue is a portal URL whose query
+# embeds the run key. Azure Workbook parameter substitution ONLY matches a
+# LITERAL {Issue} (or {Issue:urlencode}) token — a percent-encoded %7BIssue%7D
+# is NEVER substituted and will always query the literal string "issue-%7BIssue%7D".
+# Assert: (1) cellValue contains a literal (un-encoded) {Issue token, AND
+#         (2) cellValue does NOT contain the percent-encoded %7BIssue%7D form.
+dd_cellvalue="$(jq -r '
+	.. | objects
+	| select(.name? == "drilldown-transaction-deeplink")
+	| .content.links[]?
+	| select(.id? == "drilldown-transaction-deeplink")
+	| .cellValue
+	| select(type == "string")
+' "$WB_JSON" 2>/dev/null || true)"
+dd_has_literal=0
+dd_has_encoded=0
+if printf '%s' "$dd_cellvalue" | grep -Fq '{Issue'; then dd_has_literal=1; fi
+if printf '%s' "$dd_cellvalue" | grep -Fq '%7BIssue%7D'; then dd_has_encoded=1; fi
+if { [ "$dd_has_literal" -eq 1 ] && [ "$dd_has_encoded" -eq 0 ]; }; then
+	ok "#223: transaction deep-link cellValue uses a substitutable literal {Issue} token (not percent-encoded)"
+else
+	note "#223: transaction deep-link cellValue must contain a literal {Issue} token (not percent-encoded %7BIssue%7D) — Azure Workbook only substitutes {Issue} or {Issue:urlencode}, never %7BIssue%7D; has_literal=$dd_has_literal has_encoded=$dd_has_encoded"
+fi
+
+# =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
 honesty_targets="$WB_JSON $DASH_README"
@@ -463,6 +656,67 @@ for f in $honesty_targets; do
 done
 if [ "$reentry_named" -eq 0 ]; then
 	note "honest-metrics: neither the workbook nor $DASH_README names red_reentry_free_rate by its honest contract name"
+fi
+
+# =============================================================================
+# #223: deferred log panel + map coherence. The out-of-scope failure-detail LOG
+# panel (Tab 2 panel 4) is deferred to a separate #220-gated issue. Honesty
+# doctrine: the pack must NAME it as deferred rather than silently omit it — in
+# BOTH the workbook Tab 2 header AND the README panel->contract map. F1 already
+# added the deferred note to the workbook drilldown header and a tabs bullet, so
+# this leg guards the README MAP surface, which the tabs bullet alone does not
+# satisfy: (a) the "Panel -> contract-field map" section must carry a row/entry
+# naming the deferred failure-detail LOG panel as deferred/unavailable gated on
+# #220 (not merely the tabs bullet), AND (b) that same map must carry a row for
+# EVERY shipped Tab 2 panel (all five), so the deferred note lands beside the
+# panels it accompanies rather than orphaned. Scope strictly to the map section
+# (its heading to the next top-level "## " heading) so the tabs-list bullet
+# cannot satisfy the row assertion by accident.
+map_section="$extract_dir/readme-panel-map.section"
+if [ -f "$DASH_README" ]; then
+	awk '
+		/^## Panel -> contract-field map/ { grab = 1; next }
+		grab && /^## / { grab = 0 }
+		grab { print }
+	' "$DASH_README" > "$map_section" 2>/dev/null || true
+else
+	: > "$map_section"
+fi
+# (a) a map TABLE row naming the deferred failure-detail LOG panel, #220-gated.
+log_row_deferred=0
+while IFS= read -r map_line; do
+	case "$map_line" in
+	'|'*) : ;;
+	*) continue ;;
+	esac
+	if printf '%s\n' "$map_line" | grep -Eiq 'log'; then
+		if printf '%s\n' "$map_line" | grep -Eq '#?220'; then
+			if printf '%s\n' "$map_line" | grep -Eiq 'deferred|unavailable|not available|n/?a\b'; then
+				log_row_deferred=1
+			fi
+		fi
+	fi
+done < "$map_section"
+if [ "$log_row_deferred" -eq 0 ]; then
+	note "#223: the README panel->contract map has no row naming the deferred failure-detail LOG panel as deferred/unavailable gated on #220 (Tab 2 panel 4 must be named in the map itself, not just the tabs bullet)"
+fi
+# (b) every shipped Tab 2 panel appears as a row in that same map section.
+missing_tab2_panel=""
+for tab2_panel in \
+	"Lifecycle step timeline" \
+	"Per-feature TDD loop strip" \
+	"Tool & skill calls" \
+	"Cost strip" \
+	"Transaction-view deep link"; do
+	if ! grep -Fq "$tab2_panel" "$map_section"; then
+		missing_tab2_panel="$tab2_panel"
+	fi
+done
+if [ -n "$missing_tab2_panel" ]; then
+	note "#223: the README panel->contract map is missing a row for a shipped Tab 2 panel ('$missing_tab2_panel') — the deferred-#220 log note must sit beside a complete Tab 2 panel map"
+fi
+if [ "$log_row_deferred" -eq 1 ] && [ -z "$missing_tab2_panel" ]; then
+	ok "#223: README panel map names the deferred #220 log panel and rows every shipped Tab 2 panel"
 fi
 
 # =============================================================================

@@ -72,6 +72,14 @@
             "style": "link"
           },
           {
+            "id": "tab-drilldown-link",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Single-run drill-down",
+            "subTarget": "drilldown",
+            "style": "link"
+          },
+          {
             "id": "tab-compare-link",
             "cellValue": "selectedTab",
             "linkTarget": "parameter",
@@ -280,6 +288,183 @@
         ]
       },
       "name": "tab-issues"
+    },
+    {
+      "type": 12,
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "drilldown"
+      },
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Deferred:** the failure-detail **log** panel is deferred / unavailable (gated on #220) and is intentionally not shipped in this tab."
+            },
+            "name": "drilldown-header"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), step = tostring(customDimensions['harness.lifecycle_step']), outcome = tostring(customDimensions['harness.outcome']), dur_ms = todouble(customDimensions['harness.duration_ms']) | where issue == '{Issue}' and isnotempty(step) | project timestamp, step, outcome, duration_ms = dur_ms | order by timestamp asc",
+              "size": 0,
+              "title": "Lifecycle step timeline (ordered by span timestamp)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "outcome",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "fail",
+                          "representation": "redBright",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "pass",
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "gray",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-lifecycle-timeline"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), feature = tostring(customDimensions['harness.feature_id']), step = tostring(customDimensions['harness.lifecycle_step']), role = tostring(customDimensions['harness.subagent']) | where issue == '{Issue}' and isnotempty(feature) | summarize reds = countif(step == 'red_handback'), impls = countif(step == 'impl_handback'), greens = countif(step == 'green_handback'), roles = make_set_if(role, isnotempty(role)) by feature | extend reentries = max_of(0, reds + impls + greens - 3) | project feature, reds, impls, greens, reentries, roles | order by feature asc",
+              "size": 0,
+              "title": "Per-feature TDD loop strip (reentries > 0 = red_reentry)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "reentries",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": ">",
+                          "thresholdValue": "0",
+                          "representation": "yellow",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-tdd-loop-strip"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), tool = tostring(customDimensions['gen_ai.tool.name']), skill = tostring(customDimensions['harness.skill.name']), status = tostring(customDimensions['harness.exit_status']), dur_ms = todouble(customDimensions['harness.duration_ms']) | where issue == '{Issue}' and (isnotempty(tool) or isnotempty(skill)) | extend call = coalesce(tool, skill), kind = iff(isnotempty(tool), 'tool', 'skill') | summarize calls = count(), fail_calls = countif(status != '0' and isnotempty(status)), max_ms = max(dur_ms) by call, kind | order by calls desc",
+              "size": 0,
+              "title": "Tool & skill calls (this run)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "fail_calls",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": ">",
+                          "thresholdValue": "0",
+                          "representation": "redBright",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-tool-skill-calls"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), agent = tostring(customDimensions['gen_ai.agent.name']), model = tostring(customDimensions['gen_ai.request.model']) | extend input_tokens = toreal(measurements['gen_ai.usage.input_tokens']), output_tokens = toreal(measurements['gen_ai.usage.output_tokens']) | where issue == '{Issue}' | summarize input_tokens = sum(input_tokens), output_tokens = sum(output_tokens), runs_with_tokens = countif(isnotnull(input_tokens)), runs = count() by agent, model | extend tokens_status = iff(runs_with_tokens == 0, 'unavailable', 'measured') | order by agent asc",
+              "size": 0,
+              "title": "Cost strip (this run) \u2014 tokens_status honesty: measured when a model span emits gen_ai.usage.*; unavailable is an honest null (never a fabricated 0); remaining gap Copilot-side #163",
+              "queryType": 0,
+              "visualization": "table"
+            },
+            "name": "drilldown-cost-strip"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "### End-to-end transaction view (link-out)\nThis tab links OUT to the native Application Insights end-to-end transaction (span-tree waterfall) for the selected run \u2014 it does NOT rebuild the tree in KQL. The OTLP path derives a deterministic per-issue TraceId and preserves parent_span_id (#174), and every App Insights envelope is tagged ai.operation.id = issue-<issue>, so the native view (keyed on operation_Id == 'issue-{Issue}') is the source of truth for the span tree."
+            },
+            "name": "drilldown-transaction-deeplink-note"
+          },
+          {
+            "type": 11,
+            "content": {
+              "version": "LinksItem/1.0",
+              "style": "list",
+              "links": [
+                {
+                  "id": "drilldown-transaction-deeplink",
+                  "linkTarget": "Url",
+                  "linkLabel": "Open end-to-end transaction view \u2192",
+                  "style": "link",
+                  "cellValue": "https://portal.azure.com/#blade/AppInsightsExtension/BladeRedirect/BladeName/searchV1/ResourceId//BladeInputs/%7B%22tables%22%3A%5B%22requests%22%2C%22dependencies%22%5D%2C%22query%22%3A%22union%20requests%2Cdependencies%20%7C%20where%20operation_Id%20%3D%3D%20'issue-{Issue:urlencode}'%22%7D",
+                  "preText": "The workbook resolves its own Application Insights component from its Terraform source_id; this link carries no committed resource id.",
+                  "postText": "Opens the native span-tree waterfall for operation_Id == 'issue-{Issue}'. The OTLP path derives a deterministic per-issue TraceId and preserves parent_span_id (#174); the App Insights path tags every envelope ai.operation.id = issue-<issue>. The workbook does not rebuild the tree in KQL."
+                }
+              ]
+            },
+            "name": "drilldown-transaction-deeplink"
+          }
+        ]
+      },
+      "name": "tab-drilldown"
     },
     {
       "type": 12,
