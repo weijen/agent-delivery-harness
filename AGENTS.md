@@ -60,6 +60,15 @@ session rituals and garbage-collection cadence are in
 
 ## Start every session here
 
+> **Launch topology:** Start the Copilot CLI conductor session from the repository root — the
+> trusted folder that contains `.github/hooks/` — not from `$HOME` or any directory outside the
+> repo. The CLI loads workspace hooks from the session cwd; if the conductor launches from an
+> untrusted cwd, it silently skips `.github/hooks/harness-trace.json`, the trace hook never fires,
+> and the session becomes a dark run with zero runtime tool spans captured (the #227/#228/#238
+> 392-span loss). On new machines, first ensure the repository root is listed under
+> `trustedFolders` in `~/.copilot/config.json`; Copilot CLI only loads workspace hooks from trusted
+> folders.
+
 This repo has a `harness-smoke.yml` GitHub Actions workflow that runs the harness
 shell sensor suite (`tests/scripts/` and `tests/meta/`), shell parsing, and
 `shellcheck`. A green run is a hard precondition for merge (enforced via
