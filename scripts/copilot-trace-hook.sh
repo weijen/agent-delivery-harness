@@ -417,14 +417,16 @@ hook__events_agent_name() {
 }
 
 # hook__resolve_subagent_name <toolu_id>
-# Prefer the documented OTel file export; fall back to the undocumented
-# events.jsonl only when OTel is OFF (COPILOT_OTEL_FILE_EXPORTER_PATH unset).
+# Prefer the documented OTel file export when enabled and configured; fall
+# through to the undocumented events.jsonl fallback on any OTel miss.
 # Prints a single-line agent name, or nothing (the caller keeps "true").
 hook__resolve_subagent_name() {
   local toolu="$1" name=""
-  if [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
+  local otel_enabled="${COPILOT_OTEL_ENABLED:-}"
+  if [ -n "$otel_enabled" ] && [ "$otel_enabled" != "0" ] && [ "$otel_enabled" != "false" ] && [ -n "${COPILOT_OTEL_FILE_EXPORTER_PATH:-}" ]; then
     name="$(hook__otel_agent_name "${COPILOT_OTEL_FILE_EXPORTER_PATH}" "$toolu" 2>/dev/null || true)"
-  else
+  fi
+  if [ -z "$name" ]; then
     name="$(hook__events_agent_name "$toolu" 2>/dev/null || true)"
   fi
   name="$(printf '%s' "$name" | tr -d '\n\r' | LC_ALL=C tr -cd '[:print:]')"

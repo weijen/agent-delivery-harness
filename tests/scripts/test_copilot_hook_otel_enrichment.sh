@@ -103,6 +103,22 @@ hook_otel_agent_name() {
   bash -c 'eval "$1"; hook__otel_agent_name "$2" "$3"' _ "$defs" "$otel" "$toolu"
 }
 
+hook_resolve_subagent_name() {
+  local home="$1" toolu="$2" otel_enabled="$3" otel_path="$4" defs=""
+  local env_args=()
+  defs="$(sed -n '/^hook__otel_agent_name() {/,/^# hook__issue_trace_file/p' "$HOOK")"
+  (
+    env_args=(-i PATH="$PATH" HOME="$home")
+    if [ "$otel_enabled" != "__unset__" ]; then
+      env_args+=(COPILOT_OTEL_ENABLED="$otel_enabled")
+    fi
+    if [ "$otel_path" != "__unset__" ]; then
+      env_args+=(COPILOT_OTEL_FILE_EXPORTER_PATH="$otel_path")
+    fi
+    env "${env_args[@]}" bash -c "eval \"\$1\"; hook__resolve_subagent_name \"\$2\"" _ "$defs" "$toolu"
+  )
+}
+
 write_events_fixture() {
   local conductor_sid="$1" toolu="$2" agent="$3"
   mkdir -p "${FIXHOME}/.copilot/session-state/${conductor_sid}"
@@ -113,15 +129,17 @@ write_events_fixture() {
 
 FIXHOME="${TMP_DIR}/home"; mkdir -p "$FIXHOME"
 HOOK_RC=0; HOOK_OUT=""; HOOK_ERR=""
-# run_hook <label> <workdir> <stdin-file> [otel-path]
+# run_hook <label> <workdir> <stdin-file> [otel-path] [otel-enabled]
 run_hook() {
-  local label="$1" workdir="$2" stdin_file="$3" otel="${4:-}"
+  local label="$1" workdir="$2" stdin_file="$3" otel="${4:-}" otel_enabled="${5:-}"
+  local env_args=()
   HOOK_OUT="${TMP_DIR}/${label}.out"; HOOK_ERR="${TMP_DIR}/${label}.err"; HOOK_RC=0
+  env_args=(-i PATH="$PATH" HOME="$FIXHOME" COPILOT_TRACE_HOOK_DEBUG=1)
+  if [ -n "$otel" ]; then env_args+=(COPILOT_OTEL_FILE_EXPORTER_PATH="$otel"); fi
+  if [ -n "$otel_enabled" ]; then env_args+=(COPILOT_OTEL_ENABLED="$otel_enabled"); fi
   set +e
   ( cd "$workdir" || exit 97
-    if [ -n "$otel" ]; then export COPILOT_OTEL_FILE_EXPORTER_PATH="$otel"; else unset COPILOT_OTEL_FILE_EXPORTER_PATH; fi
-    HOME="$FIXHOME" COPILOT_TRACE_HOOK_DEBUG=1 \
-      bash "${workdir}/scripts/copilot-trace-hook.sh" < "$stdin_file"
+    env "${env_args[@]}" bash "${workdir}/scripts/copilot-trace-hook.sh" < "$stdin_file"
   ) > "$HOOK_OUT" 2> "$HOOK_ERR"
   HOOK_RC=$?; set -e
   [ "$HOOK_RC" -ne 97 ] || fail "${label}: fixture workdir vanished (${workdir})"
@@ -155,12 +173,12 @@ DIRR1="${TMP_DIR}/issue-801-repo"; make_issue_branch_repo "$DIRR1" "feature/issu
 R1_TOOLU="toolu_0OTELjoin"; R1_CONDUCTOR="uuid-conductor-801"
 R1_OTEL="${TMP_DIR}/otel-r1.jsonl"; write_otel_fixture "$R1_OTEL" "$R1_TOOLU" "spike-probe"
 R1_TRACE="$(trace_path "$DIRR1" 801)"; r1_before="$(line_count "$R1_TRACE")"
-run_hook "r1-post" "$DIRR1" <(camel_post "$DIRR1" "$R1_TOOLU" "skill" '{"skill":"find-over-design"}' 2026-07-07T10:00:00Z) "$R1_OTEL"
+run_hook "r1-post" "$DIRR1" <(camel_post "$DIRR1" "$R1_TOOLU" "skill" '{"skill":"find-over-design"}' 2026-07-07T10:00:00Z) "$R1_OTEL" "true"
 assert_session_safe "r1-post"
 [ "$(line_count "$R1_TRACE")" = "$((r1_before + 1))" ] || fail "R1: postToolUse must append exactly one tool span for issue-801"
 assert_tool_subagent_value "R1(postToolUse)" "$R1_TRACE" "$R1_TOOLU" "true"
 r1_after_post="$(line_count "$R1_TRACE")"
-run_hook "r1-stop" "$DIRR1" <(camel_subagent_stop "$DIRR1" "$R1_CONDUCTOR" "spike-probe" 2026-07-07T10:00:01Z) "$R1_OTEL"
+run_hook "r1-stop" "$DIRR1" <(camel_subagent_stop "$DIRR1" "$R1_CONDUCTOR" "spike-probe" 2026-07-07T10:00:01Z) "$R1_OTEL" "true"
 assert_session_safe "r1-stop"
 [ "$(line_count "$R1_TRACE")" = "$((r1_after_post + 1))" ] \
   || fail "R1: subagentStop should append exactly the stop agent span and retro-upgrade in place; expected $((r1_after_post + 1)) lines, got $(line_count "$R1_TRACE")"
@@ -242,5 +260,31 @@ F2_OTEL="${TMP_DIR}/otel-f2-v1070-mixed.jsonl"; write_mixed_otel_v1070_fixture "
 F2_NAME="$(hook_otel_agent_name "$F2_OTEL" "toolu_TEST2")"
 [ "$F2_NAME" = "explore" ] \
   || fail "F2: expected hook__otel_agent_name to resolve toolu_TEST2 to explore from mixed v1.0.70 OTel JSONL, got ${F2_NAME:-<empty>}"
+
+# =============================================================================
+# F4 — resolver gates OTel on a truthy enable flag and falls through to the
+# events.jsonl fallback when OTel is unavailable or misses the tool call.
+# =============================================================================
+F4_FAILURES=0
+
+F4A_TOOLU="toolu_F4A"; F4A_HOME="${TMP_DIR}/home-f4a"; FIXHOME="$F4A_HOME"
+write_events_fixture "uuid-conductor-f4a" "$F4A_TOOLU" "explore"
+F4A_NAME="$(hook_resolve_subagent_name "$F4A_HOME" "$F4A_TOOLU" "__unset__" "${TMP_DIR}/otel-f4a-missing.jsonl")"
+if [ "$F4A_NAME" != "explore" ]; then
+  printf 'FAIL: F4A half-filled .env: expected hook__resolve_subagent_name to fall back to events.jsonl and resolve toolu_F4A to explore, got %s\n' "${F4A_NAME:-<empty>}" >&2
+  F4_FAILURES=$((F4_FAILURES + 1))
+fi
+
+F4B_TOOLU="toolu_F4B"; F4B_HOME="${TMP_DIR}/home-f4b"; FIXHOME="$F4B_HOME"
+write_events_fixture "uuid-conductor-f4b" "$F4B_TOOLU" "planning-subagent"
+F4B_OTEL="${TMP_DIR}/otel-f4b-miss.jsonl"; write_otel_fixture "$F4B_OTEL" "toolu_F4B_OTHER" "other-agent"
+F4B_NAME="$(hook_resolve_subagent_name "$F4B_HOME" "$F4B_TOOLU" "true" "$F4B_OTEL")"
+if [ "$F4B_NAME" != "planning-subagent" ]; then
+  printf 'FAIL: F4B OTel miss fallback: expected hook__resolve_subagent_name to fall through to events.jsonl and resolve toolu_F4B to planning-subagent, got %s\n' "${F4B_NAME:-<empty>}" >&2
+  F4_FAILURES=$((F4_FAILURES + 1))
+fi
+
+unset COPILOT_OTEL_ENABLED COPILOT_OTEL_FILE_EXPORTER_PATH 2>/dev/null || true
+[ "$F4_FAILURES" -eq 0 ] || exit 1
 
 printf 'PASS: copilot-trace-hook.sh stamps subagent tool spans at postToolUse, retro-upgrades them at subagentStop from OTel/events.jsonl, and preserves deterministic spans on resolver failure\n'
