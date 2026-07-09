@@ -109,6 +109,8 @@ load_env_allowlist() {
 # finish-issue's exit code or block teardown. It reads the MAIN-checkout trace
 # file (which survives worktree removal), so it runs AFTER the worktree is gone.
 best_effort_trace_export() {
+  # finish-issue.sh runs from the main checkout; load unset allowlisted .env keys only.
+  load_env_allowlist "${SCRIPT_DIR}/../.env"
   [ "${TRACE_EXPORT_OTLP:-}" = "1" ] || return 0
   [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ] || return 0
   if [ ! -x "${SCRIPT_DIR}/trace-export.sh" ]; then
