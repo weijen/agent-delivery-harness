@@ -139,7 +139,7 @@ grep -qiE 'reference example' "$DOC" \
   || fail "hooks template not found (${TEMPLATE}) (D8)"
 jq -e . "$TEMPLATE" >/dev/null 2>&1 \
   || fail "hooks template is not valid JSON: ${TEMPLATE} (D8)"
-for event in postToolUse postToolUseFailure agentStop subagentStop; do
+for event in postToolUse postToolUseFailure agentStop subagentStop subagentStart; do
   jq -e --arg ev "$event" '[.. | objects | keys[]] | index($ev) != null' \
       "$TEMPLATE" >/dev/null 2>&1 \
     || fail "hooks template must register the '${event}' event (D8)"
@@ -176,5 +176,21 @@ grep -qiE 'not (invoked|surfaced|captured)' "$DOC" \
 # empirical, not official-contract framing (review note)
 grep -qiE 'empirical|not (an )?official|repo[- ]owned' "$DOC" \
   || fail "guide must frame toolName=skill as repo-owned empirical evidence (#121/#138), not an official Copilot contract (D9)"
+
+# --- D10: subagent tool/skill capture (issue #227) -----------------------------
+# harness.subagent attribute: conductor-vs-subagent split on tool/skill spans.
+grep -qiE 'harness\.subagent' "$DOC" \
+  || fail "guide must document the harness.subagent attribute (D10)"
+# The toolu_-prefixed sessionId is the subagent signal.
+grep -qF 'toolu_' "$DOC" \
+  || fail "guide must explain the toolu_ sessionId marks a subagent tool call (D10)"
+# subagentStart agent span.
+grep -qiE 'subagentStart' "$DOC" \
+  || fail "guide must document the subagentStart agent span (D10)"
+# OTel Path O enrichment: the env var + best-effort/degrade honesty.
+grep -qF 'COPILOT_OTEL_FILE_EXPORTER_PATH' "$DOC" \
+  || fail "guide must name COPILOT_OTEL_FILE_EXPORTER_PATH as the Path O enrichment source (D10)"
+grep -qiE 'best[- ]effort|degrade|falls? back|fallback' "$DOC" \
+  || fail "guide must state OTel enrichment is best-effort and degrades to harness.subagent=true (D10)"
 
 printf 'github-copilot adapter guide contract honored\n'

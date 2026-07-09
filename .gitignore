@@ -35,6 +35,7 @@ htmlcov/
 .copilot-tracking/plans/*.md
 .copilot-tracking/review-gate/
 .copilot-tracking/sessions/
+.copilot-tracking/otel/
 !.copilot-tracking/issues/.gitkeep
 !.copilot-tracking/plans/.gitkeep
 
