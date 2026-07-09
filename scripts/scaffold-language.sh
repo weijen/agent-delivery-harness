@@ -213,35 +213,34 @@ Supported framework hints: ${META_FRAMEWORKS}.
 EOF
 }
 
+# The shared dry/write/update three-way reconcile skeleton.
+# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/reconcile-lib.sh"
+
+# Reconcile hooks for scaffold-language: the desired content is an in-memory
+# canonical string ($RC_CANONICAL) materialised at the target path ($RC_PATH),
+# both set by reconcile() below. They are invoked indirectly by reconcile_entry
+# (SC2329).
+# shellcheck disable=SC2317,SC2329
+rc_equal() { printf '%s\n' "$RC_CANONICAL" | cmp -s - "$RC_PATH"; }
+# shellcheck disable=SC2317,SC2329
+rc_write() {
+	mkdir -p "$(dirname "$RC_PATH")"
+	printf '%s\n' "$RC_CANONICAL" >"$RC_PATH"
+}
+# shellcheck disable=SC2317,SC2329
+rc_diff() { printf '%s\n' "$RC_CANONICAL" | diff -u "$RC_PATH" - || true; }
+
 # --- Reconcile one target file against canonical content --------------------
 # Args: <path> <canonical-content>
 reconcile() {
-	local path="$1" canonical="$2"
+	local path="$1"
+	RC_PATH="$path"
+	RC_CANONICAL="$2"
 	local rel="${path#"${REPO_ROOT}/"}"
-	if [ ! -e "$path" ]; then
-		if [ "$MODE" = "dry" ]; then
-			printf '  would create %s\n' "$rel"
-		else
-			mkdir -p "$(dirname "$path")"
-			printf '%s\n' "$canonical" >"$path"
-			printf '  created %s\n' "$rel"
-		fi
-		return 0
-	fi
-	if printf '%s\n' "$canonical" | cmp -s - "$path"; then
-		printf '  up to date %s\n' "$rel"
-		return 0
-	fi
-	# Exists and differs.
-	if [ "$MODE" = "update" ]; then
-		printf '  updating %s (diff):\n' "$rel"
-		printf '%s\n' "$canonical" | diff -u "$path" - || true
-		printf '%s\n' "$canonical" >"$path"
-		printf '  updated %s\n' "$rel"
-	else
-		printf '  differs %s — pass --update to overwrite (diff):\n' "$rel"
-		printf '%s\n' "$canonical" | diff -u "$path" - || true
-	fi
+	local missing=0
+	[ -e "$path" ] || missing=1
+	reconcile_entry "$rel" "$MODE" 0 "$missing"
 }
 
 # --- Argument parsing --------------------------------------------------------
