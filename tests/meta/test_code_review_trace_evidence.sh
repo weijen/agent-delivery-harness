@@ -90,6 +90,13 @@ assert_section 'process violation' "$review Trace / Process Evidence section mus
 # 10. Process violations feed into verdict.
 assert_section 'NEEDS_REVISION|BLOCKED|verdict' "$review Trace / Process Evidence section must tie process violations to NEEDS_REVISION/verdict/BLOCKED"
 
+# 11. Log-detail citation for BLOCKING/CRITICAL process findings (issue #221).
+assert_section 'log\.jsonl' "$review Trace / Process Evidence section must name log.jsonl"
+assert_section 'payload' "$review Trace / Process Evidence section must require citing the log failure payload (actual failing output)"
+assert_section 'failure record|failing output|failure detail|failure payload' "$review Trace / Process Evidence section must require citing the log failure record detail rather than only the span summary"
+assert_section 'log evidence unavailable' "$review Trace / Process Evidence section must use the exact absence phrase log evidence unavailable"
+assert_section 'log evidence unavailable[^.]*never inferred|log evidence unavailable[^.]*not inferred' "$review Trace / Process Evidence section must state log evidence unavailable is never inferred as pass"
+
 if [ "$fail" -ne 0 ]; then
   echo "code-review trace-evidence sensor FAILED"
   exit 1
