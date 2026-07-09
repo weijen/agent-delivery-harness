@@ -521,6 +521,25 @@ else
 	note "$WB_JSON: no per-run tool/skill panel for {Issue} — #223 panel 3 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing gen_ai.tool.name AND harness.skill.name, for call volume/failures/top-durations)"
 fi
 
+# #223 panel 5 — per-run cost strip. The drill-down tab must ALSO carry a KQL
+# panel that surfaces the selected run's model token cost. UNLIKE panels 1-3
+# (which read the dependencies table) this panel queries the customEvents table
+# — that is where the exporter maps agent+model spans — scoped to the exported
+# {Issue} on harness.issue, and it must emit a tokens_status honesty column so a
+# run whose model spans carried no gen_ai.usage.* is reported as unavailable
+# rather than a fabricated 0. Reuse the same flattened tab-drilldown query lines
+# and require a single query to carry ALL the markers (customEvents table +
+# issue filter + tokens_status) so the dependencies-based panels 1-3 — none of
+# which name the customEvents table — cannot satisfy this by accident.
+if grep -F 'customEvents' "$dd_timeline" \
+	| grep -F "customDimensions['harness.issue']" \
+	| grep -F '{Issue}' \
+	| grep -Fq 'tokens_status'; then
+	ok "#223: drilldown tab carries a per-run cost strip for {Issue} (panel 5)"
+else
+	note "$WB_JSON: no per-run cost strip with tokens_status for {Issue} — #223 panel 5 (need a tab-drilldown KqlItem: customEvents filtered on harness.issue == '{Issue}', tokens by agent/model, emitting a tokens_status column that reads 'unavailable' when no model span carried gen_ai.usage.*)"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================
