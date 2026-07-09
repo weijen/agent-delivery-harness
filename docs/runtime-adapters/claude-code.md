@@ -28,10 +28,10 @@ issue context automatically appends spans with zero manual agent effort:
 
 | Hook event | Emission |
 | --- | --- |
-| `PreToolUse` | No span. Writes a `tool_use_id`-keyed start-time state file under `.copilot-tracking/issues/issue-NN/.hook-state/` so the matching PostToolUse can compute `harness.duration_ms`. |
-| `PostToolUse` | One `tool` span: `gen_ai.tool.name`, `gen_ai.operation.name=execute_tool`, `harness.args_summary` (compact `tool_input`, hard-capped at 200 chars), `harness.outcome` (only when `tool_response.is_error` is explicit), `harness.duration_ms` (only when a matching PreToolUse was correlated; the state file is consumed and deleted). |
+| `PreToolUse` | No span. Writes a start-time state file keyed by `session_id` + `agent_id` + `tool_use_id` under `.copilot-tracking/issues/issue-NN/.hook-state/` so the matching PostToolUse can compute `harness.duration_ms`. Folding `agent_id` into the key keeps a concurrent subagent from consuming the conductor's start time (or vice versa). |
+| `PostToolUse` | One `tool` span: `gen_ai.tool.name`, `gen_ai.operation.name=execute_tool`, `harness.args_summary` (compact `tool_input`, hard-capped at 200 chars), `harness.outcome` (only when `tool_response.is_error` is explicit), `harness.duration_ms` (only when a matching PreToolUse was correlated; the state file is consumed and deleted). When the payload carries `agent_id` (subagent context) the span also gets `harness.subagent` (the `agent_type`, or `"true"` when the type is absent). A `Skill` tool call mints a first-class skill span: `gen_ai.tool.name=skill` + `harness.skill.name`. |
 | `Stop` | One `agent` span (`gen_ai.operation.name=invoke_agent`, `gen_ai.agent.name=claude-code`), plus one conditional `model` span (see below). |
-| `SubagentStop` | Same as Stop, with `gen_ai.agent.name=claude-code-subagent`. |
+| `SubagentStop` | One `agent` span using the real `agent_type` as `gen_ai.agent.name` (falling back to `claude-code-subagent`) plus `harness.session_id` linking back to the parent session; the conditional `model` span; and a **skill inventory backstop** (see below). |
 
 **Privacy note on `harness.args_summary`:** the summary is an excerpt of the
 raw `tool_input` — for Edit/Write tools that can include file contents, and
@@ -58,6 +58,34 @@ All emission goes through `scripts/trace-lib.sh`, so spans land at the main
 checkout root (even from a linked worktree), match the schema contract in
 `docs/evaluation/trace-schema.v1.json`, and pass through `trace_redact` before
 touching disk.
+
+## Subagent capture
+
+Claude Code fires `PreToolUse`/`PostToolUse` for tool calls made **inside a
+subagent**, and those payloads carry `agent_id` (present only in subagent
+context) and `agent_type`; `SubagentStop` additionally carries the subagent's
+own `agent_transcript_path`. The adapter uses these to make subagent activity
+first-class:
+
+- **Split conductor vs. subagent.** Every subagent `tool`/skill span is
+  stamped `harness.subagent` (the `agent_type`, or `"true"` when the type is
+  absent), so analytics can separate the conductor's own calls from each
+  subagent's.
+- **Real agent identity at stop.** The `SubagentStop` `agent` span uses the
+  `agent_type` as `gen_ai.agent.name` instead of the bare
+  `claude-code-subagent`, and links to the parent session via
+  `harness.session_id`.
+- **Skill inventory backstop.** If a live `PostToolUse` event for a `Skill`
+  call was dropped, the `SubagentStop` handler replays the subagent's
+  `agent_transcript_path` and backfills one `skill` span
+  (`gen_ai.tool.name=skill` + `harness.skill.name`) per skill that has no
+  corresponding live-captured span. Dedup is scoped to the subagent (same
+  `harness.subagent` value), backfilled names are redacted and capped, and an
+  unreadable or corrupt transcript backfills **nothing** — *omit, never fake*.
+
+These attributes (`harness.subagent`, `harness.skill.name`) are allowlisted
+for export and shared with the Copilot adapter, so a mixed-runtime trace reads
+uniformly.
 
 ## Install (copy/merge — never overwrite)
 
@@ -112,6 +140,13 @@ pass (`jq -rs`), so **any** non-JSON line in the transcript fails the whole
 parse and the model span is omitted — even if valid assistant entries exist
 elsewhere in the file. That is the honest-omission trade-off: a partially
 corrupt transcript yields no token claims rather than possibly wrong ones.
+
+The same caveat applies to the subagent **skill inventory** at `SubagentStop`,
+which reads `agent_transcript_path` and looks for `tool_use` blocks named
+`Skill`. The skill name is read tolerantly (`.input.command` → `.input.name` →
+`.input.skill`) because that block shape is likewise an internal runtime
+detail; an unparseable transcript or a `Skill` block with no extractable name
+backfills nothing.
 
 ## The adapter pattern for other runtimes
 
