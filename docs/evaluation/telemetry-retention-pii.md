@@ -155,6 +155,42 @@ Together these keep the allowlist's "keys, not values" gap from becoming a
 value-level leak: even a shippable key cannot carry an over-long, control-byte,
 or secret-shaped value off the machine.
 
+## Step-Level Log (`log.jsonl`) — Local-Only Detail Stream
+
+The span stream (`trace.jsonl`) is the shape stream; the **step-level log**
+(`log.jsonl`) is the paired detail stream — one line per step-level event,
+carrying the free-form text the span vocabulary deliberately omits. It is
+**local-only** and its two free-text fields are the highest-sensitivity leak
+surface on the page, so it gets its own governance clause rather than
+inheriting the exported-telemetry rules above.
+
+**Local-only, never exported (v1).** `log.jsonl` is **gitignored**, pinned to
+the main repository root beside `trace.jsonl`, and is **not part of** the
+remote telemetry/export window governed by the Retention Window and
+Shippable-Attribute Allowlist above. Issue #219 is local capture only; a
+redacted remote export of the log stream is a **separate opt-in** tracked in
+issue #220. Until that is designed and reviewed, the log stream **stays on the
+machine** — it never ships.
+
+**Two excluded free-text fields.** Consistent with the by-name span exclusions,
+the two free-text log fields are treated as the highest-sensitivity surface and
+are **redacted and never retained raw**:
+
+| Excluded log field | Why it is redacted and never shipped raw |
+| --- | --- |
+| `message` | Free-text, human-readable description of the step-level event — the same prose/path leak class as the excluded span summaries. |
+| `payload` | Free-form structured detail (command/result/diagnostic excerpt): the largest single-field leak surface in the log stream. |
+
+Both are governed by the **redact-before-cap** discipline pinned in
+[log-schema.v1.json](log-schema.v1.json): secret-shaped input is redacted
+**before** any length cap runs, so a truncation boundary can never bisect and
+leak a partially-redacted secret. Redaction always precedes the `payload` cap.
+Because `log.jsonl` is local-only, `message` and `payload` are **excluded from
+any exported or retained PII surface** by construction — there is no export
+path in which they could appear, and the future #220 export must re-earn the
+same redact-before-cap and allowlist guarantees before either field could ever
+leave the machine.
+
 ## Deletion & Rollback
 
 Telemetry retention mirrors the harness's own auditability doctrine: exported
