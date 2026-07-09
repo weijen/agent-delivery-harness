@@ -210,6 +210,91 @@ hook__on_post_tool_use() {
   return 0
 }
 
+# Resolve THIS issue's trace file (main-root pinned), mirroring trace-lib's
+# own path derivation, so the skill inventory can read the live spans already
+# captured this run. Prints the path on success; non-zero when it cannot be
+# resolved (caller treats that as "no live spans to dedup against").
+hook__trace_file() {
+  local issue_num="" issue_pad="" main_root=""
+  issue_num="$(trace__resolve_issue 2>/dev/null)" || return 1
+  issue_pad="$(printf '%02d' "$issue_num" 2>/dev/null)" || return 1
+  main_root="$(trace__main_root 2>/dev/null)" || return 1
+  printf '%s/.copilot-tracking/issues/issue-%s/trace.jsonl' "$main_root" "$issue_pad"
+}
+
+# SubagentStop skill inventory backstop (#228 Task 3). Replay the subagent's
+# `agent_transcript_path` (its authoritative record) and emit one skill `tool`
+# span per Skill call that has NO corresponding live-captured span, so a
+# dropped live hook event never hides skill usage.
+#   - Skill calls surface as assistant-message tool_use blocks named "Skill";
+#     the skill name is read tolerantly (.input.command → .name → .skill).
+#   - Dedup (Q4): scoped to THIS subagent — a skill whose name already appears
+#     on a live tool span carrying the same harness.subagent value is skipped.
+#   - omit-never-fake: a missing/unreadable/unparseable transcript warns and
+#     emits nothing; a Skill block with no extractable name is skipped.
+#   - Each backfilled name is redacted then capped, exactly like a summary.
+hook__subagent_skill_inventory() {
+  local payload="$1" subagent_value="$2"
+  local tpath=""
+  tpath="$(printf '%s' "$payload" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)"
+  [ -n "$tpath" ] || return 0
+  if [ ! -f "$tpath" ] || [ ! -r "$tpath" ]; then
+    trace_warn "subagent skill inventory: transcript not readable (${tpath}) — no backstop spans"
+    return 0
+  fi
+  # A single non-JSON line fails the whole slurp: corrupt transcript → warn,
+  # emit nothing (never fabricate spans from garbage).
+  if ! jq -e -s 'true' "$tpath" >/dev/null 2>&1; then
+    trace_warn "subagent skill inventory: unparseable transcript (${tpath}) — no backstop spans"
+    return 0
+  fi
+
+  local skills=""
+  skills="$(jq -rs '
+      [ .[]
+        | select((type == "object") and (.type == "assistant"))
+        | (.message.content // [])
+        | if type == "array" then .[] else empty end
+        | select((type == "object") and (.type == "tool_use")
+                 and ((.name == "Skill") or (.name == "skill")))
+        | (.input.command // .input.name // .input.skill // empty)
+        | strings
+      ] | unique | .[]' "$tpath" 2>/dev/null || true)"
+  [ -n "$skills" ] || return 0
+
+  # Live dedup set: skill names already captured on subagent-scoped tool spans
+  # this run (same harness.subagent value).
+  local live_skills="" trace_file=""
+  trace_file="$(hook__trace_file 2>/dev/null || true)"
+  if [ -n "$trace_file" ] && [ -f "$trace_file" ]; then
+    live_skills="$(jq -rs --arg sub "$subagent_value" '
+        [ .[]
+          | select((type == "object") and (.span == "tool"))
+          | select(.["harness.subagent"] == $sub)
+          | (.["harness.skill.name"] // empty) | strings
+        ] | unique | .[]' "$trace_file" 2>/dev/null || true)"
+  fi
+
+  local s="" name=""
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    if [ -n "$live_skills" ] && printf '%s\n' "$live_skills" | grep -qxF -- "$s"; then
+      continue
+    fi
+    name="$(printf '%s' "$s" | trace_redact 2>/dev/null || true)"
+    [ -n "$name" ] || continue
+    if [ "${#name}" -gt "$HOOK_ARGS_SUMMARY_CAP" ]; then
+      name="${name:0:HOOK_ARGS_SUMMARY_CAP-3}..."
+    fi
+    trace_span tool \
+      "gen_ai.tool.name=skill" \
+      "gen_ai.operation.name=execute_tool" \
+      "harness.skill.name=${name}" \
+      "harness.subagent=${subagent_value}"
+  done <<< "$skills"
+  return 0
+}
+
 # Stop / SubagentStop — spans per stop-span sensor conventions S1–S4
 # (plan D4, single-model-span-v1). Stateless: no .hook-state reads/writes.
 #   S1. ALWAYS one `agent` span: gen_ai.operation.name=invoke_agent,
@@ -235,9 +320,12 @@ hook__on_stop() {
   # A plain conductor Stop is untouched (no agent_type read, no session linkage)
   # to keep that span byte-stable. Both values omitted when absent — never fake.
   if [ "$is_subagent" = "1" ]; then
-    local agent_type="" parent_sid=""
+    local agent_type="" parent_sid="" subagent_value="true"
     agent_type="$(printf '%s' "$payload" | jq -r '.agent_type // empty' 2>/dev/null || true)"
-    [ -n "$agent_type" ] && agent_name="$agent_type"
+    if [ -n "$agent_type" ]; then
+      agent_name="$agent_type"
+      subagent_value="$agent_type"
+    fi
     parent_sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null || true)"
     agent_attrs+=("gen_ai.agent.name=${agent_name}")
     [ -n "$parent_sid" ] && agent_attrs+=("harness.session_id=${parent_sid}")
@@ -247,6 +335,14 @@ hook__on_stop() {
 
   trace_span agent "${agent_attrs[@]}"
   local agent_span_id="${TRACE_LAST_SPAN_ID:-}"
+
+  # Skill inventory backstop (#228 Task 3): replay the subagent's transcript
+  # and backfill any Skill call the live PostToolUse hook missed. Independent
+  # of the model-span logic below (different source field), so it runs first
+  # and is not skipped by the model-span early returns.
+  if [ "$is_subagent" = "1" ]; then
+    hook__subagent_skill_inventory "$payload" "$subagent_value"
+  fi
 
   transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
   if [ -z "$transcript" ] || [ ! -f "$transcript" ] || [ ! -r "$transcript" ]; then
