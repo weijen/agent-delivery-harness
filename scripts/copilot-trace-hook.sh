@@ -374,11 +374,11 @@ hook__on_subagent_start() {
 hook__otel_agent_name() {
   local otel="$1" toolu="$2"
   [ -n "$otel" ] && [ -f "$otel" ] && [ -r "$otel" ] || return 0
-  jq -rs --arg tid "$toolu" '
-    def attr($k): ((.attributes // {})[$k]) // .[$k];
-    [ .[] | select(type == "object") ] as $spans
+  jq -Rrn --arg tid "$toolu" '
+    def attr($k): (if (.attributes | type) == "object" then .attributes else {} end)[$k] // .[$k];
+    [ inputs | fromjson? | select(type == "object") ] as $spans
     | ( $spans | map(select(attr("gen_ai.tool.call.id") == $tid))
-                | (.[0].spanId // .[0].span_id // "") ) as $task
+                 | (.[0].spanId // .[0].span_id // "") ) as $task
     | if ($task | length) == 0 then empty
       else ( $spans
              | map(select(((.parentSpanId // .parent_span_id) == $task)

@@ -86,6 +86,23 @@ write_otel_fixture() {
   } > "$path"
 }
 
+write_mixed_otel_v1070_fixture() {
+  local path="$1"
+  cat > "$path" <<'JSONL'
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"task070","parentSpanId":"root070","name":"execute_tool task","kind":0,"startTime":[1783621296,937160000],"endTime":[1783621302,848114000],"attributes":{"gen_ai.operation.name":"execute_tool","gen_ai.tool.name":"task","gen_ai.tool.call.id":"toolu_TEST2","gen_ai.tool.type":"function","gen_ai.provider.name":"github"},"status":{"code":0},"events":[],"resource":{"attributes":{"service.name":"github-copilot","service.version":"1.0.70-0"},"schemaUrl":"https://opentelemetry.io/schemas/1.43.0"},"instrumentationScope":{"name":"github.copilot","version":"1.0.70-0"}}
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"child070","parentSpanId":"task070","name":"invoke_agent explore","kind":0,"startTime":[1783621296,945332000],"endTime":[1783621302,847014000],"attributes":{"gen_ai.operation.name":"invoke_agent","gen_ai.provider.name":"github","gen_ai.request.model":"claude-haiku-4.5","gen_ai.agent.id":"builtin:explore","gen_ai.agent.name":"explore","gen_ai.agent.description":"sanitized fixture agent","gen_ai.agent.version":"1.0.70-0"},"status":{"code":0},"events":[],"resource":{"attributes":{"service.name":"github-copilot","service.version":"1.0.70-0"},"schemaUrl":"https://opentelemetry.io/schemas/1.43.0"},"instrumentationScope":{"name":"github.copilot","version":"1.0.70-0"}}
+{"type":"metric","name":"gen_ai.client.operation.duration","description":"GenAI operation duration.","unit":"s","dataPoints":[{"attributes":{"gen_ai.operation.name":"invoke_agent","gen_ai.provider.name":"github","gen_ai.request.model":"claude-haiku-4.5","gen_ai.response.model":"claude-haiku-4.5"},"startTime":[1783621291,525194000],"endTime":[1783621304,165523000],"value":{"buckets":{"boundaries":[0.01,0.02,0.04,0.08,0.16,0.32,0.64,1.28,2.56,5.12,10.24,20.48,40.96,81.92],"counts":[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0]},"count":1,"sum":5.901595042,"min":5.901595042,"max":5.901595042}}]}
+{"type":"span","traceId":"00000000000000000000000000000000","spanId":"array070","parentSpanId":"root070","name":"execute_tool view","kind":0,"startTime":[1783621300,747268000],"endTime":[1783621300,762243000],"attributes":["non-object-attributes"],"status":{"code":0},"events":[]}
+JSONL
+  printf '%s' '{"type":"span","traceId":"00000000000000000000000000000000","spanId":"truncated070","parentSpanId":"root070","name":"chat claude-haiku-4.5","kind":2,"attributes":{"gen_ai.operation.name":"chat","gen_ai.provider.name":"github"' >> "$path"
+}
+
+hook_otel_agent_name() {
+  local otel="$1" toolu="$2" defs=""
+  defs="$(sed -n '/^hook__otel_agent_name() {/,/^# hook__events_agent_name /p' "$HOOK")"
+  bash -c 'eval "$1"; hook__otel_agent_name "$2" "$3"' _ "$defs" "$otel" "$toolu"
+}
+
 write_events_fixture() {
   local conductor_sid="$1" toolu="$2" agent="$3"
   mkdir -p "${FIXHOME}/.copilot/session-state/${conductor_sid}"
@@ -215,5 +232,15 @@ assert_session_safe "r3-stop"
 [ "$(line_count "$R3_TRACE")" = "$((r3_after_post + 1))" ] \
   || fail "R3: subagentStop should append exactly the stop agent span and retro-upgrade in place; expected $((r3_after_post + 1)) lines, got $(line_count "$R3_TRACE")"
 assert_tool_subagent_value "R3(subagentStop)" "$R3_TRACE" "$R3_TOOLU" "events-after-otel-gone"
+
+# =============================================================================
+# F2 — OTel join is tolerant of the real v1.0.70 mixed exporter shape: a task
+# span, its invoke_agent child, metric rows with no top-level attributes, an
+# attributes-as-array span, and a final truncated JSON line.
+# =============================================================================
+F2_OTEL="${TMP_DIR}/otel-f2-v1070-mixed.jsonl"; write_mixed_otel_v1070_fixture "$F2_OTEL"
+F2_NAME="$(hook_otel_agent_name "$F2_OTEL" "toolu_TEST2")"
+[ "$F2_NAME" = "explore" ] \
+  || fail "F2: expected hook__otel_agent_name to resolve toolu_TEST2 to explore from mixed v1.0.70 OTel JSONL, got ${F2_NAME:-<empty>}"
 
 printf 'PASS: copilot-trace-hook.sh stamps subagent tool spans at postToolUse, retro-upgrades them at subagentStop from OTel/events.jsonl, and preserves deterministic spans on resolver failure\n'
