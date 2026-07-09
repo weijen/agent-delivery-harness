@@ -45,35 +45,26 @@ if ! declare -F trace_span >/dev/null 2>&1; then
     return 0
   }
   trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+  trace_lifecycle_init() { :; }
+  trace_lifecycle_arm() { :; }
 fi
 
-# Terminal span via a stage-tracked EXIT trap (plan D3): once the script has
-# reached the worktree stage, every exit path — success, reuse, or a failed
-# `git worktree add` — emits exactly one worktree_create lifecycle span with
-# the real exit status and duration, without touching any exit site.
-TRACE_STAGE=""
-TRACE_WT_T0=0
+# Terminal worktree_create lifecycle span via the shared EXIT-trap helper
+# (issue #213 P-1, trace_lifecycle_init): once armed at the worktree stage
+# below, every exit path — success, reuse, or a failed `git worktree add` —
+# emits exactly one worktree_create span with the real exit status and duration,
+# without touching any exit site. Late-bound attrs (branch/worktree/base_ref and
+# the reuse/scaffold flags) are gathered at exit time by trace__start_issue_attrs.
 WORKTREE_REUSED=false
 SCAFFOLDED=false
-trace__start_issue_exit() {
-  local rc=$?
-  if [ "$TRACE_STAGE" = "worktree_create" ]; then
-    local outcome=pass
-    [ "$rc" -eq 0 ] || outcome=fail
-    trace_span lifecycle \
-      "harness.lifecycle_step=worktree_create" \
-      "harness.outcome=${outcome}" \
-      "harness.exit_status=${rc}" \
-      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_WT_T0 ))" \
-      "harness.branch=${BRANCH:-}" \
-      "harness.worktree=${WORKTREE_DIR:-}" \
-      "harness.base_ref=${base_ref:-}" \
-      "harness.worktree_reused=${WORKTREE_REUSED}" \
-      "harness.scaffolded=${SCAFFOLDED}"
-  fi
-  exit "$rc"
+trace__start_issue_attrs() {
+  printf 'harness.branch=%s\n' "${BRANCH:-}"
+  printf 'harness.worktree=%s\n' "${WORKTREE_DIR:-}"
+  printf 'harness.base_ref=%s\n' "${base_ref:-}"
+  printf 'harness.worktree_reused=%s\n' "${WORKTREE_REUSED}"
+  printf 'harness.scaffolded=%s\n' "${SCAFFOLDED}"
 }
-trap trace__start_issue_exit EXIT
+trace_lifecycle_init worktree_create trace__start_issue_attrs
 
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
@@ -139,8 +130,7 @@ echo "  branch:   ${BRANCH}"
 echo "  worktree: ${WORKTREE_DIR}"
 
 # --- 3. Create worktree + branch (non-destructive) --------------------------
-TRACE_WT_T0="$(trace_now_ms)"
-TRACE_STAGE="worktree_create"
+trace_lifecycle_arm
 if [ -e "$WORKTREE_DIR" ]; then
   WORKTREE_REUSED=true
   green "✓ Worktree already exists — reusing it (no changes made)."

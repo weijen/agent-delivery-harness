@@ -386,3 +386,60 @@ trace_span() {
   TRACE_LAST_SPAN_ID="$span_id"
   return 0
 }
+
+# --- Shared terminal lifecycle-span EXIT trap (issue #213, P-1) ---------------
+# trace_lifecycle_init <lifecycle_step> [attr_fn]
+#   Installs the stage-tracking state + an EXIT trap that emits EXACTLY ONE
+#   `lifecycle` span (harness.lifecycle_step=<lifecycle_step>) carrying
+#   outcome/exit_status/duration_ms, plus any extra `key=value` attributes that
+#   the optional attr_fn prints (one per line) — evaluated at exit time so
+#   late-bound values (branch, pr_number, worktree_removed, …) are captured.
+#
+#   The span is emitted only after the caller ARMS the trap via
+#   trace_lifecycle_arm (which also stamps the duration T0), so any refusal
+#   BEFORE arming — e.g. a usage error or an on-main refusal — emits nothing,
+#   preserving the prior inline templates' "TRACE_STAGE gates emission" and
+#   "T0 set at the arming stage" semantics exactly.
+#
+#   This is the single home for the boilerplate that used to be copy-pasted into
+#   start-issue / create-pr / merge-pr / finish-issue (drift-guarded by
+#   tests/meta/test_lifecycle_trap_no_inline_copy.sh). When trace-lib.sh is
+#   absent, each lifecycle script's inline guard block defines NOOP
+#   trace_lifecycle_init / trace_lifecycle_arm so the lifecycle never breaks.
+trace_lifecycle_init() {
+  TRACE_LIFECYCLE_STEP="${1:?trace_lifecycle_init: lifecycle step required}"
+  TRACE_LIFECYCLE_ATTR_FN="${2:-}"
+  TRACE_LIFECYCLE_ARMED=0
+  TRACE_LIFECYCLE_T0=0
+  trap '__trace_lifecycle_exit' EXIT
+}
+
+# Arm the terminal span and stamp its duration origin. Call once, at the stage
+# where the prior inline template set TRACE_STAGE + TRACE_T0.
+trace_lifecycle_arm() {
+  TRACE_LIFECYCLE_ARMED=1
+  TRACE_LIFECYCLE_T0="$(trace_now_ms)"
+}
+
+__trace_lifecycle_exit() {
+  local rc=$?
+  if [ "${TRACE_LIFECYCLE_ARMED:-0}" = "1" ]; then
+    local outcome=pass
+    [ "$rc" -eq 0 ] || outcome=fail
+    local -a attrs=(
+      "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}"
+      "harness.outcome=${outcome}"
+      "harness.exit_status=${rc}"
+      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_LIFECYCLE_T0 ))"
+    )
+    if [ -n "${TRACE_LIFECYCLE_ATTR_FN:-}" ] &&
+       declare -F "${TRACE_LIFECYCLE_ATTR_FN}" >/dev/null 2>&1; then
+      local a
+      while IFS= read -r a; do
+        [ -n "$a" ] && attrs+=("$a")
+      done < <("${TRACE_LIFECYCLE_ATTR_FN}")
+    fi
+    trace_span lifecycle "${attrs[@]}"
+  fi
+  exit "$rc"
+}

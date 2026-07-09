@@ -42,38 +42,26 @@ if ! declare -F trace_span >/dev/null 2>&1; then
     return 0
   }
   trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
+  trace_lifecycle_init() { :; }
+  trace_lifecycle_arm() { :; }
 fi
 
-# Terminal `finish` lifecycle span via a stage-tracked EXIT trap (plan D3).
-# It fires AFTER `git worktree remove` — the span survives teardown only
-# because trace-lib pins the trace file to the MAIN checkout root (plan D1).
-# TRACE_STAGE names the last stage reached (completion_check|trace_gate|
-# worktree_remove|branch_delete|done); refusals before the completion check
-# emit nothing.
+# Terminal `finish` lifecycle span via the shared EXIT-trap helper (issue #213
+# P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
+# survives teardown only because trace-lib pins the trace file to the MAIN
+# checkout root (plan D1). TRACE_STAGE names the last stage reached
+# (completion_check|trace_gate|worktree_remove|branch_delete|done), surfaced as
+# harness.stage by the attr callback; refusals before arming emit nothing.
 TRACE_STAGE=""
-TRACE_T0=0
 WORKTREE_REMOVED=false
 BRANCH_DELETED=false
-trace__finish_exit() {
-  local rc=$?
-  if [ -n "$TRACE_STAGE" ]; then
-    local outcome=pass
-    if [ "$rc" -ne 0 ]; then
-      outcome=fail
-    fi
-    trace_span lifecycle \
-      "harness.lifecycle_step=finish" \
-      "harness.outcome=${outcome}" \
-      "harness.exit_status=${rc}" \
-      "harness.duration_ms=$(( $(trace_now_ms) - TRACE_T0 ))" \
-      "harness.stage=${TRACE_STAGE}" \
-      "harness.branch=${BRANCH:-}" \
-      "harness.worktree_removed=${WORKTREE_REMOVED}" \
-      "harness.branch_deleted=${BRANCH_DELETED}"
-  fi
-  exit "$rc"
+trace__finish_attrs() {
+  printf 'harness.stage=%s\n' "${TRACE_STAGE}"
+  printf 'harness.branch=%s\n' "${BRANCH:-}"
+  printf 'harness.worktree_removed=%s\n' "${WORKTREE_REMOVED}"
+  printf 'harness.branch_deleted=%s\n' "${BRANCH_DELETED}"
 }
-trap trace__finish_exit EXIT
+trace_lifecycle_init finish trace__finish_attrs
 
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""
@@ -202,8 +190,8 @@ bold "==> Finishing issue ${ISSUE_NUM}"
 echo "  branch:   ${BRANCH}"
 echo "  worktree: ${WORKTREE_DIR}"
 
-TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="completion_check"
+trace_lifecycle_arm
 check_feature_completion
 
 # --- Two-phase trace gate (issue #103, feature trace-gate-two-phase) ---------
