@@ -408,6 +408,62 @@ hook__resolve_issue_by_interval() {
   return 0
 }
 
+# Active-issue marker fast-path (issue #216, P-5). start-issue.sh drops a tiny
+# per-issue marker file .copilot-tracking/active-issues/<N> whose content is the
+# window-start ISO timestamp. Consulting it is O(1) and avoids the O(N) interval
+# scan for the overwhelmingly common single-active-issue case. Per-issue files
+# (not one shared file) keep concurrency cheaply detectable: >1 marker → defer
+# to the interval scan rather than guess. Strict safety rule: ambiguous or stale
+# ownership must decline (return 1), never mis-attribute.
+hook__resolve_issue_by_marker() {
+  local main_root="$1" ts="$2"
+  local norm_ts
+  norm_ts="$(hook__ts_to_iso "$ts")" || return 1
+  [ -n "$norm_ts" ] || return 1
+  ts="$norm_ts"
+
+  local markers_dir="${main_root}/.copilot-tracking/active-issues"
+  [ -d "$markers_dir" ] || return 1
+
+  local -a markers=()
+  local f base
+  for f in "$markers_dir"/*; do
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    # Only issue-<digits> marker files are ownership signals; skip anything else.
+    [[ "$base" =~ ^[0-9]+$ ]] || continue
+    markers+=("$f")
+  done
+
+  # Zero or many live markers → ambiguous ownership → defer to the interval scan.
+  [ "${#markers[@]}" -eq 1 ] || return 1
+
+  local marker="${markers[0]}" issue start
+  issue="$(basename "$marker")"
+  start="$(head -n1 "$marker" 2>/dev/null | tr -d '[:space:]')"
+  [ -n "$start" ] || return 1
+
+  # Payload must fall on/after the window start (lexicographic ISO-8601 compare,
+  # the same discipline the interval resolver uses).
+  [[ "$start" < "$ts" || "$start" = "$ts" ]] || return 1
+
+  # Staleness guard: once the marked issue emits a finish/pr_merge edge its
+  # window is CLOSED — a lingering marker must not attribute later spans to a
+  # completed issue. Defer to the interval scan (which honors the close edge).
+  local issue_pad trace closed
+  issue_pad="$(printf '%02d' "$((10#$issue))" 2>/dev/null || printf '%s' "$issue")"
+  trace="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
+  if [ -f "$trace" ]; then
+    closed="$(jq -rs '
+        map(select(.["harness.lifecycle_step"] == "finish" or .["harness.lifecycle_step"] == "pr_merge"))
+        | length' "$trace" 2>/dev/null || echo 0)"
+    [ "${closed:-0}" = "0" ] || return 1
+  fi
+
+  printf '%s' "$((10#$issue))"
+  return 0
+}
+
 # hook__session_sanitize <sid>
 hook__session_sanitize() {
   local sid="$1"
@@ -515,10 +571,16 @@ hook__main() {
       trace_warn "copilot-trace-hook: cannot resolve main checkout root for interval attribution (ts=${ts}) — span dropped"
       return 0
     fi
-    if matched_issue="$(hook__resolve_issue_by_interval "$main_root" "$ts")" \
+    if matched_issue="$(hook__resolve_issue_by_marker "$main_root" "$ts")" \
         && [ -n "$matched_issue" ]; then
-      # Force trace__resolve_issue (called inside every trace_span) to the
-      # matched issue so the fallback span lands in that issue's own trace.
+      # Active-issue marker fast-path (P-5): start-issue.sh recorded the sole
+      # live issue. Force trace__resolve_issue to it and skip the interval scan.
+      export TRACE_ISSUE="$matched_issue"
+    elif matched_issue="$(hook__resolve_issue_by_interval "$main_root" "$ts")" \
+        && [ -n "$matched_issue" ]; then
+      # Interval fallback (last resort): no usable marker — reconstruct the
+      # owning window from on-disk lifecycle spans. Force trace__resolve_issue to
+      # the matched issue so the fallback span lands in that issue's own trace.
       export TRACE_ISSUE="$matched_issue"
     else
       trace_warn "copilot-trace-hook: interval attribution ambiguous/none for ts=${ts} — span dropped"

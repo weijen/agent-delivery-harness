@@ -27,6 +27,31 @@ fail() {
 MERGE_SCRIPT="${ROOT}/scripts/merge-pr.sh"
 [ -f "$MERGE_SCRIPT" ] || fail "scripts/merge-pr.sh: No such file"
 
+# Trace isolation (issue #216): merge-pr.sh emits a pr_merge lifecycle span via
+# trace-lib. If we run it from the harness's own worktree, trace__resolve_issue
+# resolves this test's issue from the branch and trace__main_root resolves the
+# REAL checkout, so the span LEAKS into the developer's real
+# .copilot-tracking/issues/issue-NN/trace.jsonl. Run merge-pr.sh from an
+# isolated fixture repo (below) with TRACE_ISSUE unset so any emitted span lands
+# in the throwaway fixture under TMP_DIR, never a real trace.
+unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
+
+# Isolated fixture repo: a plain git checkout parked on a feature/issue-NN-*
+# branch. merge-pr.sh's trace emission (if any) pins to THIS repo's main root.
+FIXREPO="${TMP_DIR}/fixrepo"
+mkdir -p "${FIXREPO}"
+(
+  cd "${FIXREPO}"
+  git init -q -b main
+  git config user.name "Harness Test"
+  git config user.email "harness-test@example.invalid"
+  printf '.copilot-tracking/\n' > .gitignore
+  printf 'fixture\n' > README.md
+  git add .gitignore README.md
+  git commit -q -m initial
+  git checkout -q -b feature/issue-99-ci-gate-fixture
+) || fail "could not build isolated merge fixture repo"
+
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
 
@@ -61,7 +86,7 @@ run_merge() {
   local sentinel="$1" out rc
   shift
   rm -f "$sentinel"
-  out="$(MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" "$@" 2>&1)" && rc=0 || rc=$?
+  out="$( (cd "${FIXREPO}" && MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" "$@") 2>&1)" && rc=0 || rc=$?
   printf '%s\n%s' "$rc" "$out"
 }
 

@@ -23,6 +23,7 @@ set -euo pipefail
 
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -151,6 +152,22 @@ else
   git worktree add -b "$BRANCH" "$WORKTREE_DIR" "$base_ref"
 fi
 green "✓ Worktree created at ${WORKTREE_DIR} (base: ${base_ref})"
+
+# --- 3b. Active-issue marker (issue #216, P-5) ------------------------------
+# Record this issue as the sole live window in a tiny per-issue marker file the
+# copilot trace hook reads directly, so span attribution no longer depends on
+# the O(N) interval scan for the common single-issue case. Content is the
+# whole-second UTC window-start ISO timestamp (comparable to the hook's
+# normalized payload timestamps). Best-effort: a marker-write failure must never
+# break the lifecycle. finish-issue.sh sweeps our own marker at closeout.
+if marker_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" && [ -n "$marker_ts" ]; then
+  if mkdir -p "${ROOT}/.copilot-tracking/active-issues" 2>/dev/null \
+      && printf '%s' "$marker_ts" > "${ROOT}/.copilot-tracking/active-issues/${ISSUE_NUM}" 2>/dev/null; then
+    green "✓ Recorded active-issue marker for issue ${ISSUE_NUM}"
+  else
+    yellow "⚠ could not record active-issue marker — continuing (hook falls back to interval scan)"
+  fi
+fi
 
 # --- 4. Scaffold per-issue tracking (gitignored) ----------------------------
 if [ ! -d "$TRACKING_DIR" ]; then

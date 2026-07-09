@@ -528,4 +528,122 @@ printf '%s\n' "$c8b_new" | jq -e '
     and .["harness.session_id"] == "S8" and .["harness.issue"] == 210' >/dev/null \
   || fail "C8: the before-pr_merge span must be a tool span for issue-210 carrying gen_ai.tool.name=bash and harness.session_id=S8: ${c8b_new}"
 
-printf 'PASS: copilot-trace-hook.sh attributes runtime spans git-first, falls back to per-issue interval windows including camelCase epoch-ms timestamps, and no-ops+WARNs on no-match / ambiguity / missing timestamp\n'
+# =============================================================================
+# Active-issue marker fast-path (issue #216, P-5). start-issue.sh drops a tiny
+# per-issue marker file .copilot-tracking/active-issues/<N> whose content is the
+# window-start ISO timestamp. The hook consults it BEFORE the O(N) interval scan
+# and demotes interval to a last-resort. Per-issue files (not one shared file)
+# keep concurrency cheaply detectable so ambiguous ownership drops the span
+# rather than mis-attributing it.
+# =============================================================================
+
+# write_marker <repo> <issue> <start-ts>. Mirrors start-issue.sh's best-effort
+# marker write: one tiny file named for the issue, content = window-start ISO.
+write_marker() {
+  local repo="$1" issue="$2" start="$3"
+  mkdir -p "${repo}/.copilot-tracking/active-issues"
+  printf '%s' "$start" > "${repo}/.copilot-tracking/active-issues/${issue}"
+}
+
+# M1 — marker fast-path DISCRIMINATES from interval: issue-220 has a marker but
+# NO worktree_create span, so the interval scan can build no window and would
+# drop. The marker (single, open, ts>=start) must still attribute to issue-220.
+MAINM1="${TMP_DIR}/main-m1"
+make_main_repo "$MAINM1"
+write_marker "$MAINM1" 220 2026-07-07T10:00:00Z
+M1_T220="$(trace_path "$MAINM1" 220)"
+m1_before220="$([ -f "$M1_T220" ] && line_count "$M1_T220" || echo 0)"
+run_hook "m1" "$MAINM1" <(
+  snake_post_ts "$MAINM1" "SM1" "bash" '{"command":"echo marker-hit"}' 2026-07-07T10:15:00Z
+)
+assert_session_safe "m1"
+m1_after220="$([ -f "$M1_T220" ] && line_count "$M1_T220" || echo 0)"
+[ "$m1_after220" = "$((m1_before220 + 1))" ] \
+  || fail "M1: with an active-issue marker for issue-220 (start 10:00) and NO interval window, a payload at 10:15 must be attributed to issue-220 via the marker fast-path — got before=${m1_before220} after=${m1_after220}; hook__resolve_issue_by_marker is unimplemented (feature copilot-hook-active-issue-marker)"
+m1_new="$(nth_line "$M1_T220" "$m1_after220")"
+validate_span "$m1_new" \
+  || fail "M1: the marker-attributed span is rejected by the #92 contract filter (fixture broken): ${m1_new}"
+printf '%s\n' "$m1_new" | jq -e '
+    .span == "tool" and .["gen_ai.tool.name"] == "bash"
+    and .["harness.session_id"] == "SM1" and .["harness.issue"] == 220' >/dev/null \
+  || fail "M1: the marker-attributed span must be a tool span for issue-220 carrying gen_ai.tool.name=bash and harness.session_id=SM1: ${m1_new}"
+
+# M2 — marker present but payload PREDATES the window start: the marker must
+# decline (ts < start) and NOT force a pre-window span onto the issue. With no
+# matching interval window either, the span is dropped + WARNed.
+MAINM2="${TMP_DIR}/main-m2"
+make_main_repo "$MAINM2"
+write_marker "$MAINM2" 221 2026-07-07T10:00:00Z
+seed_lifecycle "$MAINM2" 221 worktree_create 2026-07-07T10:00:00Z
+M2_T221="$(trace_path "$MAINM2" 221)"
+m2_before221="$(line_count "$M2_T221")"
+run_hook "m2" "$MAINM2" <(
+  snake_post_ts "$MAINM2" "SM2" "bash" '{"command":"echo pre-window"}' 2026-07-07T09:30:00Z
+)
+assert_session_safe "m2"
+m2_after221="$(line_count "$M2_T221")"
+[ "$m2_after221" = "$m2_before221" ] \
+  || fail "M2: a payload at 09:30 (before the marker start 10:00) must NOT be marker-attributed to issue-221 — got before=${m2_before221} after=${m2_after221} (the marker fast-path must respect ts>=start, never force pre-window spans)"
+assert_warn_on_stderr "m2"
+
+# M3 — STALE marker (issue already finished): a lingering marker for issue-222
+# must NOT capture a later span once the issue emitted a finish edge. The
+# staleness guard makes the marker decline; interval then sees a closed window
+# and drops. No mis-attribution to a completed issue.
+MAINM3="${TMP_DIR}/main-m3"
+make_main_repo "$MAINM3"
+write_marker "$MAINM3" 222 2026-07-07T10:00:00Z
+seed_lifecycle "$MAINM3" 222 worktree_create 2026-07-07T10:00:00Z
+seed_lifecycle "$MAINM3" 222 finish          2026-07-07T10:30:00Z
+M3_T222="$(trace_path "$MAINM3" 222)"
+m3_before222="$(line_count "$M3_T222")"
+run_hook "m3" "$MAINM3" <(
+  snake_post_ts "$MAINM3" "SM3" "bash" '{"command":"echo post-finish"}' 2026-07-07T10:45:00Z
+)
+assert_session_safe "m3"
+m3_after222="$(line_count "$M3_T222")"
+[ "$m3_after222" = "$m3_before222" ] \
+  || fail "M3: a payload at 10:45 (after issue-222's finish) must NOT be marker-attributed despite a lingering marker — got before=${m3_before222} after=${m3_after222}; the staleness guard must decline once a finish/pr_merge edge exists"
+assert_warn_on_stderr "m3"
+
+# M4 — CONCURRENCY: two live markers (issue-223 and issue-224) make ownership
+# ambiguous. The marker fast-path must DEFER (never pick one), handing off to the
+# interval scan, whose own ambiguity guard drops the span. Strict safety rule:
+# ambiguous → drop, never mis-attribute.
+MAINM4="${TMP_DIR}/main-m4"
+make_main_repo "$MAINM4"
+write_marker "$MAINM4" 223 2026-07-07T10:00:00Z
+write_marker "$MAINM4" 224 2026-07-07T10:05:00Z
+seed_lifecycle "$MAINM4" 223 worktree_create 2026-07-07T10:00:00Z
+seed_lifecycle "$MAINM4" 224 worktree_create 2026-07-07T10:05:00Z
+M4_T223="$(trace_path "$MAINM4" 223)"
+M4_T224="$(trace_path "$MAINM4" 224)"
+m4_before223="$(line_count "$M4_T223")"
+m4_before224="$(line_count "$M4_T224")"
+run_hook "m4" "$MAINM4" <(
+  snake_post_ts "$MAINM4" "SM4" "bash" '{"command":"echo concurrent"}' 2026-07-07T10:10:00Z
+)
+assert_session_safe "m4"
+m4_after223="$(line_count "$M4_T223")"
+m4_after224="$(line_count "$M4_T224")"
+{ [ "$m4_after223" = "$m4_before223" ] && [ "$m4_after224" = "$m4_before224" ]; } \
+  || fail "M4: with TWO live markers (223,224) ownership is ambiguous — the span must be DROPPED, not attributed to either — got 223 before=${m4_before223} after=${m4_after223}, 224 before=${m4_before224} after=${m4_after224}"
+assert_warn_on_stderr "m4"
+
+# M5 — MUTATION baseline (marker removed): with NO active-issues dir the old
+# interval path must still attribute correctly. Proves the marker is an additive
+# fast-path, not a replacement — interval remains the working last resort.
+MAINM5="${TMP_DIR}/main-m5"
+make_main_repo "$MAINM5"
+seed_lifecycle "$MAINM5" 225 worktree_create 2026-07-07T10:00:00Z
+M5_T225="$(trace_path "$MAINM5" 225)"
+m5_before225="$(line_count "$M5_T225")"
+run_hook "m5" "$MAINM5" <(
+  snake_post_ts "$MAINM5" "SM5" "bash" '{"command":"echo interval-still-works"}' 2026-07-07T10:15:00Z
+)
+assert_session_safe "m5"
+m5_after225="$(line_count "$M5_T225")"
+[ "$m5_after225" = "$((m5_before225 + 1))" ] \
+  || fail "M5: with NO marker present, a payload at 10:15 inside issue-225's open window must STILL be interval-attributed — got before=${m5_before225} after=${m5_after225}; the marker must not break the interval last-resort"
+
+printf 'PASS: copilot-trace-hook.sh attributes runtime spans git-first, then active-issue marker, then per-issue interval windows including camelCase epoch-ms timestamps, and no-ops+WARNs on no-match / ambiguity / missing timestamp\n'
