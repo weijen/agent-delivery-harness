@@ -481,6 +481,27 @@ else
 	note "$WB_JSON: no lifecycle-step timeline for {Issue} — #223 panel 1 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing harness.lifecycle_step, order by timestamp)"
 fi
 
+# #223 panel 2 — per-feature TDD-loop strip. The drill-down tab must also carry
+# a KQL panel that summarises each feature's RED/GREEN churn for the selected
+# run: a dependencies query scoped to the exported {Issue} on harness.issue,
+# grouped by feature (harness.feature_id), counting the loop steps
+# red_handback / impl_handback / green_handback (role attribution rides on
+# harness.subagent, not the un-allowlisted harness.role). Reuse the same
+# flattened tab-drilldown query lines and require a single query to carry ALL
+# the markers (issue filter + feature_id + all three handback step names) so the
+# lifecycle-timeline query — which names harness.lifecycle_step but neither
+# feature_id nor the handback trio — cannot satisfy this by accident.
+if grep -F "customDimensions['harness.issue']" "$dd_timeline" \
+	| grep -F '{Issue}' \
+	| grep -F 'harness.feature_id' \
+	| grep -F 'red_handback' \
+	| grep -F 'impl_handback' \
+	| grep -Fq 'green_handback'; then
+	ok "#223: drilldown tab carries a per-feature TDD loop strip for {Issue} (panel 2)"
+else
+	note "$WB_JSON: no per-feature TDD loop strip for {Issue} — #223 panel 2 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', grouped by harness.feature_id, counting red_handback/impl_handback/green_handback)"
+fi
+
 # =============================================================================
 # E. HONEST METRICS — grep-assert on BOTH the workbook JSON and the README.
 # =============================================================================

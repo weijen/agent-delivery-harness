@@ -349,6 +349,43 @@
               }
             },
             "name": "drilldown-lifecycle-timeline"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "dependencies | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), feature = tostring(customDimensions['harness.feature_id']), step = tostring(customDimensions['harness.lifecycle_step']), role = tostring(customDimensions['harness.subagent']) | where issue == '{Issue}' and isnotempty(feature) | summarize reds = countif(step == 'red_handback'), impls = countif(step == 'impl_handback'), greens = countif(step == 'green_handback'), roles = make_set_if(role, isnotempty(role)) by feature | extend reentries = reds + impls + greens - 3, red_after_green = reds > 0 and greens > 0 | project feature, reds, impls, greens, reentries, roles | order by feature asc",
+              "size": 0,
+              "title": "Per-feature TDD loop strip (reentries > 0 = red_reentry)",
+              "queryType": 0,
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "reentries",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "colors",
+                      "thresholdsGrid": [
+                        {
+                          "operator": ">",
+                          "thresholdValue": "0",
+                          "representation": "yellow",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "green",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "drilldown-tdd-loop-strip"
           }
         ]
       },
