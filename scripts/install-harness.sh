@@ -84,14 +84,14 @@ list_files() {
 # Reconcile hooks for install-harness: the desired content is a real source file
 # ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
 # are invoked indirectly by reconcile_entry (SC2329).
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_write() {
 	mkdir -p "$(dirname "$RC_DST")"
 	cp "$RC_SRC" "$RC_DST"
 }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_diff() { diff -u "$RC_DST" "$RC_SRC" || true; }
 
 # Reconcile one source file against the target. Returns non-zero only when it

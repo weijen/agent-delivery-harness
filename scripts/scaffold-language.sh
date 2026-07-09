@@ -221,14 +221,14 @@ EOF
 # canonical string ($RC_CANONICAL) materialised at the target path ($RC_PATH),
 # both set by reconcile() below. They are invoked indirectly by reconcile_entry
 # (SC2329).
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_equal() { printf '%s\n' "$RC_CANONICAL" | cmp -s - "$RC_PATH"; }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_write() {
 	mkdir -p "$(dirname "$RC_PATH")"
 	printf '%s\n' "$RC_CANONICAL" >"$RC_PATH"
 }
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 rc_diff() { printf '%s\n' "$RC_CANONICAL" | diff -u "$RC_PATH" - || true; }
 
 # --- Reconcile one target file against canonical content --------------------
