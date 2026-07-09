@@ -20,7 +20,10 @@ separate from replaceable language support and project-specific conventions:
   (`scripts/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
   `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`,
   `finish-issue.sh`) must stay
-  language-neutral.
+  language-neutral. The `scripts/` language & structure policy — what stays
+  bash, what may become Python (trigger-based), and the split thresholds — is
+  recorded in
+  [docs/scripts-language-policy.md](scripts-language-policy.md).
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
   that teach `init.sh` how to detect a project surface and run its gates. The
   initial supported set is **Python, Go, Node.js, Java, and Ruby**. The core
