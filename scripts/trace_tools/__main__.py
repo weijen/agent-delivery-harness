@@ -17,6 +17,8 @@ from collections.abc import Sequence
 
 from trace_tools import __version__
 from trace_tools.appinsights import project
+from trace_tools.logmap import project_appinsights as project_logs_appinsights
+from trace_tools.logmap import project_otlp as project_logs_otlp
 from trace_tools.otlp import project as project_otlp
 
 _USAGE = """\
@@ -35,6 +37,13 @@ commands:
   map-otlp          read schema-v1 JSONL on stdin; write the marker protocol
                     (::skipped/::noversion/::count) then the OTLP resourceSpans
                     object as compact JSON on stdout.
+  map-logs-otlp     read schema-v1 log JSONL on stdin; write the log marker
+                    protocol (::skipped/::count) then the OTLP resourceLogs
+                    object as compact JSON on stdout.
+  map-logs-appinsights
+                    read schema-v1 log JSONL on stdin; write the log marker
+                    protocol (::skipped/::count) then the App-Insights
+                    MessageData envelope array as compact JSON on stdout.
 """
 
 
@@ -73,6 +82,40 @@ def _map_otlp() -> int:
     return 0
 
 
+def _map_logs_otlp() -> int:
+    """Project stdin log JSONL onto markers + a compact resourceLogs object on stdout.
+
+    Emits the two log marker lines (``::skipped``/``::count``), then the OTLP
+    ``resourceLogs`` object as compact JSON. scripts/log-export.sh owns
+    pretty-printing (via ``jq .``) so serialization stays jq-canonical across
+    engines.
+    """
+    skipped, count, body = project_logs_otlp(sys.stdin.read())
+    out = sys.stdout
+    out.write(f"::skipped {skipped}\n")
+    out.write(f"::count {count}\n")
+    out.write(json.dumps(body, separators=(",", ":"), ensure_ascii=False))
+    out.write("\n")
+    return 0
+
+
+def _map_logs_appinsights() -> int:
+    """Project stdin log JSONL onto markers + a compact MessageData array on stdout.
+
+    Emits the two log marker lines (``::skipped``/``::count``), then the
+    App-Insights ``MessageData`` envelope array as compact JSON.
+    scripts/log-export.sh owns pretty-printing (via ``jq .``) so serialization
+    stays jq-canonical across engines.
+    """
+    skipped, envelopes = project_logs_appinsights(sys.stdin.read())
+    out = sys.stdout
+    out.write(f"::skipped {skipped}\n")
+    out.write(f"::count {len(envelopes)}\n")
+    out.write(json.dumps(envelopes, separators=(",", ":"), ensure_ascii=False))
+    out.write("\n")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Route CLI arguments to an action and return the process exit code.
 
@@ -95,6 +138,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _map_appinsights()
     if args[0] == "map-otlp" and len(args) == 1:
         return _map_otlp()
+    if args[0] == "map-logs-otlp" and len(args) == 1:
+        return _map_logs_otlp()
+    if args[0] == "map-logs-appinsights" and len(args) == 1:
+        return _map_logs_appinsights()
     print(_USAGE, end="", file=sys.stderr)
     return 2
 
