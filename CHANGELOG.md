@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.3.0 (2026-07-10)
+
+### Features
+
+- **#258**: Add audit-sweep.sh local six-skill driver
+  ([#262](https://github.com/weijen/agent-delivery-harness/pull/262),
+  [`0137e21`](https://github.com/weijen/agent-delivery-harness/commit/0137e21348c7cde6c8df89e657867f3ef1ef0060))
+
+
 ## v0.2.0 (2026-07-10)
 
 ### Bug Fixes
