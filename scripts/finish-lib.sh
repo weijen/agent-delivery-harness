@@ -82,6 +82,7 @@ load_env_allowlist() {
     value="${trimmed#*=}"
     case "$key" in
       TRACE_EXPORT_OTLP|APPLICATIONINSIGHTS_CONNECTION_STRING|TRACE_EXPORT_OTLP_HTTP|\
+        LOG_EXPORT_OTLP|LOG_EXPORT_OTLP_HTTP|\
         OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_EXPORTER_OTLP_TRACES_ENDPOINT|OTEL_EXPORTER_OTLP_HEADERS)
         ;;
       *)
@@ -124,6 +125,31 @@ best_effort_trace_export() {
     yellow "⚠ trace export failed (exit ${rc}) — continuing teardown (best-effort)"
   else
     green "✓ Exported trace for issue ${ISSUE_NUM}"
+  fi
+  return 0
+}
+
+# Best-effort closeout log export (issue #220). Mirrors best_effort_trace_export:
+# ships the issue's logs to Azure Monitor ONLY when explicitly configured (opt-in
+# flag + connection string). It ALWAYS returns 0: a missing/failing exporter must
+# never change finish-issue's exit code or block teardown. It reads the
+# MAIN-checkout log file (which survives worktree removal), so it runs AFTER the
+# worktree is gone.
+best_effort_log_export() {
+  # finish-issue.sh runs from the main checkout; load unset allowlisted .env keys only.
+  load_env_allowlist "${SCRIPT_DIR}/../.env"
+  [ "${LOG_EXPORT_OTLP:-}" = "1" ] || return 0
+  [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ] || return 0
+  if [ ! -x "${SCRIPT_DIR}/log-export.sh" ]; then
+    yellow "⚠ log export skipped: scripts/log-export.sh not executable"
+    return 0
+  fi
+  local rc=0
+  "${SCRIPT_DIR}/log-export.sh" "$ISSUE_NUM" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    yellow "⚠ log export failed (exit ${rc}) — continuing teardown (best-effort)"
+  else
+    green "✓ Log export step completed for issue ${ISSUE_NUM} (no-op until live ship enabled)"
   fi
   return 0
 }

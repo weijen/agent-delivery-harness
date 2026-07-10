@@ -55,6 +55,42 @@ were considered and rejected for the analytics layer: the write-and-review loop
 matters more than single-binary distribution, and the harness already carries a
 Python profile/instructions ecosystem.
 
+### Decision-gate verdict — issue #220
+
+The gated pilot (issue **#220**) migrated the first tool, `trace-export.sh`,
+behind the `scripts/trace_tools/` dispatcher: App-Insights ingestion, OTLP
+emission, and log correlation now run in Python (`appinsights.py`, `otlp.py`,
+`logmap.py`, `mapping.py`) selected by an `auto` engine — Python when `python3`
++ `uv` are present, else today's jq path. The decision gate is resolved with a
+**verdict** of **qualified win** for the trace-analytics / data-mapping cluster.
+
+**Gate conditions met:**
+
+- **Byte-identical output** across engines — the parity oracle passes and log
+  correlation held, so the frozen CLI contract is honoured on both paths.
+- **Single-source `ALLOWLIST`** in `trace_tools/mapping.py` replaces two
+  byte-duplicated jq `def allowlist` blocks, removing a real duplication hazard.
+- **Unit-test and type seams** the jq heredocs never had — `pytest` and `mypy`
+  now cover the mapping logic, and the `uv`/`ruff`/`mypy`/`pytest` toolchain is
+  dogfooded in CI (`harness-smoke.yml`).
+
+**Why the win is _qualified_, not blanket:** the pilot introduced a real Python
+toolchain (cost side of the gate). So the verdict endorses Python only for the
+data-mapping cluster, not a wholesale bash→Python migration. jq stays the
+always-available **fallback** (the `auto` engine falls back to jq whenever the
+Python toolchain is absent, with byte-identical output proven by the parity
+oracle), and the lifecycle core stays bash — §1 is unchanged.
+
+**Scope stays trigger-based / never wholesale:** the remaining five analytics
+tools (`validate-trace.sh`, `trace-report.sh`, `trace-scorecard.sh`,
+`check-trace-consistency.sh`, `sanitize-trace.sh`) migrate only on their own
+trigger, per the §2 rule above — not as a batch on the back of this verdict.
+
+**Follow-up:** a **Phase-2** **migration** issue is recommended to consolidate
+the still-duplicated jq mapping blocks remaining in `trace-export.sh` behind
+`trace_tools`, finishing the single-source consolidation the pilot started. This
+verdict was reported back to epic **#212**.
+
 ## 3. Structure — split thresholds, not preemptive reorganization
 
 - **`review-gate.sh` splits into `review-gate.d/`** gate files (with

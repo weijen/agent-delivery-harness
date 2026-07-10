@@ -102,6 +102,82 @@ if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
   source "${SCRIPT_DIR}/trace-lib.sh"
 fi
 
+# --- Mapping engine selection (feature python-appinsights-mapping-parity) ------
+# The App-Insights envelope projection can be produced by the historical jq
+# program or by the Python pilot under scripts/trace_tools. TRACE_EXPORT_ENGINE
+# selects: `jq` forces jq; `python` forces the pilot; `auto` (default) prefers
+# the pilot when python3 + uv are present AND the package imports, else jq. The
+# resolved engine is ANNOUNCED on stderr (`notice: engine=<engine>`) — this is
+# the genuineness signal the parity sensor greps to prove the Python path truly
+# ran (rather than silently falling back to jq). Prints the resolved engine on
+# stdout for capture.
+resolve_trace_export_engine() {
+  local requested="${TRACE_EXPORT_ENGINE:-auto}"
+  local resolved
+  case "$requested" in
+    jq)
+      resolved="jq"
+      ;;
+    python)
+      if command -v python3 >/dev/null 2>&1; then
+        resolved="python"
+      else
+        yellow "notice: TRACE_EXPORT_ENGINE=python but python3 is unavailable — falling back to the jq engine" >&2
+        resolved="jq"
+      fi
+      ;;
+    auto)
+      if command -v python3 >/dev/null 2>&1 \
+          && command -v uv >/dev/null 2>&1 \
+          && PYTHONPATH="${SCRIPT_DIR}" python3 -c 'import trace_tools' >/dev/null 2>&1; then
+        resolved="python"
+      else
+        resolved="jq"
+      fi
+      ;;
+    *)
+      yellow "notice: unrecognised TRACE_EXPORT_ENGINE=${requested} — using the jq engine" >&2
+      resolved="jq"
+      ;;
+  esac
+  printf 'notice: engine=%s\n' "$resolved" >&2
+  printf '%s\n' "$resolved"
+}
+
+# map_appinsights_python — run the Python pilot's App-Insights projection over
+# stdin, emitting the SAME marker protocol as jq then a jq-pretty envelope body.
+# The pilot writes compact JSON; `jq .` re-serializes it so the staged bytes are
+# jq-canonical (and byte-identical to the jq engine). Reads stdin, writes the
+# reconstructed projection (markers + pretty array) on stdout.
+map_appinsights_python() {
+  local raw header body
+  if ! raw="$(PYTHONPATH="${SCRIPT_DIR}" python3 -m trace_tools map-appinsights)"; then
+    return 1
+  fi
+  header="$(printf '%s\n' "$raw" | sed -n '1,3p')"
+  if ! body="$(printf '%s\n' "$raw" | tail -n +4 | jq .)"; then
+    return 1
+  fi
+  printf '%s\n%s\n' "$header" "$body"
+}
+
+# map_otlp_python — run the Python pilot's OTLP resourceSpans projection over
+# stdin, emitting the SAME marker protocol as jq then a jq-pretty resourceSpans
+# body. The pilot writes compact JSON; `jq .` re-serializes it so the staged
+# bytes are jq-canonical (and byte-identical to the jq engine). Reads stdin,
+# writes the reconstructed projection (markers + pretty object) on stdout.
+map_otlp_python() {
+  local raw header body
+  if ! raw="$(PYTHONPATH="${SCRIPT_DIR}" python3 -m trace_tools map-otlp)"; then
+    return 1
+  fi
+  header="$(printf '%s\n' "$raw" | sed -n '1,3p')"
+  if ! body="$(printf '%s\n' "$raw" | tail -n +4 | jq .)"; then
+    return 1
+  fi
+  printf '%s\n%s\n' "$header" "$body"
+}
+
 usage() {
   {
     echo "usage: ./scripts/trace-export.sh <issue-number|trace-path> [--dry-run-to-file <out.json>]"
@@ -116,6 +192,9 @@ usage() {
     echo "        independent — either alone or both together. Dry-run seams need neither."
     echo "        OTEL_EXPORTER_OTLP_HEADERS (comma-separated Key=Value) is sent to the"
     echo "        collector but is SECRET — its values are never echoed."
+    echo "engine: TRACE_EXPORT_ENGINE selects the App-Insights/OTLP mapping engine —"
+    echo "        auto (default; Python pilot when python3+uv present, else jq), python, or jq."
+    echo "        jq is always the fallback; output is byte-identical across engines."
     echo "exit codes: 0 exported / clean no-op, 1 gate or export failure, 2 usage/environment error"
   } >&2
 }
@@ -655,7 +734,19 @@ def otlp_span:
                  spans: [ $spans[] | otlp_span ] } ] } ] })
 JQ
 
-  if ! otlp_projection="$(jq -nRr -f "$OTLP_FILTER" < "$TRACE_FILE")"; then
+  # Engine dispatch (feature python-otlp-mapping-parity): the OTLP resourceSpans
+  # projection is produced by jq (historical) or by the Python pilot
+  # (scripts/trace_tools). Both engines yield the SAME three marker lines then a
+  # jq-pretty resourceSpans object — the Python body is pretty-printed through
+  # the same `jq .`, so the staged bytes are jq-canonical (and byte-identical)
+  # either way, preserving the deterministic per-issue traceId (#223).
+  OTLP_ENGINE="$(resolve_trace_export_engine)"
+  if [ "$OTLP_ENGINE" = "python" ]; then
+    if ! otlp_projection="$(map_otlp_python < "$TRACE_FILE")"; then
+      red "error: the OTLP projection (python engine) failed to run" >&2
+      exit 2
+    fi
+  elif ! otlp_projection="$(jq -nRr -f "$OTLP_FILTER" < "$TRACE_FILE")"; then
     red "error: the OTLP projection jq pass failed to run" >&2
     exit 2
   fi
@@ -846,9 +937,22 @@ def envelope:
   ([ $spans[] | envelope ])
 JQ
 
-if ! projection="$(jq -nRr -f "$MAPPING_FILTER" < "$TRACE_FILE")"; then
-  red "error: the envelope projection jq pass failed to run" >&2
-  exit 2
+# Engine dispatch (feature python-appinsights-mapping-parity): the App-Insights
+# projection is produced by jq (historical) or by the Python pilot
+# (scripts/trace_tools). Both engines yield the SAME three marker lines then a
+# jq-pretty envelope array — the Python body is pretty-printed through the same
+# `jq .`, so the staged bytes are jq-canonical (and byte-identical) either way.
+MAPPING_ENGINE="$(resolve_trace_export_engine)"
+if [ "$MAPPING_ENGINE" = "python" ]; then
+  if ! projection="$(map_appinsights_python < "$TRACE_FILE")"; then
+    red "error: the envelope projection (python engine) failed to run" >&2
+    exit 2
+  fi
+else
+  if ! projection="$(jq -nRr -f "$MAPPING_FILTER" < "$TRACE_FILE")"; then
+    red "error: the envelope projection jq pass failed to run" >&2
+    exit 2
+  fi
 fi
 
 skipped="$(printf '%s\n' "$projection" | sed -n '1s/^::skipped //p')"

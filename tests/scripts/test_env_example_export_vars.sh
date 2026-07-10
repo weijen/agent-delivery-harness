@@ -27,7 +27,8 @@ fi
 # 1. Required export placeholders present (as `KEY=` assignments).
 for key in TRACE_EXPORT_OTLP APPLICATIONINSIGHTS_CONNECTION_STRING \
            TRACE_EXPORT_OTLP_HTTP OTEL_EXPORTER_OTLP_ENDPOINT \
-           OTEL_EXPORTER_OTLP_HEADERS; do
+           OTEL_EXPORTER_OTLP_HEADERS \
+           LOG_EXPORT_OTLP LOG_EXPORT_OTLP_HTTP; do
   grep -qE "^${key}=" "$ENV_EXAMPLE" \
     || fail ".env.example must define a '${key}=' placeholder (trace-export env contract)"
 done

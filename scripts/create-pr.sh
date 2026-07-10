@@ -127,5 +127,31 @@ else
   pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
 fi
 
+# --- 6. Optional mid-issue log export (issue #220) --------------------------
+# The closeout log ship (best_effort_log_export in finish-lib.sh) only fires at
+# teardown. This is an EARLIER, opt-in ship: when a PR is opened, push the
+# issue's logs to Azure Monitor so they are available before finish-issue runs.
+# It is behind its OWN flag and requires the connection secret too, and is
+# strictly best-effort — a missing or failing exporter must never break PR
+# creation (mirrors the guarded trace-lib source above).
+if [ "${CREATE_PR_LOG_EXPORT:-}" = "1" ] \
+  && [ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]; then
+  ISSUE_NUM=""
+  if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
+    ISSUE_NUM="$((10#${BASH_REMATCH[1]}))"
+  fi
+  if [ -z "$ISSUE_NUM" ]; then
+    red "⚠ log export skipped: cannot resolve issue number from branch '${branch}'"
+  elif [ ! -x "${SCRIPT_DIR}/log-export.sh" ]; then
+    red "⚠ log export skipped: scripts/log-export.sh not executable"
+  else
+    if "${SCRIPT_DIR}/log-export.sh" "$ISSUE_NUM"; then
+      green "✓ Log export step completed for issue ${ISSUE_NUM} (no-op until live ship enabled)"
+    else
+      red "⚠ log export failed — continuing (best-effort, PR creation not blocked)"
+    fi
+  fi
+fi
+
 TRACE_STAGE="done"
 green "✓ PR #${pr_number} is open."

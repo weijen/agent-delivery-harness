@@ -69,7 +69,8 @@ grep -qF "$SYNTH_CS" "$RUN_OUT" && fail "case1: connection string was ECHOED to 
   [ "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" = "$SYNTH_CS" ] \
     || { printf 'got: %s\n' "${APPLICATIONINSIGHTS_CONNECTION_STRING:-<unset>}" >&2; exit 3; }
   [ "${TRACE_EXPORT_OTLP:-}" = "1" ] || exit 4
-) || fail "case1: sourced .env must yield the exact connection string and TRACE_EXPORT_OTLP=1 (quoting must survive)"
+  [ "${LOG_EXPORT_OTLP:-}" = "1" ] || exit 5
+) || fail "case1: sourced .env must yield the exact connection string and TRACE_EXPORT_OTLP=1/LOG_EXPORT_OTLP=1 (quoting must survive)"
 # Seeded from example: an #227 placeholder key is present.
 grep -qE '^COPILOT_OTEL_ENABLED=' "$ENV1" || fail "case1: .env should be seeded from .env.example (COPILOT_OTEL_ENABLED placeholder missing)"
 
@@ -88,6 +89,8 @@ cs_lines="$(grep -cE '^APPLICATIONINSIGHTS_CONNECTION_STRING=' "$ENV2" 2>/dev/nu
 [ "$cs_lines" = "1" ] || fail "case2: exactly one APPLICATIONINSIGHTS_CONNECTION_STRING assignment expected (idempotent), got ${cs_lines}"
 otlp_lines="$(grep -cE '^TRACE_EXPORT_OTLP=' "$ENV2" 2>/dev/null || true)"
 [ "$otlp_lines" = "1" ] || fail "case2: exactly one TRACE_EXPORT_OTLP assignment expected, got ${otlp_lines}"
+log_otlp_lines="$(grep -cE '^LOG_EXPORT_OTLP=' "$ENV2" 2>/dev/null || true)"
+[ "$log_otlp_lines" = "1" ] || fail "case2: exactly one LOG_EXPORT_OTLP assignment expected (idempotent), got ${log_otlp_lines}"
 
 # --- Case 3: .env is gitignored in the real repo -----------------------------
 if command -v git >/dev/null 2>&1; then

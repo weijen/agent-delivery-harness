@@ -1,0 +1,37 @@
+name: Python CI
+
+# Project CI for the repository's Python surface (scripts/trace_tools). This is
+# the adopting-project gate the harness ci-coverage check requires: harness-smoke
+# runs the harness's own sensors and is deliberately excluded from that check, so
+# the Python profile gates (ruff / mypy / pytest) get their own workflow here.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  python-gates:
+    name: Python profile gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync Python environment
+        run: uv sync --all-groups
+
+      - name: ruff format
+        run: uv run ruff format --check .
+
+      - name: ruff check
+        run: uv run ruff check
+
+      - name: mypy
+        run: uv run mypy
+
+      - name: pytest
+        run: uv run pytest -q

@@ -60,6 +60,7 @@ upsert() { # upsert <key> <value>
 }
 
 upsert TRACE_EXPORT_OTLP "1"
+upsert LOG_EXPORT_OTLP "1"
 upsert APPLICATIONINSIGHTS_CONNECTION_STRING "$connection_string"
 
 chmod 600 "$ENV_FILE" 2>/dev/null || true

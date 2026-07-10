@@ -126,6 +126,12 @@ Three flows put values into that `.env`:
    ./scripts/trace-export.sh <issue-number>
    ```
 
+   The **log** export mirrors this flow: turn it on with `LOG_EXPORT_OTLP=1`
+   (plus the same `APPLICATIONINSIGHTS_CONNECTION_STRING`) and run
+   `scripts/log-export.sh <issue-number>`. `scripts/create-pr.sh` can also push
+   the issue's logs mid-issue when it opens the PR — opt in with
+   `CREATE_PR_LOG_EXPORT=1` (best-effort; a failing push never blocks the PR).
+
 3. **Closeout export.** With the same `.env` loaded in the shell that runs
    `finish-issue.sh`, the best-effort closeout export (below) still uses those
    process variables first. After one `scripts/gen-export-env.sh`, closeout needs no manual source.
