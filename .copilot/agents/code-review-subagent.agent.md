@@ -99,6 +99,10 @@ A passing build is not proof. Judge whether the sensors actually establish the c
    string or asserts a file exists does not prove behaviour such as **lifecycle order** (lifecycle ordering),
    **hard-vs-warn** exit semantics, **review-gate** enforcement, or **worktree cleanup**. For those, demand a sensor
    that observes the side effect (and is mutation-tested), and treat a presence-only stand-in as **BLOCKING**.
+5. **For a file/record deliverable, verify the artifact SURVIVES the full lifecycle**, not merely that it is emitted.
+   An artifact written into a soon-to-be-torn-down worktree (or otherwise deleted before the run ends) is not
+   delivered — demand a sensor that asserts the artifact exists in a surviving location *after* teardown/worktree
+   removal completes, and treat an emit-only check as **BLOCKING**.
 
 #### Four Blocking Gates (Product-Quality Rubric)
 

@@ -7,9 +7,16 @@ The harness core loads profiles, detects the project surface, runs the declared
 gates, and reports warnings — it does not hard-code the details of Python, Go,
 Node.js, Java, or Ruby.
 
+**Shipped vs generator-supported (issue #274).** Only **Python** and **Node.js**
+ship committed descriptors (`python.profile.sh`, `node.profile.sh`). **Go,
+Ruby, and Java are generator-supported**: their `*.profile.sh` descriptors are
+**not** shipped — run `scripts/scaffold-language.sh <id> --write` to generate a
+starting descriptor on demand. The reference designs for those three languages
+below document the shape a complete profile takes once scaffolded.
+
 This is the descriptor format introduced in issue #35; the Python profile is the
-first descriptor. Later issues add Go, Node.js, Ruby, and Java profiles and a
-generator (`scripts/scaffold-language.sh`).
+first descriptor. Later issues added the Node.js profile and a generator
+(`scripts/scaffold-language.sh`) that scaffolds Go, Ruby, and Java on demand.
 
 > **Scaffolding a new profile:** run `scripts/scaffold-language.sh <profile>`
 > (one of `python go node java ruby`) to preview the skeleton descriptor and
@@ -99,10 +106,12 @@ Because Node's metadata would clobber the shared `PROFILE_*` globals, `init.sh`
 sources `node.profile.sh` **late** — after the Python gate loop has run — and
 reads the surface label up front via a one-shot subshell source.
 
-## The Go profile (`go.profile.sh`)
+## The Go profile (generator-supported, `go.profile.sh`)
 
-The Go descriptor shows the **empty-slot** and **optional-SKIP** rules without
-package-manager variants:
+Go is **generator-supported**: `go.profile.sh` is not shipped — run
+`scripts/scaffold-language.sh go --write` to generate it. The reference design
+below shows the **empty-slot** and **optional-SKIP** rules a Go descriptor uses,
+without package-manager variants:
 
 - **No `typecheck` slot.** `PROFILE_GATES` is
   `(format_check lint golangci test)` — compilation via `go vet` / `go test`
@@ -120,10 +129,12 @@ package-manager variants:
 Like Node, the Go descriptor is sourced **late** so its `PROFILE_*` globals do
 not clobber Python's before the Python gate loop runs.
 
-## The Ruby profile (`ruby.profile.sh`)
+## The Ruby profile (generator-supported, `ruby.profile.sh`)
 
-The Ruby descriptor carries **two** load-bearing variant axes plus a conditional
-typecheck slot:
+Ruby is **generator-supported**: `ruby.profile.sh` is not shipped — run
+`scripts/scaffold-language.sh ruby --write` to generate it. The reference design
+below carries **two** load-bearing variant axes plus a conditional typecheck
+slot:
 
 - **Lint/format variant.** `PROFILE_RUBY_LINTER` is `standardrb` or `rubocop`.
   Precedence: an explicit `.rubocop.yml` wins; else a configured Standard Ruby
@@ -151,10 +162,12 @@ The surface label is `Ruby surface detected (Gemfile, <linter>/<test>)`. Like Go
 and Node, the Ruby descriptor is sourced **late** so its `PROFILE_*` globals do
 not clobber Python's before the Python gate loop runs.
 
-## The Java profile (`java.profile.sh`)
+## The Java profile (generator-supported, `java.profile.sh`)
 
-The Java descriptor carries a **build-tool** variant axis and wrapper preference,
-with an empty typecheck slot and two optional quality gates:
+Java is **generator-supported**: `java.profile.sh` is not shipped — run
+`scripts/scaffold-language.sh java --write` to generate it. The reference design
+below carries a **build-tool** variant axis and wrapper preference, with an
+empty typecheck slot and two optional quality gates:
 
 - **Build-tool variant.** `PROFILE_JAVA_BUILD` is `maven` (a `pom.xml`) or
   `gradle` (`build.gradle` / `build.gradle.kts`). Maven **wins** when both a

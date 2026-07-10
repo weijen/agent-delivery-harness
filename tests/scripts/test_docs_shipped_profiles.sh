@@ -42,6 +42,29 @@ for d in README.md docs/getting-started.md; do
     || note "$d must name Python and Node as the shipped profile set"
 done
 
+# --- 4. profiles/README.md must not present Go/Java/Ruby as SHIPPED descriptors.
+# The demoted languages (issue #274) no longer ship a *.profile.sh; each profile
+# section here must be explicitly marked generator-supported (issue #285 item 2),
+# so a reader can't mistake the reference design for a shipped file.
+readme="profiles/README.md"
+if [ -f "$readme" ]; then
+  grep -Eqi 'generator-supported' "$readme" \
+    || note "$readme must frame Go/Java/Ruby as generator-supported"
+  for lang in Go Ruby Java; do
+    # A profile section for a demoted language must carry the generator-supported
+    # marker on (or immediately under) its heading.
+    if grep -Eq "^## The ${lang} profile" "$readme"; then
+      awk -v lang="$lang" '
+        $0 ~ "^## The " lang " profile" { inband=1; hit=0; next }
+        /^## / && inband { inband=0 }
+        inband && tolower($0) ~ /generator-supported/ { hit=1 }
+        END { exit (hit ? 0 : 1) }
+      ' "$readme" \
+        || note "$readme '## The ${lang} profile' section must be marked generator-supported (not a shipped descriptor)"
+    fi
+  done
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "docs shipped-vs-generator sensor FAILED"
   exit 1

@@ -30,23 +30,31 @@ if [ -f "$h" ]; then
   for token in 'Loop 3' 'plan correction'; do
     grep -q "$token" "$h" || note "$h must document Loop 3 (plan correction) vocabulary: '$token'"
   done
+else
+  note "missing $h"
 fi
 
 # 1b. Narrative HARNESS.md must also name Loop 3 alongside Loops 1 and 2.
 harness_md="docs/HARNESS.md"
 if [ -f "$harness_md" ]; then
   grep -q 'Loop 3' "$harness_md" || note "$harness_md must name Loop 3 (plan correction) alongside Loops 1 and 2"
+else
+  note "missing $harness_md"
 fi
 
 # 2. implementation-subagent handback exists.
 if [ -f "$impl" ]; then
   grep -qi 'handback' "$impl" || note "$impl must describe its Handback"
+else
+  note "missing $impl"
 fi
 
 # 3. test-subagent handback distinguishes production defects from verification/sensor gaps.
 if [ -f "$test_a" ]; then
   grep -qi 'production' "$test_a" || note "$test_a handback must call out production defects"
   grep -Eqi 'verification|sensor' "$test_a" || note "$test_a handback must distinguish a verification/sensor gap"
+else
+  note "missing $test_a"
 fi
 
 # 4. code-review-subagent routes findings to impl / test / conductor.
@@ -54,6 +62,8 @@ if [ -f "$review" ]; then
   for token in 'implementation-subagent' 'test-subagent' 'conductor'; do
     grep -q "$token" "$review" || note "$review must route findings to '$token'"
   done
+else
+  note "missing $review"
 fi
 
 if [ "$fail" -ne 0 ]; then
