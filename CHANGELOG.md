@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-07-10)
+
+### Bug Fixes
+
+- **#263**: Add teeth_proof_missing_count to trace-schema numeric backstop
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+- **#263**: Type harness.teeth_proof_missing_count as a JSON number
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+### Documentation
+
+- **#263**: Document teeth_proof evidence doctrine
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+- **#263**: Record teeth-proof evidence delivery in PROGRESS
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+### Features
+
+- **#263**: Declare teeth-proof-missing warn failure mode in contract
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+- **#263**: First-class teeth-proof evidence for feature_list
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+- **#263**: Validate optional teeth_proof in check-feature-list.sh
+  ([#271](https://github.com/weijen/agent-delivery-harness/pull/271),
+  [`b4b5446`](https://github.com/weijen/agent-delivery-harness/commit/b4b5446122dc34551c80f1ea92c121434c5ec512))
+
+
 ## v0.3.0 (2026-07-10)
 
 ### Features
