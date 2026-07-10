@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-07-10)
+
+### Features
+
+- **#272**: Remove the cloud trace/log export leg
+  ([#282](https://github.com/weijen/agent-delivery-harness/pull/282),
+  [`5091efd`](https://github.com/weijen/agent-delivery-harness/commit/5091efd0cc7be1f6789eaf81693072161cc735ca))
+
+
 ## v0.8.1 (2026-07-10)
 
 ### Bug Fixes
