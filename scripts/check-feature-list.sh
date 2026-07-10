@@ -195,6 +195,11 @@ teeth_proof_missing_lines="$(jq -r '
   | to_entries[]
   | .key as $i | .value as $f
   | select(($f.passes // false) == true)
+  # A valid teeth_proof, the canonical teeth_proof_waiver, or the deprecated
+  # red_first_waiver alias all suppress the missing-teeth coverage warning.
+  # NOTE: only teeth_proof_waiver is hard-validated in the "problems" block
+  # above; a malformed red_first_waiver is softly treated as "no waiver" here
+  # (kept lenient on purpose while the deprecated alias is phased out).
   | select((($f.teeth_proof // null) | valid_teeth_proof | not)
       and (($f.red_first_waiver // null) | valid_governed_waiver | not)
       and (($f.teeth_proof_waiver // null) | valid_governed_waiver | not))

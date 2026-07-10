@@ -388,7 +388,7 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         ["bootstrap", "visual-only", "doc-only", "justified"] as $kinds
         | .features[]?
         | select(.passes == true)
-        | (if has("teeth_proof_waiver") then .teeth_proof_waiver else (.teeth_proof_waiver // .red_first_waiver) end) as $w
+        | (if has("teeth_proof_waiver") then .teeth_proof_waiver else .red_first_waiver end) as $w
         | select(($w | type) == "object")
         | select(($w.kind | type) == "string" and ($kinds | index($w.kind)) != null)
         | select(($w.reason | type) == "string" and ($w.reason | test("\\S")))
