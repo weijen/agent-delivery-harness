@@ -78,8 +78,12 @@ not waive your own gaps; report the gap instead of clearing it.
    critical breakage) using the rubric in `docs/evaluation/product-quality-rubric.md`. Collect gate evidence for
    your Pass status output.
 5. If all required sensors pass **and all product-quality gates pass**, update only that selected feature's `passes`,
-   `verification`, and factual status fields in `.copilot-tracking/issues/issue-NN/feature_list.json` when the
-   conductor asks you to own the pass flip.
+   `verification`, `teeth_proof`, and factual status fields in
+   `.copilot-tracking/issues/issue-NN/feature_list.json` when the conductor asks you to own the pass flip. Record
+   `teeth_proof` alongside the `passes:true` flip as an object with `kind` in `red_first`, `mutation`, or
+   `negative_fixture` plus non-empty evidence: `red_first` cites the failing-first run, `mutation` cites the
+   post-GREEN mutation/revert that made the sensor fail, and `negative_fixture` cites the committed negative fixture
+   the sensor rejects.
 6. Return failures with the command output summary and the production area that should be revisited.
 7. Return the substantive verification actions the conductor should record in the issue progress Action Log.
 

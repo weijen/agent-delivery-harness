@@ -255,7 +255,7 @@ for logging when they are not authorized to edit local issue progress directly.
 
 | Path | Purpose |
 | --- | --- |
-| `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `blocked_on`, and `verification`. |
+| `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `teeth_proof`, `blocked_on`, and `verification`. |
 | `.copilot-tracking/issues/issue-NN/progress.md` | Running local log of completed features, verification, commits, and next work. |
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
 | `.copilot-tracking/plans/*.md` | Local planning-subagent output for deep plans. |
@@ -358,6 +358,11 @@ While the broad trace gate stays warn-only, one class of finding is a **hard blo
 is absent or `red_first_role_mismatch` when a handback is recorded under the wrong role. `review-gate.sh` approve and
 check **hard-block** on these red-first findings by default, and `create-pr.sh` inherits the block, so a feature that
 skipped the red-first handoff cannot reach a PR.
+
+A feature can also carry a first-class `teeth_proof` object that proves the declared sensor's teeth: `red_first` for
+the failing-first run, `mutation` for a post-GREEN mutation or revert that the sensor catches, or `negative_fixture`
+for a committed negative fixture the sensor rejects. `check-feature-list.sh` reports teeth-proof coverage warn-only
+today.
 
 The only sanctioned way past the block is a governed **`red_first_waiver`** on the feature. The waiver is an explicit
 object carrying a `kind` drawn from a closed set — `bootstrap`, `visual-only`, `doc-only`, or `justified` — plus a
