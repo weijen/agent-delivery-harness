@@ -1,6 +1,6 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
-version = "0.5.0"
+version = "0.6.0"
 description = "Python pilot for the harness deep-trace span/log exporters (scripts/trace_tools)."
 readme = "README.md"
 requires-python = ">=3.14"

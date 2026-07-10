@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-07-10)
+
+### Documentation
+
+- **#265**: Clarify PEP 758 version boundary and Loop 2 actor
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+- **#265**: Record execute-before-CRITICAL + false-positive registry in PROGRESS
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+### Features
+
+- **#265**: Add known-false-positive registry seeded with PEP 758
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+- **#265**: Execute-before-CRITICAL rule + known-false-positive registry (PEP 758)
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+- **#265**: Execute-before-CRITICAL rule in code-review-subagent contract
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+- **#265**: Review-loop appends refuted findings to registry
+  ([#277](https://github.com/weijen/agent-delivery-harness/pull/277),
+  [`933787e`](https://github.com/weijen/agent-delivery-harness/commit/933787e7f9b39e98f67e1b77a6632105b4f4fb78))
+
+
 ## v0.5.0 (2026-07-10)
 
 ### Chores
