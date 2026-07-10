@@ -1,18 +1,25 @@
-"""Command-line entry point for :mod:`trace_tools` (Phase 1 arg-router stub).
+"""Command-line entry point for :mod:`trace_tools`.
 
-Recognises ``--help``/``-h`` and ``--version`` only; no subcommands carry real
-behaviour yet. Kept stdlib-only so the exporter can run without a ``uv sync``.
+Routes ``--help``/``--version`` plus the ``map-appinsights`` subcommand, which
+reads a schema-v1 trace as JSONL on stdin and writes, on stdout, the exporter
+marker protocol (``::skipped``/``::noversion``/``::count``) followed by the
+App-Insights envelope array as compact JSON. scripts/trace-export.sh
+pretty-prints that body through ``jq .`` so the on-disk bytes stay jq-canonical
+in both the jq and python engines. Kept stdlib-only so the exporter can run
+without a ``uv sync``.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Sequence
 
 from trace_tools import __version__
+from trace_tools.appinsights import project
 
 _USAGE = """\
-usage: python -m trace_tools [--help] [--version]
+usage: python -m trace_tools [--help] [--version] [<command>]
 
 trace_tools — Python pilot for the harness deep-trace exporters.
 
@@ -20,8 +27,28 @@ options:
   -h, --help     show this help message and exit
   --version      show the package version and exit
 
-No subcommands are wired yet; this is the Phase 1 scaffold.
+commands:
+  map-appinsights   read schema-v1 JSONL on stdin; write the marker protocol
+                    (::skipped/::noversion/::count) then the App-Insights
+                    envelope array as compact JSON on stdout.
 """
+
+
+def _map_appinsights() -> int:
+    """Project stdin JSONL onto markers + a compact envelope array on stdout.
+
+    Emits the three marker lines the jq projection produces, then the envelope
+    array as compact JSON. scripts/trace-export.sh owns pretty-printing (via
+    ``jq .``) so serialization stays jq-canonical across engines.
+    """
+    skipped, noversion, envelopes = project(sys.stdin.read())
+    out = sys.stdout
+    out.write(f"::skipped {skipped}\n")
+    out.write(f"::noversion {noversion}\n")
+    out.write(f"::count {len(envelopes)}\n")
+    out.write(json.dumps(envelopes, separators=(",", ":"), ensure_ascii=False))
+    out.write("\n")
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -32,8 +59,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ``sys.argv[1:]`` when ``None``.
 
     Returns:
-        ``0`` for ``--help``/no arguments or ``--version``; ``2`` for any
-        unrecognised argument (usage error).
+        ``0`` for ``--help``/no arguments, ``--version``, or a recognised
+        subcommand; ``2`` for any unrecognised argument (usage error).
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not args or "--help" in args or "-h" in args:
@@ -42,6 +69,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if "--version" in args:
         print(__version__)
         return 0
+    if args[0] == "map-appinsights" and len(args) == 1:
+        return _map_appinsights()
     print(_USAGE, end="", file=sys.stderr)
     return 2
 
