@@ -60,6 +60,7 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   best_effort_trace_export() { return 0; }
+  best_effort_log_export() { return 0; }
   best_effort_trace_reconstruct() { return 0; }
   best_effort_state_hygiene() { return 0; }
 fi
@@ -169,6 +170,12 @@ git worktree prune
 # both config vars so it is a clean no-op unless explicitly opted in.
 TRACE_STAGE="trace_export"
 best_effort_trace_export
+
+# --- Best-effort closeout log export (issue #220) ----------------------------
+# After teardown so a failed export can never block worktree removal; gated on
+# both config vars so it is a clean no-op unless explicitly opted in.
+TRACE_STAGE="log_export"
+best_effort_log_export
 
 # --- Best-effort closeout trace reconstruction (issue #149) ------------------
 # Local-only, no-secret step: run unconditionally after teardown so a failed
