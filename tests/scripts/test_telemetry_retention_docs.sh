@@ -14,8 +14,8 @@
 #       Terraform default, the sensor fails.
 #   D2. All FIVE allowlist-excluded fields, BY NAME
 #       (harness.args_summary, harness.result_summary, harness.summary,
-#        harness.worktree, harness.branch) — the same five the exporter (#112) drops
-#       deny-by-default.
+#        harness.worktree, harness.branch) — the five fields that stay excluded
+#       by the deny-by-default exit-ramp contract.
 #   D3. The 'deny-by-default' policy language AND a deletion/purge path
 #       (the telemetry auditability / rollback story).
 #   D4. Cross-links to the four sibling governance docs:
@@ -23,12 +23,8 @@
 #         * docs/evaluation/security-evals.md
 #         * docs/runtime-adapters/otlp-azure-monitor.md
 #         * infra/terraform/README.md
-#   D5. (issue #220 — the opt-in log EXPORT path.) The step-level-log region
-#       documents that the exported log stream (`scripts/log-export.sh`) is
-#       governed by the SAME unified retention window — the LIVE Terraform
-#       `retention_in_days` default — so the one workspace policy cannot
-#       diverge between the span and log signals (both-direction drift, scoped
-#       to the log region).
+#   Issue #272 removed the cloud export leg. This sensor keeps D1-D4 pinned as
+#   the dormant exit-ramp contract any future exporter must honor.
 #
 # RED until docs/evaluation/telemetry-retention-pii.md exists.
 #
@@ -89,9 +85,7 @@ fi
 
 # Markdown wraps prose: multi-word phrase pins run against a
 # newline-flattened copy so a line break inside a phrase cannot dodge them.
-FLAT="$(mktemp)"
-trap 'rm -f "${FLAT}"' EXIT
-tr '\n' ' ' < "$DOC" > "$FLAT"
+FLAT="$(tr '\n' ' ' < "$DOC")"
 
 # ==============================================================================
 # D1. Retention window matches the LIVE Terraform default (both directions).
@@ -110,7 +104,7 @@ grep -qiE 'retention_in_days|retention' "$DOC" \
 # Reverse drift: scan for any other 30..730-range number attached to a
 # days/retention word that contradicts the live default. A number in that
 # window that is NOT the live default is a stale/hand-edited retention claim.
-STALE="$(grep -oiE '[0-9]{2,3}[[:space:]-]*day' "$FLAT" \
+STALE="$(grep -oiE '[0-9]{2,3}[[:space:]-]*day' <<<"$FLAT" \
   | grep -oE '[0-9]{2,3}' \
   | while read -r n; do
       if [ "$n" -ge 30 ] && [ "$n" -le 730 ] && [ "$n" != "$TF_RETENTION" ]; then
@@ -126,15 +120,15 @@ fi
 # ==============================================================================
 for excluded in 'harness.args_summary' 'harness.result_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
   grep -qF -- "$excluded" "$DOC" \
-    || fail "doc must name the excluded field ${excluded} explicitly (the exporter drops all five deny-by-default) (D2)"
+    || fail "doc must name the excluded field ${excluded} explicitly (all five stay excluded deny-by-default) (D2)"
 done
 
 # ==============================================================================
 # D3. Deny-by-default policy + a deletion / purge path.
 # ==============================================================================
-grep -qiE 'deny[- ]by[- ]default|denied by default' "$FLAT" \
+grep -qiE 'deny[- ]by[- ]default|denied by default' <<<"$FLAT" \
   || fail "doc must state the shippable-attribute allowlist is deny-by-default (D3)"
-grep -qiE 'delet(e|ion)|purge|scrub|rollback' "$FLAT" \
+grep -qiE 'delet(e|ion)|purge|scrub|rollback' <<<"$FLAT" \
   || fail "doc must describe a deletion/purge path for telemetry (the auditability / rollback story) (D3)"
 
 # ==============================================================================
@@ -148,37 +142,5 @@ for link in \
   grep -qF -- "$link" "$DOC" \
     || fail "doc must cross-link ${link} (D4)"
 done
-
-# ==============================================================================
-# D5. The opt-in log export (issue #220) shares the SAME live-parsed retention
-#     window. Scoped to the step-level-log region so it pins the log-export
-#     retention statement (not merely the span window). Both directions:
-#     forward — the log region states the live default; reverse — no divergent
-#     retention day-count may appear in the log region. One workspace policy,
-#     one number, for both the span and log signals.
-# ==============================================================================
-LOG_REGION="$(awk '
-  tolower($0) ~ /log\.jsonl|step-level log/ { grabbing = 1 }
-  grabbing && /^## / && collected { exit }
-  grabbing { print; collected = 1 }
-' "$DOC" | tr '\n' ' ')"
-if [ -z "$LOG_REGION" ]; then
-  fail "doc has no step-level log (log.jsonl / 'step-level log') region — cannot confirm the opt-in log export shares the unified retention window (D5)"
-else
-  grep -qF -- 'scripts/log-export.sh' <<<"$LOG_REGION" \
-    || fail "doc log region must name scripts/log-export.sh as the opt-in log exporter governed by this retention policy (D5)"
-  grep -qE "(^|[^0-9])${TF_RETENTION}([^0-9]|\$)" <<<"$LOG_REGION" \
-    || fail "doc log region must state the exported log stream shares the SAME unified retention window (${TF_RETENTION} days — the live Terraform retention_in_days default) (D5)"
-  STALE_LOG="$(grep -oiE '[0-9]{2,3}[[:space:]-]*day' <<<"$LOG_REGION" \
-    | grep -oE '[0-9]{2,3}' \
-    | while read -r n; do
-        if [ "$n" -ge 30 ] && [ "$n" -le 730 ] && [ "$n" != "$TF_RETENTION" ]; then
-          printf '%s ' "$n"
-        fi
-      done)"
-  if [ -n "$STALE_LOG" ]; then
-    fail "doc log region states a retention day-count (${STALE_LOG}) that differs from the live Terraform default ${TF_RETENTION} — the exported log window cannot diverge from the unified policy (D5)"
-  fi
-fi
 
 finish

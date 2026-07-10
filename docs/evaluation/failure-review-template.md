@@ -31,7 +31,7 @@ Use the existing tooling — never ad-hoc greps over raw traces:
    findings (including `failure_mode_violation`) are review input too — a
    trace that cannot be trusted is itself a failure observation.
 3. Where a run's failure evidence should outlive the local-only trace,
-   convert it with `scripts/sanitize-trace.sh` into a reviewed fixture under
+   create a human-reviewed, commit-safe fixture under
    `tests/evals/fixtures/traces/` (provenance rules in
    [dataset-governance.md](dataset-governance.md)).
 

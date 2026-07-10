@@ -76,8 +76,7 @@ copy_finish_fixture_scripts() {
   mkdir -p "${dir}/scripts"
   for script in \
     issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
-    trace-lib.sh log-handback.sh validate-trace.sh check-trace-consistency.sh trace-report.sh \
-    trace-export.sh log-export.sh trace-reconstruct.sh; do
+    trace-lib.sh log-handback.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done
   chmod +x "${dir}/scripts/"*.sh

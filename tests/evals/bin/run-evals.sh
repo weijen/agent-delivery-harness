@@ -36,8 +36,8 @@ TRACE_LIB="${ROOT_DIR}/scripts/trace-lib.sh"
 
 # Fail-closed redaction gate (feature f3): the grader's captured evidence is
 # scrubbed with the repo's single redaction policy `trace_redact` before it can
-# ever reach the scorecard. Source it guarded, like scripts/sanitize-trace.sh;
-# when it is missing or does not export trace_redact the gate treats redaction
+# ever reach the scorecard. Source it guarded; when it is missing or does not
+# export trace_redact the gate treats redaction
 # as un-guaranteeable and fails closed (evidence omitted, never emitted raw).
 REDACTOR_AVAILABLE=0
 if [ -f "$TRACE_LIB" ]; then

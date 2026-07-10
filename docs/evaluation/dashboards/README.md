@@ -1,14 +1,17 @@
-# Dashboard pack — Harness Quality Workbook
+# Dashboard pack — Harness Quality Workbook (decommissioned)
 
-The [Harness Quality Workbook](../../../infra/terraform/harness-quality.workbook.json)
-is a live-deployed Azure Workbook (Terraform:
-[`infra/terraform/workbook.tf`](../../../infra/terraform/workbook.tf)) that monitors
-**issue runs** for the agent-delivery-harness. Its primary job is answering "how did
+> **Decommissioned by #272.** The workbook Terraform and workbook JSON were
+> removed with the cloud export leg. This page is retained as a historical
+> panel/field map and as exit-ramp notes for any future dashboard pack; no
+> workbook is currently deployed by this harness.
+
+The former Harness Quality Workbook monitored **issue runs** for the
+agent-delivery-harness. Its primary job is answering "how did
 the issue-NN run go?", so the `harness.issue` field (mandatory on every span) is the
 front-page dimension; `harness.version` is retained as the unit of cross-release
 comparison.
 
-## Workbook structure (tabs)
+## Former workbook structure (tabs)
 
 A tabs links item (`"style": "tabs"`) drives a `selectedTab` parameter; four group
 items switch on it:
@@ -22,11 +25,10 @@ items switch on it:
   Clicking a row exports the `{Issue}` parameter (grid `exportParameterName = Issue`),
   the drill-through the single-run tab (#223) consumes.
 - **Single-run drill-down** (`selectedTab == drilldown`) — parameterized on `{Issue}`;
-  panels 1-3,5-6 for the selected run. Panel 4 (failure-detail log join) is shipped:
-  it renders the failure-detail log join for the selected run, with an explicit
-  `log evidence unavailable` empty-state when a run has no exported failure logs
-  (never an empty chart, never inferred health). When no run is selected the panels
-  are honestly empty.
+  panels 1-3,5-6 for the selected run. Former panel 4 (failure-detail log join)
+  was decommissioned with the log export path; its retained design note is the
+  explicit `log evidence unavailable` empty-state (never an empty chart, never
+  inferred health). When no run is selected the panels are honestly empty.
 - **Version comparison** (`selectedTab == compare`) — the original by-`harness.version`
   aggregates and the deferred-metrics block, kept verbatim. A multi-select `{Version}`
   filter scopes the tab; an `'All'` selection is a no-op that reproduces the pre-change
@@ -35,19 +37,18 @@ items switch on it:
   `CmpEvtBase` (`customEvents`) — so all eight panels share a single version-extend +
   filter.
 
-Every panel:
+Every former panel:
 
 - scopes time via the Workbook `{TimeRange}` parameter (the trace envelope
   `time` is the source-span timestamp, so each query MUST bind its own window);
-- references only keys the exporter actually ships — the live allowlist in
-  `scripts/trace-export.sh` (`def allowlist:`), the `gen_ai.usage.` prefix, or a
+- references only keys retained by the exit-ramp allowlist, the `gen_ai.usage.` prefix, or a
   `measurements` field. Charting a dropped key charts perpetual nulls;
-- reads the App Insights table that matches the exporter's span mapping:
+- read the App Insights table that matched the former span mapping:
   tool + lifecycle spans -> `dependencies` (RemoteDependencyData); agent + model
   spans -> `customEvents` (EventData). A dimension charted against the wrong
   table returns empty forever, so no query mixes the two.
 
-## Panel -> contract-field map
+## Former panel -> contract-field map
 
 | Panel | Tab | Table | Contract field | Keys used | Honest caveat |
 |-------|-----|-------|----------------|-----------|---------------|
@@ -62,7 +63,7 @@ Every panel:
 | Tool & skill calls (this run) | Single-run drill-down | `dependencies` | `trace-summary.v1.json` `tools[]` + `skills[]` scoped to the issue | `harness.issue`, `gen_ai.tool.name`, `harness.skill.name`, `harness.exit_status`, `harness.duration_ms` | Per-run tool/skill volume and failures (`fail_calls` = non-zero `harness.exit_status`); per-feature tool-call attribution remains **deferred** (v1 `tools[]` has no feature dimension). Measured-zero vs. absent kept explicit. |
 | Cost strip (this run) | Single-run drill-down | `customEvents` | `trace-scorecard.v1.json` tokens + token_coverage scoped to the issue | `harness.issue`, `gen_ai.agent.name`, `gen_ai.request.model`, `measurements['gen_ai.usage.input_tokens']`, `measurements['gen_ai.usage.output_tokens']` | `tokens_status = unavailable` (honest null, never a fabricated 0) when no model span for the run carried `gen_ai.usage.*`; `runs_with_tokens` is the denominator; remaining gap is Copilot-side, tracked in **#163**. |
 | Transaction-view deep link | Single-run drill-down | (link-out, no KQL) | n/a (native App Insights end-to-end transaction view) | `harness.issue` (→ `operation_Id = issue-{Issue}`) | Links OUT to the native span-tree waterfall — the OTLP path derives a deterministic per-issue TraceId and preserves `parent_span_id` (#174), and the App Insights path tags every envelope `ai.operation.id = issue-<issue>`; the workbook does not rebuild the tree in KQL. The link carries no committed resource id (the workbook resolves its component from its Terraform `source_id`). |
-| Failure-detail log panel | Single-run drill-down | `traces` | `log-schema.v1.json` (#219) | `message`, `level`, `harness.issue`, `harness.stage`, `harness.outcome`, `span_id` | **Shipped**: the failure-detail log join (Tab 2 panel 4) reads the App Insights `traces` table (where exported log records land) for the selected run, keying off the #219 `log-schema.v1.json` fields `message`, `level`, `harness.issue`, `harness.stage`, `harness.outcome`, and the `span_id` correlation id. On a run with no exported failure logs it renders an explicit `log evidence unavailable` empty-state — never an empty chart or fabricated data. |
+| Failure-detail log panel | Single-run drill-down | `traces` | `log-schema.v1.json` (#219) | `message`, `level`, `harness.issue`, `harness.stage`, `harness.outcome`, `span_id` | **Decommissioned with #272**: this former join assumed exported log records in App Insights. With log export removed, the retained lesson is the explicit `log evidence unavailable` empty-state — never an empty chart or fabricated data. |
 | Outcome / pass rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].passed` / `runs`; `trace-summary.v1.json` `final_outcome`, `finished` | `harness.version`, `harness.outcome`, `harness.lifecycle_step` | Pass rate carries an explicit `runs` denominator; a run is counted only at its `finish` lifecycle step. |
 | red_reentry_free_rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].red_reentry_free_rate {free, of}`; `trace-summary.v1.json` `red_reentry` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | Measures no-red-after-green re-entry (a red before a feature's earliest green is invisible to trace-summary v1). Referred to only by its honest contract name `red_reentry_free_rate`. `of` is the explicit denominator. |
 | Deviation rate | Version comparison | `dependencies` | `trace-scorecard.v1.json` `by_version[].deviations {count, feature_ids}`; `trace-summary.v1.json` `deviations` | `harness.version`, `harness.lifecycle_step`, `harness.feature_id` | A measured zero is a real 0, not absence. |
@@ -109,7 +110,7 @@ so the observability intent is recorded alongside the charts.
 
 ## Agent Delivery Accuracy Matrix — panel mapping
 
-The dashboard pack is a trace workbook, not a complete correctness oracle. It maps existing panels to the layered `agent-delivery-accuracy-matrix` model while leaving direct correctness labels to review, GitHub, and future additive contracts.
+The decommissioned dashboard pack was a trace workbook, not a complete correctness oracle. It maps former panels to the layered `agent-delivery-accuracy-matrix` model while leaving direct correctness labels to review, GitHub, and future additive contracts.
 
 | Workbook panel | Matrix layer | Matrix metrics represented | Caveat |
 | --- | --- | --- | --- |
@@ -123,4 +124,4 @@ The dashboard pack is a trace workbook, not a complete correctness oracle. It ma
 | Failure-mode view | degradation | supporting evidence for `loop_rate_by_type`, `thrash_rate`, `trace_completeness_rate`, and `role_boundary_violation_rate` | Diagnostic unless tied to a mature blocking metric and explicit denominator. |
 | Deferred metrics | direct / efficiency | `post_merge_bug_rate`, `review_blocking_finding_rate`, `useful_action_ratio` | Not charted from v1 trace fields; absence is unavailable/deferred, never fabricated. |
 
-Direct-layer matrix metrics that are not charted here are `spec_compliance_pass_rate`, `human_approval_first_pass_rate`, `post_merge_bug_rate`, and `review_blocking_finding_rate`. They require review verdicts, GitHub review events, or post-merge defect attribution rather than the current workbook fields. Proxy metrics not charted as first-class panels are `feature_pass_rate`, `first_pass_feature_green_rate`, `sensor_adequacy_pass_rate`, and `red_first_evidence_rate`; the current workbook only provides related trace evidence.
+Direct-layer matrix metrics that are not charted here are `spec_compliance_pass_rate`, `human_approval_first_pass_rate`, `post_merge_bug_rate`, and `review_blocking_finding_rate`. They require review verdicts, GitHub review events, or post-merge defect attribution rather than the former workbook fields. Proxy metrics not charted as first-class panels are `feature_pass_rate`, `first_pass_feature_green_rate`, `sensor_adequacy_pass_rate`, and `red_first_evidence_rate`; the current workbook only provides related trace evidence.

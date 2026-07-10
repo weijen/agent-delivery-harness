@@ -19,13 +19,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_EXAMPLE="${ROOT}/.env.example"
 GITIGNORE="${ROOT}/.gitignore"
-EXPORT="${ROOT}/scripts/trace-export.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v git >/dev/null 2>&1 || fail "git is required"
-[ -f "$EXPORT" ] || fail "scripts/trace-export.sh not found"
 [ -f "$CONTRACT" ] || fail "trace schema contract not found"
 
 # --- 1. .env.example -----------------------------------------------------------
@@ -50,12 +48,10 @@ fi
 ( cd "$ROOT" && git check-ignore -q ".copilot-tracking/otel/probe.jsonl" ) \
   || fail ".copilot-tracking/otel/ must be git-ignored (local OTel file-export sink is never committed)"
 
-# --- 3. harness.subagent shippable + documented --------------------------------
-allowlist_slice="$(sed -n '/def allowlist:/,/\];/p' "$EXPORT")"
-printf '%s' "$allowlist_slice" | grep -qF '"harness.subagent"' \
-  || fail "harness.subagent must be in the trace-export allowlist (Q5: split conductor-vs-subagent in App Insights)"
-
+# --- 3. harness.subagent documented in the schema contract --------------------
+# The cloud export leg (and its allowlist) was removed in #272, but the trace
+# schema + OTel-aligned attribute names stay documented as the future exit ramp.
 jq -e '.optional_fields | has("harness.subagent")' "$CONTRACT" >/dev/null \
   || fail "harness.subagent must be documented in the schema contract optional_fields (allowlist ⊆ documented invariant)"
 
-printf 'PASS: .env.example carries COPILOT_OTEL_* placeholders (no secret), .copilot-tracking/otel/ is ignored, and harness.subagent is allowlisted + documented\n'
+printf 'PASS: .env.example carries COPILOT_OTEL_* placeholders (no secret), .copilot-tracking/otel/ is ignored, and harness.subagent is documented in the schema contract\n'

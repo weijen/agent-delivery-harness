@@ -5,6 +5,10 @@
 **Questions asked:** (1) we keep growing in bash — should we migrate to Python or another
 language before maintenance gets hard? (2) does the portfolio need re-planning/consolidation?
 
+> **2026-07-10 note:** The trace_tools/export pilot described in this
+> historical rationale record was reverted by issue #272. The rest of this
+> document is preserved as the original review context.
+
 ---
 
 ## Executive summary

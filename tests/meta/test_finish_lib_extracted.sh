@@ -20,9 +20,9 @@ ok() { echo "· $*"; }
 
 LIB="scripts/finish-lib.sh"
 CALLER="scripts/finish-issue.sh"
-HELPERS="finish_trace_gate best_effort_trace_export best_effort_trace_reconstruct best_effort_state_hygiene"
+HELPERS="finish_trace_gate best_effort_state_hygiene"
 
-# --- A. The shared lib exists and defines the four helpers -------------------
+# --- A. The shared lib exists and defines the closeout helpers ---------------
 if [ ! -f "$LIB" ]; then
 	note "$LIB missing — the closeout helpers are not extracted"
 else
