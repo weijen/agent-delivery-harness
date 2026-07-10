@@ -303,7 +303,7 @@
           {
             "type": 1,
             "content": {
-              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Deferred:** the failure-detail **log** panel is deferred / unavailable (gated on #220) and is intentionally not shipped in this tab."
+              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Failure-detail log:** the failure-detail **log** panel below surfaces gate/sensor FAILURE records for the selected run, with an explicit `log evidence unavailable` empty-state when a run has no failure logs \u2014 never an empty chart, never inferred health."
             },
             "name": "drilldown-header"
           },

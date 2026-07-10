@@ -811,13 +811,45 @@ if [ -n "$missing_tab2_panel" ]; then
 	note "#225 F3: the README panel->contract map is missing a row for a shipped Tab 2 panel ('$missing_tab2_panel') — the shipped log row must sit beside a complete Tab 2 panel map"
 fi
 # (c) the stale log-panel deferral prose (#220-gated) must be gone README-wide.
+#     Match only the STALE forms (word-boundaried) — `#220` as an issue token,
+#     `gated on #?220`, or `220[- ]gated` — so a bare `220` substring in an
+#     unrelated future token (e.g. `8220`, issue `#2200`) does not false-trip.
 readme_220=0
-if [ -f "$DASH_README" ] && grep -Eiq '#?220' "$DASH_README"; then
+if [ -f "$DASH_README" ] && grep -Eiq '#220\b|gated on #?220|220[- ]gated' "$DASH_README"; then
 	readme_220=1
 	note "#225 F3: $DASH_README still references #220 for the failure-detail log panel — the deferred→shipped flip must drop the '#220-gated' / 'deferred to a #220-gated issue' language from the narrative and map"
 fi
 if [ "$log_row_shipped" -eq 1 ] && [ -z "$missing_tab2_panel" ] && [ "$readme_220" -eq 0 ]; then
 	ok "#225 F3: README panel map documents the SHIPPED failure-detail log panel (traces + log-schema.v1.json keys + honest unavailable caveat), rows every shipped Tab 2 panel, and carries no stale #220 deferral"
+fi
+
+# =============================================================================
+# #225 F3 (workbook JSON): the SHIPPED failure-detail log panel means the
+# workbook's OWN drill-down header must NOT still carry the retired,
+# `#220`-gated / "not shipped in this tab" log-panel deferral. The README-wide
+# guard above never scanned the embedded Workbook JSON, so a stale header
+# sentence there could contradict the shipped `drilldown-failure-detail-log`
+# panel unseen. `#220` appears in the workbook ONLY as this log panel's stale
+# gate, so a workbook-wide `#?220` absence check is specific and safe.
+# Scope note: the LEGITIMATE `deferred-metrics` text item (review-blocking
+# findings + per-feature attribution marked "Deferred / unavailable") carries
+# NO `#220` and NO "not shipped in this tab", so this leg targets ONLY the
+# log-panel deferral and does NOT trip on that block.
+wb_log_defer=0
+if grep -Eiq '#?220' "$WB_JSON"; then
+	wb_log_defer=1
+	note "#225 F3: $WB_JSON still references #220 — the drill-down header's stale '(gated on #220)' log-panel deferral must be dropped now that the failure-detail log panel ships (the legitimate deferred-metrics block carries no #220)"
+fi
+if grep -Fq 'not shipped in this tab' "$WB_JSON"; then
+	wb_log_defer=1
+	note "#225 F3: $WB_JSON still says the log panel is 'not shipped in this tab' — the failure-detail log panel IS shipped; drop the stale deferral prose from the drill-down header"
+fi
+if grep -Eiq 'log[*[:space:]]*panel is deferred' "$WB_JSON"; then
+	wb_log_defer=1
+	note "#225 F3: $WB_JSON still says the failure-detail log panel 'is deferred' — the panel ships; the drill-down header must not mark it deferred/unavailable"
+fi
+if [ "$wb_log_defer" -eq 0 ]; then
+	ok "#225 F3: the workbook JSON drill-down header carries no stale #220 / 'not shipped in this tab' / 'log panel is deferred' deferral (the shipped failure-detail log panel is not contradicted; the legitimate deferred-metrics block is untouched)"
 fi
 
 # =============================================================================
