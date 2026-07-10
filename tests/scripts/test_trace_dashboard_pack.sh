@@ -1035,6 +1035,50 @@ if [ "$ver_ok" -eq 1 ]; then
 fi
 
 # =============================================================================
+# #224 — deferred-metrics-verbatim-guard. The compare tab's `deferred-metrics`
+# text block is a load-bearing honesty artifact: it names the contract-deferred
+# metrics (review-blocking findings, per-feature attribution) as explicitly
+# UNAVAILABLE and pins the honest red_reentry_free_rate / token-cost / #163
+# narrative. The F1/F2 hoist/refactor must retain that block byte-for-byte. This
+# guard jq-extracts ONLY the tab-compare `deferred-metrics` item content (by tab
+# name AND item name, so no other tab/text item can false-satisfy) and
+# SET-asserts the exact pinned sentence fingerprint verbatim: if ANY of the
+# distinctive strings drifts by even one word, the leg goes RED.
+# =============================================================================
+dm_json="$(jq -r '
+	.items[] | select(.name=="tab-compare")
+	| .content.items[] | select(.name=="deferred-metrics")
+	| .content.json // ""
+' "$WB_JSON" 2>/dev/null || echo "")"
+if [ -z "$dm_json" ]; then
+	note "#224: could not jq-extract the tab-compare 'deferred-metrics' text item (.items[]|select(name==\"tab-compare\").content.items[]|select(name==\"deferred-metrics\").content.json) — the verbatim honesty block is missing or moved (deferred-metrics-verbatim-guard)"
+else
+	dm_missing=""
+	# Each string is a distinctive verbatim fingerprint of the pinned block;
+	# together they pin heading, both deferred-metric bullets, the honest
+	# red_reentry_free_rate sentence, and the #163 token-gap pointer.
+	while IFS= read -r pin; do
+		[ -n "$pin" ] || continue
+		if ! printf '%s' "$dm_json" | grep -Fq "$pin"; then
+			dm_missing="$dm_missing
+    - $pin"
+		fi
+	done <<'DM_PINS'
+## Deferred metrics - explicitly UNAVAILABLE
+The following contract-deferred metrics are NOT charted because trace-summary.v1.json does not carry them.
+Review-blocking findings per issue: DEFERRED / unavailable / n/a
+Per-feature attribution of tool calls: DEFERRED / unavailable / n/a
+The red_reentry_free_rate panel above measures no-red-after-green re-entry
+tracked in #163
+DM_PINS
+	if [ -n "$dm_missing" ]; then
+		note "#224: the tab-compare 'deferred-metrics' block drifted from its pinned verbatim text — the F1/F2 refactor must retain it byte-for-byte. Missing verbatim string(s):$dm_missing"
+	else
+		ok "#224: tab-compare 'deferred-metrics' honesty block retained verbatim (heading, both DEFERRED bullets, honest red_reentry_free_rate sentence, and #163 token-gap pointer all pinned) — deferred-metrics-verbatim-guard"
+	fi
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then
