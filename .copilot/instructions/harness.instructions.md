@@ -171,6 +171,15 @@ If a step fails, the conductor routes the handback to the owning subagent (produ
 `implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
 itself.
 
+#### Teeth-proof evidence
+
+`teeth_proof` is the optional per-feature object that records how the `regression_sensor` was proven able to fail:
+`red_first` means the classic RED run failed before the implementation; `mutation` means the implementation was
+mutated or reverted after GREEN and the sensor observed RED; `negative_fixture` means a committed negative fixture is
+rejected by the sensor. The `test-subagent` records `teeth_proof` at the moment it flips `passes:true`, with the kind
+and non-empty evidence. `check-feature-list.sh` reports `teeth_proof_missing` as warn-only today; a follow-up issue
+will promote that coverage check to a hard gate.
+
 #### Agent-span conventions (single-source with the Action Log)
 
 Every conductor decision and subagent handback is recorded by the conductor running `scripts/log-handback.sh`
