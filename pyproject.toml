@@ -1,6 +1,6 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
-version = "1.0.0"
+version = "0.1.1"
 description = "Python pilot for the harness deep-trace span/log exporters (scripts/trace_tools)."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -43,6 +43,13 @@ commit_message = "chore(release): {version}"
 version_toml = ["pyproject.toml:project.version"]
 build_command = "bash scripts/sync-version.sh"
 assets = ["VERSION"]
+# Keep the harness on the 0.x line: PSR v10 defaults allow_zero_version to false,
+# which forces the first computed release to 1.0.0 regardless of change level
+# (the #257 -> premature 1.0.0 bug, see #260). allow_zero_version keeps us on
+# 0.x, and major_on_zero=false makes even a BREAKING CHANGE bump the minor on
+# 0.x — so 1.0.0 is reachable only via a deliberate manual --major.
+allow_zero_version = true
+major_on_zero = false
 
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
