@@ -149,6 +149,9 @@ scope/planning decisions.
     Git-metadata / ignored-untracked sweep. Customer-supplied raw media, screenshots, decks, exports, secrets, local
     environment files (`.env`), personal emails, tenant/subscription IDs, and resource endpoints found in pushed or
     soon-to-be-pushed content are **BLOCKING** (see the severity ladder).
+12. **Known false positives for syntax and version support** — Consult the
+    [`known-false-positive registry`](../skills/_review-known-false-positives.md) before raising any syntax or
+    version-support finding, and do not repeat a refuted claim without disproving it on the reviewed HEAD.
 
 For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
 unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
@@ -249,6 +252,11 @@ investigations. Keeping the passes distinct preserves recall.
 - **CRITICAL** — Bugs, security vulnerabilities, or data-loss risk introduced by the change. Blocks approval.
 - **MAJOR** — Significant quality issues that should be fixed. Blocks approval.
 - **MINOR** — Suggestions for improvement. Does NOT block approval.
+
+**Execute-before-CRITICAL:** For claims that the reviewed change "cannot run", "cannot parse", or "crashes", a
+CRITICAL requires an executed reproduction: record the command run on the reviewed HEAD and its observed output.
+Static reasoning alone can never mint a CRITICAL of this class; because this reviewer is read-only, the reproduction
+duty may be discharged via the conductor/test-subagent loop. Without that record, it must be reported as MAJOR with confidence: low, never CRITICAL.
 
 Any BLOCKING, CRITICAL, or MAJOR finding makes the final verdict `NEEDS_REVISION`. Only return `APPROVED` when all four
 verdicts pass: acceptance criteria are satisfied, every `passes:true` claim maps to a sensor that was actually run and
