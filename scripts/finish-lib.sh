@@ -90,6 +90,112 @@ finish_log_completeness_gate() {
   return 0
 }
 
+# Pure trace/feature-list economics renderer (issue #267). This is a PURE
+# function of its two explicit file arguments: callers resolve paths before
+# invoking it. Metric honesty follows the trace-report omit-never-fake /
+# null-never-0 rule: absent measurements render n/a, and model spans without
+# token usage do not fabricate zero-token runs.
+compute_delivery_economics() {
+  local trace_file="${1:-}"
+  local feature_list_file="${2:-}"
+  local trace_lines feature_line
+
+  printf '## Delivery economics (auto-stamped, trace-derived)\n'
+
+  if ! command -v jq >/dev/null 2>&1; then
+    printf '%s\n' \
+      '- Wall-clock span: n/a' \
+      '- Tokens: n/a' \
+      '- Review rounds: n/a' \
+      '- Deviations logged: n/a' \
+      '- Features: n/a'
+    return 0
+  fi
+
+  trace_lines="$(
+    if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
+      jq -nRr '
+        # Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are
+        # normalized before parsing, matching scripts/trace-report.sh.
+        def ts_secs:
+          sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+        def one_decimal:
+          (. * 10 | round) as $tenths
+          | ($tenths / 10 | tostring) as $s
+          | if ($s | contains(".")) then $s else "\($s).0" end;
+
+        [inputs | fromjson? | objects] as $spans
+        | [$spans[] | .timestamp? | strings] as $ts
+        | [$spans[] | select(.span == "model")] as $model_spans
+        | [$model_spans[]
+           | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
+                    or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+        | [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
+        | [
+            (if ($ts | length) < 2 then
+               "- Wall-clock span: n/a"
+             else
+               ($ts | min) as $first
+               | ($ts | max) as $last
+               | ($first | ts_secs) as $first_secs
+               | ($last | ts_secs) as $last_secs
+               | if $first_secs == null or $last_secs == null then
+                   "- Wall-clock span: n/a"
+                 else
+                   "- Wall-clock span: \($first) → \($last) (elapsed \(($last_secs - $first_secs) / 3600 | one_decimal)h)"
+                 end
+             end),
+            (if ($tok_models | length) == 0 then
+               "- Tokens: n/a (no run carried token data)"
+             else
+               "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
+             end),
+            (if ($reviews | length) == 0 then
+               "- Review rounds: 0"
+             else
+               "- Review rounds: \($reviews | length) (\([$reviews[] | select(.["harness.outcome"] == "fail")] | length) fail → \([$reviews[] | select(.["harness.outcome"] == "pass")] | length) pass)"
+             end),
+            "- Deviations logged: \([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
+          ]
+        | .[]
+      ' < "$trace_file" 2>/dev/null || true
+    fi
+  )"
+  if [ -n "$trace_lines" ]; then
+    printf '%s\n' "$trace_lines"
+  else
+    printf '%s\n' \
+      '- Wall-clock span: n/a' \
+      '- Tokens: n/a (no run carried token data)' \
+      '- Review rounds: 0' \
+      '- Deviations logged: 0'
+  fi
+
+  feature_line=""
+  if [ "$feature_list_file" != "-" ] && [ -n "$feature_list_file" ] \
+    && [ -s "$feature_list_file" ] && [ -r "$feature_list_file" ]; then
+    feature_line="$(
+      jq -r '
+        if (.features | type) != "array" then
+          empty
+        else
+          (.features | length) as $total
+          | ([.features[] | select(.passes == true)] | length) as $passing
+          | ([.features[] | select((.teeth_proof? | type) == "object")] | length) as $teeth
+          | "- Features: \($passing)/\($total) passes:true; teeth-proof coverage \($teeth)/\($total)"
+        end
+      ' "$feature_list_file" 2>/dev/null || true
+    )"
+  fi
+  if [ -n "$feature_line" ]; then
+    printf '%s\n' "$feature_line"
+  else
+    printf '%s\n' '- Features: n/a'
+  fi
+
+  return 0
+}
+
 # Safe data-only trace export env allowlist loader (issue #244). Reads optional
 # .env files without evaluating values and only fills unset allowlisted keys.
 load_env_allowlist() {
