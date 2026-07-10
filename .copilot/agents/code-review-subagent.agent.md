@@ -250,6 +250,11 @@ investigations. Keeping the passes distinct preserves recall.
 - **MAJOR** — Significant quality issues that should be fixed. Blocks approval.
 - **MINOR** — Suggestions for improvement. Does NOT block approval.
 
+**Execute-before-CRITICAL:** For claims that the reviewed change "cannot run", "cannot parse", or "crashes", a
+CRITICAL requires an executed reproduction: record the command run on the reviewed HEAD and its observed output.
+Static reasoning alone can never mint a CRITICAL of this class; because this reviewer is read-only, the reproduction
+duty may be discharged via the conductor/test-subagent loop. Without that record, it must be reported as MAJOR with confidence: low, never CRITICAL.
+
 Any BLOCKING, CRITICAL, or MAJOR finding makes the final verdict `NEEDS_REVISION`. Only return `APPROVED` when all four
 verdicts pass: acceptance criteria are satisfied, every `passes:true` claim maps to a sensor that was actually run and
 recorded, no out-of-scope behaviour was introduced, the lifecycle/role boundaries held, and no blocking
