@@ -348,6 +348,7 @@ trace_span() {
           | . + { ($k):
               # >>> trace-schema:numeric_keys (authority docs/evaluation/trace-schema.v1.json .numeric_keys + .numeric_key_prefixes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
               (if (($k | startswith("gen_ai.usage."))
+                   or ($k | startswith("harness.economics."))
                    or ($k == "harness.exit_status")
                    or ($k == "harness.duration_ms")
                    or ($k == "harness.finding_count")

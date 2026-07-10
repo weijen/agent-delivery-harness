@@ -302,6 +302,68 @@ economics_stamp_into() {
   return 0
 }
 
+# Pure numeric aggregate extractor for the finish-issue.economics span (issue
+# #267). Prints `key=value` lines for the machine-readable span, one metric per
+# line, honoring omit-never-fake: a metric is printed ONLY when it is actually
+# measured. trace_span types the numeric keys via the gen_ai.usage. and
+# harness.economics. prefixes. Always returns 0.
+economics_numeric_aggregates() {
+  local trace_file="${1:-}"
+  local feature_list_file="${2:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+
+  if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
+    jq -nRr '
+      def ts_secs:
+        sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+      [inputs | fromjson? | objects] as $spans
+      | [$spans[] | .timestamp? | strings] as $ts
+      | [$spans[] | select(.span == "model")] as $model_spans
+      | [$model_spans[]
+         | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
+                  or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+      | (
+          if ($ts | length) >= 2 then
+            ($ts | min | ts_secs) as $a
+            | ($ts | max | ts_secs) as $b
+            | if $a != null and $b != null and ($b - $a) > 0 then
+                "harness.economics.wall_clock_ms=\((($b - $a) * 1000) | round)"
+              else empty end
+          else empty end
+        ),
+        (
+          if ($tok_models | length) >= 1 then
+            "gen_ai.usage.input_tokens=\([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)",
+            "gen_ai.usage.output_tokens=\([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)"
+          else empty end
+        ),
+        (
+          if ($model_spans | length) >= 1 then
+            "harness.economics.token_runs=\($tok_models | length)",
+            "harness.economics.token_runs_total=\($model_spans | length)"
+          else empty end
+        ),
+        "harness.economics.review_rounds=\([$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] | length)",
+        "harness.economics.deviations=\([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
+    ' < "$trace_file" 2>/dev/null || true
+  fi
+
+  if [ "$feature_list_file" != "-" ] && [ -n "$feature_list_file" ] \
+    && [ -s "$feature_list_file" ] && [ -r "$feature_list_file" ]; then
+    jq -r '
+      if (.features | type) != "array" then empty
+      else
+        "harness.economics.features_total=\(.features | length)",
+        "harness.economics.features_passing=\([.features[] | select(.passes == true)] | length)",
+        "harness.economics.teeth_proof=\([.features[] | select((.teeth_proof? | type) == "object")] | length)"
+      end
+    ' "$feature_list_file" 2>/dev/null || true
+  fi
+
+  return 0
+}
+
 # Best-effort pre-teardown delivery economics stamp (issue #267). It runs while
 # the worktree is still present so the worktree progress.md and feature_list can
 # be used. The durable machine record is the finish-issue.economics span added
@@ -361,6 +423,21 @@ best_effort_economics_stamp() {
 
   printf '%s\n' "$block"
   economics_stamp_into "$progress_md" "$block" || true
+
+  # Durable machine record: append exactly one finish-issue.economics tool span
+  # with the numeric aggregates. Advisory — never blocks teardown.
+  if declare -F trace_span >/dev/null 2>&1; then
+    local -a econ_agg=()
+    local agg_line=""
+    while IFS= read -r agg_line; do
+      [ -n "$agg_line" ] && econ_agg+=("$agg_line")
+    done < <(economics_numeric_aggregates "$trace_file" "$feature_list")
+    TRACE_ISSUE="$stamp_issue" trace_span tool \
+      "gen_ai.tool.name=finish-issue.economics" \
+      "harness.outcome=pass" \
+      ${econ_agg[@]+"${econ_agg[@]}"} >/dev/null 2>&1 || true
+  fi
+
   return 0
 }
 

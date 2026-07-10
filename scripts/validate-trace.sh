@@ -230,7 +230,7 @@ def types_valid:
 | to_entries
 | all(.[];
     .key as $k
-    | (($k | startswith("gen_ai.usage.")) or ($numeric_keys | index($k) != null)) as $is_numeric
+    | (($k | startswith("gen_ai.usage.")) or ($k | startswith("harness.economics.")) or ($numeric_keys | index($k) != null)) as $is_numeric
     | if $is_numeric
       then (.value | type) == "number"
       else (.value | type) == "string"
