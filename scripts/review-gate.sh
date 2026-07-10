@@ -305,6 +305,7 @@ trace_gate() {
 # signatures that should be filled before closeout. REQUIRE_LOG_COMPLETE=1
 # promotes findings to a hard failure. Missing progress logs are always skipped
 # because older checkouts and early issue setup may not have one yet.
+# LOG_COMPLETENESS_PATHS replaces the default with whitespace-separated NN templates; missing paths are skipped.
 log_completeness_gate() {
   local issue_num="" branch=""
 
@@ -326,11 +327,12 @@ log_completeness_gate() {
     return 0
   fi
 
-  local progress_rel=".copilot-tracking/issues/issue-${issue_num}/progress.md"
-  local progress_path="${repo_root}/${progress_rel}"
-  if [ ! -r "$progress_path" ]; then
-    yellow "⚠ log-completeness gate skipped: no progress.md for issue ${issue_num} (nothing to check)"
-    return 0
+  local -a log_path_templates=()
+  if [ -n "${LOG_COMPLETENESS_PATHS:-}" ]; then
+    local log_paths_value="${LOG_COMPLETENESS_PATHS//$'\n'/ }"
+    read -r -a log_path_templates <<< "$log_paths_value"
+  else
+    log_path_templates=(".copilot-tracking/issues/issue-NN/progress.md")
   fi
 
   # Extensible signature list for placeholders that must be filled in issue logs.
@@ -341,24 +343,38 @@ log_completeness_gate() {
   )
   local -a placeholder_findings=()
   local signature match finding existing duplicate
+  local template progress_rel progress_path
+  local scanned_count=0
 
-  for signature in "${placeholder_signatures[@]}"; do
-    while IFS= read -r match; do
-      finding="${progress_rel}:${match}"
-      duplicate=0
-      for existing in "${placeholder_findings[@]}"; do
-        if [ "$existing" = "$finding" ]; then
-          duplicate=1
-          break
+  for template in "${log_path_templates[@]}"; do
+    progress_rel="${template//NN/$issue_num}"
+    progress_path="${repo_root}/${progress_rel}"
+    if [ ! -r "$progress_path" ]; then
+      continue
+    fi
+    scanned_count=$((scanned_count + 1))
+
+    for signature in "${placeholder_signatures[@]}"; do
+      while IFS= read -r match; do
+        finding="${progress_rel}:${match}"
+        duplicate=0
+        for existing in "${placeholder_findings[@]}"; do
+          if [ "$existing" = "$finding" ]; then
+            duplicate=1
+            break
+          fi
+        done
+        if [ "$duplicate" -eq 0 ]; then
+          placeholder_findings+=("$finding")
         fi
-      done
-      if [ "$duplicate" -eq 0 ]; then
-        placeholder_findings+=("$finding")
-      fi
-    done < <(grep -nF -- "$signature" "$progress_path" || true)
+      done < <(grep -nF -- "$signature" "$progress_path" || true)
+    done
   done
 
   local finding_count=${#placeholder_findings[@]}
+  if [ "$scanned_count" -eq 0 ]; then
+    yellow "⚠ log-completeness gate skipped: no readable log paths for issue ${issue_num} (nothing to check)"
+  fi
   if [ "$finding_count" -eq 0 ]; then
     green "✓ log-completeness: no unfilled placeholders in issue ${issue_num} log"
     return 0
