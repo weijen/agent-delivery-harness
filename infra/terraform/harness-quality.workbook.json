@@ -303,7 +303,7 @@
           {
             "type": 1,
             "content": {
-              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Deferred:** the failure-detail **log** panel is deferred / unavailable (gated on #220) and is intentionally not shipped in this tab."
+              "json": "## Single-run drill-down\n\nParameterized on the selected `{Issue}` \u2014 select a run in the **Issue runs** tab to populate this view.\n\n**Honesty stance:** missing or out-of-order lifecycle steps read as a gap; nothing is fabricated. When no run is selected the panels are honestly empty (hint: select a run in the Issue runs tab).\n\n**Failure-detail log:** the failure-detail **log** panel below surfaces gate/sensor FAILURE records for the selected run, with an explicit `log evidence unavailable` empty-state when a run has no failure logs \u2014 never an empty chart, never inferred health."
             },
             "name": "drilldown-header"
           },
@@ -423,6 +423,18 @@
               }
             },
             "name": "drilldown-tool-skill-calls"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let failures = traces | where timestamp {TimeRange} | extend issue = tostring(customDimensions['harness.issue']), stage = tostring(customDimensions['harness.stage']), outcome = tostring(customDimensions['harness.outcome']) | where operation_Id == 'issue-{Issue}' and severityLevel >= 3 and outcome == 'fail' | project timestamp, issue, stage, failing_span = operation_ParentId, message, log_evidence = 'available'; failures | union (print timestamp = datetime(null), issue = '{Issue}', stage = '', failing_span = '', message = 'log evidence unavailable', log_evidence = 'log evidence unavailable' | where toscalar(failures | count) == 0) | order by timestamp asc",
+              "size": 0,
+              "title": "Failure-detail log (this run) \u2014 gate/sensor FAILURE records (severityLevel >= 3 AND harness.outcome == 'fail') with captured message, correlated to the failing span via operation_ParentId; the native App Insights transaction view (panel 6) owns the full span tree",
+              "queryType": 0,
+              "visualization": "table"
+            },
+            "name": "drilldown-failure-detail-log"
           },
           {
             "type": 3,
