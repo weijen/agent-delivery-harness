@@ -1,35 +1,40 @@
 #!/usr/bin/env bash
-# test_red_first_pr_gate.sh — PR-path regression sensor for the red-first
-# evidence gate (issue #144, feature trace-red-first-pr-gate).
+# test_red_first_pr_gate.sh — PR-path regression sensor for the completed-
+# feature teeth-proof gate (issue #264, feature gate-blocks-teeth-proof-missing).
 #
 # WHAT THIS PINS
-# The prior feature (trace-red-first-evidence) taught
-# scripts/check-trace-consistency.sh to emit
-#     VIOLATION consistency: red_first_evidence_missing <fid>
-#     VIOLATION consistency: red_first_role_mismatch <fid>
-# for any passes:true coded feature that lacks a role-correct, file-ordered
+# scripts/check-trace-consistency.sh emits
+#     VIOLATION consistency: teeth_proof_missing <fid>
+# for any passes:true feature that lacks all of:
+#   * a role-correct, file-ordered
 #     test-subagent            red_handback  ->
 #     implementation-subagent  impl_handback ->
 #     test-subagent            green_handback
-# triple (all harness.outcome==pass) and carries no governed red_first_waiver.
+#     triple (all harness.outcome==pass);
+#   * a valid teeth_proof object; and
+#   * a governed red_first_waiver.
+# A valid teeth_proof without the ordered triple emits only
+#     WARNING consistency: red_first_ordering_absent <fid>
 #
-# This sensor pins the NEXT obligation: the PR path must HARD-BLOCK on that
-# specific evidence gap by default, while the broader trace gate
+# This sensor pins the PR-path obligation: review-gate.sh must HARD-BLOCK on
+# the teeth_proof_missing violation by default, while the broader trace gate
 # (validate-trace + other check-trace-consistency findings) stays warn-only.
 # Concretely:
 #   * `review-gate.sh approve` HARD-FAILS (non-zero) and does NOT write
 #     .copilot-tracking/review-gate/approved-head when a passes:true feature
-#     lacks red-first evidence and has no valid waiver.
+#     lacks the triple, teeth_proof, and valid waiver.
 #   * `review-gate.sh check` HARD-FAILS under the same gap, even when the
 #     approval marker matches HEAD and docs/PROGRESS.md changed (so approval
-#     and status-doc would otherwise pass — the red-first gap is the only
+#     and status-doc would otherwise pass — the teeth-proof gap is the only
 #     variable).
 #   * `create-pr.sh` therefore refuses BEFORE calling `gh pr create` (it runs
 #     `review-gate.sh check`).
-#   * A valid governed red_first_waiver OR a real ordered role-correct triple
-#     ALLOWS approve/check (subject to the other existing gate conditions).
+#   * A valid governed red_first_waiver, a valid teeth_proof, OR a real ordered
+#     role-correct triple ALLOWS approve/check (subject to the other existing
+#     gate conditions).
+#   * red_first_ordering_absent stays warn-only when teeth_proof is present.
 #   * An UNRELATED consistency finding (e.g. log_without_span) does NOT block
-#     by default — only the red-first obligation blocks.
+#     by default — only the teeth_proof_missing violation blocks.
 #
 # The sensor asserts PR-path BEHAVIOUR (exit codes + the approved-head marker
 # + whether `gh pr create` ran), not the checker internals — those are pinned
@@ -45,38 +50,48 @@
 # feature_list.json) is planted at the MAIN root issue dir, and agent spans +
 # their matching Action Log bullets are written there directly (the
 # dirty_gate_fixture approach) so the trace, progress.md, and feature list
-# stay mutually consistent and the ONLY attributable finding is red-first.
+# stay mutually consistent and the ONLY attributable violation is
+# teeth_proof_missing.
 # PATH is pinned to a hermetic bin (symlinked coreutils/git/jq + a fake gh:
 # `pr create` logs its args and exits 0, everything else exits 1).
 #
 # CASES:
-#   1 approve_blocks_missing_red_first  passes:true, no triple, no waiver ->
+#   1 approve_blocks_missing_teeth_proof  passes:true, no triple, no teeth_proof,
+#       no waiver ->
 #       approve exits non-zero AND approved-head is NOT written; output names
-#       red-first.
-#   2 check_blocks_missing_red_first    same gap, marker==HEAD + docs changed
-#       (approval + status-doc satisfied) -> check exits non-zero on red-first.
-#   3 create_pr_inherits_block          same gap -> create-pr exits non-zero
+#       teeth-proof.
+#   2 check_blocks_missing_teeth_proof    same gap, marker==HEAD + docs changed
+#       (approval + status-doc satisfied) -> check exits non-zero on teeth-proof.
+#   3 create_pr_inherits_block            same gap -> create-pr exits non-zero
 #       and the fake `gh pr create` was NOT called (gh.log empty).
-#   4 waiver_allows_approve             governed doc-only red_first_waiver, no
-#       triple -> approve exits 0 and writes approved-head==HEAD.
-#   5 triple_allows_approve             real ordered role-correct triple, no
-#       waiver -> approve exits 0 and writes approved-head==HEAD.
-#   6 warn_only_unrelated_trace_finding_does_not_block  valid triple PLUS an
+#   4 waiver_allows_approve               governed doc-only red_first_waiver,
+#       no triple -> approve exits 0 and writes approved-head==HEAD.
+#   5 teeth_proof_allows_approve          valid teeth_proof, green_handback-only
+#       trace -> checker emits red_first_ordering_absent WARNING, approve exits
+#       0, and writes approved-head==HEAD.
+#   6 triple_allows_approve               real ordered role-correct triple, no
+#       teeth_proof/waiver -> approve exits 0 and writes approved-head==HEAD.
+#   7 warn_only_unrelated_trace_finding_does_not_block  valid triple PLUS an
 #       unrelated log_without_span finding -> approve still exits 0 (only
-#       red-first blocks by default).
+#       teeth_proof_missing blocks by default).
 #
-# RED status at authoring time: review-gate.sh runs NO red-first evidence
-# check in approve/check, so cases 1/2/3 currently let the PR path proceed —
-# those assertions FAIL today. Cases 4/5/6 are guard legs that must hold both
-# now and after implementation.
+# RED status at authoring time: review-gate.sh still greps retired
+# red_first_* violation tokens, so cases 1/2/3 currently let the PR path
+# proceed when only teeth_proof_missing is emitted — those assertions FAIL
+# today. Cases 4/5/6/7 are guard legs that must hold both now and after
+# implementation.
 #
-# Exit codes: 0 red-first PR-gate contract honored · 1 a contract obligation regressed.
+# Exit codes: 0 teeth-proof PR-gate contract honored · 1 a contract obligation regressed.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
-TMP_DIR="$(mktemp -d)"
+TMP_DIR="${ROOT}/.copilot-tracking/test-tmp/red-first-pr-gate-$$"
+rm -rf "$TMP_DIR"
+mkdir -p "$TMP_DIR"
+export TMPDIR="${TMP_DIR}/system-tmp"
+mkdir -p "$TMPDIR"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fails=0
@@ -101,7 +116,7 @@ for s in review-gate.sh create-pr.sh check-trace-consistency.sh validate-trace.s
          trace-lib.sh issue-lib.sh start-issue.sh finish-issue.sh \
          check-feature-list.sh log-handback.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
-    || hard_fail "scripts/${s} not found — required by the red-first PR-gate fixture"
+    || hard_fail "scripts/${s} not found — required by the teeth-proof PR-gate fixture"
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} exists but is not executable (${ROOT}/scripts/${s})"
 done
@@ -158,7 +173,7 @@ make_fixture() {
   git -C "$dir" add .gitignore README.md docs scripts
   git -C "$dir" commit -q -m initial
   # Bare origin so create-pr's fetch/rebase/push reach `gh pr create` when the
-  # red-first gate does NOT block (attributability for case 3's RED).
+  # teeth-proof gate does NOT block (attributability for case 3's RED).
   git init -q --bare "${dir}.origin.git"
   git -C "$dir" remote add origin "${dir}.origin.git"
   git -C "$dir" push -q origin main
@@ -210,7 +225,7 @@ commit_docs() {
 
 # set_marker <worktree>: record the current HEAD as review-approved at the
 # worktree-local marker path (where review-gate.sh reads it), so approval +
-# status-doc pass and the red-first gap is the only variable.
+# status-doc pass and the teeth-proof gap is the only variable.
 set_marker() {
   local wt="$1" mdir="$1/.copilot-tracking/review-gate"
   mkdir -p "$mdir"
@@ -234,39 +249,40 @@ OUT="${TMP_DIR}/out.txt"
 # feature lists (the checker ignores .issue; feat-b is a false-positive guard).
 FL_MISSING='{"issue":1,"features":[{"id":"feat-a","title":"A","passes":true},{"id":"feat-b","title":"B","passes":false}]}'
 FL_WAIVER='{"issue":1,"features":[{"id":"feat-a","title":"A","passes":true,"red_first_waiver":{"kind":"doc-only","reason":"docs-only change, no code path touched"}},{"id":"feat-b","title":"B","passes":false}]}'
+FL_TEETH='{"issue":1,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"mutation","evidence":"mutant killed by tests/foo_test"}},{"id":"feat-b","title":"B","passes":false}]}'
 
 # ============================================================================
-# Case 1: approve_blocks_missing_red_first (issue 70)
+# Case 1: approve_blocks_missing_teeth_proof (issue 70)
 # ============================================================================
 C1="${TMP_DIR}/c70"; make_fixture "$C1" 70
 WT1="${C1}-worktrees/issue-70"; ID1="${C1}/.copilot-tracking/issues/issue-70"
 set_fl "$ID1" "$FL_MISSING"
 add_span "$ID1" 70 implementation-subagent impl_handback feat-a pass
 add_span "$ID1" 70 test-subagent green_handback feat-a pass
-commit_docs "$WT1" "issue-70 red-first approve leg"
+commit_docs "$WT1" "issue-70 teeth-proof approve leg"
 rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" != "0" ] \
-  || fail "approve_blocks_missing_red_first: 'review-gate.sh approve' must HARD-FAIL when a passes:true feature lacks red-first evidence and has no waiver, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "approve_blocks_missing_teeth_proof: 'review-gate.sh approve' must HARD-FAIL when a passes:true feature lacks an ordered triple, teeth_proof, and waiver, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ ! -f "$(marker_path "$WT1")" ] \
-  || fail "approve_blocks_missing_red_first: the approved-head marker must NOT be written when red-first evidence is missing (marker present at $(marker_path "$WT1"))"
-grep -Eiq 'red[_-]first' "$OUT" \
-  || fail "approve_blocks_missing_red_first: the refusal must name the red-first evidence obligation (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "approve_blocks_missing_teeth_proof: the approved-head marker must NOT be written when teeth-proof evidence is missing (marker present at $(marker_path "$WT1"))"
+grep -Eiq 'teeth' "$OUT" \
+  || fail "approve_blocks_missing_teeth_proof: the refusal must name the teeth-proof/sensor-teeth obligation (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
-# Case 2: check_blocks_missing_red_first (issue 71)
+# Case 2: check_blocks_missing_teeth_proof (issue 71)
 # ============================================================================
 C2="${TMP_DIR}/c71"; make_fixture "$C2" 71
 WT2="${C2}-worktrees/issue-71"; ID2="${C2}/.copilot-tracking/issues/issue-71"
 set_fl "$ID2" "$FL_MISSING"
 add_span "$ID2" 71 implementation-subagent impl_handback feat-a pass
 add_span "$ID2" 71 test-subagent green_handback feat-a pass
-commit_docs "$WT2" "issue-71 red-first check leg"
+commit_docs "$WT2" "issue-71 teeth-proof check leg"
 set_marker "$WT2"   # approval matches HEAD; status-doc satisfied above
 rc="$(run_in "$WT2" "$OUT" -- ./scripts/review-gate.sh check)"
 [ "$rc" != "0" ] \
-  || fail "check_blocks_missing_red_first: 'review-gate.sh check' must HARD-FAIL on missing red-first evidence even when approval and status-doc pass, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-grep -Eiq 'red[_-]first' "$OUT" \
-  || fail "check_blocks_missing_red_first: the check refusal must name the red-first evidence obligation (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "check_blocks_missing_teeth_proof: 'review-gate.sh check' must HARD-FAIL on missing teeth-proof evidence even when approval and status-doc pass, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+grep -Eiq 'teeth' "$OUT" \
+  || fail "check_blocks_missing_teeth_proof: the check refusal must name the teeth-proof/sensor-teeth obligation (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
 # Case 3: create_pr_inherits_block (issue 72)
@@ -276,14 +292,14 @@ WT3="${C3}-worktrees/issue-72"; ID3="${C3}/.copilot-tracking/issues/issue-72"
 set_fl "$ID3" "$FL_MISSING"
 add_span "$ID3" 72 implementation-subagent impl_handback feat-a pass
 add_span "$ID3" 72 test-subagent green_handback feat-a pass
-commit_docs "$WT3" "issue-72 red-first create-pr leg"
+commit_docs "$WT3" "issue-72 teeth-proof create-pr leg"
 set_marker "$WT3"
 GH_LOG3="${TMP_DIR}/gh-72.log"; : > "$GH_LOG3"
 rc="$(run_in "$WT3" "$OUT" GH_LOG="$GH_LOG3" -- ./scripts/create-pr.sh --title t --body b)"
 [ "$rc" != "0" ] \
-  || fail "create_pr_inherits_block: 'create-pr.sh' must refuse (non-zero) when review-gate check hard-fails on missing red-first, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "create_pr_inherits_block: 'create-pr.sh' must refuse (non-zero) when review-gate check hard-fails on missing teeth-proof evidence, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ ! -s "$GH_LOG3" ] \
-  || fail "create_pr_inherits_block: 'gh pr create' must NOT be called when the red-first gate blocks (gh.log: $(tr '\n' '|' < "$GH_LOG3"))"
+  || fail "create_pr_inherits_block: 'gh pr create' must NOT be called when the teeth-proof gate blocks (gh.log: $(tr '\n' '|' < "$GH_LOG3"))"
 
 # ============================================================================
 # Case 4: waiver_allows_approve (issue 73)
@@ -304,46 +320,71 @@ if [ -f "$(marker_path "$WT4")" ]; then
 fi
 
 # ============================================================================
-# Case 5: triple_allows_approve (issue 74)
+# Case 5: teeth_proof_allows_approve (issue 74)
 # ============================================================================
 C5="${TMP_DIR}/c74"; make_fixture "$C5" 74
 WT5="${C5}-worktrees/issue-74"; ID5="${C5}/.copilot-tracking/issues/issue-74"
-set_fl "$ID5" "$FL_MISSING"   # passes:true, no waiver — evidence comes from the trace
-add_span "$ID5" 74 test-subagent red_handback feat-a pass
-add_span "$ID5" 74 implementation-subagent impl_handback feat-a pass
-add_span "$ID5" 74 test-subagent green_handback feat-a pass
-commit_docs "$WT5" "issue-74 triple approve leg"
+set_fl "$ID5" "$FL_TEETH"
+add_span "$ID5" 74 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass; no ordered triple
+commit_docs "$WT5" "issue-74 teeth-proof approve leg"
+rc="$(run_in "$WT5" "$OUT" -- ./scripts/check-trace-consistency.sh 74)"
+[ "$rc" = "0" ] \
+  || fail "teeth_proof_allows_approve: red_first_ordering_absent must be warn-only when valid teeth_proof is present — expected checker exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+grep -q 'WARNING consistency: red_first_ordering_absent feat-a' "$OUT" \
+  || fail "teeth_proof_allows_approve: fixture must emit warn-only red_first_ordering_absent for feat-a (output: $(tr '\n' '|' < "$OUT"))"
+! grep -q 'VIOLATION consistency: teeth_proof_missing feat-a' "$OUT" \
+  || fail "teeth_proof_allows_approve: valid teeth_proof must clear the hard teeth_proof_missing violation (output: $(tr '\n' '|' < "$OUT"))"
 rc="$(run_in "$WT5" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
-  || fail "triple_allows_approve: a real role-correct ordered red-first triple must ALLOW approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "teeth_proof_allows_approve: a valid teeth_proof must ALLOW approve even without an ordered triple — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$WT5")" ] \
-  || fail "triple_allows_approve: approve must write the approved-head marker when an ordered role-correct triple is present"
+  || fail "teeth_proof_allows_approve: approve must write the approved-head marker when valid teeth_proof is present"
 if [ -f "$(marker_path "$WT5")" ]; then
   [ "$(tr -d '[:space:]' < "$(marker_path "$WT5")")" = "$(git -C "$WT5" rev-parse HEAD)" ] \
+    || fail "teeth_proof_allows_approve: the approved-head marker must equal the current HEAD"
+fi
+
+# ============================================================================
+# Case 6: triple_allows_approve (issue 75)
+# ============================================================================
+C6="${TMP_DIR}/c75"; make_fixture "$C6" 75
+WT6="${C6}-worktrees/issue-75"; ID6="${C6}/.copilot-tracking/issues/issue-75"
+set_fl "$ID6" "$FL_MISSING"   # passes:true, no teeth_proof/waiver — evidence comes from the trace
+add_span "$ID6" 75 test-subagent red_handback feat-a pass
+add_span "$ID6" 75 implementation-subagent impl_handback feat-a pass
+add_span "$ID6" 75 test-subagent green_handback feat-a pass
+commit_docs "$WT6" "issue-75 triple approve leg"
+rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
+[ "$rc" = "0" ] \
+  || fail "triple_allows_approve: a real role-correct ordered red-first triple must ALLOW approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+[ -f "$(marker_path "$WT6")" ] \
+  || fail "triple_allows_approve: approve must write the approved-head marker when an ordered role-correct triple is present"
+if [ -f "$(marker_path "$WT6")" ]; then
+  [ "$(tr -d '[:space:]' < "$(marker_path "$WT6")")" = "$(git -C "$WT6" rev-parse HEAD)" ] \
     || fail "triple_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 
 # ============================================================================
-# Case 6: warn_only_unrelated_trace_finding_does_not_block (issue 75)
+# Case 7: warn_only_unrelated_trace_finding_does_not_block (issue 76)
 # ============================================================================
-C6="${TMP_DIR}/c75"; make_fixture "$C6" 75
-WT6="${C6}-worktrees/issue-75"; ID6="${C6}/.copilot-tracking/issues/issue-75"
-set_fl "$ID6" "$FL_MISSING"   # passes:true feat-a, backed by a real triple below
-add_span "$ID6" 75 test-subagent red_handback feat-a pass
-add_span "$ID6" 75 implementation-subagent impl_handback feat-a pass
-add_span "$ID6" 75 test-subagent green_handback feat-a pass
+C7="${TMP_DIR}/c76"; make_fixture "$C7" 76
+WT7="${C7}-worktrees/issue-76"; ID7="${C7}/.copilot-tracking/issues/issue-76"
+set_fl "$ID7" "$FL_MISSING"   # passes:true feat-a, backed by a real triple below
+add_span "$ID7" 76 test-subagent red_handback feat-a pass
+add_span "$ID7" 76 implementation-subagent impl_handback feat-a pass
+add_span "$ID7" 76 test-subagent green_handback feat-a pass
 # An unrelated consistency finding (a hand bullet with no matching span).
-add_bullet_only "$ID6" conductor feature_start feat-a pass
-commit_docs "$WT6" "issue-75 warn-only guard leg"
-rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
+add_bullet_only "$ID7" conductor feature_start feat-a pass
+commit_docs "$WT7" "issue-76 warn-only guard leg"
+rc="$(run_in "$WT7" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
-  || fail "warn_only_unrelated_trace_finding_does_not_block: red-first evidence is present, so an unrelated consistency finding (log_without_span) must NOT block approve by default — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-[ -f "$(marker_path "$WT6")" ] \
-  || fail "warn_only_unrelated_trace_finding_does_not_block: approve must write the approved-head marker (only red-first blocks by default)"
+  || fail "warn_only_unrelated_trace_finding_does_not_block: an ordered triple is present, so an unrelated consistency finding (log_without_span) must NOT block approve by default — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+[ -f "$(marker_path "$WT7")" ] \
+  || fail "warn_only_unrelated_trace_finding_does_not_block: approve must write the approved-head marker (only teeth_proof_missing blocks by default)"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
-  printf '\n%d red-first PR-gate contract violation(s).\n' "$fails" >&2
+  printf '\n%d teeth-proof PR-gate contract violation(s).\n' "$fails" >&2
   exit 1
 fi
-printf 'red-first PR-gate contract honored\n'
+printf 'teeth-proof PR-gate contract honored\n'
