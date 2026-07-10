@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#263)_
+_Last updated: 2026-07-10 (#268)_
 
 ---
 
