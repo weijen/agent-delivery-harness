@@ -96,7 +96,7 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 # --- Prerequisites -----------------------------------------------------------
 command -v jq >/dev/null 2>&1 \
 	|| { printf 'warning: jq not installed — cannot validate envelope output; skipping\n' >&2; tap_ok "jq available for envelope validation # SKIP jq not installed"; tap_done; exit $?; }
-[ -f "${EXPORTER}" ] && [ -x "${EXPORTER}" ] \
+{ [ -f "${EXPORTER}" ] && [ -x "${EXPORTER}" ]; } \
 	|| { tap_not_ok "scripts/trace-export.sh exists and is executable"; tap_done; exit $?; }
 
 ISSUE="220"
