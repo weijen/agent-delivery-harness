@@ -20,5 +20,6 @@ fake command output.
   ```
 
   On Python 3.14+, the command exits with status 0 and no output. On Python versions earlier than 3.14 it raises
-  `SyntaxError`, which is the version boundary: reviewers must execute on the reviewed HEAD's interpreter instead of
-  assuming the syntax is invalid.
+  `SyntaxError`, which is the version boundary: reviewers must first check the project's target Python version and
+  execute on the reviewed HEAD's interpreter instead of assuming the syntax is invalid; a `SyntaxError` on an older
+  interpreter such as Python 3.13 does not refute PEP 758 code that targets Python 3.14+.
