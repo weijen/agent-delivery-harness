@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.10.0 (2026-07-10)
+
+### Features
+
+- **#274**: Demote go/java/ruby profiles to generator-supported
+  ([#284](https://github.com/weijen/agent-delivery-harness/pull/284),
+  [`cba3aec`](https://github.com/weijen/agent-delivery-harness/commit/cba3aec2b6cc9d64c6f5f0f6446d6dfda6343c7f))
+
+### Refactoring
+
+- **#273**: Triage prose-pinning meta-tests
+  ([#283](https://github.com/weijen/agent-delivery-harness/pull/283),
+  [`79d14c2`](https://github.com/weijen/agent-delivery-harness/commit/79d14c2ed50982909d5d0913732597053753f18c))
+
+
 ## v0.9.0 (2026-07-10)
 
 ### Features
