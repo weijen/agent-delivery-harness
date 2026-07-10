@@ -45,10 +45,16 @@ write_fake_gh() {
 #!/usr/bin/env bash
 set -euo pipefail
 if [ "$1 $2" = "pr view" ]; then
-  exit 1
+  # Real gh returns the PR number once the PR exists; model that so the
+  # create-pr.sh "unresolvable PR number" guard (issue #90) is satisfied.
+  [ -n "${GH_LOG:-}" ] && [ -f "${GH_LOG}.created" ] || exit 1
+  printf '123\n'
+  exit 0
 fi
+
 if [ "$1 $2" = "pr create" ]; then
   printf '%s\n' "$*" >> "${GH_LOG:?}"
+  : > "${GH_LOG}.created"
   exit 0
 fi
 printf 'unexpected gh call: %s\n' "$*" >&2
