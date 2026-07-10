@@ -40,6 +40,11 @@ grep -qE 'set -a *; *(source|\.) +\.env *; *set \+a' "$DOC" \
 grep -qF 'trace-export.sh' "$DOC" || fail "doc must cover the manual export flow (trace-export.sh)"
 grep -qiE 'finish-issue|closeout' "$DOC" || fail "doc must cover the closeout export flow (finish-issue)"
 
+# Issue #220: the LOG export flow must be documented alongside the trace flow —
+# the manual log exporter and its opt-in flag.
+grep -qF 'log-export.sh' "$DOC" || fail "doc must cover the manual log export flow (log-export.sh)"
+grep -qF 'LOG_EXPORT_OTLP' "$DOC" || fail "doc must reference the LOG_EXPORT_OTLP opt-in flag"
+
 # Issue #244: closeout must be documented as auto-loading the main-checkout .env,
 # unlike manual/start flows that still require an explicit source step.
 grep -qiE '(finish-issue|closeout).*(auto-load|automatically loads|reads? the main[- ]checkout [`'\'']?\.env|loads? the main[- ]checkout [`'\'']?\.env)|(auto-load|automatically loads|reads? the main[- ]checkout [`'\'']?\.env|loads? the main[- ]checkout [`'\'']?\.env).*(finish-issue|closeout)' "$DOC" \

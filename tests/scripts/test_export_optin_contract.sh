@@ -53,6 +53,16 @@ exit "\${STUB_EXPORTER_RC:-0}"
 EOF
 chmod +x "${STUB_DIR}/trace-export.sh"
 
+# Sibling stub for the LOG opt-in mirror (best_effort_log_export, issue #220):
+# records its issue arg to LOG_SENTINEL and exits per STUB_EXPORTER_RC.
+LOG_SENTINEL="${TMP_DIR}/log-exporter-invoked"
+cat > "${STUB_DIR}/log-export.sh" <<EOF
+#!/usr/bin/env bash
+printf 'invoked %s\n' "\$1" >> "${LOG_SENTINEL}"
+exit "\${STUB_EXPORTER_RC:-0}"
+EOF
+chmod +x "${STUB_DIR}/log-export.sh"
+
 # Harness that sources finish-lib.sh in isolation and calls the helper. The
 # inner script always starts from a clean env (unsets the opt-in vars), then
 # applies the caller's settings passed as SET_* env pairs.
@@ -96,5 +106,52 @@ rm -f "$SENTINEL"
 out="$(run_bee TRACE_EXPORT_OTLP=1 APPLICATIONINSIGHTS_CONNECTION_STRING=cs-fixture STUB_EXPORTER_RC=1)"
 [ "$out" = "rc=0" ] || fail "best_effort_trace_export must swallow exporter failure and return 0, got '${out}'"
 [ -f "$SENTINEL" ] || fail "exporter should have been invoked in the failing case too"
+
+# --- LOG opt-in mirror (issue #220) -------------------------------------------
+# best_effort_log_export is the LOG analogue of best_effort_trace_export and must
+# gate identically: opt-in requires BOTH LOG_EXPORT_OTLP=1 AND the connection
+# string, and stays best-effort (a failing exporter still returns 0). This
+# characterizes the existing gate so a future .env/log change can't make the LOG
+# ship mandatory or drop the flag requirement.
+run_bee_log() { # run_bee_log <KEY=VAL ...>  -> echoes "rc=<n>"
+  ROOT_FL="$FINISH_LIB" STUB_DIR="$STUB_DIR" BEE_SETS="$*" \
+    bash -c '
+      set -uo pipefail
+      unset LOG_EXPORT_OTLP APPLICATIONINSIGHTS_CONNECTION_STRING STUB_EXPORTER_RC
+      for kv in $BEE_SETS; do export "${kv?}"; done
+      yellow() { :; }; green() { :; }; red() { :; }
+      SCRIPT_DIR="$STUB_DIR"
+      ISSUE_NUM=999999
+      # shellcheck disable=SC1090
+      source "$ROOT_FL"
+      set +e
+      best_effort_log_export
+      printf "rc=%s\n" "$?"
+    '
+}
+
+# L1. No env at all → return 0, log exporter NOT invoked.
+rm -f "$LOG_SENTINEL"
+out="$(run_bee_log)"
+[ "$out" = "rc=0" ] || fail "best_effort_log_export must return 0 when unconfigured, got '${out}'"
+[ ! -f "$LOG_SENTINEL" ] || fail "log exporter must NOT be invoked when LOG_EXPORT_OTLP is unset"
+
+# L2. Flag on but connection string absent → return 0, log exporter NOT invoked.
+rm -f "$LOG_SENTINEL"
+out="$(run_bee_log LOG_EXPORT_OTLP=1)"
+[ "$out" = "rc=0" ] || fail "best_effort_log_export must return 0 when connection string absent, got '${out}'"
+[ ! -f "$LOG_SENTINEL" ] || fail "log exporter must NOT be invoked without APPLICATIONINSIGHTS_CONNECTION_STRING"
+
+# L3. Fully configured → log exporter INVOKED, helper returns 0.
+rm -f "$LOG_SENTINEL"
+out="$(run_bee_log LOG_EXPORT_OTLP=1 APPLICATIONINSIGHTS_CONNECTION_STRING=cs-fixture)"
+[ "$out" = "rc=0" ] || fail "best_effort_log_export must return 0 when configured, got '${out}'"
+[ -f "$LOG_SENTINEL" ] || fail "log exporter MUST be invoked when LOG_EXPORT_OTLP=1 and connection string are both set"
+
+# L4. Best-effort: log exporter failing must STILL return 0.
+rm -f "$LOG_SENTINEL"
+out="$(run_bee_log LOG_EXPORT_OTLP=1 APPLICATIONINSIGHTS_CONNECTION_STRING=cs-fixture STUB_EXPORTER_RC=1)"
+[ "$out" = "rc=0" ] || fail "best_effort_log_export must swallow exporter failure and return 0, got '${out}'"
+[ -f "$LOG_SENTINEL" ] || fail "log exporter should have been invoked in the failing case too"
 
 printf 'PASS: trace export stays opt-in — no-op without the flag+secret, invoked (best-effort) with both\n'
