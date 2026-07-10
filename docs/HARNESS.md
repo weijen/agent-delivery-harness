@@ -244,7 +244,12 @@ subagents never call each other). **Loop 1 (implementation ↔ test):** a produc
 sensor). **Loop 2 (review → implementation):** a `code-review-subagent` `NEEDS_REVISION` routes each blocking finding
 to `implementation-subagent`, `test-subagent`, or a conductor decision, then the relevant sensor and the review are
 re-run on the new HEAD. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
-failure stops and asks the human after two attempts. Full protocol in
+failure stops and asks the human after two attempts. **Loop 3 (plan correction)** is a lightweight, conductor-owned
+escape hatch on top of these two: when a `Plan first` handback, a wrong-declared-sensor handback, a review scope /
+planning decision, or two failed repairs reveal that the **plan or sensor contract** — not the code — is falsified,
+the conductor records the blocker in the Action Log, pauses feature work, updates the plan or re-invokes
+`planning-subagent`, and resets the affected features to `passes:false` (reusing the `blocked_on` field, no new state
+files). Loop 1 and Loop 2 remain the default; Loop 3 fires only when a plan assumption is wrong. Full protocol in
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
 Conductor, implementation-subagent, test-subagent, and code-review-subagent actions must be visible in the issue

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#91)_
+_Last updated: 2026-07-10 (#88)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-10 (#91)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 165 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 166 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#91)_
 ---
 
 ## Delivered (newest first)
+
+### Loop 3 plan-correction escape hatch (#88): make return-to-planning explicit + fail-closed
+- **#88 — the harness documented Loop 1 (implementation ↔ test) and Loop 2 (review → implementation) but left the "the plan itself is wrong" recovery implicit.** `Plan first` handbacks, wrong-declared-sensor handbacks, and review scope/planning routing all existed, but the return-to-planning step was easy to forget, and nothing stopped a falsified feature from staying `passes:true`. **Two features, each red-first (`red_handback → impl_handback → green_handback`):** (1) `loop3-plan-correction-doc` — a lightweight **Loop 3 (plan correction)** subsection in `harness.instructions.md` §3 (triggers: `Plan first`, wrong declared sensor, a review scope/planning decision, or two failed repairs revealing a bad plan assumption; conductor action: record the blocker in the Action Log, pause feature work, update the plan or re-invoke `planning-subagent`, reset affected features to `passes:false` via the existing `blocked_on` field, re-run the human-input gate only on scope/breakdown/mapping/contract change) plus a mirrored paragraph in `docs/HARNESS.md`; Loop 1 and Loop 2 stay the default path and no new roles/scripts/state files are added — guarded by an extended `tests/meta/test_revision_loops.sh` Loop 3 closed-vocabulary assertion. (2) `blocked-passes-mutual-exclusion-sensor` — a fail-closed rule in `scripts/check-feature-list.sh`: a feature with a non-empty `blocked_on` **and** `passes:true` is now a hard structural failure (a replanned/blocked feature can never also be "green"); empty/absent/null `blocked_on` and `blocked_on`+`passes:false` are unaffected. New sensor `tests/scripts/test_feature_list_blocked_passes.sh` (4 cases). Full 166-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### finish-issue worktree-error surfacing (#91): show git's real error, not a generic guess
 - **#91 — `scripts/finish-issue.sh` suppressed `git worktree remove`'s stderr (`2>/dev/null`) and printed a generic `✗ Worktree has uncommitted changes (or is locked).`** — a resuming operator could not tell whether the worktree was dirty, locked, or in some other failure state, making recovery guesswork. **One feature, red-first (`red_handback → impl_handback → green_handback`):** `surface-worktree-remove-error` — the `worktree_remove` stage now captures `wt_remove_err="$(git worktree remove … 2>&1)"` and, on failure, prints `✗ Could not remove the worktree at <dir>:` followed by git's OWN error text (indented) and the unchanged commit/stash-or-`FORCE=1` remediation hint, then `exit 1`. `FORCE=1` behavior is untouched (discards the work, removes the worktree). Sensor `tests/scripts/test_finish_issue_worktree_error.sh` drives the real `finish-issue.sh` in a temp repo + issue worktree carrying a non-ignored untracked file: (1) no-`FORCE` → exit 1 with git's `contains modified or untracked files` text + the `FORCE=1` hint + the worktree surviving; (2) `FORCE=1` → removed, exit 0. Full 165-sensor suite + shellcheck (CI glob) + L0 green.

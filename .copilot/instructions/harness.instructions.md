@@ -255,6 +255,25 @@ new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
 exists.
 
+**Loop 3 — plan correction (conductor-owned, lightweight).** Loop 1 and Loop 2 stay the default path; Loop 3 fires
+**only when a plan assumption or the sensor contract is falsified**, not on ordinary defects. Triggers: a `Plan first`
+handback, a "declared sensor is wrong" handback, a `code-review-subagent` finding that routes a **scope or planning
+decision** to the conductor, or **two failed repair attempts** that reveal a bad plan assumption rather than a code
+defect. This is intentionally not a third heavy workflow — the escape hatches already exist; Loop 3 just makes the
+return-to-planning step explicit so it is not forgotten. Conductor action:
+
+- **Record the blocker** in the issue Action Log and **pause feature work** on the affected feature(s).
+- **Correct the plan** — update the issue plan directly, or re-invoke `planning-subagent` when the breakdown itself is
+  wrong.
+- **Reset affected features to `passes:false`** (reuse the existing `feature_list.json` `blocked_on` field to name the
+  replan; do **not** add new state files) so a falsified feature can never stay `passes:true`.
+- **Re-run the human-input gate only if** scope, feature breakdown, acceptance-criteria mapping, or the sensor
+  contract changes; a pure sequencing or wording correction does not re-trigger the gate.
+
+Loop 3 owns no new roles or scripts: it is a conductor discipline expressed entirely through the Action Log and the
+existing `blocked_on`/`passes` fields, enforced fail-closed by `scripts/check-feature-list.sh` (a feature cannot be
+`blocked_on` a replan **and** `passes:true` at the same time).
+
 #### Pass the applicable instruction files into subagent prompts
 
 Subagents run in a **fresh context** and do **not** inherit the conductor's Copilot instruction resolution. So the
