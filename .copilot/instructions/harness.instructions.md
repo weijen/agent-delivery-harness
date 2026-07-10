@@ -241,6 +241,10 @@ recorded.
   routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to re-run — to
   `implementation-subagent` when a production/code/prompt/config change is needed, or to `test-subagent` when the gap
   is a missing or weak sensor.
+- Append an entry whenever a CRITICAL or MAJOR review finding is empirically refuted (for example, by running a
+  cannot-run/cannot-parse claim and observing success) to the known-false-positive registry at
+  [`../skills/_review-known-false-positives.md`](../skills/_review-known-false-positives.md); the entry carries the
+  disproving command and its observed output, and omit-never-fake applies, so never invent output.
 - **MINOR/Low** → may be deferred only where §6 allows, with rationale and tracking; never silently dropped when a
   concise review mode hides them.
 
