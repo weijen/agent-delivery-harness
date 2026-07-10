@@ -1,6 +1,6 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python pilot for the harness deep-trace span/log exporters (scripts/trace_tools)."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -32,3 +32,20 @@ strict = true
 [tool.pytest.ini_options]
 testpaths = ["scripts/trace_tools/tests"]
 pythonpath = ["scripts"]
+
+# python-semantic-release (issue #257): automate SemVer bumps + changelog from
+# Conventional Commits. pyproject.toml [project].version is the single source of
+# truth; the build step mirrors it into the root VERSION file for trace-lib.sh.
+[tool.semantic_release]
+tag_format = "v{version}"
+commit_parser = "conventional"
+commit_message = "chore(release): {version}"
+version_toml = ["pyproject.toml:project.version"]
+build_command = "bash scripts/sync-version.sh"
+assets = ["VERSION"]
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.branches.main]
+match = "main"
