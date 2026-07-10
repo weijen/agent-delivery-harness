@@ -60,6 +60,7 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
+  best_effort_economics_stamp() { return 0; }
   best_effort_trace_export() { return 0; }
   best_effort_log_export() { return 0; }
   best_effort_trace_reconstruct() { return 0; }
@@ -154,6 +155,12 @@ TRACE_STAGE="log_completeness_gate"
 if ! finish_log_completeness_gate; then
   exit 1
 fi
+
+# Best-effort delivery economics stamp (issue #267) — run before teardown so it
+# can use the worktree-local progress.md and feature list. This is advisory and
+# must never change finish-issue's exit code.
+TRACE_STAGE="economics_stamp"
+best_effort_economics_stamp
 
 TRACE_STAGE="worktree_remove"
 if [ ! -e "$WORKTREE_DIR" ]; then

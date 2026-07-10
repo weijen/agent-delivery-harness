@@ -9,6 +9,7 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_trace_export      — closeout OTLP export, opt-in (#144)
 #   best_effort_trace_reconstruct — closeout local reconstruct (#149)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
@@ -193,6 +194,173 @@ compute_delivery_economics() {
     printf '%s\n' '- Features: n/a'
   fi
 
+  return 0
+}
+
+finish__warn() {
+  if declare -F yellow >/dev/null 2>&1; then
+    yellow "$*" >&2
+  else
+    printf '%s\n' "$*" >&2
+  fi
+}
+
+# Idempotently stamp a human-readable delivery economics block into progress.md
+# using marker lines. The block text may contain shell-sensitive characters and
+# multiple lines, so replacement is done with awk variables, never sed
+# replacement syntax. This helper is advisory only and ALWAYS returns 0.
+economics_stamp_into() {
+  local progress_file="${1:-}"
+  local block_text="${2:-}"
+  local start_marker='<!-- delivery-economics:start -->'
+  local end_marker='<!-- delivery-economics:end -->'
+  local tmp_file=""
+  local block_file=""
+
+  if [ -z "$progress_file" ] || [ ! -f "$progress_file" ] || [ ! -w "$progress_file" ]; then
+    finish__warn "⚠ economics stamp skipped: progress.md not writable at ${progress_file:-<empty>}"
+    return 0
+  fi
+
+  if ! grep -F -q -- "$start_marker" "$progress_file" 2>/dev/null; then
+    if ! {
+      printf '\n%s\n' "$start_marker"
+      printf '%s\n' "$block_text"
+      printf '%s\n' "$end_marker"
+    } >> "$progress_file" 2>/dev/null; then
+      finish__warn "⚠ economics stamp skipped: could not append to ${progress_file}"
+    fi
+    return 0
+  fi
+
+  tmp_file="${progress_file}.economics.$$"
+  block_file="${progress_file}.economics-block.$$"
+  if ! printf '%s\n' "$block_text" > "$block_file" 2>/dev/null; then
+    finish__warn "⚠ economics stamp skipped: could not prepare block for ${progress_file}"
+    rm -f "$block_file" 2>/dev/null || true
+    return 0
+  fi
+  if awk -v block_file="$block_file" -v start="$start_marker" -v end_marker="$end_marker" '
+    BEGIN {
+      in_region = 0
+      replaced = 0
+      skipping_duplicate = 0
+      block_count = 0
+      while ((getline block_line < block_file) > 0) {
+        block[++block_count] = block_line
+      }
+      close(block_file)
+    }
+    function print_block(    i) {
+      for (i = 1; i <= block_count; i++) {
+        print block[i]
+      }
+    }
+    $0 == start {
+      if (!replaced) {
+        print start
+        print_block()
+        in_region = 1
+        replaced = 1
+      } else {
+        skipping_duplicate = 1
+      }
+      next
+    }
+    $0 == end_marker {
+      if (in_region) {
+        print end_marker
+        in_region = 0
+      }
+      if (skipping_duplicate) {
+        skipping_duplicate = 0
+      }
+      next
+    }
+    in_region || skipping_duplicate {
+      next
+    }
+    {
+      print
+    }
+    END {
+      if (in_region) {
+        print end_marker
+      }
+    }
+  ' "$progress_file" > "$tmp_file" 2>/dev/null; then
+    if ! mv "$tmp_file" "$progress_file" 2>/dev/null; then
+      finish__warn "⚠ economics stamp skipped: could not update ${progress_file}"
+      rm -f "$tmp_file" 2>/dev/null || true
+    fi
+  else
+    finish__warn "⚠ economics stamp skipped: could not rewrite ${progress_file}"
+    rm -f "$tmp_file" 2>/dev/null || true
+  fi
+  rm -f "$block_file" 2>/dev/null || true
+
+  return 0
+}
+
+# Best-effort pre-teardown delivery economics stamp (issue #267). It runs while
+# the worktree is still present so the worktree progress.md and feature_list can
+# be used. The durable machine record is the finish-issue.economics span added
+# by a later feature; this markdown stamp is operator-facing and never blocks.
+best_effort_economics_stamp() {
+  local stamp_issue="${ISSUE_NUM:-}"
+  local issue_pad="" main_root="" worktree_dir="${WORKTREE_DIR:-}"
+  local main_issue_dir="" worktree_issue_dir="" trace_file=""
+  local feature_list="-" progress_md="" block=""
+
+  if ! [[ "$stamp_issue" =~ ^[0-9]+$ ]]; then
+    finish__warn "⚠ economics stamp skipped: ISSUE_NUM is not set"
+    return 0
+  fi
+  issue_pad="$(printf '%02d' "$stamp_issue" 2>/dev/null)" || {
+    finish__warn "⚠ economics stamp skipped: could not format issue ${stamp_issue}"
+    return 0
+  }
+
+  if declare -F trace__main_root >/dev/null 2>&1; then
+    main_root="$(trace__main_root 2>/dev/null || true)"
+  fi
+  if [ -z "$main_root" ]; then
+    main_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P 2>/dev/null || true)"
+  fi
+  if [ -z "$main_root" ]; then
+    finish__warn "⚠ economics stamp skipped: could not resolve repo root"
+    return 0
+  fi
+
+  main_issue_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
+  trace_file="${main_issue_dir}/trace.jsonl"
+  if [ -n "$worktree_dir" ]; then
+    worktree_issue_dir="${worktree_dir}/.copilot-tracking/issues/issue-${issue_pad}"
+  fi
+
+  if [ -n "$worktree_issue_dir" ] && [ -f "${worktree_issue_dir}/feature_list.json" ]; then
+    feature_list="${worktree_issue_dir}/feature_list.json"
+  elif [ -f "${main_issue_dir}/feature_list.json" ]; then
+    feature_list="${main_issue_dir}/feature_list.json"
+  fi
+
+  if [ -n "$worktree_dir" ] && [ -e "$worktree_dir" ]; then
+    progress_md="${worktree_issue_dir}/progress.md"
+  else
+    progress_md="${main_issue_dir}/progress.md"
+  fi
+
+  if ! declare -F compute_delivery_economics >/dev/null 2>&1; then
+    finish__warn "⚠ economics stamp skipped: compute_delivery_economics unavailable"
+    return 0
+  fi
+  if ! block="$(compute_delivery_economics "$trace_file" "$feature_list" 2>/dev/null)"; then
+    finish__warn "⚠ economics stamp skipped: could not compute delivery economics"
+    return 0
+  fi
+
+  printf '%s\n' "$block"
+  economics_stamp_into "$progress_md" "$block" || true
   return 0
 }
 
