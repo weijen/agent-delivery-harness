@@ -188,7 +188,6 @@ Which skill fires, who owns it, and at which lifecycle phase:
 
 | Skill | Owner role | Stage / phase | Fires on |
 | --- | --- | --- | --- |
-| `general` | planner · implementer · tester · code reviewer | All phases (background) | Fallback coding/test/git conventions when no `<language>.instructions.md` applies |
 | `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
 | `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
 | `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
@@ -199,7 +198,7 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 
-Planner, implementer, and tester carry no distinctive skill beyond `general`; their quality bar comes from the
+Planner, implementer, and tester carry no distinctive skill; their quality bar comes from the
 applicable `<language>.instructions.md` plus `tdd.instructions.md`, not a skill. The audit skills are concentrated in
 `code-review-subagent` so one fresh-context pass owns whole-diff quality.
 
