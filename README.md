@@ -105,12 +105,14 @@ optional tools warn or skip rather than failing. See
 
 The repository has a GitHub Actions workflow at
 [.github/workflows/harness-smoke.yml](.github/workflows/harness-smoke.yml). It
-runs the harness shell sensor suite (`tests/scripts/` and `tests/meta/`), checks
-that harness shell scripts parse, runs `shellcheck`, and validates Copilot
-agent/skill frontmatter. A green run is a hard precondition for merge, enforced
-via [scripts/merge-pr.sh](scripts/merge-pr.sh). It is not CI/CD delivery, a
-deployment pipeline, or GitHub auto-merge; a repo admin may additionally enable a
-branch-protection required check on `main`.
+sets up `uv` and syncs the Python environment, runs the Python profile gates
+(`ruff format --check`, `ruff check`, `mypy`, `pytest`), runs the harness shell
+sensor suite (`tests/scripts/` and `tests/meta/`), checks that harness shell
+scripts parse, runs `shellcheck`, validates Copilot agent/skill frontmatter, and
+runs the L0 evaluation suite gate. A green run is a hard precondition for merge,
+enforced via [scripts/merge-pr.sh](scripts/merge-pr.sh). It is not CI/CD
+delivery, a deployment pipeline, or GitHub auto-merge; a repo admin may
+additionally enable a branch-protection required check on `main`.
 
 ## Project Layout
 
