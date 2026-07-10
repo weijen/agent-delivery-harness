@@ -35,6 +35,7 @@ cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
+cp "${ROOT}/scripts/trace-lib.sh" "${TMP_DIR}/repo/scripts/trace-lib.sh"
 
 cd "${TMP_DIR}/repo"
 git init -q -b main
@@ -50,6 +51,7 @@ CHECK_OUT="${TMP_DIR}/check.out"
 
 SKIP_INIT=1 ./scripts/start-issue.sh 200 SLUG=check-test >"$CHECK_START_OUT"
 FEATURE_LIST="${TMP_DIR}/repo-worktrees/issue-200/.copilot-tracking/issues/issue-200/feature_list.json"
+TRACE_FILE="${TMP_DIR}/repo/.copilot-tracking/issues/issue-200/trace.jsonl"
 [ -f "$FEATURE_LIST" ] || { printf '# BLOCKING: feature_list.json was not scaffolded\n' >&2; exit 1; }
 
 set_features() { printf '%s\n' "$1" > "$FEATURE_LIST"; }
@@ -174,13 +176,29 @@ if grep -q 'teeth_proof_missing' "$CHECK_OUT"; then
 fi
 emit "valid red_first_waiver suppresses teeth_proof_missing"
 
-# 19. A passes:true feature with teeth_proof:null treats null as absent and warns only.
+# 19. The trace span records teeth_proof_missing_count as a numeric attribute.
+set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green"}]}'
+rm -f "$TRACE_FILE"
+if ! run_check; then cat "$CHECK_OUT"; fail "missing teeth_proof should warn only (exit 0) while emitting trace"; fi
+if [ ! -s "$TRACE_FILE" ]; then
+  fail "check-feature-list did not emit trace.jsonl"
+else
+  missing_count_present="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | has("harness.teeth_proof_missing_count")' "$TRACE_FILE" | tail -n 1)"
+  missing_count_type="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | ."harness.teeth_proof_missing_count" | type' "$TRACE_FILE" | tail -n 1)"
+  missing_count_value="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | ."harness.teeth_proof_missing_count"' "$TRACE_FILE" | tail -n 1)"
+  [ "$missing_count_present" = "true" ] || fail "harness.teeth_proof_missing_count missing from tool span"
+  [ "$missing_count_type" = "number" ] || fail "harness.teeth_proof_missing_count type is ${missing_count_type} (expected number)"
+  [ "$missing_count_value" = "1" ] || fail "harness.teeth_proof_missing_count value is ${missing_count_value} (expected 1)"
+fi
+emit "trace span records numeric teeth_proof_missing_count"
+
+# 20. A passes:true feature with teeth_proof:null treats null as absent and warns only.
 set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":null}]}'
 if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should warn only (exit 0) for passes:true"; fi
 grep -q 'teeth_proof_missing' "$CHECK_OUT" || fail "teeth_proof:null should report teeth_proof_missing for passes:true"
 emit "passes:true with teeth_proof null warns with teeth_proof_missing"
 
-# 20. A passes:false feature with teeth_proof:null treats null as absent and warns only.
+# 21. A passes:false feature with teeth_proof:null treats null as absent and warns only.
 set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false,"teeth_proof":null}]}'
 if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should not hard-fail for passes:false"; fi
 emit "passes:false with teeth_proof null does not hard-fail"

@@ -4,6 +4,8 @@
 # Validates a per-issue .copilot-tracking/issues/issue-NN/feature_list.json:
 #   * the file exists, is valid JSON, and is a JSON object;
 #   * each .features[] item has id, title, steps (array), and passes (boolean);
+#   * optional teeth_proof objects have a supported kind and non-empty evidence;
+#   * passes:true features missing teeth_proof are reported as warn-only coverage;
 #   * any passes:true feature carries non-empty verification text.
 #
 # Completion reporting matches finish-issue.sh:
