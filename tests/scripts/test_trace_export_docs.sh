@@ -83,9 +83,13 @@ for script in "${ROOT}"/scripts/*.sh; do
     # sanctioned lifecycle caller: best_effort_trace_export (extracted from
     # finish-issue.sh in #215) wires a best-effort closeout export (issue #144)
     # that no-ops unless configured and never blocks teardown. finish-issue.sh
-    # only invokes that helper by name, so it stays decoupled. Every OTHER core
-    # script must stay decoupled, so they are still scanned.
-    trace-export.sh | finish-issue.sh | finish-lib.sh) continue ;;
+    # only invokes that helper by name, so it stays decoupled. log-export.sh is
+    # a sibling exporter introduced in #220 (the log-stream analogue of
+    # trace-export.sh); its trace-export mentions are kinship doc
+    # cross-references, not lifecycle coupling — it neither sources nor invokes
+    # trace-export.sh. Every OTHER core script must stay decoupled, so they are
+    # still scanned.
+    trace-export.sh | log-export.sh | finish-issue.sh | finish-lib.sh) continue ;;
   esac
   if grep -q 'trace-export' "$script"; then
     coupled="${coupled} $(basename "$script")"
