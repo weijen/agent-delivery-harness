@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#269)_
+_Last updated: 2026-07-10 (#270)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-10 (#269)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 201 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 204 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which now also installs `uv` and runs the
   Python profile gates — `ruff`/`mypy`/`pytest` over `scripts/trace_tools/`);
   a green run is a hard merge precondition (enforced by `merge-pr.sh`).
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#269)_
 ---
 
 ## Delivered (newest first)
+
+### harness-hardening (#270): dedup issue-resolution, JSON-escape scaffolded titles, full-parity degraded redaction
+- **#270 — three latent correctness gaps in the harness plumbing: `review-gate.sh` carried three byte-drifting copies of the issue-number resolution logic (TRACE_ISSUE → feature branch → worktree basename) across `trace_gate`/`log_completeness_gate`/`red_first_evidence_gate`, so a fix to one could silently skip the others; `start-issue.sh` interpolated the raw GitHub issue title straight into the scaffolded `feature_list.json`, so a title with a quote/backslash/newline produced invalid JSON; and `log-handback.sh`'s degraded (no-trace-lib) redaction fallback masked only two GitHub-token shapes, so an Action Log line written in a trace-lib-less checkout could leak AWS/Azure/OpenAI/JWT/SAS secret shapes that the real `trace_redact` would have caught.** All three fixed red-first (each feature carries an ordered `red_handback → impl_handback → green_handback` triple). **Three features:** (1) `review-gate-resolve-issue-helper` — the three duplicate blocks collapse into one `resolve_issue_number()` helper (same TRACE_ISSUE → branch `issue-NN`/`issue/NN` → worktree-basename precedence, skip-on-unresolved preserved); sensor `tests/scripts/test_review_gate_issue_resolution.sh` asserts structurally that exactly one resolution implementation remains and behaviorally covers all five resolution paths. (2) `start-issue-title-json-escape` — a `json_string()` helper (jq-preferred, pure-bash fallback) escapes the fetched title before it is written as `"title": <escaped>,`; sensor `tests/scripts/test_start_issue_title_escape.sh` drives a fake `gh` returning a quote/backslash/newline-laden title and asserts the scaffolded JSON parses and round-trips. (3) `log-handback-degraded-redaction` — the degraded `redact_line()` fallback now runs the **identical** full `trace_redact` sed program (byte-copied from `trace-lib.sh`), so the Action Log never leaks a shape the span filter would have masked; parity sensor `tests/scripts/test_log_handback_redaction_parity.sh` asserts the degraded bullet is byte-for-byte equal to `trace_redact`'s output over the full secret battery and that no raw secret survives. Full 204-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### docs-sync (#269): synchronize installer/CI docs with the shipped harness + retire the stale health-check
 - **#269 — three docs had drifted from the shipped harness: `getting-started.md` listed the installer's copied assets but omitted `.copilot/skills/` and `.copilot/prompts/`; the README + AGENTS `harness-smoke` summaries described only the shell sensor suite, silently dropping the `uv`/Python-profile-gate/L0 steps the workflow now runs; and `docs/copilot-health-check.md` (a 2026-07-08 point-in-time report) read as live state.** Docs-only, delivered red-first (each feature carries an ordered `red_handback → impl_handback → green_handback` triple with a mutation `teeth_proof`). **Three features:** (1) `getting-started-installer-assets` — `docs/getting-started.md` now names `.copilot/skills/` and `.copilot/prompts/` in the installer asset list; drift-guard sensor `tests/meta/test_docs_installer_assets_sync.sh` extracts the `.copilot/*` entries from `install-harness.sh`'s `HARNESS_ASSETS` array and asserts each is documented, so a future asset addition without a doc update fails. (2) `readme-agents-smoke-coverage` — the README and AGENTS `harness-smoke` paragraphs now name the `uv` setup/sync, the Python profile gates (`ruff format --check`, `ruff check`, `mypy`, `pytest`), and the L0 suite gate alongside the shell sensor suite; sensor `tests/meta/test_docs_smoke_coverage_sync.sh` flattens each paragraph and asserts all three token classes appear in both docs (line-wrap-tolerant), mutation-verified. (3) `health-check-superseded` — `docs/copilot-health-check.md` gains a **superseded / historical-snapshot** banner at the top (dated, linking `PROGRESS.md`/`HARNESS.md` + the #178–#184 remediation) while retaining its original `## Overall verdict` table and rows verbatim; sensor `tests/meta/test_docs_health_check_superseded.sh` asserts both the banner and the retained verdict rows. Full 201-sensor suite + shellcheck (CI glob) + L0 green.

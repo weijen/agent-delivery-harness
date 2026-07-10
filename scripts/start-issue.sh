@@ -50,6 +50,24 @@ if ! declare -F trace_span >/dev/null 2>&1; then
   trace_lifecycle_arm() { :; }
 fi
 
+# Emit a JSON-quoted string literal for arbitrary input (including titles that
+# carry double-quotes, backslashes, or newlines), so the scaffolded
+# feature_list.json is always valid JSON. Prefers jq; falls back to a
+# hand-rolled escaper when jq is unavailable.
+json_string() {
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$1" | jq -Rs .
+    return
+  fi
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  printf '"%s"' "$s"
+}
+
 # Terminal worktree_create lifecycle span via the shared EXIT-trap helper
 # (issue #213 P-1, trace_lifecycle_init): once armed at the worktree stage
 # below, every exit path — success, reuse, or a failed `git worktree add` —
@@ -177,10 +195,13 @@ fi
 if [ ! -d "$TRACKING_DIR" ]; then
   SCAFFOLDED=true
   mkdir -p "$TRACKING_DIR"
+  ISSUE_TITLE_RAW="$(gh issue view "$ISSUE_NUM" --json title -q .title 2>/dev/null || true)"
+  [ -n "$ISSUE_TITLE_RAW" ] || ISSUE_TITLE_RAW="issue ${ISSUE_NUM}"
+  ISSUE_TITLE_JSON="$(json_string "$ISSUE_TITLE_RAW")"
   cat > "${TRACKING_DIR}/feature_list.json" <<JSON
 {
   "issue": ${ISSUE_NUM},
-  "title": "$(gh issue view "$ISSUE_NUM" --json title -q .title 2>/dev/null || echo "issue ${ISSUE_NUM}")",
+  "title": ${ISSUE_TITLE_JSON},
   "branch": "${BRANCH}",
   "feature_schema": {
     "id": "string",
