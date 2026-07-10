@@ -17,9 +17,9 @@ descriptor. There are two common ways to start:
   in `scripts/` and the profiles in `profiles/` stay where they are.
 - **Copy the harness into an existing project.** Run the installer, which copies
   the real harness assets — `scripts/`, `profiles/`, `tests/scripts` and
-  `tests/meta`, `.copilot/instructions/`, `.copilot/agents/`,
-  `.github/workflows/harness-smoke.yml`, and the lifecycle docs — into a target
-  directory verbatim, touching nothing else:
+  `tests/meta`, `.copilot/instructions/`, `.copilot/agents/`, `.copilot/skills/`,
+  `.copilot/prompts/`, `.github/workflows/harness-smoke.yml`, and the lifecycle
+  docs — into a target directory verbatim, touching nothing else:
 
   ```sh
   ./scripts/install-harness.sh /path/to/project            # dry run — prints what it would copy
