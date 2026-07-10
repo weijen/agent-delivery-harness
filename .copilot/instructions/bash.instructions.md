@@ -72,6 +72,32 @@ harness contract and the AGENTS.md conventions.
 - When committing inside a temp repo without a working `git commit`, use the
   `git write-tree` + `git commit-tree` + `git update-ref` pattern.
 
+## Meta-test rubric (`tests/meta/test_*.sh`)
+
+`tests/meta/` guards the harness's own docs, agents, skills, and schemas.
+A meta-test earns its keep only if it does one of these — this is the
+**deletion criterion**, and new meta-tests must be born structural:
+
+- **KEEP — machine-parsed structure**: validates a format a script actually
+  parses (handback payload line, TAP rows, agent/skill frontmatter, schema
+  single-source/key-coverage, L0 gate driver behaviour, the teeth_proof
+  kind-set).
+- **KEEP — cross-file consistency**: asserts two artifacts agree (a routing map
+  vs the language files on disk, a doc vs the script/workflow that is its
+  authority). Cheap, and it catches drift a human review misses.
+- **CONVERT — doctrine-critical prose**: guards core doctrine but pins it with
+  sentence-level greps. Rewrite to assert the guarded **section/anchor exists**
+  (a `^#` heading pattern) and its **closed vocabulary** is present; wording
+  inside the section becomes free to edit. Mutating a guarded section title
+  still fails the test; rewording a sentence does not.
+- **DELETE — phrase-pinning with no parser and no consumer**: greps prose no
+  script parses. Its failure mode is "someone rephrased a sentence", not
+  "someone broke behaviour". Doc drift is caught by the `sync-docs` review
+  skill and the fresh-context reviewer — never by these.
+
+The point-in-time triage that applied this rubric lives at
+[`docs/evaluation/meta-test-triage.md`](../../docs/evaluation/meta-test-triage.md).
+
 ## Validation before declaring work done
 
 - `bash -n scripts/*.sh` — syntax check (CI runs this).

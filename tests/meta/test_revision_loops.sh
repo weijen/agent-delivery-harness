@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Regression sensor: the harness must document conductor-owned, grading-driven
-# revision loops — Loop 1 (implementation <-> test) and Loop 2 (review ->
-# implementation) — and each subagent's handback/next-steps guidance must support
-# routing without collapsing role boundaries or treating the usefulness score as a
-# severity override.  (Issue #14.)
+# Regression sensor (issue #14; structural per #273): the harness must document
+# conductor-owned, grading-driven revision loops -- Loop 1 (implementation <->
+# test) and Loop 2 (review -> implementation) -- and each subagent's handback/
+# next-steps guidance must support routing without collapsing role boundaries or
+# treating the usefulness score as a severity override. Structure-level: asserts
+# the guarded section exists (heading anchor) and its closed vocabulary is
+# present; wording is free to change.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -17,44 +19,30 @@ impl=".copilot/agents/implementation-subagent.agent.md"
 test_a=".copilot/agents/test-subagent.agent.md"
 review=".copilot/agents/code-review-subagent.agent.md"
 
-# 1. Harness docs describe both loops, conductor-owned.
+# 1. Harness docs: the revision-loops section exists + closed vocabulary.
 if [ -f "$h" ]; then
-  grep -qi 'revision loop' "$h" || note "$h must document the grading-driven revision loops"
-  grep -Eqi 'implementation *(<->|↔|to|/) *test|implementation ?. ?test loop|loop 1' "$h" ||
-    note "$h must describe Loop 1 (implementation <-> test)"
-  grep -Eqi 'review *(->|→|to) *implementation|review-to-implementation|loop 2' "$h" ||
-    note "$h must describe Loop 2 (review -> implementation)"
-  grep -qi 'conductor owns the loop\|conductor-owned\|conductor owns' "$h" ||
-    note "$h must state the conductor owns the loop boundary"
-  # Retry/stop cap to avoid infinite loops.
-  grep -Eqi 'two (failed )?(repair |fix )?attempts|retry limit|stop and ask|infinite loop' "$h" ||
-    note "$h must cap repeated failures (retry limit / stop and ask)"
-  # Grading is a routing signal, not a severity override.
-  grep -Eqi 'not a severity (override|replacement)|does not override|routing signal|not .*severity override' "$h" ||
-    note "$h must state the grading is a routing signal, not a severity override"
-  # Subagents do not call each other directly.
-  grep -Eqi 'not call each other|do not call each other|conductor passes' "$h" ||
-    note "$h must state subagents route through the conductor, not each other"
+  grep -Eq '^#+ .*[Rr]evision loops' "$h" || note "$h must keep the grading-driven revision-loops section"
+  for token in 'Loop 1' 'Loop 2' 'routing signal' 'severity override' 'retry limit'; do
+    grep -q "$token" "$h" || note "$h revision-loops vocabulary must include '$token'"
+  done
 fi
 
-# 2. implementation-subagent handback asks for concrete follow-up context.
+# 2. implementation-subagent handback exists.
 if [ -f "$impl" ]; then
   grep -qi 'handback' "$impl" || note "$impl must describe its Handback"
 fi
 
-# 3. test-subagent handback distinguishes production defects from verification/sensor defects.
+# 3. test-subagent handback distinguishes production defects from verification/sensor gaps.
 if [ -f "$test_a" ]; then
-  grep -Eqi 'production (defect|fix|behavio)' "$test_a" ||
-    note "$test_a handback must call out production defects"
-  grep -Eqi 'verification (gap|defect)|sensor (gap|defect|is wrong)' "$test_a" ||
-    note "$test_a handback must distinguish a verification/sensor gap"
+  grep -qi 'production' "$test_a" || note "$test_a handback must call out production defects"
+  grep -Eqi 'verification|sensor' "$test_a" || note "$test_a handback must distinguish a verification/sensor gap"
 fi
 
-# 4. code-review-subagent next steps route findings to impl / test / conductor.
+# 4. code-review-subagent routes findings to impl / test / conductor.
 if [ -f "$review" ]; then
-  grep -qi 'implementation-subagent' "$review" || note "$review must route findings to implementation-subagent"
-  grep -qi 'test-subagent' "$review" || note "$review must route test-gap findings to test-subagent"
-  grep -qi 'conductor' "$review" || note "$review must route decisions to the conductor"
+  for token in 'implementation-subagent' 'test-subagent' 'conductor'; do
+    grep -q "$token" "$review" || note "$review must route findings to '$token'"
+  done
 fi
 
 if [ "$fail" -ne 0 ]; then
