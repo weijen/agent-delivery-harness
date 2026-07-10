@@ -853,6 +853,109 @@ if [ "$wb_log_defer" -eq 0 ]; then
 fi
 
 # =============================================================================
+# #224 — compare-base-query-hoist. The 8 by-version panels under the
+# tab-compare group each inlined the identical prelude
+#   extend hv = tostring(customDimensions['harness.version'])
+# The refactor hoists that shared extend into ONE base fragment parameter per
+# source table — CmpDepBase for the 7 panels reading the `dependencies` table
+# (pass-rate, red-reentry-free-rate, deviation-rate, tool-call-volume,
+# skill-invocation-volume, wall-clock-per-step, failure-mode) and CmpEvtBase for
+# the 1 panel reading `customEvents` (token-cost) — whose value string carries
+# the extend. Each panel then references its table's fragment via {CmpDepBase} /
+# {CmpEvtBase} and NO LONGER inlines the literal extend. This leg pins the hoist:
+#   (1) a workbook parameter CmpDepBase AND one CmpEvtBase exist, each value
+#       carrying `extend hv = tostring(customDimensions['harness.version'])`;
+#   (2) every one of the 8 tab-compare panels REFERENCES its table's fragment
+#       token ({CmpDepBase} for the 7 dependencies panels, {CmpEvtBase} for the
+#       customEvents token-cost panel) AND no longer inlines the literal extend;
+#   (3) the hoisted fragment does not smuggle a non-allowlisted key — harvest
+#       its customDimensions keys and run them through the SAME is_shippable_key
+#       allowlist mechanism the B leg uses.
+# Everything reads ONLY the tab-compare group, so fleet/issues/drilldown panels
+# cannot false-satisfy it.
+# =============================================================================
+HV_EXTEND="extend hv = tostring(customDimensions['harness.version'])"
+cmp_hoist_ok=1
+
+# (1) base fragment parameters exist, each carrying the hoisted extend.
+cmp_dep_frag="$(jq -r '[.. | objects | select(.name? == "CmpDepBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+cmp_evt_frag="$(jq -r '[.. | objects | select(.name? == "CmpEvtBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+if ! printf '%s' "$cmp_dep_frag" | grep -Fq "$HV_EXTEND"; then
+	note "$WB_JSON: no CmpDepBase base fragment parameter carrying '$HV_EXTEND' — the 7 tab-compare dependencies panels' shared extend is not hoisted (#224)"
+	cmp_hoist_ok=0
+fi
+if ! printf '%s' "$cmp_evt_frag" | grep -Fq "$HV_EXTEND"; then
+	note "$WB_JSON: no CmpEvtBase base fragment parameter carrying '$HV_EXTEND' — the tab-compare customEvents (token-cost) panel's shared extend is not hoisted (#224)"
+	cmp_hoist_ok=0
+fi
+
+# (2) every tab-compare panel references its table's fragment token and no
+#     longer inlines the literal extend. Flatten each panel's query to one line
+#     (name<TAB>query) so a multi-line KQL edit cannot slip past.
+cmp_panels="$extract_dir/compare-panels.flat"
+jq -r '
+	.items[]
+	| select(.name == "tab-compare")
+	| .content.items[]
+	| select(.type == 3)
+	| .name + "\t" + (.content.query | gsub("[[:space:]]+"; " "))
+' "$WB_JSON" > "$cmp_panels" 2>/dev/null || true
+cmp_seen=0
+while IFS="$(printf '\t')" read -r pname pquery; do
+	[ -n "$pname" ] || continue
+	cmp_seen=$((cmp_seen + 1))
+	# Which table does this panel read? Only token-cost reads customEvents.
+	if printf '%s' "$pquery" | grep -Fq 'customEvents'; then
+		token='{CmpEvtBase}'
+		tbl='customEvents'
+	else
+		token='{CmpDepBase}'
+		tbl='dependencies'
+	fi
+	refs=0
+	inlines=0
+	if printf '%s' "$pquery" | grep -Fq "$token"; then refs=1; fi
+	if printf '%s' "$pquery" | grep -Fq "$HV_EXTEND"; then inlines=1; fi
+	if [ "$refs" -ne 1 ] || [ "$inlines" -ne 0 ]; then
+		note "$WB_JSON: tab-compare panel '$pname' ($tbl) must reference $token and drop the inlined '$HV_EXTEND' (refs=$refs inlines=$inlines) — #224 hoist"
+		cmp_hoist_ok=0
+	fi
+done < "$cmp_panels"
+if [ "$cmp_seen" -ne 8 ]; then
+	note "$WB_JSON: expected 8 by-version panels under tab-compare, found $cmp_seen — #224 hoist scope changed"
+	cmp_hoist_ok=0
+fi
+
+# (3) the hoisted fragment must not smuggle a non-allowlisted customDimensions
+#     key. Harvest keys from the two fragment values exactly as the B leg does,
+#     then judge with the same is_shippable_key helper.
+cmp_frag_file="$extract_dir/compare-fragments.txt"
+{ printf '%s\n' "$cmp_dep_frag"; printf '%s\n' "$cmp_evt_frag"; } > "$cmp_frag_file"
+cmp_frag_keys="$extract_dir/compare-fragment-keys.txt"
+{
+	grep -Eo "customDimensions\[['\"][^'\"]+['\"]\]" "$cmp_frag_file" \
+		| grep -Eo "['\"][^'\"]+['\"]" | tr -d "\"'"
+	grep -Eo 'customDimensions\.[A-Za-z0-9_.]+' "$cmp_frag_file" | sed 's/^customDimensions\.//'
+	grep -Eo '(gen_ai|harness)\.[A-Za-z0-9_.]+' "$cmp_frag_file"
+} 2>/dev/null | sort -u > "$cmp_frag_keys" || true
+if [ -n "$ALLOWLIST_JSON" ]; then
+	while IFS= read -r k; do
+		[ -n "$k" ] || continue
+		case "$k" in
+		measurements* | gen_ai.usage.*) continue ;;
+		esac
+		if ! is_shippable_key "$k"; then
+			note "$WB_JSON: hoisted compare fragment references key '$k' which is NOT allowlist-shippable — hoisting must not smuggle a dropped key (#224)"
+			cmp_hoist_ok=0
+		fi
+	done < "$cmp_frag_keys"
+fi
+
+if [ "$cmp_hoist_ok" -eq 1 ]; then
+	ok "#224: tab-compare shared 'extend hv' hoisted into CmpDepBase/CmpEvtBase fragments; all 8 panels reference their token, none inline the extend, and the fragments are allowlist-clean"
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then
