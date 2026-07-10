@@ -7,8 +7,9 @@
 # The state rule unverified_feature_pass only asks whether a passes:true feature
 # has SOME green_handback pass span. Issue #264 raises the completed-feature
 # contract: for every passes:true feature, proof is satisfied by exactly one of:
-#   * a governed red_first_waiver object (kind ∈ {bootstrap, visual-only,
-#     doc-only, justified} and non-empty reason),
+#   * a governed teeth_proof_waiver object (kind ∈ {bootstrap, visual-only,
+#     doc-only, justified} and non-empty reason), with deprecated alias
+#     red_first_waiver still accepted,
 #   * a role-correct, file-ordered RED-first triple for the SAME
 #     harness.feature_id, all harness.outcome==pass:
 #       test-subagent red_handback -> implementation-subagent impl_handback ->
@@ -16,7 +17,9 @@
 #   * a governed teeth_proof object (kind ∈ {red_first, mutation,
 #     negative_fixture} and non-empty evidence string).
 #
-# A valid waiver is fully satisfied and emits no warning. A valid ordered triple
+# A valid waiver is fully satisfied and emits no warning. The canonical waiver
+# key is teeth_proof_waiver; red_first_waiver is a deprecated accepted alias. A
+# malformed waiver object is refused and does not waive. A valid ordered triple
 # is fully satisfied and emits no warning. A valid teeth_proof without a waiver
 # or triple satisfies the hard proof requirement but must keep warn-only context
 # that ordering was not proven. A passes:true feature with none of the three
@@ -47,7 +50,8 @@
 # Every agent span has a matching `## Action Log` bullet and vice versa, roles
 # stay in the closed enum, and every passes:true feature keeps a green_handback
 # pass span — so the ONLY hard rule any leg can exercise is the teeth-proof rule.
-# No review_gate_approve or pr_create spans and no PR reference in progress.md,
+# If both waiver keys are present, teeth_proof_waiver takes precedence. No
+# review_gate_approve or pr_create spans and no PR reference in progress.md,
 # so those state rules NOTE-skip (never fire).
 #
 # CASES (expected findings pinned literally):
@@ -63,13 +67,17 @@
 #   5 wrong_green_role_fails       green_handback by conductor ->
 #                                  teeth_proof_missing + ordering warning;
 #                                  no retired role_mismatch token
-#   6 waiver_passes                governed doc-only red_first_waiver -> exit 0,
-#                                  no violation, no warning
+#   6 waiver_passes                governed doc-only red_first_waiver deprecated
+#                                  alias -> exit 0, no violation, no warning
 #   7 waiver_malformed_still_fails invalid-kind red_first_waiver ->
 #                                  teeth_proof_missing + ordering warning
-#   8 teeth_proof_only_passes      valid teeth_proof only -> exit 0, no
+#   8 teeth_proof_waiver_passes    governed doc-only teeth_proof_waiver ->
+#                                  exit 0, no teeth_proof_missing
+#   9 teeth_proof_waiver_malformed_still_fails empty teeth_proof_waiver ->
+#                                  teeth_proof_missing + ordering warning
+#  10 teeth_proof_only_passes      valid teeth_proof only -> exit 0, no
 #                                  teeth_proof_missing, ordering warning present
-#   9 teeth_proof_malformed_fails  malformed teeth_proof -> exit 1,
+#  11 teeth_proof_malformed_fails  malformed teeth_proof -> exit 1,
 #                                  teeth_proof_missing
 #   + false-positive guard         a passes:false feat-b is never flagged
 #
@@ -150,6 +158,8 @@ trace_path() {
 FL_A_PASS='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true},{"id":"feat-b","title":"B","passes":false}]}'
 FL_A_WAIVER_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"red_first_waiver":{"kind":"doc-only","reason":"docs-only change, no code path touched"}}]}'
 FL_A_WAIVER_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"red_first_waiver":{"kind":"whatever","reason":"x"}}]}'
+FL_A_TEETH_WAIVER_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{"kind":"doc-only","reason":"docs only, no code path"}}]}'
+FL_A_TEETH_WAIVER_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{}}]}'
 FL_A_TEETH_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"red_first","evidence":"sensor X failed before impl at abc123"}},{"id":"feat-b","title":"B","passes":false}]}'
 FL_A_TEETH_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"nonsense","evidence":""}}]}'
 
@@ -190,11 +200,21 @@ mk_case waiver_passes "$FL_A_WAIVER_OK" \
 mk_case waiver_malformed_still_fails "$FL_A_WAIVER_BAD" \
   "test-subagent|green_handback|feat-a|pass"
 
-# 8. Valid teeth_proof, no triple — hard pass with warn-only ordering context.
+# 8. Governed teeth_proof_waiver, no triple and no teeth_proof — treated as a
+#    valid waiver.
+mk_case teeth_proof_waiver_passes "$FL_A_TEETH_WAIVER_OK" \
+  "test-subagent|green_handback|feat-a|pass"
+
+# 9. Malformed teeth_proof_waiver, no triple and no teeth_proof — refused and
+#    treated as no waiver.
+mk_case teeth_proof_waiver_malformed_still_fails "$FL_A_TEETH_WAIVER_BAD" \
+  "test-subagent|green_handback|feat-a|pass"
+
+# 10. Valid teeth_proof, no triple — hard pass with warn-only ordering context.
 mk_case teeth_proof_only_passes "$FL_A_TEETH_OK" \
   "test-subagent|green_handback|feat-a|pass"
 
-# 9. Malformed teeth_proof, no triple — treated as no teeth_proof.
+# 11. Malformed teeth_proof, no triple — treated as no teeth_proof.
 mk_case teeth_proof_malformed_fails "$FL_A_TEETH_BAD" \
   "test-subagent|green_handback|feat-a|pass"
 
@@ -202,7 +222,8 @@ mk_case teeth_proof_malformed_fails "$FL_A_TEETH_BAD" \
 # findings unattributable).
 for c in complete_triple_passes missing_red_fails missing_impl_fails \
          wrong_order_fails wrong_green_role_fails waiver_passes \
-         waiver_malformed_still_fails teeth_proof_only_passes \
+         waiver_malformed_still_fails teeth_proof_waiver_passes \
+         teeth_proof_waiver_malformed_still_fails teeth_proof_only_passes \
          teeth_proof_malformed_fails; do
   jq empty "$(trace_path "$c")" >/dev/null 2>&1 \
     || hard_fail "fixture ${c}: trace.jsonl does not parse — sensor bug"
@@ -305,7 +326,23 @@ assert_present waiver_malformed_still_fails 'VIOLATION consistency: teeth_proof_
 assert_present waiver_malformed_still_fails 'WARNING consistency: red_first_ordering_absent feat-a'
 assert_no_retired_tokens waiver_malformed_still_fails
 
-# --- 8. teeth_proof_only_passes -> exit 0, warning only -----------------------
+# --- 8. teeth_proof_waiver_passes -> exit 0, no violation/warning -------------
+rc="$(run_checker "$(trace_path teeth_proof_waiver_passes)")"
+[ "$rc" = "0" ] \
+  || fail "teeth_proof_waiver_passes: a governed doc-only teeth_proof_waiver must allow a pass — expected exit 0, got ${rc} (stdout: $(stdout_oneline))"
+assert_absent teeth_proof_waiver_passes 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_absent teeth_proof_waiver_passes 'WARNING consistency: red_first_ordering_absent feat-a'
+assert_no_retired_tokens teeth_proof_waiver_passes
+
+# --- 9. teeth_proof_waiver_malformed_still_fails -> missing + warning ---------
+rc="$(run_checker "$(trace_path teeth_proof_waiver_malformed_still_fails)")"
+[ "$rc" = "1" ] \
+  || fail "teeth_proof_waiver_malformed_still_fails: an empty teeth_proof_waiver is not governed — expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
+assert_present teeth_proof_waiver_malformed_still_fails 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_present teeth_proof_waiver_malformed_still_fails 'WARNING consistency: red_first_ordering_absent feat-a'
+assert_no_retired_tokens teeth_proof_waiver_malformed_still_fails
+
+# --- 10. teeth_proof_only_passes -> exit 0, warning only ----------------------
 rc="$(run_checker "$(trace_path teeth_proof_only_passes)")"
 [ "$rc" = "0" ] \
   || fail "teeth_proof_only_passes: valid teeth_proof must satisfy the hard contract — expected exit 0, got ${rc} (stdout: $(stdout_oneline))"
@@ -314,7 +351,7 @@ assert_present teeth_proof_only_passes 'WARNING consistency: red_first_ordering_
 assert_no_retired_tokens teeth_proof_only_passes
 assert_no_feat_b_tooth_flag teeth_proof_only_passes
 
-# --- 9. teeth_proof_malformed_fails -> teeth_proof_missing --------------------
+# --- 11. teeth_proof_malformed_fails -> teeth_proof_missing -------------------
 rc="$(run_checker "$(trace_path teeth_proof_malformed_fails)")"
 [ "$rc" = "1" ] \
   || fail "teeth_proof_malformed_fails: malformed teeth_proof is not proof — expected exit 1, got ${rc} (stdout: $(stdout_oneline))"

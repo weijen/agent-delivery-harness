@@ -378,17 +378,18 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
   if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
       "$FEATURE_LIST_FILE" 2>/dev/null)"; then
     # Governed red-first waivers (issue #144): a feature may skip red-first
-    # checking only when it carries a red_first_waiver OBJECT whose .kind is in
-    # the closed set AND whose .reason is a non-empty string after trimming
-    # whitespace. Any other shape (missing, wrong type, invalid kind, empty
-    # reason) is NOT a waiver. Extracted once here, not per feature.
+    # checking only when it carries a teeth_proof_waiver (canonical) or the
+    # deprecated red_first_waiver alias OBJECT whose .kind is in the closed set
+    # AND whose .reason is a non-empty string after trimming whitespace. Any
+    # other shape (missing, wrong type, invalid kind, empty reason) is NOT a
+    # waiver. Extracted once here, not per feature.
     waiver_ids=$'\n'
     if raw_waiver_ids="$(jq -r '
         ["bootstrap", "visual-only", "doc-only", "justified"] as $kinds
         | .features[]?
         | select(.passes == true)
-        | select((.red_first_waiver | type) == "object")
-        | .red_first_waiver as $w
+        | (if has("teeth_proof_waiver") then .teeth_proof_waiver else (.teeth_proof_waiver // .red_first_waiver) end) as $w
+        | select(($w | type) == "object")
         | select(($w.kind | type) == "string" and ($kinds | index($w.kind)) != null)
         | select(($w.reason | type) == "string" and ($w.reason | test("\\S")))
         | .id | strings' \

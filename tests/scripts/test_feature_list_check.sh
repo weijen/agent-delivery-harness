@@ -176,7 +176,21 @@ if grep -q 'teeth_proof_missing' "$CHECK_OUT"; then
 fi
 emit "valid red_first_waiver suppresses teeth_proof_missing"
 
-# 19. The trace span records teeth_proof_missing_count as a numeric attribute.
+# 19. A valid teeth_proof_waiver suppresses teeth_proof_missing.
+set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof_waiver":{"kind":"doc-only","reason":"docs only, no code path"}}]}'
+if ! run_check; then cat "$CHECK_OUT"; fail "valid teeth_proof_waiver should keep missing teeth_proof warn-only"; fi
+if grep -q 'teeth_proof_missing' "$CHECK_OUT"; then
+  fail "valid teeth_proof_waiver should suppress teeth_proof_missing"
+fi
+emit "valid teeth_proof_waiver suppresses teeth_proof_missing"
+
+# 20. An empty teeth_proof_waiver hard-fails and names teeth_proof_waiver.
+set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof_waiver":{}}]}'
+if run_check; then cat "$CHECK_OUT"; fail "empty teeth_proof_waiver should fail"; fi
+grep -q 'teeth_proof_waiver' "$CHECK_OUT" || fail "empty teeth_proof_waiver error should name teeth_proof_waiver"
+emit "empty teeth_proof_waiver hard-fails and names teeth_proof_waiver"
+
+# 21. The trace span records teeth_proof_missing_count as a numeric attribute.
 set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green"}]}'
 rm -f "$TRACE_FILE"
 if ! run_check; then cat "$CHECK_OUT"; fail "missing teeth_proof should warn only (exit 0) while emitting trace"; fi
@@ -192,13 +206,13 @@ else
 fi
 emit "trace span records numeric teeth_proof_missing_count"
 
-# 20. A passes:true feature with teeth_proof:null treats null as absent and warns only.
+# 22. A passes:true feature with teeth_proof:null treats null as absent and warns only.
 set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":null}]}'
 if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should warn only (exit 0) for passes:true"; fi
 grep -q 'teeth_proof_missing' "$CHECK_OUT" || fail "teeth_proof:null should report teeth_proof_missing for passes:true"
 emit "passes:true with teeth_proof null warns with teeth_proof_missing"
 
-# 21. A passes:false feature with teeth_proof:null treats null as absent and warns only.
+# 23. A passes:false feature with teeth_proof:null treats null as absent and warns only.
 set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false,"teeth_proof":null}]}'
 if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should not hard-fail for passes:false"; fi
 emit "passes:false with teeth_proof null does not hard-fail"
