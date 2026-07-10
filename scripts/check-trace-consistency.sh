@@ -359,7 +359,6 @@ if ! redfirst_out="$(jq -nRr -f "$REDFIRST_FILTER" < "$TRACE_FILE")"; then
 fi
 
 redfirst_ok_ids=$'\n'
-redfirst_role_ids=$'\n'
 while IFS= read -r rf_line; do
   case "$rf_line" in
     '::redfirst '*)
@@ -367,8 +366,7 @@ while IFS= read -r rf_line; do
       rf_fid="${rf_rest% *}"
       rf_verdict="${rf_rest##* }"
       case "$rf_verdict" in
-        ok)   redfirst_ok_ids="${redfirst_ok_ids}${rf_fid}"$'\n' ;;
-        role) redfirst_role_ids="${redfirst_role_ids}${rf_fid}"$'\n' ;;
+        ok) redfirst_ok_ids="${redfirst_ok_ids}${rf_fid}"$'\n' ;;
       esac
       ;;
   esac
@@ -380,17 +378,18 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
   if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
       "$FEATURE_LIST_FILE" 2>/dev/null)"; then
     # Governed red-first waivers (issue #144): a feature may skip red-first
-    # checking only when it carries a red_first_waiver OBJECT whose .kind is in
-    # the closed set AND whose .reason is a non-empty string after trimming
-    # whitespace. Any other shape (missing, wrong type, invalid kind, empty
-    # reason) is NOT a waiver. Extracted once here, not per feature.
+    # checking only when it carries a teeth_proof_waiver (canonical) or the
+    # deprecated red_first_waiver alias OBJECT whose .kind is in the closed set
+    # AND whose .reason is a non-empty string after trimming whitespace. Any
+    # other shape (missing, wrong type, invalid kind, empty reason) is NOT a
+    # waiver. Extracted once here, not per feature.
     waiver_ids=$'\n'
     if raw_waiver_ids="$(jq -r '
         ["bootstrap", "visual-only", "doc-only", "justified"] as $kinds
         | .features[]?
         | select(.passes == true)
-        | select((.red_first_waiver | type) == "object")
-        | .red_first_waiver as $w
+        | (if has("teeth_proof_waiver") then .teeth_proof_waiver else .red_first_waiver end) as $w
+        | select(($w | type) == "object")
         | select(($w.kind | type) == "string" and ($kinds | index($w.kind)) != null)
         | select(($w.reason | type) == "string" and ($w.reason | test("\\S")))
         | .id | strings' \
@@ -400,25 +399,44 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         waiver_ids="${waiver_ids}${wfid}"$'\n'
       done <<< "$raw_waiver_ids"
     fi
+    # Completed-feature teeth proof (issue #264): without a governed waiver,
+    # a passes:true feature is satisfied by either a role-correct ordered
+    # RED-first triple or a governed teeth_proof OBJECT whose .kind is in the
+    # closed proof set and whose .evidence is a non-empty string after
+    # trimming. teeth_proof satisfies the hard rule but still emits warn-only
+    # context when trace ordering is absent.
+    teeth_ids=$'\n'
+    if raw_teeth_ids="$(jq -r '
+        ["red_first", "mutation", "negative_fixture"] as $kinds
+        | .features[]?
+        | select(.passes == true)
+        | select((.teeth_proof | type) == "object")
+        | .teeth_proof as $t
+        | select(($t.kind | type) == "string" and ($kinds | index($t.kind)) != null)
+        | select(($t.evidence | type) == "string" and ($t.evidence | test("\\S")))
+        | .id | strings' \
+        "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+      while IFS= read -r tfid; do
+        [ -n "$tfid" ] || continue
+        teeth_ids="${teeth_ids}${tfid}"$'\n'
+      done <<< "$raw_teeth_ids"
+    fi
     while IFS= read -r fid; do
       [ -n "$fid" ] || continue
       if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
         printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
         violations=$((violations + 1))
       fi
-      # Red-first evidence (issue #144): a governed waiver suppresses the rule;
-      # otherwise require a role-correct ordered triple. An absent verdict is
-      # treated exactly like a `missing` verdict.
       if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        :  # governed waiver — red-first checking skipped for this feature
-      elif [[ "$redfirst_role_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        printf 'VIOLATION consistency: red_first_role_mismatch %s\n' "$fid"
-        violations=$((violations + 1))
+        :  # governed waiver — proof satisfied
       elif [[ "$redfirst_ok_ids" == *$'\n'"$fid"$'\n'* ]]; then
         :  # role-correct ordered triple present
+      elif [[ "$teeth_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
       else
-        printf 'VIOLATION consistency: red_first_evidence_missing %s\n' "$fid"
+        printf 'VIOLATION consistency: teeth_proof_missing %s\n' "$fid"
         violations=$((violations + 1))
+        printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
       fi
     done <<< "$passing_ids"
   else

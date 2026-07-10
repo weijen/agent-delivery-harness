@@ -44,6 +44,9 @@ scripts:
   - id: check-feature-list
     path: scripts/check-feature-list.sh
     role: Validate per-issue feature_list.json structure and completion.
+  - id: check-trace-consistency
+    path: scripts/check-trace-consistency.sh
+    role: Trace/artifact consistency checker; emits the teeth_proof_missing violation and red_first_ordering_absent warning that gate the PR path.
   - id: review-gate
     path: scripts/review-gate.sh
     role: HEAD-bound local review approval marker.
@@ -248,14 +251,14 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: no project CI runs the gates
-  - id: missing-red-first-evidence
+  - id: missing-teeth-proof-evidence
     kind: hard
     owner: scripts/review-gate.sh
-    present: red_first_evidence_missing
-  - id: wrong-red-first-role-attribution
-    kind: hard
-    owner: scripts/review-gate.sh
-    present: red_first_role_mismatch
+    present: teeth_proof_missing
+  - id: red-first-ordering-absent
+    kind: warn
+    owner: scripts/check-trace-consistency.sh
+    present: red_first_ordering_absent
   - id: teeth-proof-missing-warn
     kind: warn
     owner: scripts/check-feature-list.sh

@@ -152,6 +152,10 @@ problems="$(jq -r '
     (type == "object")
     and (.kind as $kind | ($kind | type) == "string" and (["red_first", "mutation", "negative_fixture"] | index($kind)) != null)
     and (.evidence | nonempty_trimmed_string);
+  def valid_governed_waiver:
+    (type == "object")
+    and (.kind as $kind | ($kind | type) == "string" and (["bootstrap", "visual-only", "doc-only", "justified"] | index($kind)) != null)
+    and (.reason | nonempty_trimmed_string);
   .features // []
   | to_entries[]
   | .key as $i | .value as $f
@@ -161,7 +165,8 @@ problems="$(jq -r '
       (if ($f | has("steps")) and (($f.steps | type) == "array") then empty else "feature[\($i)]: missing field or non-array: steps" end),
       (if ($f | has("passes")) and (($f.passes | type) == "boolean") then empty else "feature[\($i)]: missing field or non-boolean: passes" end),
       (if (($f.passes // false) == true) and (((($f.verification // "") | type) != "string") or ((($f.verification // "") | gsub("\\s";"") | length) == 0)) then "feature[\($i)]: passes:true requires non-empty verification text" else empty end),
-      (if ($f.teeth_proof != null) and (($f.teeth_proof | valid_teeth_proof) | not) then "feature[\($i)]: teeth_proof must be an object with kind in {red_first|mutation|negative_fixture} and non-empty evidence" else empty end)
+      (if ($f.teeth_proof != null) and (($f.teeth_proof | valid_teeth_proof) | not) then "feature[\($i)]: teeth_proof must be an object with kind in {red_first|mutation|negative_fixture} and non-empty evidence" else empty end),
+      (if ($f.teeth_proof_waiver != null) and (($f.teeth_proof_waiver | valid_governed_waiver) | not) then "feature[\($i)]: teeth_proof_waiver must be an object with kind in {bootstrap|visual-only|doc-only|justified} and non-empty reason" else empty end)
     ]
   | .[]
 ' "$feature_list")"
@@ -182,7 +187,7 @@ teeth_proof_missing_lines="$(jq -r '
     (type == "object")
     and (.kind as $kind | ($kind | type) == "string" and (["red_first", "mutation", "negative_fixture"] | index($kind)) != null)
     and (.evidence | nonempty_trimmed_string);
-  def valid_red_first_waiver:
+  def valid_governed_waiver:
     (type == "object")
     and (.kind as $kind | ($kind | type) == "string" and (["bootstrap", "visual-only", "doc-only", "justified"] | index($kind)) != null)
     and (.reason | nonempty_trimmed_string);
@@ -190,7 +195,14 @@ teeth_proof_missing_lines="$(jq -r '
   | to_entries[]
   | .key as $i | .value as $f
   | select(($f.passes // false) == true)
-  | select((($f.teeth_proof // null) | valid_teeth_proof | not) and (($f.red_first_waiver // null) | valid_red_first_waiver | not))
+  # A valid teeth_proof, the canonical teeth_proof_waiver, or the deprecated
+  # red_first_waiver alias all suppress the missing-teeth coverage warning.
+  # NOTE: only teeth_proof_waiver is hard-validated in the "problems" block
+  # above; a malformed red_first_waiver is softly treated as "no waiver" here
+  # (kept lenient on purpose while the deprecated alias is phased out).
+  | select((($f.teeth_proof // null) | valid_teeth_proof | not)
+      and (($f.red_first_waiver // null) | valid_governed_waiver | not)
+      and (($f.teeth_proof_waiver // null) | valid_governed_waiver | not))
   | "teeth_proof_missing: feature[\($i)] \($f.id) is passes:true without teeth_proof (warn only)"
 ' "$feature_list")"
 if [ -n "$teeth_proof_missing_lines" ]; then

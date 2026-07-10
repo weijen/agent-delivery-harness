@@ -348,27 +348,25 @@ otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the d
 `REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
 before `worktree remove`, leaving the worktree intact.
 
-### Red-first evidence obligation on the PR path
+### Sensor teeth-proof obligation
 
-While the broad trace gate stays warn-only, one class of finding is a **hard block by default** on the PR path: a
-`passes:true` feature must carry role-correct **red-first** handback evidence before it can ship. The
-`check-trace-consistency.sh` checker looks for a file-ordered handback triple — `test-subagent` `red_handback`
-(the failing sensor) → `implementation-subagent` `impl_handback` (the minimal production change) → `test-subagent`
-`green_handback` (verified GREEN), all with `outcome=pass` — and raises `red_first_evidence_missing` when the triple
-is absent or `red_first_role_mismatch` when a handback is recorded under the wrong role. `review-gate.sh` approve and
-check **hard-block** on these red-first findings by default, and `create-pr.sh` inherits the block, so a feature that
-skipped the red-first handoff cannot reach a PR.
+The L4 outcome is now SENSOR TEETH — a sensor proven able to fail via red-first, mutation, or a negative fixture —
+not handback ordering for its own sake; ordering remains useful signal, but is no longer the hard bar.
 
-A feature can also carry a first-class `teeth_proof` object that proves the declared sensor's teeth: `red_first` for
-the failing-first run, `mutation` for a post-GREEN mutation or revert that the sensor catches, or `negative_fixture`
-for a committed negative fixture the sensor rejects. `check-feature-list.sh` reports teeth-proof coverage warn-only
-today.
+`check-trace-consistency.sh` treats a `passes:true` feature as satisfied when it carries a valid first-class
+`teeth_proof` object (kind `red_first`, `mutation`, or `negative_fixture`, with non-empty evidence), or a
+role-correct ordered `red_handback` → `impl_handback` → `green_handback` triple, or a governed waiver. When none of
+those is present it raises `VIOLATION consistency: teeth_proof_missing`. When `teeth_proof` is present but the
+ordered triple is absent, it emits the warn-only `WARNING consistency: red_first_ordering_absent` as context, never as
+a block.
 
-The only sanctioned way past the block is a governed **`red_first_waiver`** on the feature. The waiver is an explicit
-object carrying a `kind` drawn from a closed set — `bootstrap`, `visual-only`, `doc-only`, or `justified` — plus a
-non-empty `reason`. A feature that legitimately cannot show a failing-first sensor (for example a docs-only change, a
-visual-only tweak, or first-commit bootstrap) records the matching `red_first_waiver` kind and reason, and the
-red-first block stands down for that feature alone. An empty or kind-less waiver does not satisfy the gate.
+`review-gate.sh` approve and check hard-block on `teeth_proof_missing` by default, and `create-pr.sh` inherits that
+block. The ordering warning never blocks a review approval, PR creation, or closeout by itself.
+
+The governed waiver key is now **`teeth_proof_waiver`** (canonical). The older **`red_first_waiver`** remains accepted
+as a **deprecated alias** during migration. Both keys use the same explicit object shape: `kind` must be one of
+`bootstrap`, `visual-only`, `doc-only`, or `justified`, and `reason` must be non-empty. If both keys are present,
+`teeth_proof_waiver` wins. An empty or kind-less waiver still does not satisfy the gate.
 
 ## CI Boundary
 

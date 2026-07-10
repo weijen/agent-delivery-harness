@@ -301,15 +301,16 @@ trace_gate() {
 #
 # Unlike the broader warn-only trace_gate, this gate BLOCKS BY DEFAULT (no env
 # flag). It runs check-trace-consistency.sh for the current issue and fails
-# ONLY when a red-first finding is present:
-#   VIOLATION consistency: red_first_evidence_missing <fid>
-#   VIOLATION consistency: red_first_role_mismatch  <fid>
+# ONLY when the teeth-proof finding is present:
+#   VIOLATION consistency: teeth_proof_missing <fid>
+# The red-first ordering finding is warn-only and must never block here:
+#   WARNING consistency: red_first_ordering_absent <fid>
 # Every OTHER consistency / validate-trace finding stays warn-only via
 # trace_gate — this gate never blocks on them. A completed (passes:true)
-# feature clears the gate with a role-correct, file-ordered
+# feature clears the gate with a valid teeth_proof, a role-correct, file-ordered
 #   test-subagent red_handback -> implementation-subagent impl_handback
 #   -> test-subagent green_handback
-# triple (all harness.outcome==pass) or a governed red_first_waiver.
+# triple (all harness.outcome==pass), or a governed waiver.
 #
 # Degrades gracefully — print a neutral note and return 0, never break the
 # gate — when the issue number cannot be resolved (a checkout that predates
@@ -351,16 +352,17 @@ red_first_evidence_gate() {
     return 0
   fi
 
-  # Block ONLY on the red-first findings — never on any other finding.
+  # Block ONLY on the teeth-proof violation — never on warnings or any other
+  # finding.
   local findings=""
   findings="$(printf '%s\n' "$out" \
-    | grep -E 'VIOLATION consistency: red_first_(evidence_missing|role_mismatch)' || true)"
+    | grep -E 'VIOLATION consistency: teeth_proof_missing' || true)"
   if [ -n "$findings" ]; then
-    red "✗ red-first gate: completed feature(s) lack role-correct ordered red-first evidence."
+    red "✗ red-first gate: completed feature(s) lack sensor teeth-proof evidence."
     printf '%s\n' "$findings"
-    echo "  Provide a role-correct ordered red_handback -> impl_handback -> green_handback"
-    echo "  triple (or a governed red_first_waiver) before opening the PR — the red-first"
-    echo "  evidence gate blocks by default."
+    echo "  Provide a valid teeth_proof, a role-correct ordered red_handback -> impl_handback"
+    echo "  -> green_handback triple, or a governed waiver before opening the PR — the"
+    echo "  teeth-proof gate blocks by default."
     return 1
   fi
 
