@@ -16,6 +16,7 @@ note() { echo "✗ $*"; fail=1; }
 instructions=".copilot/instructions/harness.instructions.md"
 test_agent=".copilot/agents/test-subagent.agent.md"
 harness_doc="docs/HARNESS.md"
+agents_doc="AGENTS.md"
 
 [ -f "$instructions" ] || note "missing $instructions"
 [ -f "$test_agent" ] || note "missing $test_agent"
@@ -67,6 +68,54 @@ if [ -f "$harness_doc" ]; then
 			note "$harness_doc must document the teeth_proof doctrine token '$token'"
 		fi
 	done
+
+	# 6. The #264 docs update must rename the red-first section to the
+	#    sensor teeth-proof obligation, document waiver migration, and use
+	#    the current gate tokens.
+	if ! grep -Fq '### Sensor teeth-proof obligation' "$harness_doc"; then
+		note "$harness_doc must contain the renamed '### Sensor teeth-proof obligation' heading"
+	fi
+	if grep -Fq 'Red-first evidence obligation' "$harness_doc"; then
+		note "$harness_doc must not retain the old 'Red-first evidence obligation' heading"
+	fi
+	if ! grep -Fq 'red_first_waiver' "$harness_doc"; then
+		note "$harness_doc must document the red_first_waiver compatibility token"
+	fi
+	if ! grep -Fq 'teeth_proof_waiver' "$harness_doc"; then
+		note "$harness_doc must document the teeth_proof_waiver token"
+	fi
+	if ! grep -Eiq '(deprecat|migrat|alias)' "$harness_doc"; then
+		note "$harness_doc must include a waiver migration/deprecation/alias cue"
+	fi
+	if ! grep -Fq 'teeth_proof_missing' "$harness_doc"; then
+		note "$harness_doc must reference the teeth_proof_missing gate token"
+	fi
+	if ! grep -Fq 'red_first_ordering_absent' "$harness_doc"; then
+		note "$harness_doc must reference the red_first_ordering_absent gate token"
+	fi
+	if grep -Fq 'red_first_evidence_missing' "$harness_doc"; then
+		note "$harness_doc must not reference retired gate token red_first_evidence_missing"
+	fi
+	if grep -Fq 'red_first_role_mismatch' "$harness_doc"; then
+		note "$harness_doc must not reference retired gate token red_first_role_mismatch"
+	fi
+fi
+
+if [ -f "$agents_doc" ]; then
+	rule2="$(awk 'capture && /^[[:space:]]*3\. / { exit } /^[[:space:]]*2\. / { capture=1 } capture { print }' "$agents_doc")"
+	if [ -z "$rule2" ]; then
+		note "$agents_doc must contain golden rule 2"
+	else
+		if ! printf '%s\n' "$rule2" | grep -Eiq 'TDD'; then
+			note "$agents_doc golden rule 2 must keep TDD as the default discipline"
+		fi
+		if ! printf '%s\n' "$rule2" | grep -Eiq 'teeth'; then
+			note "$agents_doc golden rule 2 must state that the gate checks sensor teeth"
+		fi
+		if ! printf '%s\n' "$rule2" | grep -Eiq 'prov[a-z]* (it|the sensor)?[^.]{0,60}fail|able to fail|can fail'; then
+			note "$agents_doc golden rule 2 must state a sensor fail-ability cue"
+		fi
+	fi
 fi
 
 if [ "$fail" -ne 0 ]; then
