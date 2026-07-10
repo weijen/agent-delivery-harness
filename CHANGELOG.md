@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.10.2 (2026-07-10)
+
+### Bug Fixes
+
+- **#91**: Surface git worktree remove errors instead of suppressing stderr
+  ([#287](https://github.com/weijen/agent-delivery-harness/pull/287),
+  [`eef49ec`](https://github.com/weijen/agent-delivery-harness/commit/eef49ec225068540a04774daee69c4643fd64e33))
+
+
 ## v0.10.1 (2026-07-10)
 
 ### Bug Fixes
