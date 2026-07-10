@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-07-10)
+
+### Bug Fixes
+
+- **#266**: Reconcile log-completeness span with frozen trace contract
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+### Documentation
+
+- **#266**: Record log-completeness gate in PROGRESS.md
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+### Features
+
+- **#266**: Add review-gate log-completeness placeholder gate
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+- **#266**: Configurable LOG_COMPLETENESS_PATHS scan list
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+- **#266**: Emit numeric log-completeness trace span + docs
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+- **#266**: Log-completeness gate — refuse closeout on unfilled Action Log placeholders
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+- **#266**: Wire log-completeness gate into finish-issue and check
+  ([#278](https://github.com/weijen/agent-delivery-harness/pull/278),
+  [`54ae2d4`](https://github.com/weijen/agent-delivery-harness/commit/54ae2d4f2ca67b3921202ca6024d154de4cbfd6d))
+
+
 ## v0.6.0 (2026-07-10)
 
 ### Documentation
