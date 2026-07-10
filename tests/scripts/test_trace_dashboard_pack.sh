@@ -717,19 +717,26 @@ if [ "$reentry_named" -eq 0 ]; then
 fi
 
 # =============================================================================
-# #223: deferred log panel + map coherence. The out-of-scope failure-detail LOG
-# panel (Tab 2 panel 4) is deferred to a separate #220-gated issue. Honesty
-# doctrine: the pack must NAME it as deferred rather than silently omit it — in
-# BOTH the workbook Tab 2 header AND the README panel->contract map. F1 already
-# added the deferred note to the workbook drilldown header and a tabs bullet, so
-# this leg guards the README MAP surface, which the tabs bullet alone does not
-# satisfy: (a) the "Panel -> contract-field map" section must carry a row/entry
-# naming the deferred failure-detail LOG panel as deferred/unavailable gated on
-# #220 (not merely the tabs bullet), AND (b) that same map must carry a row for
-# EVERY shipped Tab 2 panel (all five), so the deferred note lands beside the
-# panels it accompanies rather than orphaned. Scope strictly to the map section
-# (its heading to the next top-level "## " heading) so the tabs-list bullet
-# cannot satisfy the row assertion by accident.
+# #225 F3: SHIPPED log panel + map coherence. The failure-detail LOG panel
+# (Tab 2 panel 4) is now SHIPPED — the #219 log-schema (log-schema.v1.json)
+# gives the detail stream, #220's logmap is MERGED, so the deferred/#220-gated
+# posture is retired. Honesty doctrine: the README panel->contract map must
+# document it as a SHIPPED row, not silently omit it and not leave stale
+# deferred language. This leg guards the README MAP surface: (a) the
+# "Panel -> contract-field map" section must carry a *Failure-detail log panel*
+# row that names the `traces` table, references the #219 `log-schema.v1.json`
+# contract, names the log-schema fields the panel keys on (message, level,
+# harness.issue, harness.stage, harness.outcome, and the span_id correlation
+# id — all REAL keys in docs/evaluation/log-schema.v1.json), and states the
+# honest `log evidence unavailable` caveat — with NO leftover deferred/#220
+# language on that row; AND (b) that same map must carry a row for EVERY shipped
+# Tab 2 panel (now six, incl. the log panel), so the shipped log row lands
+# beside a complete Tab 2 panel map. (c) The stale log-panel deferral prose
+# (`#220`-gated) must be GONE from the whole README — #220 is only ever the log
+# panel's gate here, so its removal proves the deferred→shipped flip landed in
+# the narrative too. Scope the row assertions strictly to the map section (its
+# heading to the next top-level "## " heading) so the tabs-list bullet cannot
+# satisfy a row assertion by accident.
 map_section="$extract_dir/readme-panel-map.section"
 if [ -f "$DASH_README" ]; then
 	awk '
@@ -740,41 +747,77 @@ if [ -f "$DASH_README" ]; then
 else
 	: > "$map_section"
 fi
-# (a) a map TABLE row naming the deferred failure-detail LOG panel, #220-gated.
-log_row_deferred=0
+# (a) a map TABLE row documenting the SHIPPED failure-detail LOG panel.
+log_row_line=""
 while IFS= read -r map_line; do
 	case "$map_line" in
 	'|'*) : ;;
 	*) continue ;;
 	esac
-	if printf '%s\n' "$map_line" | grep -Eiq 'log'; then
-		if printf '%s\n' "$map_line" | grep -Eq '#?220'; then
-			if printf '%s\n' "$map_line" | grep -Eiq 'deferred|unavailable|not available|n/?a\b'; then
-				log_row_deferred=1
-			fi
-		fi
+	if printf '%s\n' "$map_line" | grep -Fq 'Failure-detail log panel'; then
+		log_row_line="$map_line"
 	fi
 done < "$map_section"
-if [ "$log_row_deferred" -eq 0 ]; then
-	note "#223: the README panel->contract map has no row naming the deferred failure-detail LOG panel as deferred/unavailable gated on #220 (Tab 2 panel 4 must be named in the map itself, not just the tabs bullet)"
+log_row_shipped=1
+if [ -z "$log_row_line" ]; then
+	note "#225 F3: the README panel->contract map has no 'Failure-detail log panel' row — the SHIPPED Tab 2 panel 4 must be named in the map itself, not just the tabs bullet"
+	log_row_shipped=0
+else
+	# must name the traces table (word-bounded so it is the App Insights table).
+	if ! printf '%s\n' "$log_row_line" | grep -Eiwq 'traces'; then
+		note "#225 F3: the 'Failure-detail log panel' map row does not name the 'traces' table — the shipped log panel queries the App Insights traces table"
+		log_row_shipped=0
+	fi
+	# must reference the #219 log-schema contract doc.
+	if ! printf '%s\n' "$log_row_line" | grep -Fq 'log-schema.v1.json'; then
+		note "#225 F3: the 'Failure-detail log panel' map row does not reference 'log-schema.v1.json' — the shipped log panel keys off the #219 log-schema contract"
+		log_row_shipped=0
+	fi
+	# must name each log-schema field the panel keys on (all REAL keys in
+	# docs/evaluation/log-schema.v1.json: message/level/harness.issue required,
+	# harness.stage/harness.outcome/span_id optional).
+	for log_key in message level harness.issue harness.stage harness.outcome span_id; do
+		if ! printf '%s\n' "$log_row_line" | grep -Fiwq "$log_key"; then
+			note "#225 F3: the 'Failure-detail log panel' map row omits the log-schema key '$log_key' (a real field in docs/evaluation/log-schema.v1.json the shipped panel keys on)"
+			log_row_shipped=0
+		fi
+	done
+	# must carry the honest 'log evidence unavailable' empty-state caveat.
+	if ! printf '%s\n' "$log_row_line" | grep -Fiq 'log evidence unavailable'; then
+		note "#225 F3: the 'Failure-detail log panel' map row lacks the honest 'log evidence unavailable' caveat — the shipped panel must promise an explicit empty-state, never an empty chart"
+		log_row_shipped=0
+	fi
+	# the OLD deferred/#220-gated posture for THIS panel must be gone from the row.
+	if printf '%s\n' "$log_row_line" | grep -Eiq 'deferred|gated on #?220|#?220[- ]gated'; then
+		note "#225 F3: the 'Failure-detail log panel' map row still marks the panel deferred/#220-gated — it must document the SHIPPED state (traces + log-schema.v1.json keys + honest unavailable caveat)"
+		log_row_shipped=0
+	fi
 fi
-# (b) every shipped Tab 2 panel appears as a row in that same map section.
+# (b) every shipped Tab 2 panel appears as a row in that same map section — now
+#     including the SHIPPED failure-detail log panel (a 6th Tab 2 row).
 missing_tab2_panel=""
 for tab2_panel in \
 	"Lifecycle step timeline" \
 	"Per-feature TDD loop strip" \
 	"Tool & skill calls" \
 	"Cost strip" \
-	"Transaction-view deep link"; do
+	"Transaction-view deep link" \
+	"Failure-detail log panel"; do
 	if ! grep -Fq "$tab2_panel" "$map_section"; then
 		missing_tab2_panel="$tab2_panel"
 	fi
 done
 if [ -n "$missing_tab2_panel" ]; then
-	note "#223: the README panel->contract map is missing a row for a shipped Tab 2 panel ('$missing_tab2_panel') — the deferred-#220 log note must sit beside a complete Tab 2 panel map"
+	note "#225 F3: the README panel->contract map is missing a row for a shipped Tab 2 panel ('$missing_tab2_panel') — the shipped log row must sit beside a complete Tab 2 panel map"
 fi
-if [ "$log_row_deferred" -eq 1 ] && [ -z "$missing_tab2_panel" ]; then
-	ok "#223: README panel map names the deferred #220 log panel and rows every shipped Tab 2 panel"
+# (c) the stale log-panel deferral prose (#220-gated) must be gone README-wide.
+readme_220=0
+if [ -f "$DASH_README" ] && grep -Eiq '#?220' "$DASH_README"; then
+	readme_220=1
+	note "#225 F3: $DASH_README still references #220 for the failure-detail log panel — the deferred→shipped flip must drop the '#220-gated' / 'deferred to a #220-gated issue' language from the narrative and map"
+fi
+if [ "$log_row_shipped" -eq 1 ] && [ -z "$missing_tab2_panel" ] && [ "$readme_220" -eq 0 ]; then
+	ok "#225 F3: README panel map documents the SHIPPED failure-detail log panel (traces + log-schema.v1.json keys + honest unavailable caveat), rows every shipped Tab 2 panel, and carries no stale #220 deferral"
 fi
 
 # =============================================================================
