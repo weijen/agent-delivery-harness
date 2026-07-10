@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v0.8.1 (2026-07-10)
+
+### Bug Fixes
+
+- **#270**: Harden issue-resolution, title escaping, degraded redaction
+  ([#281](https://github.com/weijen/agent-delivery-harness/pull/281),
+  [`b2c0ada`](https://github.com/weijen/agent-delivery-harness/commit/b2c0ada8ddd7c55cf868af57a811280cd47855a7))
+
+### Documentation
+
+- **#269**: Sync installer/CI docs with shipped harness; retire stale health-check
+  ([#280](https://github.com/weijen/agent-delivery-harness/pull/280),
+  [`b37d42e`](https://github.com/weijen/agent-delivery-harness/commit/b37d42eb7fdd228d528d85deab68ba72bf22ad29))
+
+
 ## v0.8.0 (2026-07-10)
 
 ### Documentation
