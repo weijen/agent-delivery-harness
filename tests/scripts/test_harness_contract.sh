@@ -256,6 +256,10 @@ require_contract_record failure_modes id wrong-red-first-role-attribution script
 require_contract_record lifecycle id pr-path-red-first-gate scripts/review-gate.sh
 end_scenario "contract declares issue #144 trace evidence obligations"
 
+# --- 2g. Teeth-proof warning contract backstop (issue #263) ------------------
+require_contract_record failure_modes id teeth-proof-missing-warn scripts/check-feature-list.sh
+end_scenario "contract declares the teeth-proof-missing warn failure mode"
+
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
 check_owner_present() {

@@ -256,6 +256,10 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: red_first_role_mismatch
+  - id: teeth-proof-missing-warn
+    kind: warn
+    owner: scripts/check-feature-list.sh
+    present: teeth_proof_missing
 
 # ---------------------------------------------------------------------------
 # Trace emission (issue #94). Every lifecycle script emits schema-v1 trace
