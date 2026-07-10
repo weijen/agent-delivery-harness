@@ -69,6 +69,11 @@ _Last updated: 2026-07-10 (#263)_
 
 ## Next up
 
+- **CI workflow hardening (#268) — in review:** third-party actions in
+  `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
+  readable version comments; non-release workflows now explicitly use
+  `contents: read`, while the release job retains its scoped `contents: write`.
+  Workflow-specific sensors cover the pinning and permission boundaries.
 - **L0 evaluation workstream (#61–#64) — COMPLETE.** #61 (directory contract +
   manifest schema + validator), #63 (case-level TAP output for the 5 L0 sensors),
   #62 (local runner + scorecard + fail-closed redaction gate), and #64 (L0
