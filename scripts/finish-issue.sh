@@ -59,6 +59,7 @@ fi
 if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
+  finish_log_completeness_gate() { return 0; }
   best_effort_trace_export() { return 0; }
   best_effort_log_export() { return 0; }
   best_effort_trace_reconstruct() { return 0; }
@@ -143,6 +144,14 @@ check_feature_completion
 # still intact. See finish-lib.sh for the full doctrine; it returns 1 to block.
 TRACE_STAGE="trace_gate"
 if ! finish_trace_gate; then
+  exit 1
+fi
+
+# Log-completeness gate (issue #266) — same pre-teardown placement as the trace
+# gate: under REQUIRE_LOG_COMPLETE=1 a placeholder-laden progress.md refuses the
+# finish while the worktree is still intact. Returns 1 to block.
+TRACE_STAGE="log_completeness_gate"
+if ! finish_log_completeness_gate; then
   exit 1
 fi
 

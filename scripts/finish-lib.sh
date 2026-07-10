@@ -8,6 +8,7 @@
 # finish-issue.sh can stay a thin teardown orchestrator:
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
+#   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
 #   best_effort_trace_export      — closeout OTLP export, opt-in (#144)
 #   best_effort_trace_reconstruct — closeout local reconstruct (#149)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
@@ -58,6 +59,33 @@ finish_trace_gate() {
     fi
   else
     yellow "⚠ trace gate skipped: scripts/review-gate.sh not found"
+  fi
+  return 0
+}
+
+# --- Log-completeness gate (issue #266, feature finish-issue-log-gate-wiring) -
+# Same two-phase shape as finish_trace_gate: warn-only by default (findings
+# print, teardown proceeds); under REQUIRE_LOG_COMPLETE=1 a placeholder-laden
+# progress.md turns into a refusal BEFORE worktree_remove, leaving the worktree
+# intact. review-gate.sh log-completeness returns non-zero only under that flag,
+# so an unflagged non-zero here is an unexpected/broken gate — say so honestly.
+# A missing review-gate.sh degrades to warn-and-skip. Returns 0 proceed, 1 block.
+finish_log_completeness_gate() {
+  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+    if ! "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
+      if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
+        red "✗ log-completeness gate blocked the finish (REQUIRE_LOG_COMPLETE=1)."
+        echo "  Resolve the findings above (or unset the flag) and re-run:"
+      else
+        red "✗ log-completeness gate failed unexpectedly (it is warn-only without REQUIRE_LOG_COMPLETE=1)."
+        echo "  Inspect the output above, then re-run:"
+      fi
+      echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
+      echo "  The worktree is left intact."
+      return 1
+    fi
+  else
+    yellow "⚠ log-completeness gate skipped: scripts/review-gate.sh not found"
   fi
   return 0
 }

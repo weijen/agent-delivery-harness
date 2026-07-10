@@ -497,6 +497,10 @@ case "$command" in
     # REQUIRE_TRACE_CONSISTENCY=1 trace findings fail the check too.
     TRACE_STAGE="trace_gate"
     trace_gate
+    # Action Log placeholder-completeness gate (issue #266): warn-only inside
+    # check by default; REQUIRE_LOG_COMPLETE=1 makes findings fail the check.
+    TRACE_STAGE="log_completeness_gate"
+    log_completeness_gate
     # Red-first evidence gate (issue #144): hard-block by default on missing
     # role-correct ordered red-first evidence, independent of the warn-only
     # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
