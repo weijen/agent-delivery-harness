@@ -171,7 +171,8 @@ machine. What issue #220 added is an **opt-in export of a governed
 *projection*** of the log stream: `scripts/log-export.sh` projects each
 `log.jsonl` record onto redacted, allowlisted log **envelopes** and ships only
 those, never the raw file. The exporter is **off by default** and gated behind
-`LOG_EXPORT_OTLP` (with `LOG_EXPORT_OTLP_HTTP` selecting the OTLP logs signal);
+`LOG_EXPORT_OTLP` (with `LOG_EXPORT_OTLP_HTTP` reserved for the future live
+OTLP/HTTP logs ship — today the signal is chosen by the dry-run seam);
 with the gate unset it is a no-op that writes and ships nothing. This retires
 the earlier "`log.jsonl` is never exported" absolute: the raw artifact still
 never ships, but the redacted+allowlisted projection may.
@@ -187,24 +188,29 @@ default (currently **30 days**). Span and log signals share this single
 workspace policy — one number for both — so the two cannot diverge. Changing
 `retention_in_days` moves both signals together.
 
-**Two excluded free-text fields.** Consistent with the by-name span exclusions,
-the two free-text log fields are treated as the highest-sensitivity surface and
-are **redacted and never retained raw**:
+**Two free-text fields, two different treatments.** Consistent with the
+by-name span exclusions, the two free-text log fields are the
+highest-sensitivity surface on the page — but they cross the export boundary
+differently, so the governance handles them differently:
 
-| Excluded log field | Why it is redacted and never shipped raw |
+| Free-text log field | Boundary treatment |
 | --- | --- |
-| `message` | Free-text, human-readable description of the step-level event — the same prose/path leak class as the excluded span summaries. |
-| `payload` | Free-form structured detail (command/result/diagnostic excerpt): the largest single-field leak surface in the log stream. |
+| `message` | **Ships** as the exported log body — OTLP `body.stringValue` / App-Insights `MessageData.message` — but only **redacted-then-capped**, never raw. It is the one free-text field that crosses the boundary; the redaction gate plus **redact-before-cap** guarantee it can never leave raw or partially-redacted. |
+| `payload` | **Dropped by the deny-by-default allowlist** — it is never allowlisted, so it is never projected into any exported envelope. It is retained only in the local, gitignored `log.jsonl`, itself redacted-then-capped there. |
 
-Both are governed by the **redact-before-cap** discipline pinned in
+Both fields obey the **redact-before-cap** discipline pinned in
 [log-schema.v1.json](log-schema.v1.json): secret-shaped input is redacted
 **before** any length cap runs, so a truncation boundary can never bisect and
-leak a partially-redacted secret. Redaction always precedes the `payload` cap.
+leak a partially-redacted secret. For `message` this governs the value that
+ships; for `payload` it governs the value retained in the local file.
+
 Because only the redacted, allowlisted **projection** ever leaves the machine —
-never the raw file — `message` and `payload` are **excluded** from every
-exported envelope by construction: they are redacted before the cap and dropped
-by the deny-by-default allowlist, so neither field can appear in the opt-in
-`scripts/log-export.sh` output that ships under the unified retention window.
+never the raw file — `payload` is **excluded** from every exported envelope by
+construction: the **deny-by-default** allowlist never projects it, so it cannot
+appear in the opt-in `scripts/log-export.sh` output (behind `LOG_EXPORT_OTLP`).
+`message`, by contrast, crosses the boundary only as a redacted-then-capped log
+body, governed the whole way, and ships under the same unified retention
+window.
 
 ## Deletion & Rollback
 

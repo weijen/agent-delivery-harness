@@ -146,7 +146,7 @@ if [ "${CREATE_PR_LOG_EXPORT:-}" = "1" ] \
     red "⚠ log export skipped: scripts/log-export.sh not executable"
   else
     if "${SCRIPT_DIR}/log-export.sh" "$ISSUE_NUM"; then
-      green "✓ Exported log for issue ${ISSUE_NUM}"
+      green "✓ Log export step completed for issue ${ISSUE_NUM} (no-op until live ship enabled)"
     else
       red "⚠ log export failed — continuing (best-effort, PR creation not blocked)"
     fi

@@ -149,7 +149,7 @@ best_effort_log_export() {
   if [ "$rc" -ne 0 ]; then
     yellow "⚠ log export failed (exit ${rc}) — continuing teardown (best-effort)"
   else
-    green "✓ Exported log for issue ${ISSUE_NUM}"
+    green "✓ Log export step completed for issue ${ISSUE_NUM} (no-op until live ship enabled)"
   fi
   return 0
 }
