@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.11.0 (2026-07-10)
+
+### Features
+
+- **#88**: Document Loop 3 plan-correction escape hatch
+  ([#288](https://github.com/weijen/agent-delivery-harness/pull/288),
+  [`86cddf7`](https://github.com/weijen/agent-delivery-harness/commit/86cddf7f68a01f4e6ba19b5aeb6dffe8cf225406))
+
+
 ## v0.10.2 (2026-07-10)
 
 ### Bug Fixes
