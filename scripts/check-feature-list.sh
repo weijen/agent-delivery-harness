@@ -6,7 +6,9 @@
 #   * each .features[] item has id, title, steps (array), and passes (boolean);
 #   * optional teeth_proof objects have a supported kind and non-empty evidence;
 #   * passes:true features missing teeth_proof are reported as warn-only coverage;
-#   * any passes:true feature carries non-empty verification text.
+#   * any passes:true feature carries non-empty verification text;
+#   * passes:true and a non-empty blocked_on are mutually exclusive (a
+#     replanned/blocked feature cannot also be passing — Loop 3, issue #88).
 #
 # Completion reporting matches finish-issue.sh:
 #   * default mode: incomplete (passes:false) features are a NON-BLOCKING warning;
@@ -165,6 +167,7 @@ problems="$(jq -r '
       (if ($f | has("steps")) and (($f.steps | type) == "array") then empty else "feature[\($i)]: missing field or non-array: steps" end),
       (if ($f | has("passes")) and (($f.passes | type) == "boolean") then empty else "feature[\($i)]: missing field or non-boolean: passes" end),
       (if (($f.passes // false) == true) and (((($f.verification // "") | type) != "string") or ((($f.verification // "") | gsub("\\s";"") | length) == 0)) then "feature[\($i)]: passes:true requires non-empty verification text" else empty end),
+      (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end),
       (if ($f.teeth_proof != null) and (($f.teeth_proof | valid_teeth_proof) | not) then "feature[\($i)]: teeth_proof must be an object with kind in {red_first|mutation|negative_fixture} and non-empty evidence" else empty end),
       (if ($f.teeth_proof_waiver != null) and (($f.teeth_proof_waiver | valid_governed_waiver) | not) then "feature[\($i)]: teeth_proof_waiver must be an object with kind in {bootstrap|visual-only|doc-only|justified} and non-empty reason" else empty end)
     ]

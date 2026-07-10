@@ -25,6 +25,17 @@ if [ -f "$h" ]; then
   for token in 'Loop 1' 'Loop 2' 'routing signal' 'severity override' 'retry limit'; do
     grep -q "$token" "$h" || note "$h revision-loops vocabulary must include '$token'"
   done
+  # Loop 3 (plan correction) closed vocabulary: lightweight escape hatch for a
+  # falsified plan/breakdown/sensor-contract. Structure-level; wording is free.
+  for token in 'Loop 3' 'plan correction'; do
+    grep -q "$token" "$h" || note "$h must document Loop 3 (plan correction) vocabulary: '$token'"
+  done
+fi
+
+# 1b. Narrative HARNESS.md must also name Loop 3 alongside Loops 1 and 2.
+harness_md="docs/HARNESS.md"
+if [ -f "$harness_md" ]; then
+  grep -q 'Loop 3' "$harness_md" || note "$harness_md must name Loop 3 (plan correction) alongside Loops 1 and 2"
 fi
 
 # 2. implementation-subagent handback exists.
