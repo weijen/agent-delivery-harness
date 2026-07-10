@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#274)_
+_Last updated: 2026-07-10 (#90)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-10 (#274)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 163 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 164 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#274)_
 ---
 
 ## Delivered (newest first)
+
+### create-pr loud-failure (#90): never report a failed PR closeout as success
+- **#90 — `scripts/create-pr.sh` reported a successful closeout on a *failed* one.** `gh pr create`'s exit status was unchecked and, more critically, when the PR number could not be resolved afterward (`gh pr view` yielding empty) the script printed `✓ PR #  is open.` with a **blank number and exit 0** — the harness declaring victory on a broken closeout. **One feature, red-first (`red_handback → impl_handback → green_handback`):** `fail-loud-on-pr-create-failure` — the `pr_create` stage now (a) wraps `gh pr create "$@"` in `|| { … exit 1; }` so a non-zero create prints a clear `✗ gh pr create failed` error + re-run hint and never reaches the success line, and (b) guards the resolved `pr_number` — an empty value prints `✗ PR opened but its number could not be resolved.` + "check GitHub manually" and exits non-zero. The idempotent already-exists path (first `gh pr view` returns a number → re-sync + push, no create) is untouched. Sensor `tests/scripts/test_create_pr_failure.sh` drives the real `create-pr.sh` against a fake `gh` through the review-gate approval: (a) `GH_CREATE_FAIL=1` → non-zero exit, `✗` error, no `is open`; (b) `GH_VIEW_BLANK=1` → non-zero exit with a manual-check hint. **Knock-on:** three existing review-gate sensors (`test_review_gate.sh`, `test_review_gate_status_doc.sh`, `test_review_gate_ci_coverage.sh`) carried fake `gh` shims whose `pr view` returned nothing even after `pr create` (modeling the old buggy tolerance); they were updated to return a PR number once the PR exists, matching real `gh`. Full 164-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### profile demotion (#274): ship python+node, demote go/java/ruby to generator-supported
 - **#274 — the harness shipped five language profiles (`profiles/{python,go,node,java,ruby}.profile.sh`) but only Python and Node were exercised end-to-end; go/java/ruby were dead weight `install-harness.sh` copies verbatim into every adopter, and their per-language tests pinned surfaces no live pipeline runs.** An L4 outcome analysis demoted them to **generator-supported**: the `scaffold-language.sh` generator still carries their full metadata (regenerate any of them with `./scripts/scaffold-language.sh <lang> --write`), but the harness ships only what it verifies. **Three features, all red-first (each carries an ordered `red_handback → impl_handback → green_handback` triple):** (1) `remove-demoted-profiles` — `git rm` of `profiles/{go,java,ruby}.profile.sh`; `scripts/init.sh`'s go/ruby/java gate branches now guard on descriptor-presence (`[ -f profiles/<lang>.profile.sh ]`) so a repo carrying `go.mod`/`Gemfile`/`pom.xml` **warns + points at the generator instead of crashing** on the deleted source, and a scaffolded-back profile is auto-detected again (generator-supported contract preserved); sensor `tests/scripts/test_demoted_profiles_scaffoldable.sh` asserts the descriptors are absent, python+node remain, the generator regenerates each with a valid interface, and init.sh degrades gracefully. (2) `tests-updated` — `git rm` of `test_{go,java,ruby}_profile.sh`, the multi-surface `test_init_gates.sh` fixture reduced to python+node+terraform+docs, and the `test_init_preflight.sh`/`test_review_gate_ci_coverage.sh` cases that pinned a demoted `go.mod` surface switched to the shipped `node` (`package.json`) surface; guard sensor `tests/scripts/test_demoted_profile_tests_absent.sh`. (3) `docs-shipped-vs-generator` — README, `docs/HARNESS.md`, `docs/multi-language-profiles.md`, `docs/getting-started.md`, and AGENTS.md reframed to "**ships** Python + Node; Go/Java/Ruby are **generator-supported** via `scaffold-language.sh`"; sensor `tests/scripts/test_docs_shipped_profiles.sh` rejects five-language "shipped" claims. **Deviation from the issue's "init.sh out of scope":** init.sh hard-sourced the deleted descriptors and would exit 1 on a go/ruby/java surface, so the descriptor-presence guard was the minimal change needed to keep the generator-supported contract truthful. Net 0 sensors (3 deleted, 3 added) → 163-sensor suite + shellcheck (CI glob) + L0 green.

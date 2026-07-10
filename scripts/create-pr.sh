@@ -123,8 +123,19 @@ else
     echo "  Re-run with: ./scripts/create-pr.sh --title \"…\" --body-file body.md"
     exit 1
   fi
-  gh pr create "$@"
+  gh pr create "$@" || {
+    red "✗ gh pr create failed — the PR was not opened."
+    echo "  Check your GitHub auth/network and re-run once resolved:"
+    echo "    ./scripts/create-pr.sh --title \"…\" --body-file body.md"
+    exit 1
+  }
   pr_number="$(gh pr view --json number -q .number 2>/dev/null || true)"
+fi
+
+if [ -z "$pr_number" ]; then
+  red "✗ PR opened but its number could not be resolved."
+  echo "  Check GitHub manually to confirm the PR state: gh pr view --web"
+  exit 1
 fi
 
 TRACE_STAGE="done"

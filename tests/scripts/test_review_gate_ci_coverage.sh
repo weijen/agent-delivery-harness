@@ -110,8 +110,8 @@ mkdir -p "${TMP_DIR}/bin"
 cat > "${TMP_DIR}/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "$1 $2" = "pr view" ]; then exit 1; fi
-if [ "$1 $2" = "pr create" ]; then printf '%s\n' "$*" >> "${GH_LOG:?}"; exit 0; fi
+if [ "$1 $2" = "pr view" ]; then [ -n "${GH_LOG:-}" ] && [ -f "${GH_LOG}.created" ] || exit 1; printf '123\n'; exit 0; fi
+if [ "$1 $2" = "pr create" ]; then printf '%s\n' "$*" >> "${GH_LOG:?}"; : > "${GH_LOG}.created"; exit 0; fi
 printf 'unexpected gh call: %s\n' "$*" >&2
 exit 1
 EOF
