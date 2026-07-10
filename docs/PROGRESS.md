@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#272)_
+_Last updated: 2026-07-10 (#273)_
 
 ---
 
@@ -42,17 +42,17 @@ _Last updated: 2026-07-10 (#272)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 173 shell sensors (`tests/scripts/` + `tests/meta/`), run by
-  the `harness-smoke.yml` CI workflow (which now also installs `uv` and runs the
-  Python profile gates — `ruff`/`mypy`/`pytest` over `scripts/trace_tools/`);
+- **Sensor suite:** 163 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+  the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
+  Python profile gates — after the #272 export-leg removal these collect no
+  tests and are handled honestly as a SKIP);
   a green run is a hard merge precondition (enforced by `merge-pr.sh`).
 - **Red-first evidence is enforced, not just counted (#144):** the PR path
   (`review-gate.sh approve`/`check`, inherited by `create-pr.sh`) hard-blocks by
   default when a `passes:true` feature lacks a role-correct ordered
   `red_handback → impl_handback → green_handback` triple and has no governed
   `red_first_waiver`; `start-issue.sh` seeds the local Copilot hook into new
-  worktrees; `finish-issue.sh` attempts a best-effort trace export and a
-  best-effort transcript reconstruction (#149) at closeout.
+  worktrees.
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
 - **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#272)_
 ---
 
 ## Delivered (newest first)
+
+### meta-test triage (#273): keep structural, convert doctrine-critical, delete phrase-pinning
+- **#273 — `tests/meta/` had accreted phrase-pinning tests that grep prose no script parses, so their only failure mode was "someone rephrased a sentence" — Goodhart drift the batch's ethos rejects.** An L4 outcome analysis triaged all 47 meta-tests (plus 5 named `tests/scripts/*_docs.sh` siblings) against a **deletion criterion**: a meta-test earns its keep only if it validates machine-parsed structure or cross-file consistency. **Four features, all red-first (each carries an ordered `red_handback → impl_handback → green_handback` triple):** (1) `triage-record` — created `docs/evaluation/meta-test-triage.md`, an auditable KEEP/CONVERT/DELETE verdict table for all 52 candidates with the rubric legend and an honest note that the structural KEEP floor (~1,700 lines) makes the issue's "<1,500 lines" target unreachable; sensor `tests/scripts/test_meta_triage_record.sh` (≥40 verdict rows, legend, 4 buckets). (2) `deletions-executed` — `git rm` of 10 phrase-pinning `tests/meta/` files + 5 `tests/scripts/*_docs.sh` siblings, and scrubbed the R4 block in `test_runtime_adapters_docs.sh` that invoked a deleted sensor; guard sensor `tests/scripts/test_deleted_meta_tests_absent.sh` (files absent + no orphaned refs). (3) `conversions-executed` — rewrote 5 doctrine-critical tests (`test_role_separation`, `test_revision_loops`, `test_agent_span_doctrine`, `test_blocking_criteria`, `test_impl_usefulness_grading`) to assert the guarded section anchor (`^#` heading) + closed vocabulary instead of sentence fragments, so a title change still fails but a reword does not; sensor `tests/scripts/test_converted_meta_structural.sh` + a behavioral mutation check. (4) `rubric-doctrine` — recorded the KEEP/CONVERT/DELETE rubric + deletion criterion in `.copilot/instructions/bash.instructions.md` so new meta-tests are born structural; sensor `tests/scripts/test_meta_test_rubric_doctrine.sh`. Net −11 sensors (15 deleted, 4 added). Full 163-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### tracing export-leg deletion (#272): remove the cloud export leg + trace-reconstruct (L4 deletion review)
 - **#272 — the cloud trace/log export leg had no in-loop consumer.** An L4 deletion review (48-issue / 181-feature adopting project + a consumer audit) found no `trace.jsonl` survived in the adopter, the export leg's only reader was an App Insights workbook nobody consulted, `trace-reconstruct.sh` output was read by nothing, and 77% of test lines exercised tracing/export/hook code — dead weight `install-harness.sh` copies verbatim into every future adopter. Deletion criterion: **a trace component lives only if its output is read by an in-loop gate or a recurring human decision.** **Four features, all red-first (each carries an ordered `red_handback → impl_handback → green_handback` triple):** (1) `remove-export-scripts-and-callsites` — deleted `trace-export.sh`, `log-export.sh`, `gen-export-env.sh`, `sanitize-trace.sh`, `trace-reconstruct.sh`, and the whole `scripts/trace_tools/` Python package; stripped the 3 best-effort export/log-export/reconstruct helpers from `finish-lib.sh`, their 3 stages from `finish-issue.sh`, the mid-issue log-export step from `create-pr.sh`, and the cloud-export env block from `.env.example` (local `COPILOT_OTEL_FILE_EXPORTER_PATH` + generic `load_env_allowlist` kept); sensor `tests/scripts/test_export_leg_removed.sh`. (2) `contract-and-version` — removed the `trace-export` `scripts`/`lifecycle` entries and `TRACE_EXPORT_OTLP`/`_HTTP` `env_flags` from `docs/harness-contract.yml` and the export/reconstruct clauses from `finish-lib`'s role (contract-TDD: `tests/scripts/test_harness_contract.sh` edited first); MINOR bump lands via the `feat(#272)` PSR release. (3) `delete-orphaned-tests` — removed ~29 orphaned `test_trace_export_*`/`test_log_export_*`/reconstruct/sanitize tests + the meta allowlist pair, and scrubbed deleted-script references from surviving tests; guard sensor `tests/meta/test_no_deleted_export_refs.sh`. (4) `docs-and-infra-sweep` — deleted the App Insights workbook Terraform (`workbook.tf` + `harness-quality.workbook.json`, dated decommission note kept) and reframed the HARNESS / otlp-azure-monitor / observability / dashboards / dataset-governance / failure-review / telemetry-retention docs to "decommissioned by #272" **while retaining the trace schema + OTel attribute-name mapping as the future exit ramp**; a knock-on of removing the only Python package — `pytest` now collects 0 tests (exit 5) and `mypy` finds no `.py` (exit 2) — is handled honestly as a SKIP in the Python profile gate, `harness-smoke` CI, and `pyproject.toml`; sensor `tests/scripts/test_export_docs_removed.sh`. **KEEP (out of scope):** `trace-lib.sh`, both runtime hooks, `validate-trace.sh`, `check-trace-consistency.sh`, `log-handback.sh`, `trace-report.sh`/`trace-scorecard.sh`, and the trace/log schemas. Full 173-sensor suite + shellcheck (CI glob) + L0 green.

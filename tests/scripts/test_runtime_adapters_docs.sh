@@ -22,10 +22,6 @@
 #       scripts/*.sh except copilot-trace-hook.sh itself. Git tracks NO
 #       live hook config: no .claude/settings.json and no .github/hooks/*
 #       (both adapters stay opt-in templates under docs/runtime-adapters/).
-#   R4. test_claude_adapter_docs.sh STAYS GREEN after the reframe — run
-#       in-process here so the reframe can never silently break the
-#       reference doc's own contract.
-#
 # Exit codes: 0 framing contract honored · 1 an obligation regressed (or
 # the reframe is not implemented yet — RED gate: R1's label/cross-link).
 
@@ -36,7 +32,6 @@ CLAUDE_DOC="${ROOT}/docs/runtime-adapters/claude-code.md"
 COPILOT_DOC_REL="runtime-adapters/github-copilot.md"
 HARNESS_DOC="${ROOT}/docs/HARNESS.md"
 OBS_DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
-CLAUDE_DOCS_SENSOR="${ROOT}/tests/scripts/test_claude_adapter_docs.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -87,11 +82,5 @@ tracked_live="$(git -C "$ROOT" ls-files \
     '.github/hooks/*' 2>/dev/null || true)"
 [ -z "$tracked_live" ] \
   || fail "the repo must not track live hook config — both adapters are opt-in templates (R3): ${tracked_live}"
-
-# --- R4: the reference doc's own sensor stays green ------------------------------------
-[ -f "$CLAUDE_DOCS_SENSOR" ] \
-  || fail "tests/scripts/test_claude_adapter_docs.sh not found — the reframe must keep the reference doc's sensor in the suite (R4)"
-bash "$CLAUDE_DOCS_SENSOR" >/dev/null 2>&1 \
-  || fail "test_claude_adapter_docs.sh regressed — the reframe must not break the reference doc's own contract (R4)"
 
 printf 'runtime-adapters framing contract honored\n'
