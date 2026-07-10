@@ -549,6 +549,36 @@ else
 	note "$WB_JSON: no failure-detail log panel over 'traces' for {Issue} — #225 panel 4 (need a tab-drilldown KqlItem: traces filtered on operation_Id == 'issue-{Issue}', severityLevel >= 3 AND customDimensions['harness.outcome'] == 'fail', projecting message, correlated to the failing span via operation_ParentId — NOT parent_span_id)"
 fi
 
+# #225 F2 panel 4 — explicit `log evidence unavailable` empty-state (never an
+# empty chart, never inferred health). Azure Workbook conditionalVisibility can
+# only key off PARAMETERS, not a query's row count, so a plain projection over
+# the `traces` table returns ZERO rows on a run with no failure logs — an empty
+# grid that silently reads as "healthy". The F1 panel must therefore self-render
+# an honest empty-state via an always-one-row construct that mirrors the
+# existing tokens_status = iff(...) honesty columns: `union` the real failure
+# records with a synthetic placeholder row that is filtered in ONLY when the
+# failure set is empty (`toscalar(... | count) == 0`), the placeholder carrying
+# the literal `log evidence unavailable`. Reuse the same flattened tab-drilldown
+# query lines ($dd_timeline, one query per line) and require the SAME failure-
+# detail query (scoped by its identity markers: the `traces` table +
+# `operation_ParentId` span correlation, which no other drilldown panel carries)
+# to ALSO carry ALL of the honest empty-state markers at once — the literal
+# `log evidence unavailable`, the `union` always-one-row construct, and the
+# `toscalar(... count ...) == 0` empty-set guard — so a plain F1 projection
+# (traces | where ... | project ...) that lacks the union/toscalar guard cannot
+# satisfy this by accident, and no non-traces panel can either.
+if grep -F 'traces' "$dd_timeline" \
+	| grep -F 'operation_ParentId' \
+	| grep -F 'log evidence unavailable' \
+	| grep -F 'union' \
+	| grep -F 'toscalar' \
+	| grep -F 'count' \
+	| grep -Fq '== 0'; then
+	ok "#225: failure-detail log panel renders an explicit 'log evidence unavailable' empty-state via an always-one-row union/toscalar guard (panel 4, F2)"
+else
+	note "$WB_JSON: failure-detail log panel has no explicit 'log evidence unavailable' empty-state — #225 F2 (the traces/operation_ParentId panel must emit an always-one-row honesty construct: union the failure records with a synthetic placeholder row gated by toscalar(<failures> | count) == 0, the placeholder carrying the literal 'log evidence unavailable' — a plain projection returns an empty grid on a run with no failure logs)"
+fi
+
 # #223 panel 5 — per-run cost strip. The drill-down tab must ALSO carry a KQL
 # panel that surfaces the selected run's model token cost. UNLIKE panels 1-3
 # (which read the dependencies table) this panel queries the customEvents table
