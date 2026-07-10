@@ -13,6 +13,7 @@
   "numeric_keys": [
     "harness.exit_status",
     "harness.duration_ms",
+    "harness.finding_count",
     "harness.incomplete_count",
     "harness.teeth_proof_missing_count",
     "harness.violation_count",

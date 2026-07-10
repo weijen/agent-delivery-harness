@@ -348,6 +348,14 @@ otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the d
 `REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
 before `worktree remove`, leaving the worktree intact.
 
+The log-completeness gate (`review-gate.sh log-completeness`) scans the per-issue Action Log `progress.md` for known
+placeholder signatures that should be filled before closeout: `Recorded on completion below`, `TBD`, and
+`TODO(fill`. It is WARN-ONLY by default in both `review-gate.sh check` and `finish-issue.sh`; setting
+`REQUIRE_LOG_COMPLETE=1` promotes findings to a hard block, so `check` exits non-zero and `finish-issue.sh` refuses
+teardown with the worktree intact. `LOG_COMPLETENESS_PATHS` may replace the default scan target with a
+whitespace-separated list of `NN` path templates. Each resolved run emits a `review-gate.log-completeness` trace span
+with numeric `harness.finding_count`.
+
 ### Sensor teeth-proof obligation
 
 The L4 outcome is now SENSOR TEETH — a sensor proven able to fail via red-first, mutation, or a negative fixture —

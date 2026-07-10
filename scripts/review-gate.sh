@@ -308,6 +308,7 @@ trace_gate() {
 # LOG_COMPLETENESS_PATHS replaces the default with whitespace-separated NN templates; missing paths are skipped.
 log_completeness_gate() {
   local issue_num="" branch=""
+  local t0; t0="$(trace_now_ms)"
 
   # Issue resolution mirrors trace_gate / trace-lib precedence: TRACE_ISSUE
   # env, then the feature/issue-NN-* branch, then the issue-NN worktree
@@ -375,19 +376,28 @@ log_completeness_gate() {
   if [ "$scanned_count" -eq 0 ]; then
     yellow "⚠ log-completeness gate skipped: no readable log paths for issue ${issue_num} (nothing to check)"
   fi
+
+  local outcome="pass" gate_rc=0
   if [ "$finding_count" -eq 0 ]; then
     green "✓ log-completeness: no unfilled placeholders in issue ${issue_num} log"
-    return 0
+  else
+    printf '%s\n' "${placeholder_findings[@]}"
+    if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
+      red "✗ log-completeness: ${finding_count} unfilled placeholder(s) in the issue log — blocking (REQUIRE_LOG_COMPLETE=1)"
+      outcome="fail"
+      gate_rc=1
+    else
+      yellow "⚠ log-completeness: ${finding_count} placeholder finding(s) — warn-only (set REQUIRE_LOG_COMPLETE=1 to block)"
+    fi
   fi
 
-  printf '%s\n' "${placeholder_findings[@]}"
-  if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
-    red "✗ log-completeness: ${finding_count} unfilled placeholder(s) in the issue log — blocking (REQUIRE_LOG_COMPLETE=1)"
-    return 1
-  fi
-
-  yellow "⚠ log-completeness: ${finding_count} placeholder finding(s) — warn-only (set REQUIRE_LOG_COMPLETE=1 to block)"
-  return 0
+  trace_span tool \
+    "gen_ai.tool.name=review-gate.log-completeness" \
+    "harness.outcome=${outcome}" \
+    "harness.exit_status=${gate_rc}" \
+    "harness.duration_ms=$(( $(trace_now_ms) - t0 ))" \
+    "harness.finding_count=${finding_count}"
+  return "$gate_rc"
 }
 
 # red_first_evidence_gate — hard-block the PR path on missing red-first
