@@ -19,7 +19,7 @@
     "harness.violation_count",
     "harness.warning_count"
   ],
-  "numeric_key_prefixes": ["gen_ai.usage."],
+  "numeric_key_prefixes": ["gen_ai.usage.", "harness.economics."],
   "structural_numeric_keys": ["harness.issue", "schema_version"],
   "roles": [
     "conductor",
@@ -31,7 +31,7 @@
   "required_common": ["schema_version", "timestamp", "span", "harness.issue", "harness.version"],
   "required_by_span": {
     "agent": ["gen_ai.operation.name", "gen_ai.agent.name"],
-    "model": ["gen_ai.request.model", "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens"],
+    "model": ["gen_ai.request.model"],
     "tool": ["gen_ai.tool.name"],
     "lifecycle": ["harness.lifecycle_step"]
   },
@@ -62,6 +62,8 @@
   ],
   "optional_fields": {
     "harness.feature_id": "string; feature id from feature_list.json",
+    "gen_ai.usage.input_tokens": "number (integer); prompt/input token count on a model span, provided only when a runtime adapter reports it (issue #267 — omit-never-fake: model spans without token data legitimately omit this rather than fabricating 0). Also summed onto the finish-issue.economics span. Typed as a JSON number via the gen_ai.usage. prefix.",
+    "gen_ai.usage.output_tokens": "number (integer); completion/output token count on a model span, provided only when a runtime adapter reports it (issue #267 — omit-never-fake: model spans without token data legitimately omit this rather than fabricating 0). Also summed onto the finish-issue.economics span. Typed as a JSON number via the gen_ai.usage. prefix.",
     "harness.commit": "string; short git SHA of the harness scripts at emit time, for exact provenance. Optional companion to harness.version (the SemVer release from the VERSION file).",
     "harness.session_id": "string; runtime/conversation session identity for the GitHub Copilot session that produced runtime spans (aligned with OTel gen_ai.conversation.id). Optional and open-world: distinct from harness.issue (a session may span multiple issues; runtime spans are attributed to an issue by time window). Stamped by runtime capture (transcript reconstruction / hooks); absent on script-emitted lifecycle/handback spans.",
     "harness.tool_call_id": "string; the runtime tool-call id (transcript data.toolCallId) stamped on reconstructed tool spans as the deterministic dedup identity enabling idempotent re-reconstruction (issue #175). Optional; absent on hook-emitted tool spans.",
@@ -78,6 +80,14 @@
     "harness.violation_count": "number (integer); count of validation violations reported at a gate. Typed as a JSON number.",
     "harness.warning_count": "number (integer); count of warnings reported at a gate. Typed as a JSON number.",
     "harness.finding_count": "number (integer); count of unfilled Action Log placeholder findings reported by the log-completeness gate. Typed as a JSON number.",
+    "harness.economics.wall_clock_ms": "number (integer milliseconds); first-to-last span wall-clock elapsed for the issue, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted (never 0) when fewer than two timestamped spans exist.",
+    "harness.economics.review_rounds": "number (integer); count of review_verdict spans in the issue trace, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix.",
+    "harness.economics.deviations": "number (integer); count of deviation spans in the issue trace, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix.",
+    "harness.economics.token_runs": "number (integer); count of model spans that carried token usage (coverage numerator), on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when the trace has no model spans.",
+    "harness.economics.token_runs_total": "number (integer); total count of model spans (coverage denominator), on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when the trace has no model spans.",
+    "harness.economics.features_total": "number (integer); total feature_list entries, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when no feature_list is readable.",
+    "harness.economics.features_passing": "number (integer); count of passes:true feature_list entries, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when no feature_list is readable.",
+    "harness.economics.teeth_proof": "number (integer); count of feature_list entries carrying a teeth_proof object (teeth-proof coverage), on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when no feature_list is readable.",
     "harness.stage": "string; sub-stage label within a gate or lifecycle operation (e.g. push, rebase, ci_checks, review_gate, completion_check).",
     "harness.warning": "string; enum-like warning code emitted by a harness script (e.g. jq_skipped, incomplete_features).",
     "harness.require_complete": "string; whether the completeness gate ran in require mode (REQUIRE_FEATURES_COMPLETE), '0' | '1'.",

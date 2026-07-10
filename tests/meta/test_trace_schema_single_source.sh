@@ -105,7 +105,16 @@ prefix_present_or_fail() {
 }
 
 # --- 1. trace-lib.sh numeric exact-keys + usage prefix + span-type enum ------
-tl_numeric="$(region numeric_keys "$TRACE_LIB" | tokens "$HKEY_RE")"
+# A numeric key PREFIX in the harness.* namespace (issue #267 added the first
+# one, harness.economics.) is expressed as a startswith("harness.economics.")
+# predicate inside the same trace-lib numeric-typing block. HKEY_RE would
+# otherwise capture the prefix stem (harness.economics) as if it were an exact
+# key, so strip every harness.* prefix stem to keep this a true exact-key diff.
+harness_prefix_stems="$(printf '%s\n' "$AUTH_PREFIX" | sed -n 's/^harness\.\(.*\)\.$/harness.\1/p' | LC_ALL=C sort -u)"
+strip_prefix_stems() {
+  if [ -z "$harness_prefix_stems" ]; then cat; else grep -vxF "$harness_prefix_stems"; fi
+}
+tl_numeric="$(region numeric_keys "$TRACE_LIB" | tokens "$HKEY_RE" | strip_prefix_stems)"
 diff_or_fail "trace-lib.sh numeric exact-keys" "$AUTH_NUMERIC" "$tl_numeric"
 prefix_present_or_fail "trace-lib.sh numeric block" "$TRACE_LIB"
 

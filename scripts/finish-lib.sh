@@ -9,6 +9,7 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_trace_export      — closeout OTLP export, opt-in (#144)
 #   best_effort_trace_reconstruct — closeout local reconstruct (#149)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
@@ -87,6 +88,356 @@ finish_log_completeness_gate() {
   else
     yellow "⚠ log-completeness gate skipped: scripts/review-gate.sh not found"
   fi
+  return 0
+}
+
+# Pure trace/feature-list economics renderer (issue #267). This is a PURE
+# function of its two explicit file arguments: callers resolve paths before
+# invoking it. Metric honesty follows the trace-report omit-never-fake /
+# null-never-0 rule: absent measurements render n/a, and model spans without
+# token usage do not fabricate zero-token runs.
+compute_delivery_economics() {
+  local trace_file="${1:-}"
+  local feature_list_file="${2:-}"
+  local trace_lines feature_line
+
+  printf '## Delivery economics (auto-stamped, trace-derived)\n'
+
+  if ! command -v jq >/dev/null 2>&1; then
+    printf '%s\n' \
+      '- Wall-clock span: n/a' \
+      '- Tokens: n/a' \
+      '- Review rounds: n/a' \
+      '- Deviations logged: n/a' \
+      '- Features: n/a'
+    return 0
+  fi
+
+  trace_lines="$(
+    if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
+      jq -nRr '
+        # Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are
+        # normalized before parsing, matching scripts/trace-report.sh.
+        def ts_secs:
+          sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+        def one_decimal:
+          (. * 10 | round) as $tenths
+          | ($tenths / 10 | tostring) as $s
+          | if ($s | contains(".")) then $s else "\($s).0" end;
+
+        [inputs | fromjson? | objects] as $spans
+        | [$spans[] | .timestamp? | strings] as $ts
+        | [$spans[] | select(.span == "model")] as $model_spans
+        | [$model_spans[]
+           | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
+                    or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+        | [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
+        | [
+            (if ($ts | length) < 2 then
+               "- Wall-clock span: n/a"
+             else
+               ($ts | min) as $first
+               | ($ts | max) as $last
+               | ($first | ts_secs) as $first_secs
+               | ($last | ts_secs) as $last_secs
+               | if $first_secs == null or $last_secs == null then
+                   "- Wall-clock span: n/a"
+                 else
+                   "- Wall-clock span: \($first) → \($last) (elapsed \(($last_secs - $first_secs) / 3600 | one_decimal)h)"
+                 end
+             end),
+            (if ($tok_models | length) == 0 then
+               "- Tokens: n/a (no run carried token data)"
+             else
+               "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
+             end),
+            (if ($reviews | length) == 0 then
+               "- Review rounds: 0"
+             else
+               "- Review rounds: \($reviews | length) (\([$reviews[] | select(.["harness.outcome"] == "fail")] | length) fail → \([$reviews[] | select(.["harness.outcome"] == "pass")] | length) pass)"
+             end),
+            "- Deviations logged: \([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
+          ]
+        | .[]
+      ' < "$trace_file" 2>/dev/null || true
+    fi
+  )"
+  if [ -n "$trace_lines" ]; then
+    printf '%s\n' "$trace_lines"
+  else
+    printf '%s\n' \
+      '- Wall-clock span: n/a' \
+      '- Tokens: n/a (no run carried token data)' \
+      '- Review rounds: 0' \
+      '- Deviations logged: 0'
+  fi
+
+  feature_line=""
+  if [ "$feature_list_file" != "-" ] && [ -n "$feature_list_file" ] \
+    && [ -s "$feature_list_file" ] && [ -r "$feature_list_file" ]; then
+    feature_line="$(
+      jq -r '
+        if (.features | type) != "array" then
+          empty
+        else
+          (.features | length) as $total
+          | ([.features[] | select(.passes == true)] | length) as $passing
+          | ([.features[] | select((.teeth_proof? | type) == "object")] | length) as $teeth
+          | "- Features: \($passing)/\($total) passes:true; teeth-proof coverage \($teeth)/\($total)"
+        end
+      ' "$feature_list_file" 2>/dev/null || true
+    )"
+  fi
+  if [ -n "$feature_line" ]; then
+    printf '%s\n' "$feature_line"
+  else
+    printf '%s\n' '- Features: n/a'
+  fi
+
+  return 0
+}
+
+finish__warn() {
+  if declare -F yellow >/dev/null 2>&1; then
+    yellow "$*" >&2
+  else
+    printf '%s\n' "$*" >&2
+  fi
+}
+
+# Idempotently stamp a human-readable delivery economics block into progress.md
+# using marker lines. The block text may contain shell-sensitive characters and
+# multiple lines, so replacement is done with awk variables, never sed
+# replacement syntax. This helper is advisory only and ALWAYS returns 0.
+economics_stamp_into() {
+  local progress_file="${1:-}"
+  local block_text="${2:-}"
+  local start_marker='<!-- delivery-economics:start -->'
+  local end_marker='<!-- delivery-economics:end -->'
+  local tmp_file=""
+  local block_file=""
+
+  if [ -z "$progress_file" ] || [ ! -f "$progress_file" ] || [ ! -w "$progress_file" ]; then
+    finish__warn "⚠ economics stamp skipped: progress.md not writable at ${progress_file:-<empty>}"
+    return 0
+  fi
+
+  if ! grep -F -q -- "$start_marker" "$progress_file" 2>/dev/null; then
+    if ! {
+      printf '\n%s\n' "$start_marker"
+      printf '%s\n' "$block_text"
+      printf '%s\n' "$end_marker"
+    } >> "$progress_file" 2>/dev/null; then
+      finish__warn "⚠ economics stamp skipped: could not append to ${progress_file}"
+    fi
+    return 0
+  fi
+
+  tmp_file="${progress_file}.economics.$$"
+  block_file="${progress_file}.economics-block.$$"
+  if ! printf '%s\n' "$block_text" > "$block_file" 2>/dev/null; then
+    finish__warn "⚠ economics stamp skipped: could not prepare block for ${progress_file}"
+    rm -f "$block_file" 2>/dev/null || true
+    return 0
+  fi
+  if awk -v block_file="$block_file" -v start="$start_marker" -v end_marker="$end_marker" '
+    BEGIN {
+      in_region = 0
+      replaced = 0
+      skipping_duplicate = 0
+      block_count = 0
+      while ((getline block_line < block_file) > 0) {
+        block[++block_count] = block_line
+      }
+      close(block_file)
+    }
+    function print_block(    i) {
+      for (i = 1; i <= block_count; i++) {
+        print block[i]
+      }
+    }
+    $0 == start {
+      if (!replaced) {
+        print start
+        print_block()
+        in_region = 1
+        replaced = 1
+      } else {
+        skipping_duplicate = 1
+      }
+      next
+    }
+    $0 == end_marker {
+      if (in_region) {
+        print end_marker
+        in_region = 0
+      }
+      if (skipping_duplicate) {
+        skipping_duplicate = 0
+      }
+      next
+    }
+    in_region || skipping_duplicate {
+      next
+    }
+    {
+      print
+    }
+    END {
+      if (in_region) {
+        print end_marker
+      }
+    }
+  ' "$progress_file" > "$tmp_file" 2>/dev/null; then
+    if ! mv "$tmp_file" "$progress_file" 2>/dev/null; then
+      finish__warn "⚠ economics stamp skipped: could not update ${progress_file}"
+      rm -f "$tmp_file" 2>/dev/null || true
+    fi
+  else
+    finish__warn "⚠ economics stamp skipped: could not rewrite ${progress_file}"
+    rm -f "$tmp_file" 2>/dev/null || true
+  fi
+  rm -f "$block_file" 2>/dev/null || true
+
+  return 0
+}
+
+# Pure numeric aggregate extractor for the finish-issue.economics span (issue
+# #267). Prints `key=value` lines for the machine-readable span, one metric per
+# line, honoring omit-never-fake: a metric is printed ONLY when it is actually
+# measured. trace_span types the numeric keys via the gen_ai.usage. and
+# harness.economics. prefixes. Always returns 0.
+economics_numeric_aggregates() {
+  local trace_file="${1:-}"
+  local feature_list_file="${2:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+
+  if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
+    jq -nRr '
+      def ts_secs:
+        sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+      [inputs | fromjson? | objects] as $spans
+      | [$spans[] | .timestamp? | strings] as $ts
+      | [$spans[] | select(.span == "model")] as $model_spans
+      | [$model_spans[]
+         | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
+                  or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+      | (
+          if ($ts | length) >= 2 then
+            ($ts | min | ts_secs) as $a
+            | ($ts | max | ts_secs) as $b
+            | if $a != null and $b != null and ($b - $a) > 0 then
+                "harness.economics.wall_clock_ms=\((($b - $a) * 1000) | round)"
+              else empty end
+          else empty end
+        ),
+        (
+          if ($tok_models | length) >= 1 then
+            "gen_ai.usage.input_tokens=\([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)",
+            "gen_ai.usage.output_tokens=\([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)"
+          else empty end
+        ),
+        (
+          if ($model_spans | length) >= 1 then
+            "harness.economics.token_runs=\($tok_models | length)",
+            "harness.economics.token_runs_total=\($model_spans | length)"
+          else empty end
+        ),
+        "harness.economics.review_rounds=\([$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] | length)",
+        "harness.economics.deviations=\([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
+    ' < "$trace_file" 2>/dev/null || true
+  fi
+
+  if [ "$feature_list_file" != "-" ] && [ -n "$feature_list_file" ] \
+    && [ -s "$feature_list_file" ] && [ -r "$feature_list_file" ]; then
+    jq -r '
+      if (.features | type) != "array" then empty
+      else
+        "harness.economics.features_total=\(.features | length)",
+        "harness.economics.features_passing=\([.features[] | select(.passes == true)] | length)",
+        "harness.economics.teeth_proof=\([.features[] | select((.teeth_proof? | type) == "object")] | length)"
+      end
+    ' "$feature_list_file" 2>/dev/null || true
+  fi
+
+  return 0
+}
+
+# Best-effort pre-teardown delivery economics stamp (issue #267). It runs while
+# the worktree is still present so the worktree progress.md and feature_list can
+# be used. The durable machine record is the finish-issue.economics span added
+# by a later feature; this markdown stamp is operator-facing and never blocks.
+best_effort_economics_stamp() {
+  local stamp_issue="${ISSUE_NUM:-}"
+  local issue_pad="" main_root="" worktree_dir="${WORKTREE_DIR:-}"
+  local main_issue_dir="" worktree_issue_dir="" trace_file=""
+  local feature_list="-" progress_md="" block=""
+
+  if ! [[ "$stamp_issue" =~ ^[0-9]+$ ]]; then
+    finish__warn "⚠ economics stamp skipped: ISSUE_NUM is not set"
+    return 0
+  fi
+  issue_pad="$(printf '%02d' "$stamp_issue" 2>/dev/null)" || {
+    finish__warn "⚠ economics stamp skipped: could not format issue ${stamp_issue}"
+    return 0
+  }
+
+  if declare -F trace__main_root >/dev/null 2>&1; then
+    main_root="$(trace__main_root 2>/dev/null || true)"
+  fi
+  if [ -z "$main_root" ]; then
+    main_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P 2>/dev/null || true)"
+  fi
+  if [ -z "$main_root" ]; then
+    finish__warn "⚠ economics stamp skipped: could not resolve repo root"
+    return 0
+  fi
+
+  main_issue_dir="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
+  trace_file="${main_issue_dir}/trace.jsonl"
+  if [ -n "$worktree_dir" ]; then
+    worktree_issue_dir="${worktree_dir}/.copilot-tracking/issues/issue-${issue_pad}"
+  fi
+
+  if [ -n "$worktree_issue_dir" ] && [ -f "${worktree_issue_dir}/feature_list.json" ]; then
+    feature_list="${worktree_issue_dir}/feature_list.json"
+  elif [ -f "${main_issue_dir}/feature_list.json" ]; then
+    feature_list="${main_issue_dir}/feature_list.json"
+  fi
+
+  if [ -n "$worktree_dir" ] && [ -e "$worktree_dir" ]; then
+    progress_md="${worktree_issue_dir}/progress.md"
+  else
+    progress_md="${main_issue_dir}/progress.md"
+  fi
+
+  if ! declare -F compute_delivery_economics >/dev/null 2>&1; then
+    finish__warn "⚠ economics stamp skipped: compute_delivery_economics unavailable"
+    return 0
+  fi
+  if ! block="$(compute_delivery_economics "$trace_file" "$feature_list" 2>/dev/null)"; then
+    finish__warn "⚠ economics stamp skipped: could not compute delivery economics"
+    return 0
+  fi
+
+  printf '%s\n' "$block"
+  economics_stamp_into "$progress_md" "$block" || true
+
+  # Durable machine record: append exactly one finish-issue.economics tool span
+  # with the numeric aggregates. Advisory — never blocks teardown.
+  if declare -F trace_span >/dev/null 2>&1; then
+    local -a econ_agg=()
+    local agg_line=""
+    while IFS= read -r agg_line; do
+      [ -n "$agg_line" ] && econ_agg+=("$agg_line")
+    done < <(economics_numeric_aggregates "$trace_file" "$feature_list")
+    TRACE_ISSUE="$stamp_issue" trace_span tool \
+      "gen_ai.tool.name=finish-issue.economics" \
+      "harness.outcome=pass" \
+      ${econ_agg[@]+"${econ_agg[@]}"} >/dev/null 2>&1 || true
+  fi
+
   return 0
 }
 
