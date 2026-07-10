@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.10.1 (2026-07-10)
+
+### Bug Fixes
+
+- **#90**: Fail loudly when gh pr create fails or PR number is missing
+  ([#286](https://github.com/weijen/agent-delivery-harness/pull/286),
+  [`d034ee7`](https://github.com/weijen/agent-delivery-harness/commit/d034ee777bcd182bf55667a976fe917b1ab029a3))
+
+
 ## v0.10.0 (2026-07-10)
 
 ### Features
