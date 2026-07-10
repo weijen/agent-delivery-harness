@@ -26,8 +26,10 @@ separate from replaceable language support and project-specific conventions:
   [docs/scripts-language-policy.md](scripts-language-policy.md).
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
   that teach `init.sh` how to detect a project surface and run its gates. The
-  initial supported set is **Python, Go, Node.js, Java, and Ruby**. The core
-  does not hard-code any language; it loads the matching profile. See
+  shipped set is **Python and Node.js** (proven adopters); **Go, Java, and Ruby**
+  are generator-supported — regenerate them on demand with
+  `scaffold-language.sh`. The core does not hard-code any language; it loads the
+  matching profile. See
   [profiles/README.md](../profiles/README.md) for the descriptor contract and
   [docs/multi-language-profiles.md](multi-language-profiles.md) for the design.
 - **Framework Templates** — project-specific conventions layered on top of a

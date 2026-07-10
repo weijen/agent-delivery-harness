@@ -10,7 +10,8 @@
 # The generator is conservative and visible (Delivery Plan step 5 of
 # docs/multi-language-profiles.md § Generator):
 #
-#   * It refuses unknown profiles (known set = the five Built-In Profiles).
+#   * It refuses unknown profiles (known set = python & node shipped, plus
+#     go/java/ruby generator-supported).
 #   * It defaults to a dry run: it prints what it would create or update and
 #     writes nothing.
 #   * --write creates missing assets and is a no-op when an asset already
@@ -52,7 +53,7 @@ die() {
 	exit 1
 }
 
-# --- Per-language metadata (from docs/multi-language-profiles.md § Built-In Profiles)
+# --- Per-language metadata (from docs/multi-language-profiles.md § Shipped and Generator-Supported Profiles)
 # Sets META_* globals for the given profile id. Bash 3.2 compatible (no assoc arrays).
 load_metadata() {
 	case "$1" in

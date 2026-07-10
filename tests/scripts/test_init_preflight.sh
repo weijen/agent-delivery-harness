@@ -108,13 +108,13 @@ fi
 grep -qi "commit signing not enabled" "$OUT" || { cat "$OUT"; fail "missing commit-signing warning"; }
 
 # --- 4. Detected surface whose tool is absent is a WARNING -------------------
-# go.mod present but `go` is not on the restricted PATH -> warn, exit 0.
-r="$(new_repo go-missing)"
-printf 'module fixture\n' > "${r}/go.mod"
+# package.json present but `node` is not on the restricted PATH -> warn, exit 0.
+r="$(new_repo node-missing)"
+printf '{"name":"fixture"}\n' > "${r}/package.json"
 if ! run_init "$r"; then
   cat "$OUT"; fail "missing language tool must warn, not fail"
 fi
-grep -qi "Go surface detected" "$OUT" || { cat "$OUT"; fail "missing Go surface detection"; }
-grep -qi "go is not installed" "$OUT" || { cat "$OUT"; fail "missing 'go not installed' warning"; }
+grep -qi "Node surface detected" "$OUT" || { cat "$OUT"; fail "missing Node surface detection"; }
+grep -qi "node is not installed" "$OUT" || { cat "$OUT"; fail "missing 'node not installed' warning"; }
 
 printf 'init preflight checks passed\n'

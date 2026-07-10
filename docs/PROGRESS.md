@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#273)_
+_Last updated: 2026-07-10 (#274)_
 
 ---
 
@@ -34,8 +34,8 @@ _Last updated: 2026-07-10 (#273)_
   `finish-issue.sh`, `create-pr.sh`, `merge-pr.sh`, `review-gate.sh`,
   `check-feature-list.sh`, `scaffold-language.sh`, `install-harness.sh`,
   `issue-lib.sh`.
-- **Language profiles:** Python, Go, Node.js, Java, Ruby (+ a scaffold
-  generator) under `profiles/`.
+- **Language profiles:** Python and Node.js shipped under `profiles/`; Go,
+  Java, and Ruby are generator-supported via `scaffold-language.sh`.
 - **Skills:** 9 under `.copilot/skills/` (code-review, create-pr, the
   five audit skills, security-audit, sync-docs, public-exposure-audit). The
   obsolete `general` skill was removed in #177 (its fallback role moved to the
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#273)_
 ---
 
 ## Delivered (newest first)
+
+### profile demotion (#274): ship python+node, demote go/java/ruby to generator-supported
+- **#274 — the harness shipped five language profiles (`profiles/{python,go,node,java,ruby}.profile.sh`) but only Python and Node were exercised end-to-end; go/java/ruby were dead weight `install-harness.sh` copies verbatim into every adopter, and their per-language tests pinned surfaces no live pipeline runs.** An L4 outcome analysis demoted them to **generator-supported**: the `scaffold-language.sh` generator still carries their full metadata (regenerate any of them with `./scripts/scaffold-language.sh <lang> --write`), but the harness ships only what it verifies. **Three features, all red-first (each carries an ordered `red_handback → impl_handback → green_handback` triple):** (1) `remove-demoted-profiles` — `git rm` of `profiles/{go,java,ruby}.profile.sh`; `scripts/init.sh`'s go/ruby/java gate branches now guard on descriptor-presence (`[ -f profiles/<lang>.profile.sh ]`) so a repo carrying `go.mod`/`Gemfile`/`pom.xml` **warns + points at the generator instead of crashing** on the deleted source, and a scaffolded-back profile is auto-detected again (generator-supported contract preserved); sensor `tests/scripts/test_demoted_profiles_scaffoldable.sh` asserts the descriptors are absent, python+node remain, the generator regenerates each with a valid interface, and init.sh degrades gracefully. (2) `tests-updated` — `git rm` of `test_{go,java,ruby}_profile.sh`, the multi-surface `test_init_gates.sh` fixture reduced to python+node+terraform+docs, and the `test_init_preflight.sh`/`test_review_gate_ci_coverage.sh` cases that pinned a demoted `go.mod` surface switched to the shipped `node` (`package.json`) surface; guard sensor `tests/scripts/test_demoted_profile_tests_absent.sh`. (3) `docs-shipped-vs-generator` — README, `docs/HARNESS.md`, `docs/multi-language-profiles.md`, `docs/getting-started.md`, and AGENTS.md reframed to "**ships** Python + Node; Go/Java/Ruby are **generator-supported** via `scaffold-language.sh`"; sensor `tests/scripts/test_docs_shipped_profiles.sh` rejects five-language "shipped" claims. **Deviation from the issue's "init.sh out of scope":** init.sh hard-sourced the deleted descriptors and would exit 1 on a go/ruby/java surface, so the descriptor-presence guard was the minimal change needed to keep the generator-supported contract truthful. Net 0 sensors (3 deleted, 3 added) → 163-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### meta-test triage (#273): keep structural, convert doctrine-critical, delete phrase-pinning
 - **#273 — `tests/meta/` had accreted phrase-pinning tests that grep prose no script parses, so their only failure mode was "someone rephrased a sentence" — Goodhart drift the batch's ethos rejects.** An L4 outcome analysis triaged all 47 meta-tests (plus 5 named `tests/scripts/*_docs.sh` siblings) against a **deletion criterion**: a meta-test earns its keep only if it validates machine-parsed structure or cross-file consistency. **Four features, all red-first (each carries an ordered `red_handback → impl_handback → green_handback` triple):** (1) `triage-record` — created `docs/evaluation/meta-test-triage.md`, an auditable KEEP/CONVERT/DELETE verdict table for all 52 candidates with the rubric legend and an honest note that the structural KEEP floor (~1,700 lines) makes the issue's "<1,500 lines" target unreachable; sensor `tests/scripts/test_meta_triage_record.sh` (≥40 verdict rows, legend, 4 buckets). (2) `deletions-executed` — `git rm` of 10 phrase-pinning `tests/meta/` files + 5 `tests/scripts/*_docs.sh` siblings, and scrubbed the R4 block in `test_runtime_adapters_docs.sh` that invoked a deleted sensor; guard sensor `tests/scripts/test_deleted_meta_tests_absent.sh` (files absent + no orphaned refs). (3) `conversions-executed` — rewrote 5 doctrine-critical tests (`test_role_separation`, `test_revision_loops`, `test_agent_span_doctrine`, `test_blocking_criteria`, `test_impl_usefulness_grading`) to assert the guarded section anchor (`^#` heading) + closed vocabulary instead of sentence fragments, so a title change still fails but a reword does not; sensor `tests/scripts/test_converted_meta_structural.sh` + a behavioral mutation check. (4) `rubric-doctrine` — recorded the KEEP/CONVERT/DELETE rubric + deletion criterion in `.copilot/instructions/bash.instructions.md` so new meta-tests are born structural; sensor `tests/scripts/test_meta_test_rubric_doctrine.sh`. Net −11 sensors (15 deleted, 4 added). Full 163-sensor suite + shellcheck (CI glob) + L0 green.
