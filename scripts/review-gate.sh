@@ -221,8 +221,32 @@ ci_gate() {
 # checkout that predates the trace tooling. A consistency-checker
 # environment error (exit 2) downgrades that half to a skip note while the
 # validator findings still count.
+# resolve_issue_number — single source for "which issue is active", shared by
+# trace_gate, log_completeness_gate, and red_first_evidence_gate. Mirrors
+# trace-lib precedence: TRACE_ISSUE env (set by finish-issue.sh), then the
+# feature/issue-NN-* branch, then the issue-NN worktree basename. Prints the
+# number and returns 0 on success; prints nothing and returns 1 when the issue
+# cannot be resolved (each caller emits its own gate-specific skip note).
+resolve_issue_number() {
+  if [ -n "${TRACE_ISSUE:-}" ]; then
+    printf '%s' "${TRACE_ISSUE}"
+    return 0
+  fi
+  local branch
+  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  if [[ "$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")" =~ ^issue-([0-9]+)$ ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
 trace_gate() {
-  local t0 issue_num="" branch=""
+  local t0 issue_num=""
   t0="$(trace_now_ms)"
 
   if [ ! -x "${SCRIPT_DIR}/validate-trace.sh" ] \
@@ -231,19 +255,7 @@ trace_gate() {
     return 0
   fi
 
-  # Issue resolution mirrors trace-lib precedence: TRACE_ISSUE env (set by
-  # finish-issue.sh), then the feature/issue-NN-* branch, then the issue-NN
-  # worktree basename.
-  if [ -n "${TRACE_ISSUE:-}" ]; then
-    issue_num="${TRACE_ISSUE}"
-  else
-    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    fi
-  fi
+  issue_num="$(resolve_issue_number || true)"
   if [ -z "$issue_num" ]; then
     yellow "⚠ trace gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
     return 0
@@ -307,22 +319,10 @@ trace_gate() {
 # because older checkouts and early issue setup may not have one yet.
 # LOG_COMPLETENESS_PATHS replaces the default with whitespace-separated NN templates; missing paths are skipped.
 log_completeness_gate() {
-  local issue_num="" branch=""
+  local issue_num=""
   local t0; t0="$(trace_now_ms)"
 
-  # Issue resolution mirrors trace_gate / trace-lib precedence: TRACE_ISSUE
-  # env, then the feature/issue-NN-* branch, then the issue-NN worktree
-  # basename.
-  if [ -n "${TRACE_ISSUE:-}" ]; then
-    issue_num="${TRACE_ISSUE}"
-  else
-    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    fi
-  fi
+  issue_num="$(resolve_issue_number || true)"
   if [ -z "$issue_num" ]; then
     yellow "⚠ log-completeness gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
     return 0
@@ -425,21 +425,9 @@ log_completeness_gate() {
 # the trace tooling), the checker is not executable, or the checker hits an
 # environment error (exit 2: no trace yet). Emits no span of its own.
 red_first_evidence_gate() {
-  local issue_num="" branch=""
+  local issue_num=""
 
-  # Issue resolution mirrors trace_gate / trace-lib precedence: TRACE_ISSUE
-  # env, then the feature/issue-NN-* branch, then the issue-NN worktree
-  # basename.
-  if [ -n "${TRACE_ISSUE:-}" ]; then
-    issue_num="${TRACE_ISSUE}"
-  else
-    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
-    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
-      issue_num="${BASH_REMATCH[1]}"
-    fi
-  fi
+  issue_num="$(resolve_issue_number || true)"
   if [ -z "$issue_num" ]; then
     yellow "⚠ red-first gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
     return 0

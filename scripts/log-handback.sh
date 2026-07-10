@@ -218,16 +218,33 @@ role-violation'
 fi
 
 # --- 3. Append the derived Action Log line (hard-fails, plan D4) --------------
-# Minimal fallback redaction for the degraded no-trace-lib mode: mask GitHub
-# token shapes only (the sensor-planted secret class). With trace-lib present
-# the full trace_redact filter is reused so span and log line share one policy.
+# Redaction for the Action Log line. With trace-lib present the full trace_redact
+# filter is reused so span and log line share one policy. When trace-lib.sh is
+# unavailable, the degraded fallback below runs the IDENTICAL sed program so the
+# Action Log never leaks a secret shape that trace_redact would have masked
+# (issue #270). Parity between the two is guarded by
+# tests/scripts/test_log_handback_redaction_parity.sh — keep this program a byte
+# copy of trace_redact's.
 redact_line() {
   if [ "$HAVE_TRACE_LIB" = "1" ]; then
     trace_redact
   else
-    sed -E \
+      sed -E \
       -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
-      -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g'
+      -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
+      -e 's/AKIA[0-9A-Z]{16}/[REDACTED]/g' \
+      -e 's/[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/InstrumentationKey=[REDACTED]/g' \
+      -e 's/sk-ant-[A-Za-z0-9_-]{20,}/[REDACTED]/g' \
+      -e 's/sk-[A-Za-z0-9]{20,}/[REDACTED]/g' \
+      -e 's/[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+=-]+/Bearer [REDACTED]/g' \
+      -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"[[:space:]]*:[[:space:]]*")[^"]*/\1\2[REDACTED]/g' \
+      -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"\\[:space:]]+/\1\2[REDACTED]/g' \
+      -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"\\[:space:]]+/\1[REDACTED]/g' \
+      -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"\\[:space:]]+/\1[REDACTED]/g' \
+      -e 's/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/[REDACTED]/g' \
+      -e 's/([?&][Ss][Ii][Gg]=)[^"&[:space:]]+/\1[REDACTED]/g' \
+      -e 's/([Aa]ccount[Kk]ey=)[^";[:space:]]+/\1[REDACTED]/g' \
+      -e 's/-----BEGIN [A-Z ]*PRIVATE KEY-----[^-]*-----END [A-Z ]*PRIVATE KEY-----/[REDACTED]/g'
   fi
 }
 
