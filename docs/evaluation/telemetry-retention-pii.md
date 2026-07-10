@@ -164,13 +164,28 @@ carrying the free-form text the span vocabulary deliberately omits. It is
 surface on the page, so it gets its own governance clause rather than
 inheriting the exported-telemetry rules above.
 
-**Local-only, never exported (v1).** `log.jsonl` is **gitignored**, pinned to
-the main repository root beside `trace.jsonl`, and is **not part of** the
-remote telemetry/export window governed by the Retention Window and
-Shippable-Attribute Allowlist above. Issue #219 is local capture only; a
-redacted remote export of the log stream is a **separate opt-in** tracked in
-issue #220. Until that is designed and reviewed, the log stream **stays on the
-machine** — it never ships.
+**Raw artifact stays local; a governed projection is what ships.** The raw
+`log.jsonl` file is **gitignored**, pinned to the main repository root beside
+`trace.jsonl`, and is **local-only** — the raw file itself never leaves the
+machine. What issue #220 added is an **opt-in export of a governed
+*projection*** of the log stream: `scripts/log-export.sh` projects each
+`log.jsonl` record onto redacted, allowlisted log **envelopes** and ships only
+those, never the raw file. The exporter is **off by default** and gated behind
+`LOG_EXPORT_OTLP` (with `LOG_EXPORT_OTLP_HTTP` selecting the OTLP logs signal);
+with the gate unset it is a no-op that writes and ships nothing. This retires
+the earlier "`log.jsonl` is never exported" absolute: the raw artifact still
+never ships, but the redacted+allowlisted projection may.
+
+**Same governance as spans.** The exported log envelopes pass exactly the same
+gate as the span export — **redact-before-cap**, then the **deny-by-default**
+shippable-attribute allowlist, then the value caps — so the free-text log
+fields are stripped or redacted before anything can leave the machine.
+
+**One unified retention window.** The exported log stream lives under the
+**same** retention window as spans: the live Terraform `retention_in_days`
+default (currently **30 days**). Span and log signals share this single
+workspace policy — one number for both — so the two cannot diverge. Changing
+`retention_in_days` moves both signals together.
 
 **Two excluded free-text fields.** Consistent with the by-name span exclusions,
 the two free-text log fields are treated as the highest-sensitivity surface and
@@ -185,11 +200,11 @@ Both are governed by the **redact-before-cap** discipline pinned in
 [log-schema.v1.json](log-schema.v1.json): secret-shaped input is redacted
 **before** any length cap runs, so a truncation boundary can never bisect and
 leak a partially-redacted secret. Redaction always precedes the `payload` cap.
-Because `log.jsonl` is local-only, `message` and `payload` are **excluded from
-any exported or retained PII surface** by construction — there is no export
-path in which they could appear, and the future #220 export must re-earn the
-same redact-before-cap and allowlist guarantees before either field could ever
-leave the machine.
+Because only the redacted, allowlisted **projection** ever leaves the machine —
+never the raw file — `message` and `payload` are **excluded** from every
+exported envelope by construction: they are redacted before the cap and dropped
+by the deny-by-default allowlist, so neither field can appear in the opt-in
+`scripts/log-export.sh` output that ships under the unified retention window.
 
 ## Deletion & Rollback
 

@@ -23,6 +23,12 @@
 #         * docs/evaluation/security-evals.md
 #         * docs/runtime-adapters/otlp-azure-monitor.md
 #         * infra/terraform/README.md
+#   D5. (issue #220 — the opt-in log EXPORT path.) The step-level-log region
+#       documents that the exported log stream (`scripts/log-export.sh`) is
+#       governed by the SAME unified retention window — the LIVE Terraform
+#       `retention_in_days` default — so the one workspace policy cannot
+#       diverge between the span and log signals (both-direction drift, scoped
+#       to the log region).
 #
 # RED until docs/evaluation/telemetry-retention-pii.md exists.
 #
@@ -142,5 +148,37 @@ for link in \
   grep -qF -- "$link" "$DOC" \
     || fail "doc must cross-link ${link} (D4)"
 done
+
+# ==============================================================================
+# D5. The opt-in log export (issue #220) shares the SAME live-parsed retention
+#     window. Scoped to the step-level-log region so it pins the log-export
+#     retention statement (not merely the span window). Both directions:
+#     forward — the log region states the live default; reverse — no divergent
+#     retention day-count may appear in the log region. One workspace policy,
+#     one number, for both the span and log signals.
+# ==============================================================================
+LOG_REGION="$(awk '
+  tolower($0) ~ /log\.jsonl|step-level log/ { grabbing = 1 }
+  grabbing && /^## / && collected { exit }
+  grabbing { print; collected = 1 }
+' "$DOC" | tr '\n' ' ')"
+if [ -z "$LOG_REGION" ]; then
+  fail "doc has no step-level log (log.jsonl / 'step-level log') region — cannot confirm the opt-in log export shares the unified retention window (D5)"
+else
+  grep -qF -- 'scripts/log-export.sh' <<<"$LOG_REGION" \
+    || fail "doc log region must name scripts/log-export.sh as the opt-in log exporter governed by this retention policy (D5)"
+  grep -qE "(^|[^0-9])${TF_RETENTION}([^0-9]|\$)" <<<"$LOG_REGION" \
+    || fail "doc log region must state the exported log stream shares the SAME unified retention window (${TF_RETENTION} days — the live Terraform retention_in_days default) (D5)"
+  STALE_LOG="$(grep -oiE '[0-9]{2,3}[[:space:]-]*day' <<<"$LOG_REGION" \
+    | grep -oE '[0-9]{2,3}' \
+    | while read -r n; do
+        if [ "$n" -ge 30 ] && [ "$n" -le 730 ] && [ "$n" != "$TF_RETENTION" ]; then
+          printf '%s ' "$n"
+        fi
+      done)"
+  if [ -n "$STALE_LOG" ]; then
+    fail "doc log region states a retention day-count (${STALE_LOG}) that differs from the live Terraform default ${TF_RETENTION} — the exported log window cannot diverge from the unified policy (D5)"
+  fi
+fi
 
 finish
