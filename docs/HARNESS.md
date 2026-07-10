@@ -264,6 +264,17 @@ for logging when they are not authorized to edit local issue progress directly.
 `progress.md` should include an Action Log section for substantive lifecycle actions, including conductor decisions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
+At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
+(between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from
+the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span (first→last span
+elapsed), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
+teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
+measured renders `n/a` and is never fabricated as `0` — in particular token rows read `n/a` unless a runtime adapter
+reported `gen_ai.usage.*` on model spans, and model runs without token data are counted honestly in the coverage
+denominator rather than invented as zero-token runs. Acquiring those Copilot-side token counts (so the token rows can
+read a real number instead of `n/a` in the GitHub Copilot runtime) is the deep-trace work tracked in **#163**; until
+it lands, `n/a` token rows are the honest state, not a defect.
+
 `./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
 and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
@@ -302,6 +313,17 @@ issue regardless of which worktree a script runs from, so the record survives wo
 local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
+
+At closeout `./scripts/finish-issue.sh` also appends exactly one `finish-issue.economics` **tool span** — the durable
+machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
+numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
+`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`, `harness.economics.deviations`,
+`harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
+`harness.economics.wall_clock_ms`), typed via the `harness.economics.` numeric-key prefix. It obeys the same
+omit-never-fake rule as the block: the token-usage keys are **absent** (never `0`) when no model span carried usage,
+so a `n/a` token row and an omitted token key are the same honest signal — see **#163** for the Copilot-side token
+capture that makes those keys present. The span is advisory: like all tracing it warns-and-continues and never blocks
+teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the
