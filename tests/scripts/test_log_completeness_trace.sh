@@ -215,6 +215,25 @@ grep -q 'log-completeness' "${ROOT}/docs/HARNESS.md" \
 grep -q 'REQUIRE_LOG_COMPLETE' "${ROOT}/docs/HARNESS.md" \
   || fail "CASE F: docs/HARNESS.md must mention REQUIRE_LOG_COMPLETE"
 
+# ============================================================================
+# CASE G: nothing to scan (no readable log path) is a SKIP, not a measurement —
+# the gate must emit NO span so a checkout with no Action Log yet never
+# perturbs a command's span count (mirrors trace_gate's no-span skip).
+# ============================================================================
+F3="${TMP_DIR}/f82"
+make_gate_fixture "$F3" 82
+WT3="${F3}-worktrees/issue-82"
+TRACE3="${F3}/.copilot-tracking/issues/issue-82/trace.jsonl"
+# start-issue.sh seeds a worktree progress.md; remove it so there is genuinely
+# nothing to scan (scanned_count == 0), the no-span skip path.
+rm -f "${WT3}/.copilot-tracking/issues/issue-82/progress.md"
+rc="$(run_in "$WT3" "$OUT" -- ./scripts/review-gate.sh log-completeness)"
+[ "$rc" = "0" ] \
+  || fail "CASE G: no-log run must exit 0 (nothing to scan is a skip), got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+span="$(last_logcomp_span "$TRACE3")"
+[ -z "$span" ] \
+  || fail "CASE G: no review-gate.log-completeness span must be emitted when there is nothing to scan: ${span}"
+
 if [ "$fails" -ne 0 ]; then
   printf 'test_log_completeness_trace: %s failure(s)\n' "$fails" >&2
   exit 1

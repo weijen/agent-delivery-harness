@@ -373,8 +373,12 @@ log_completeness_gate() {
   done
 
   local finding_count=${#placeholder_findings[@]}
+  # Nothing to scan (no readable declared log path) is a skip, not a
+  # measurement — mirror trace_gate and emit NO span, so a checkout with no
+  # Action Log yet never perturbs the per-command span count.
   if [ "$scanned_count" -eq 0 ]; then
     yellow "⚠ log-completeness gate skipped: no readable log paths for issue ${issue_num} (nothing to check)"
+    return 0
   fi
 
   local outcome="pass" gate_rc=0
