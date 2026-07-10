@@ -202,6 +202,25 @@ Planner, implementer, and tester carry no distinctive skill; their quality bar c
 applicable `<language>.instructions.md` plus `tdd.instructions.md`, not a skill. The audit skills are concentrated in
 `code-review-subagent` so one fresh-context pass owns whole-diff quality.
 
+### Running the audit sweep
+
+The six audit skills (`dead-code-detection`, `find-brute-force`, `find-duplicates`, `find-over-design`,
+`security-audit`, `sync-docs`) can also be run over the whole repo in one shot with
+[`scripts/audit-sweep.sh`](../scripts/audit-sweep.sh): it launches each skill in its **own fresh, report-only
+`copilot -p` session** (never one shared context — six whole-repo audits would exhaust a single window) and
+consolidates the per-skill reports into one `logs/audit/<UTC-timestamp>/index.md` roll-up.
+
+```sh
+./scripts/audit-sweep.sh                     # all six audit skills
+./scripts/audit-sweep.sh find-duplicates security-audit   # a subset
+./scripts/audit-sweep.sh --dry-run           # print the per-skill commands, run nothing
+```
+
+`logs/audit/` is gitignored — the reports are local artifacts, never committed. The `.copilot/prompts/audit-sweep.prompt.md`
+one-shot prompt drives the same script and summarizes the Fix-now findings back to you. The sweep is report-only, so
+`sync-docs`'s fix mode still runs manually. This script is also the future entry point for the (blocked, #256)
+scheduled-CI audit.
+
 ### The conductor must not do feature work itself (non-delegable)
 
 When the issue workflow is active, the conductor **must not directly** write the feature's tests/sensors or its
