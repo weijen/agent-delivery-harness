@@ -3,8 +3,9 @@
 A reusable, **language-agnostic** harness for issue-driven agent work: preflight
 checks, isolated worktrees, per-issue progress tracking, deterministic quality
 gates, and PR closeout. Language support is declarative — the core ships
-profiles for **Python, Go, Node.js, Java, and Ruby**, and a generator for adding
-more (see [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers).
+profiles for **Python and Node.js** (proven adopters), with **Go, Java, and
+Ruby** generator-supported on demand, plus a generator for adding more (see
+[docs/HARNESS.md](docs/HARNESS.md) § Harness Layers).
 
 > For agents and contributors, start at [AGENTS.md](AGENTS.md). Project-specific
 > product specs, architecture notes, validation plans, and delivery milestones
@@ -26,16 +27,17 @@ For the harness evaluation strategy, see
 
 The harness core is language-neutral. `./scripts/init.sh` detects a project's
 surfaces and runs the matching gates through declarative descriptors in
-`profiles/<id>.profile.sh` — it does not assume any one language. The initial
-supported set is:
+`profiles/<id>.profile.sh` — it does not assume any one language. Python and
+Node.js ship in `profiles/`; Go, Java, and Ruby are **generator-supported**
+(regenerate any with `./scripts/scaffold-language.sh <id> --write`):
 
-| Profile | Detect | Gates |
-| --- | --- | --- |
-| **Python** | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) |
-| **Go** | `go.mod` | gofmt, go vet, optional golangci-lint, go test |
-| **Node.js** | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) |
-| **Java** | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) |
-| **Ruby** | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep |
+| Profile | Status | Detect | Gates |
+| --- | --- | --- | --- |
+| **Python** | shipped | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) |
+| **Node.js** | shipped | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) |
+| **Go** | generator-supported | `go.mod` | gofmt, go vet, optional golangci-lint, go test |
+| **Java** | generator-supported | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) |
+| **Ruby** | generator-supported | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep |
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. See
 [profiles/README.md](profiles/README.md) for the descriptor contract and
@@ -97,8 +99,9 @@ uv run mypy                    # strict type-check
 uv run pytest                  # suite (with coverage)
 ```
 
-Go, Node.js, Java, and Ruby surfaces run their own gates the same way; missing
-optional tools warn or skip rather than failing. See
+Node.js surfaces run their own gates the same way; missing optional tools warn
+or skip rather than failing. Go, Java, and Ruby are generator-supported —
+`scaffold-language.sh` regenerates their profiles on demand. See
 [profiles/README.md](profiles/README.md) for the full per-profile gate list.
 
 ## Harness smoke workflow

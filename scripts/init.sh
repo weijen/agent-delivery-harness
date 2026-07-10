@@ -231,10 +231,12 @@ else
   fi
 
   if [ "$has_go" = "1" ]; then
-    if command -v go >/dev/null 2>&1; then
+    if [ ! -f "$PROFILES_DIR/go.profile.sh" ]; then
+      note_warn "Go surface detected but its profile is not installed (generator-supported) — skipping Go gates" "regenerate it: ./scripts/scaffold-language.sh go --write"
+    elif command -v go >/dev/null 2>&1; then
       # Source the Go descriptor now (late) so its PROFILE_* override Python's
       # after the Python gate loop has already run, then drive the shared loop.
-      # shellcheck source=profiles/go.profile.sh
+      # shellcheck source=/dev/null  # generator-supported descriptor, present only once scaffolded
       . "$PROFILES_DIR/go.profile.sh"
       run_gate_loop
     else
@@ -255,10 +257,12 @@ else
   fi
 
   if [ "$has_ruby" = "1" ]; then
-    if command -v ruby >/dev/null 2>&1; then
+    if [ ! -f "$PROFILES_DIR/ruby.profile.sh" ]; then
+      note_warn "Ruby surface detected but its profile is not installed (generator-supported) — skipping Ruby gates" "regenerate it: ./scripts/scaffold-language.sh ruby --write"
+    elif command -v ruby >/dev/null 2>&1; then
       # Source the Ruby descriptor now (late) so its PROFILE_* override Python's
       # after the Python gate loop has already run, then drive the shared loop.
-      # shellcheck source=profiles/ruby.profile.sh
+      # shellcheck source=/dev/null  # generator-supported descriptor, present only once scaffolded
       . "$PROFILES_DIR/ruby.profile.sh"
       run_gate_loop
     else
@@ -267,13 +271,17 @@ else
   fi
 
   if [ "$has_java" = "1" ]; then
-    # Source the Java descriptor now (late) so its PROFILE_* override Python's
-    # after the Python gate loop has already run, then drive the shared loop.
-    # The gate functions self-SKIP (return 2) when the build tool / wrapper is
-    # unavailable or an optional Spotless/lint tool is not configured.
-    # shellcheck source=profiles/java.profile.sh
-    . "$PROFILES_DIR/java.profile.sh"
-    run_gate_loop
+    if [ ! -f "$PROFILES_DIR/java.profile.sh" ]; then
+      note_warn "Java surface detected but its profile is not installed (generator-supported) — skipping Java gates" "regenerate it: ./scripts/scaffold-language.sh java --write"
+    else
+      # Source the Java descriptor now (late) so its PROFILE_* override Python's
+      # after the Python gate loop has already run, then drive the shared loop.
+      # The gate functions self-SKIP (return 2) when the build tool / wrapper is
+      # unavailable or an optional Spotless/lint tool is not configured.
+      # shellcheck source=/dev/null  # generator-supported descriptor, present only once scaffolded
+      . "$PROFILES_DIR/java.profile.sh"
+      run_gate_loop
+    fi
   fi
 
   if [ "$has_terraform" = "1" ]; then

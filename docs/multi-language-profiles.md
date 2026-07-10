@@ -136,9 +136,11 @@ Empty gate slots are valid. Go and Java usually do not need a separate
 type-check command because compilation covers it. Ruby should not require a type
 checker unless Sorbet or Steep is explicitly configured.
 
-### Built-In Profiles
+### Shipped and Generator-Supported Profiles
 
-The initial supported language set is intentionally limited to five languages:
+The shipped profile set is **Python and Node.js** (proven adopters). **Go,
+Java, and Ruby** are generator-supported: `scaffold-language.sh` regenerates
+them on demand from the same templates. All are specified below:
 
 | Language | Detect | Package management | Gates | Web frameworks |
 | --- | --- | --- | --- | --- |

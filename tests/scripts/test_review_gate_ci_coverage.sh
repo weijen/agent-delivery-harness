@@ -83,13 +83,13 @@ if ! run_a ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must recognise .yaml (not just .yml) workflows"
 fi
 
-# 1c. multi-surface: an added, uncovered Go surface still fails (per-surface)
-printf 'module fixture\n' > "${A}/go.mod"
+# 1c. multi-surface: an added, uncovered Node surface still fails (per-surface)
+printf '{"name":"fixture"}\n' > "${A}/package.json"
 if run_a ./scripts/review-gate.sh ci-gate; then
-  cat "$OUT"; fail "ci-gate must fail when ANY surface (go) lacks project CI"
+  cat "$OUT"; fail "ci-gate must fail when ANY surface (node) lacks project CI"
 fi
-grep -qi 'missing for:.*go' "$OUT" || { cat "$OUT"; fail "multi-surface failure must name the uncovered surface (go)"; }
-rm "${A}/go.mod"
+grep -qi 'missing for:.*node' "$OUT" || { cat "$OUT"; fail "multi-surface failure must name the uncovered surface (node)"; }
+rm "${A}/package.json"
 
 # ============================================================================
 # Part B — create-pr.sh enforces ci-gate via the `check` path

@@ -8,9 +8,9 @@
 This repository is a reusable, language-agnostic harness for issue-driven agent
 work. It provides preflight checks, isolated issue worktrees,
 local per-issue progress state, quality gates, review sensors, and PR closeout
-scripts. Language support is declarative: the core ships profiles for Python, Go,
-Node.js, Java, and Ruby (plus Terraform surface detection) and a generator for
-adding more, without hard-coding any language in the core. Project-specific
+scripts. Language support is declarative: the core ships profiles for Python
+and Node.js (plus Terraform surface detection), with Go, Java, and Ruby
+generator-supported on demand, and a generator for adding more, without hard-coding any language in the core. Project-specific
 product specs, architecture notes, validation plans, delivery milestones, and any
 cloud/provider conventions (e.g. Azure, Foundry) should live under `docs/` or the
 project's own instruction files — the harness itself does not require them.

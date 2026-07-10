@@ -52,15 +52,16 @@ Before anything else, make sure the hard requirements from the
 ## 3. Choose a language
 
 Pick the language for your project's first surface. The harness ships profiles
-for five languages; each is detected by a marker file and runs its own gates:
+for **Python and Node.js**; **Go, Java, and Ruby** are generator-supported
+(scaffold on demand). Each is detected by a marker file and runs its own gates:
 
-| Language | Detect | Gates | Web framework hints |
-| --- | --- | --- | --- |
-| **Python** | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) | FastAPI, Django, Flask |
-| **Go** | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
-| **Node.js** | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) | Next.js, Express, NestJS |
-| **Java** | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
-| **Ruby** | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
+| Language | Status | Detect | Gates | Web framework hints |
+| --- | --- | --- | --- | --- |
+| **Python** | shipped | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) | FastAPI, Django, Flask |
+| **Node.js** | shipped | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) | Next.js, Express, NestJS |
+| **Go** | generator-supported | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
+| **Java** | generator-supported | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
+| **Ruby** | generator-supported | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. A
 project can carry more than one surface — `init.sh` detects each and runs the
@@ -73,9 +74,9 @@ the full per-profile gate list, and
 
 ## 4. Scaffold the profile (only if it is missing)
 
-The five built-in profiles already exist under `profiles/`. You only need the
-generator when you want to (re)create a profile's descriptor and its matching
-Copilot instruction file:
+The Python and Node.js profiles ship under `profiles/`; Go, Java, and Ruby are
+generator-supported. You only need the generator when you want to (re)create a
+profile's descriptor and its matching Copilot instruction file:
 
 ```sh
 ./scripts/scaffold-language.sh <python|go|node|java|ruby>          # dry run — prints what it would do
