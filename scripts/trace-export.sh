@@ -192,6 +192,9 @@ usage() {
     echo "        independent — either alone or both together. Dry-run seams need neither."
     echo "        OTEL_EXPORTER_OTLP_HEADERS (comma-separated Key=Value) is sent to the"
     echo "        collector but is SECRET — its values are never echoed."
+    echo "engine: TRACE_EXPORT_ENGINE selects the App-Insights/OTLP mapping engine —"
+    echo "        auto (default; Python pilot when python3+uv present, else jq), python, or jq."
+    echo "        jq is always the fallback; output is byte-identical across engines."
     echo "exit codes: 0 exported / clean no-op, 1 gate or export failure, 2 usage/environment error"
   } >&2
 }
