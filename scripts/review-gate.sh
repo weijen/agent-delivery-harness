@@ -98,7 +98,7 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace
+Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace|log-completeness
 
 Commands:
   approve     Record the current HEAD as reviewed.
@@ -116,6 +116,9 @@ Commands:
               for the current issue. Warn-only by default: findings are printed
               with a warning summary and the exit code stays 0. Set
               REQUIRE_TRACE_CONSISTENCY=1 to make findings a hard failure.
+  log-completeness
+              Scan the issue's progress.md for unfilled placeholders. Warn-only
+              by default; set REQUIRE_LOG_COMPLETE=1 to make findings a hard failure.
 EOF
 }
 
@@ -296,6 +299,81 @@ trace_gate() {
   return "$gate_rc"
 }
 
+# log_completeness_gate — per-issue Action Log placeholder-completeness gate.
+#
+# This warn-only gate scans the issue-local progress.md for known placeholder
+# signatures that should be filled before closeout. REQUIRE_LOG_COMPLETE=1
+# promotes findings to a hard failure. Missing progress logs are always skipped
+# because older checkouts and early issue setup may not have one yet.
+log_completeness_gate() {
+  local issue_num="" branch=""
+
+  # Issue resolution mirrors trace_gate / trace-lib precedence: TRACE_ISSUE
+  # env, then the feature/issue-NN-* branch, then the issue-NN worktree
+  # basename.
+  if [ -n "${TRACE_ISSUE:-}" ]; then
+    issue_num="${TRACE_ISSUE}"
+  else
+    branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    if [[ "$branch" =~ ^feature/issue-([0-9]+)- ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    elif [[ "$(basename "$(git rev-parse --show-toplevel)")" =~ ^issue-([0-9]+)$ ]]; then
+      issue_num="${BASH_REMATCH[1]}"
+    fi
+  fi
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ log-completeness gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+
+  local progress_rel=".copilot-tracking/issues/issue-${issue_num}/progress.md"
+  local progress_path="${repo_root}/${progress_rel}"
+  if [ ! -r "$progress_path" ]; then
+    yellow "⚠ log-completeness gate skipped: no progress.md for issue ${issue_num} (nothing to check)"
+    return 0
+  fi
+
+  # Extensible signature list for placeholders that must be filled in issue logs.
+  local -a placeholder_signatures=(
+    "Recorded on completion below"
+    "TBD"
+    "TODO(fill"
+  )
+  local -a placeholder_findings=()
+  local signature match finding existing duplicate
+
+  for signature in "${placeholder_signatures[@]}"; do
+    while IFS= read -r match; do
+      finding="${progress_rel}:${match}"
+      duplicate=0
+      for existing in "${placeholder_findings[@]}"; do
+        if [ "$existing" = "$finding" ]; then
+          duplicate=1
+          break
+        fi
+      done
+      if [ "$duplicate" -eq 0 ]; then
+        placeholder_findings+=("$finding")
+      fi
+    done < <(grep -nF -- "$signature" "$progress_path" || true)
+  done
+
+  local finding_count=${#placeholder_findings[@]}
+  if [ "$finding_count" -eq 0 ]; then
+    green "✓ log-completeness: no unfilled placeholders in issue ${issue_num} log"
+    return 0
+  fi
+
+  printf '%s\n' "${placeholder_findings[@]}"
+  if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
+    red "✗ log-completeness: ${finding_count} unfilled placeholder(s) in the issue log — blocking (REQUIRE_LOG_COMPLETE=1)"
+    return 1
+  fi
+
+  yellow "⚠ log-completeness: ${finding_count} placeholder finding(s) — warn-only (set REQUIRE_LOG_COMPLETE=1 to block)"
+  return 0
+}
+
 # red_first_evidence_gate — hard-block the PR path on missing red-first
 # evidence (issue #144, feature trace-red-first-pr-gate).
 #
@@ -440,6 +518,9 @@ case "$command" in
     # span per run, also when invoked from check or finish-issue), so no
     # TRACE_CMD is registered for the EXIT trap here.
     trace_gate
+    ;;
+  log-completeness)
+    log_completeness_gate
     ;;
   -h|--help|help)
     usage
