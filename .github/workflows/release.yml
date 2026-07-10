@@ -1,0 +1,62 @@
+name: Release
+
+# Automated SemVer release for the harness (issue #257). On every push to main,
+# python-semantic-release computes the next version from the Conventional Commits
+# landed since the last tag, updates pyproject.toml [project].version, mirrors it
+# into the root VERSION file (build_command = scripts/sync-version.sh), writes
+# CHANGELOG.md, commits, tags, and creates a GitHub Release. It is a no-op when
+# only chore/docs/test/etc. commits landed (no releasable change).
+#
+# This is NOT PyPI publishing (out of scope): the harness is not a distributed
+# package, so no build artifacts are uploaded.
+
+on:
+  push:
+    branches:
+      - main
+
+# Least privilege by default; the release job opts up to contents: write.
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Semantic release
+    runs-on: ubuntu-latest
+
+    # Prevent racing release jobs if several pushes land on main in quick
+    # succession — each must see the tag the previous one wrote.
+    concurrency:
+      group: ${{ github.workflow }}-release-${{ github.ref_name }}
+      cancel-in-progress: false
+
+    permissions:
+      # PSR pushes the version-bump commit + tag and creates the GitHub Release.
+      contents: write
+
+    steps:
+      - name: Checkout repository on the release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      # Guard against the branch advancing while this job was queued: only
+      # release the commits that actually triggered this run.
+      - name: Pin release branch to the triggering sha
+        run: git reset --hard ${{ github.sha }}
+
+      - name: Semantic version release
+        id: release
+        uses: python-semantic-release/python-semantic-release@v10
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          git_committer_name: "github-actions"
+          git_committer_email: "actions@users.noreply.github.com"
+
+      - name: Create GitHub Release
+        uses: python-semantic-release/publish-action@v10
+        if: steps.release.outputs.released == 'true'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.release.outputs.tag }}

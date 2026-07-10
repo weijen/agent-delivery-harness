@@ -58,6 +58,39 @@ sanitized, commit-safe fixture or specification.
 session rituals and garbage-collection cadence are in
 **[.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md)**.
 
+## Commit message convention (Conventional Commits)
+
+Every commit **must** use standard [Conventional Commits](https://www.conventionalcommits.org/).
+This is not cosmetic: releases are automated with
+[python-semantic-release](https://python-semantic-release.readthedocs.io/) (see issue #257), which
+parses **only** standard Conventional Commits to decide the SemVer bump. The older `[tag] summary`
+and bare `type: summary` styles are retired — mixed styles make the bump undecidable.
+
+Grammar:
+
+```
+type(scope): subject
+
+<optional body>
+
+<optional footer, e.g. BREAKING CHANGE: …>
+```
+
+The type drives the automatic version bump:
+
+| Commit | SemVer bump |
+|---|---|
+| `fix: …` (or `fix(scope): …`) | **patch** (0.1.1 → 0.1.2) |
+| `feat: …` (or `feat(scope): …`) | **minor** (0.1.1 → 0.2.0) |
+| `feat!: …` / any `BREAKING CHANGE:` footer | **major** (0.1.1 → 1.0.0)¹ |
+
+Non-releasing types (`chore:`, `docs:`, `test:`, `refactor:`, `ci:`, `build:`, `style:`) land
+without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — `#NN` sits inside the
+`scope` position and stays valid Conventional Commits.
+
+¹ 0.x → 1.0.0 is a **human decision**, not a mechanical bump — see
+[docs/RELEASING.md](docs/RELEASING.md).
+
 ## Start every session here
 
 > **Launch topology:** Start the Copilot CLI conductor session from the repository root — the
