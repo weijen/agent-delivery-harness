@@ -2,6 +2,53 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-07-10)
+
+### Chores
+
+- **#264**: Sync uv.lock virtual project version to 0.5.0
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+### Documentation
+
+- **#264**: Record sensor teeth-proof gate delivery in PROGRESS
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+### Features
+
+- **#264**: Accept teeth_proof as red-first evidence in trace checker
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+- **#264**: Block PR-path red-first gate on teeth_proof_missing
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+- **#264**: Enforce sensor teeth-proof on the PR path, not handback ordering
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+- **#264**: Rename docs to sensor teeth-proof obligation
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+- **#264**: Rescope waivers to teeth-proof with teeth_proof_waiver
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+- **#264**: Update contract to teeth-proof gate boundary and bump 0.5.0
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+### Refactoring
+
+- **#264**: Tidy waiver jq per review
+  ([#275](https://github.com/weijen/agent-delivery-harness/pull/275),
+  [`700a80d`](https://github.com/weijen/agent-delivery-harness/commit/700a80d52b46e96d1c18f241eb5556497b2f0014))
+
+
 ## v0.4.1 (2026-07-10)
 
 ### Bug Fixes
