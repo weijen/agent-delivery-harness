@@ -350,6 +350,7 @@ trace_span() {
               (if (($k | startswith("gen_ai.usage."))
                    or ($k == "harness.exit_status")
                    or ($k == "harness.duration_ms")
+                   or ($k == "harness.finding_count")
                    or ($k == "harness.incomplete_count")
                    or ($k == "harness.teeth_proof_missing_count")
                    or ($k == "harness.violation_count")

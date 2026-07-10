@@ -222,7 +222,7 @@ $contract[0] as $c
 #  tests/meta/test_trace_schema_single_source.sh).
 def types_valid:
 # >>> trace-schema:numeric_keys
-["harness.exit_status", "harness.duration_ms", "harness.incomplete_count",
+["harness.exit_status", "harness.duration_ms", "harness.finding_count", "harness.incomplete_count",
  "harness.issue", "schema_version",
  "harness.teeth_proof_missing_count",
  "harness.violation_count", "harness.warning_count"] as $numeric_keys

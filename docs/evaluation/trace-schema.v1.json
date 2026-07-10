@@ -13,6 +13,7 @@
   "numeric_keys": [
     "harness.exit_status",
     "harness.duration_ms",
+    "harness.finding_count",
     "harness.incomplete_count",
     "harness.teeth_proof_missing_count",
     "harness.violation_count",
@@ -76,6 +77,7 @@
     "harness.teeth_proof_missing_count": "number (integer); count of passes:true features missing teeth_proof coverage evidence reported at a gate. Typed as a JSON number.",
     "harness.violation_count": "number (integer); count of validation violations reported at a gate. Typed as a JSON number.",
     "harness.warning_count": "number (integer); count of warnings reported at a gate. Typed as a JSON number.",
+    "harness.finding_count": "number (integer); count of unfilled Action Log placeholder findings reported by the log-completeness gate. Typed as a JSON number.",
     "harness.stage": "string; sub-stage label within a gate or lifecycle operation (e.g. push, rebase, ci_checks, review_gate, completion_check).",
     "harness.warning": "string; enum-like warning code emitted by a harness script (e.g. jq_skipped, incomplete_features).",
     "harness.require_complete": "string; whether the completeness gate ran in require mode (REQUIRE_FEATURES_COMPLETE), '0' | '1'.",
