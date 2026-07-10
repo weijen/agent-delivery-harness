@@ -45,13 +45,28 @@
             "description": "Drill-through target: set by clicking a row in the Issue runs grid (Tab 1); consumed by the single-run drill-down (Tab 2, #223)."
           },
           {
+            "id": "version-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "Version",
+            "type": 2,
+            "isRequired": false,
+            "multiSelect": true,
+            "includeAll": true,
+            "selectAllValue": "*",
+            "allValue": "*",
+            "query": "dependencies | where timestamp {TimeRange} | distinct hv = tostring(customDimensions['harness.version']) | where isnotempty(hv) | order by hv asc",
+            "queryType": 0,
+            "crossComponentResources": [],
+            "description": "Multi-select filter for the by-version compare panels; populated from customDimensions['harness.version']. 'All' resolves to the '*' sentinel so the compare fragments' no-op filter drops no rows (#224)."
+          },
+          {
             "id": "cmp-dep-base",
             "version": "KqlParameterItem/1.0",
             "name": "CmpDepBase",
             "type": 1,
             "isRequired": false,
             "isHiddenWhenLocked": true,
-            "value": "extend hv = tostring(customDimensions['harness.version'])",
+            "value": "extend hv = tostring(customDimensions['harness.version']) | where '{Version}' == '*' or hv in ({Version})",
             "description": "Shared query prelude for the by-version compare tab panels reading the dependencies table; hoisted so all 7 panels share one extend (#224)."
           },
           {
@@ -61,7 +76,7 @@
             "type": 1,
             "isRequired": false,
             "isHiddenWhenLocked": true,
-            "value": "extend hv = tostring(customDimensions['harness.version'])",
+            "value": "extend hv = tostring(customDimensions['harness.version']) | where '{Version}' == '*' or hv in ({Version})",
             "description": "Shared query prelude for the by-version compare tab customEvents (token-cost) panel; hoisted so it shares one extend (#224)."
           }
         ]

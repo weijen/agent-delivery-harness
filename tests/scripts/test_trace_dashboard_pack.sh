@@ -956,6 +956,85 @@ if [ "$cmp_hoist_ok" -eq 1 ]; then
 fi
 
 # =============================================================================
+# #224 — version-multiselect-param. compare-base-query-hoist put the shared
+# `extend hv = tostring(customDimensions['harness.version'])` into the
+# CmpDepBase/CmpEvtBase fragments that all 8 by-version compare panels inherit.
+# This next feature makes the by-version comparison user-drivable: a Version
+# multi-select parameter, populated FROM the data, whose 'All' selection is a
+# provable no-op (parity with the unfiltered pack). The contract:
+#   (1) a workbook parameter named Version exists with "multiSelect": true, a
+#       populating "query" that reads customDimensions['harness.version'] (the
+#       version list comes from the data, never hardcoded), AND an include-all
+#       wildcard sentinel — "includeAll": true PLUS a literal "*" all-value
+#       (accept "allValue":"*" OR "selectAllValue":"*", but the "*" literal
+#       MUST be present in the Version param);
+#   (2) BOTH the CmpDepBase AND CmpEvtBase fragments carry all THREE no-op
+#       markers so an 'All' selection cannot drop rows:
+#         '{Version}'         (the token is substituted in),
+#         hv in ({Version})   (the filter binds the hoisted hv column), and
+#         == '*'              (the wildcard short-circuit:
+#                              where '{Version}' == '*' or hv in ({Version}))
+#       Both fragments must inherit the filter so all 8 panels get it. The
+#       == '*' no-op marker is load-bearing: a filter WITHOUT it would drop
+#       every row on an 'All' selection (the parity bug) — a bare
+#       `where hv in ({Version})` is NOT sufficient.
+# Scoped strictly to the Version param + the two compare fragments; no other
+# tab can false-satisfy it.
+# =============================================================================
+ver_ok=1
+ver_param="$(jq -c '[.. | objects | select(.name? == "Version")] | .[0] // {}' "$WB_JSON" 2>/dev/null || echo '{}')"
+
+# (1a) multiSelect true + includeAll true.
+if ! printf '%s' "$ver_param" | jq -e '.multiSelect == true' >/dev/null 2>&1; then
+	note "$WB_JSON: no Version parameter with \"multiSelect\": true — the by-version compare tab needs a data-populated multi-select Version filter (#224 version-multiselect-param)"
+	ver_ok=0
+fi
+if ! printf '%s' "$ver_param" | jq -e '.includeAll == true' >/dev/null 2>&1; then
+	note "$WB_JSON: Version parameter is missing \"includeAll\": true — an 'All' choice must exist so the default selection charts the whole pack (#224)"
+	ver_ok=0
+fi
+
+# (1b) the populating query reads the version dimension FROM the data.
+ver_query="$(printf '%s' "$ver_param" | jq -r '.query // ""' 2>/dev/null || echo "")"
+if ! printf '%s' "$ver_query" | grep -Fq "customDimensions['harness.version']"; then
+	note "$WB_JSON: Version parameter has no populating query over customDimensions['harness.version'] — the version list must come from the data, not a hardcoded set (#224)"
+	ver_ok=0
+fi
+
+# (1c) the include-all wildcard sentinel: a literal "*" all-value. Accept the
+#      field the impl uses (allValue OR selectAllValue) but REQUIRE the "*".
+if ! printf '%s' "$ver_param" | jq -e '(.allValue == "*") or (.selectAllValue == "*")' >/dev/null 2>&1; then
+	note "$WB_JSON: Version parameter has no wildcard all-value sentinel (\"allValue\":\"*\" or \"selectAllValue\":\"*\") — the 'All' selection must resolve to the literal * that the fragment no-op tests (#224)"
+	ver_ok=0
+fi
+
+# (2) BOTH compare fragments must carry ALL THREE no-op markers so 'All' is a
+#     provable no-op (parity with the unfiltered pack). Re-read them fresh so
+#     this leg does not depend on the hoist leg's locals.
+ver_dep_frag="$(jq -r '[.. | objects | select(.name? == "CmpDepBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+ver_evt_frag="$(jq -r '[.. | objects | select(.name? == "CmpEvtBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+for pair in "CmpDepBase:$ver_dep_frag" "CmpEvtBase:$ver_evt_frag"; do
+	fname="${pair%%:*}"
+	fval="${pair#*:}"
+	has_token=0
+	has_in=0
+	has_star=0
+	if printf '%s' "$fval" | grep -Fq "'{Version}'"; then has_token=1; fi
+	if printf '%s' "$fval" | grep -Fq 'hv in ({Version})'; then has_in=1; fi
+	if printf '%s' "$fval" | grep -Fq "== '*'"; then has_star=1; fi
+	if { [ "$has_token" -eq 1 ] && [ "$has_in" -eq 1 ] && [ "$has_star" -eq 1 ]; }; then
+		:
+	else
+		note "$WB_JSON: $fname fragment is missing a Version no-op marker (token '{Version}':$has_token filter hv in ({Version}):$has_in wildcard == '*':$has_star) — every compare panel must inherit \"where '{Version}' == '*' or hv in ({Version})\" so an 'All' selection drops no rows (#224 parity)"
+		ver_ok=0
+	fi
+done
+
+if [ "$ver_ok" -eq 1 ]; then
+	ok "#224: Version multi-select parameter (data-populated, includeAll + * wildcard) exists and BOTH CmpDepBase/CmpEvtBase fragments carry the '{Version}' / hv in ({Version}) / == '*' no-op filter so 'All' is a provable no-op across all 8 panels"
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then
