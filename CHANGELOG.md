@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.4.1 (2026-07-10)
+
+### Bug Fixes
+
+- **ci**: Pin Python workflow actions
+  ([#276](https://github.com/weijen/agent-delivery-harness/pull/276),
+  [`7d15639`](https://github.com/weijen/agent-delivery-harness/commit/7d156394522ebd88978dffd5a85f2b80f0ac8a62))
+
+- **ci**: Pin release workflow actions
+  ([#276](https://github.com/weijen/agent-delivery-harness/pull/276),
+  [`7d15639`](https://github.com/weijen/agent-delivery-harness/commit/7d156394522ebd88978dffd5a85f2b80f0ac8a62))
+
+- **ci**: Pin workflow actions and permissions
+  ([#276](https://github.com/weijen/agent-delivery-harness/pull/276),
+  [`7d15639`](https://github.com/weijen/agent-delivery-harness/commit/7d156394522ebd88978dffd5a85f2b80f0ac8a62))
+
+### Documentation
+
+- **progress**: Note CI workflow hardening
+  ([#276](https://github.com/weijen/agent-delivery-harness/pull/276),
+  [`7d15639`](https://github.com/weijen/agent-delivery-harness/commit/7d156394522ebd88978dffd5a85f2b80f0ac8a62))
+
+- **progress**: Refresh update metadata
+  ([#276](https://github.com/weijen/agent-delivery-harness/pull/276),
+  [`7d15639`](https://github.com/weijen/agent-delivery-harness/commit/7d156394522ebd88978dffd5a85f2b80f0ac8a62))
+
+
 ## v0.4.0 (2026-07-10)
 
 ### Bug Fixes
