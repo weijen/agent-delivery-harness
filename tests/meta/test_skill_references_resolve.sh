@@ -30,6 +30,22 @@ while IFS= read -r f; do
   note "$f still references the deleted skills/general path"
 done < <(git grep -l 'skills/general' -- '*.md' '*.sh' 2>/dev/null || true)
 
+# 2b. No living doc presents `general` as a skill via a bare backtick reference
+#     `general` (the path-form leg #2 only catches skills/general refs, not the
+#     bare-word form). The historical/changelog docs that narrate #177's removal
+#     in past tense are the only allowed exceptions.
+# shellcheck disable=SC2016  # `general` is a literal grep pattern, not a command substitution
+while IFS= read -r f; do
+  case "$f" in
+    docs/PROGRESS.md) continue ;;
+    docs/copilot-health-check.md) continue ;;
+    docs/skill-prompt-modernization-review.md) continue ;;
+    docs/subagent-prompt-modernization-review.md) continue ;;
+    tests/meta/test_skill_references_resolve.sh) continue ;;
+  esac
+  note "$f presents the deleted \`general\` skill as a live bare-word skill reference"
+done < <(git grep -l '`general`' -- '*.md' 2>/dev/null || true)
+
 # 3. create-pr must not reference nonexistent skills.
 cp="${skills_dir}/create-pr/SKILL.md"
 if [ -f "$cp" ]; then
