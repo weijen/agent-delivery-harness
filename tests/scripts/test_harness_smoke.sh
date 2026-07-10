@@ -43,6 +43,81 @@ require_text() {
   fi
 }
 
+require_top_level_permissions_contents_read() {
+  local file="$1"
+
+  if ! awk -v file="$file" '
+    BEGIN {
+      top_permissions = 0
+      in_permissions = 0
+      contents_read = 0
+      error = ""
+    }
+    /^permissions:[[:space:]]*\{[^}]*contents:[[:space:]]*read[^}]*\}[[:space:]]*(#.*)?$/ {
+      top_permissions = 1
+      contents_read = 1
+      next
+    }
+    /^[^[:space:]#][^:]*:[[:space:]]*$/ {
+      if (in_permissions) {
+        in_permissions = 0
+        if (!contents_read && error == "") {
+          error = "top-level permissions block is missing contents: read"
+        }
+      }
+      if ($0 == "permissions:") {
+        top_permissions = 1
+        in_permissions = 1
+        next
+      }
+    }
+    in_permissions && /^  contents:[[:space:]]*read([[:space:]]*#.*)?$/ { contents_read = 1 }
+    END {
+      if (error == "" && !top_permissions) {
+        error = "missing top-level permissions block"
+      }
+      if (error == "" && !contents_read) {
+        error = "top-level permissions block is missing contents: read"
+      }
+      if (error != "") {
+        printf "%s in %s\n", error, file > "/dev/stderr"
+        exit 1
+      }
+    }
+  ' "$file"; then
+    exit 1
+  fi
+}
+
+require_pinned_action_ref() {
+  local file="$1"
+  local action="$2"
+  local version_comment="$3"
+
+  if ! awk -v file="$file" -v action="$action" -v version_comment="$version_comment" '
+    BEGIN {
+      found = 0
+      valid = 1
+    }
+    $0 ~ "^[[:space:]]+uses:[[:space:]]" action "@" {
+      found = 1
+      if ($0 !~ "^[[:space:]]+uses:[[:space:]]" action "@[0-9a-fA-F]{40}[[:space:]]*# " version_comment "([[:space:]].*)?$") {
+        printf "mutable or uncommented %s ref in %s:%d: %s\n", action, file, NR, $0 > "/dev/stderr"
+        valid = 0
+      }
+    }
+    END {
+      if (!found) {
+        printf "missing %s uses step in %s\n", action, file > "/dev/stderr"
+        exit 1
+      }
+      exit(valid ? 0 : 1)
+    }
+  ' "$file"; then
+    exit 1
+  fi
+}
+
 require_text ".copilot/instructions/harness.instructions.md" 'harness-enabled projects.*strict|strict.*harness-enabled projects' \
   "strict harness adherence wording"
 require_text ".copilot/prompts/session-ritual.prompt.md" 'harness-enabled projects.*strict|strict.*harness-enabled projects' \
@@ -140,6 +215,14 @@ require_text "$workflow" 'bash -n[^\n]*tests/scripts/lib' \
   "workflow bash -n syntax coverage of tests/scripts/lib"
 require_text "$workflow" 'shellcheck[^\n]*tests/scripts/lib' \
   "workflow shellcheck coverage of tests/scripts/lib"
+
+# --- Python workflow hardening (#268) ----------------------------------------
+python_workflows=(.github/workflows/harness-smoke.yml .github/workflows/python-ci.yml)
+for workflow in "${python_workflows[@]}"; do
+  require_top_level_permissions_contents_read "$workflow"
+  require_pinned_action_ref "$workflow" 'actions/checkout' 'v4'
+  require_pinned_action_ref "$workflow" 'astral-sh/setup-uv' 'v5'
+done
 
 # --- CI-green merge gate doctrine (#51) --------------------------------------
 require_text ".copilot/instructions/harness.instructions.md" 'merge-pr\.sh' \
