@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#90)_
+_Last updated: 2026-07-10 (#91)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-10 (#90)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 164 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 165 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#90)_
 ---
 
 ## Delivered (newest first)
+
+### finish-issue worktree-error surfacing (#91): show git's real error, not a generic guess
+- **#91 — `scripts/finish-issue.sh` suppressed `git worktree remove`'s stderr (`2>/dev/null`) and printed a generic `✗ Worktree has uncommitted changes (or is locked).`** — a resuming operator could not tell whether the worktree was dirty, locked, or in some other failure state, making recovery guesswork. **One feature, red-first (`red_handback → impl_handback → green_handback`):** `surface-worktree-remove-error` — the `worktree_remove` stage now captures `wt_remove_err="$(git worktree remove … 2>&1)"` and, on failure, prints `✗ Could not remove the worktree at <dir>:` followed by git's OWN error text (indented) and the unchanged commit/stash-or-`FORCE=1` remediation hint, then `exit 1`. `FORCE=1` behavior is untouched (discards the work, removes the worktree). Sensor `tests/scripts/test_finish_issue_worktree_error.sh` drives the real `finish-issue.sh` in a temp repo + issue worktree carrying a non-ignored untracked file: (1) no-`FORCE` → exit 1 with git's `contains modified or untracked files` text + the `FORCE=1` hint + the worktree surviving; (2) `FORCE=1` → removed, exit 0. Full 165-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### create-pr loud-failure (#90): never report a failed PR closeout as success
 - **#90 — `scripts/create-pr.sh` reported a successful closeout on a *failed* one.** `gh pr create`'s exit status was unchecked and, more critically, when the PR number could not be resolved afterward (`gh pr view` yielding empty) the script printed `✓ PR #  is open.` with a **blank number and exit 0** — the harness declaring victory on a broken closeout. **One feature, red-first (`red_handback → impl_handback → green_handback`):** `fail-loud-on-pr-create-failure` — the `pr_create` stage now (a) wraps `gh pr create "$@"` in `|| { … exit 1; }` so a non-zero create prints a clear `✗ gh pr create failed` error + re-run hint and never reaches the success line, and (b) guards the resolved `pr_number` — an empty value prints `✗ PR opened but its number could not be resolved.` + "check GitHub manually" and exits non-zero. The idempotent already-exists path (first `gh pr view` returns a number → re-sync + push, no create) is untouched. Sensor `tests/scripts/test_create_pr_failure.sh` drives the real `create-pr.sh` against a fake `gh` through the review-gate approval: (a) `GH_CREATE_FAIL=1` → non-zero exit, `✗` error, no `is open`; (b) `GH_VIEW_BLANK=1` → non-zero exit with a manual-check hint. **Knock-on:** three existing review-gate sensors (`test_review_gate.sh`, `test_review_gate_status_doc.sh`, `test_review_gate_ci_coverage.sh`) carried fake `gh` shims whose `pr view` returned nothing even after `pr create` (modeling the old buggy tolerance); they were updated to return a PR number once the PR exists, matching real `gh`. Full 164-sensor suite + shellcheck (CI glob) + L0 green.

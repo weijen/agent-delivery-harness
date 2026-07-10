@@ -166,8 +166,9 @@ if [ ! -e "$WORKTREE_DIR" ]; then
 else
   remove_args=()
   [ "${FORCE:-0}" = "1" ] && remove_args+=(--force)
-  if ! git worktree remove ${remove_args[@]+"${remove_args[@]}"} "$WORKTREE_DIR" 2>/dev/null; then
-    red "✗ Worktree has uncommitted changes (or is locked)."
+  if ! wt_remove_err="$(git worktree remove ${remove_args[@]+"${remove_args[@]}"} "$WORKTREE_DIR" 2>&1)"; then
+    red "✗ Could not remove the worktree at ${WORKTREE_DIR}:"
+    printf '%s\n' "$wt_remove_err" | sed 's/^/    /'
     echo "  Commit/stash your work, or re-run with FORCE=1 to discard it:"
     echo "    FORCE=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
     exit 1
