@@ -853,6 +853,295 @@ if [ "$wb_log_defer" -eq 0 ]; then
 fi
 
 # =============================================================================
+# #224 — compare-base-query-hoist. The 8 by-version panels under the
+# tab-compare group each inlined the identical prelude
+#   extend hv = tostring(customDimensions['harness.version'])
+# The refactor hoists that shared extend into ONE base fragment parameter per
+# source table — CmpDepBase for the 7 panels reading the `dependencies` table
+# (pass-rate, red-reentry-free-rate, deviation-rate, tool-call-volume,
+# skill-invocation-volume, wall-clock-per-step, failure-mode) and CmpEvtBase for
+# the 1 panel reading `customEvents` (token-cost) — whose value string carries
+# the extend. Each panel then references its table's fragment via {CmpDepBase} /
+# {CmpEvtBase} and NO LONGER inlines the literal extend. This leg pins the hoist:
+#   (1) a workbook parameter CmpDepBase AND one CmpEvtBase exist, each value
+#       carrying `extend hv = tostring(customDimensions['harness.version'])`;
+#   (2) every one of the 8 tab-compare panels REFERENCES its table's fragment
+#       token ({CmpDepBase} for the 7 dependencies panels, {CmpEvtBase} for the
+#       customEvents token-cost panel) AND no longer inlines the literal extend;
+#   (3) the hoisted fragment does not smuggle a non-allowlisted key — harvest
+#       its customDimensions keys and run them through the SAME is_shippable_key
+#       allowlist mechanism the B leg uses.
+# Everything reads ONLY the tab-compare group, so fleet/issues/drilldown panels
+# cannot false-satisfy it.
+# =============================================================================
+HV_EXTEND="extend hv = tostring(customDimensions['harness.version'])"
+cmp_hoist_ok=1
+
+# (1) base fragment parameters exist, each carrying the hoisted extend.
+cmp_dep_frag="$(jq -r '[.. | objects | select(.name? == "CmpDepBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+cmp_evt_frag="$(jq -r '[.. | objects | select(.name? == "CmpEvtBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+if ! printf '%s' "$cmp_dep_frag" | grep -Fq "$HV_EXTEND"; then
+	note "$WB_JSON: no CmpDepBase base fragment parameter carrying '$HV_EXTEND' — the 7 tab-compare dependencies panels' shared extend is not hoisted (#224)"
+	cmp_hoist_ok=0
+fi
+if ! printf '%s' "$cmp_evt_frag" | grep -Fq "$HV_EXTEND"; then
+	note "$WB_JSON: no CmpEvtBase base fragment parameter carrying '$HV_EXTEND' — the tab-compare customEvents (token-cost) panel's shared extend is not hoisted (#224)"
+	cmp_hoist_ok=0
+fi
+
+# (2) every tab-compare panel references its table's fragment token and no
+#     longer inlines the literal extend. Flatten each panel's query to one line
+#     (name<TAB>query) so a multi-line KQL edit cannot slip past.
+cmp_panels="$extract_dir/compare-panels.flat"
+jq -r '
+	.items[]
+	| select(.name == "tab-compare")
+	| .content.items[]
+	| select(.type == 3)
+	| .name + "\t" + (.content.query | gsub("[[:space:]]+"; " "))
+' "$WB_JSON" > "$cmp_panels" 2>/dev/null || true
+cmp_seen=0
+while IFS="$(printf '\t')" read -r pname pquery; do
+	[ -n "$pname" ] || continue
+	cmp_seen=$((cmp_seen + 1))
+	# Which table does this panel read? Only token-cost reads customEvents.
+	if printf '%s' "$pquery" | grep -Fq 'customEvents'; then
+		token='{CmpEvtBase}'
+		tbl='customEvents'
+	else
+		token='{CmpDepBase}'
+		tbl='dependencies'
+	fi
+	refs=0
+	inlines=0
+	if printf '%s' "$pquery" | grep -Fq "$token"; then refs=1; fi
+	if printf '%s' "$pquery" | grep -Fq "$HV_EXTEND"; then inlines=1; fi
+	if [ "$refs" -ne 1 ] || [ "$inlines" -ne 0 ]; then
+		note "$WB_JSON: tab-compare panel '$pname' ($tbl) must reference $token and drop the inlined '$HV_EXTEND' (refs=$refs inlines=$inlines) — #224 hoist"
+		cmp_hoist_ok=0
+	fi
+done < "$cmp_panels"
+if [ "$cmp_seen" -ne 8 ]; then
+	note "$WB_JSON: expected 8 by-version panels under tab-compare, found $cmp_seen — #224 hoist scope changed"
+	cmp_hoist_ok=0
+fi
+
+# (3) the hoisted fragment must not smuggle a non-allowlisted customDimensions
+#     key. Harvest keys from the two fragment values exactly as the B leg does,
+#     then judge with the same is_shippable_key helper.
+cmp_frag_file="$extract_dir/compare-fragments.txt"
+{ printf '%s\n' "$cmp_dep_frag"; printf '%s\n' "$cmp_evt_frag"; } > "$cmp_frag_file"
+cmp_frag_keys="$extract_dir/compare-fragment-keys.txt"
+{
+	grep -Eo "customDimensions\[['\"][^'\"]+['\"]\]" "$cmp_frag_file" \
+		| grep -Eo "['\"][^'\"]+['\"]" | tr -d "\"'"
+	grep -Eo 'customDimensions\.[A-Za-z0-9_.]+' "$cmp_frag_file" | sed 's/^customDimensions\.//'
+	grep -Eo '(gen_ai|harness)\.[A-Za-z0-9_.]+' "$cmp_frag_file"
+} 2>/dev/null | sort -u > "$cmp_frag_keys" || true
+if [ -n "$ALLOWLIST_JSON" ]; then
+	while IFS= read -r k; do
+		[ -n "$k" ] || continue
+		case "$k" in
+		measurements* | gen_ai.usage.*) continue ;;
+		esac
+		if ! is_shippable_key "$k"; then
+			note "$WB_JSON: hoisted compare fragment references key '$k' which is NOT allowlist-shippable — hoisting must not smuggle a dropped key (#224)"
+			cmp_hoist_ok=0
+		fi
+	done < "$cmp_frag_keys"
+fi
+
+if [ "$cmp_hoist_ok" -eq 1 ]; then
+	ok "#224: tab-compare shared 'extend hv' hoisted into CmpDepBase/CmpEvtBase fragments; all 8 panels reference their token, none inline the extend, and the fragments are allowlist-clean"
+fi
+
+# =============================================================================
+# #224 — version-multiselect-param. compare-base-query-hoist put the shared
+# `extend hv = tostring(customDimensions['harness.version'])` into the
+# CmpDepBase/CmpEvtBase fragments that all 8 by-version compare panels inherit.
+# This next feature makes the by-version comparison user-drivable: a Version
+# multi-select parameter, populated FROM the data, whose 'All' selection is a
+# provable no-op (parity with the unfiltered pack). The contract:
+#   (1) a workbook parameter named Version exists with "multiSelect": true, a
+#       populating "query" that reads customDimensions['harness.version'] (the
+#       version list comes from the data, never hardcoded), AND an include-all
+#       wildcard sentinel — "includeAll": true PLUS a literal "*" all-value
+#       (accept "allValue":"*" OR "selectAllValue":"*", but the "*" literal
+#       MUST be present in the Version param);
+#   (2) BOTH the CmpDepBase AND CmpEvtBase fragments carry BOTH no-op
+#       markers so an 'All' selection cannot drop rows:
+#         '*' in ({Version})  (the wildcard short-circuit for a multi-select
+#                              param: on 'All' the '*' sentinel is a member of
+#                              the substituted comma-list, so the whole
+#                              predicate is true and no rows drop), and
+#         hv in ({Version})   (the filter binds the hoisted hv column)
+#       i.e. where '*' in ({Version}) or hv in ({Version}).
+#       Both fragments must inherit the filter so all 8 panels get it. The
+#       '*' in ({Version}) no-op marker is load-bearing: a filter WITHOUT it
+#       would drop every row on an 'All' selection (the parity bug) — a bare
+#       `where hv in ({Version})` is NOT sufficient. NOTE: the single-select
+#       idiom `'{Version}' == '*'` is WRONG for a multi-select param (on 'All'
+#       {Version} substitutes as a quoted comma-list, not the bare literal *),
+#       so that form must NOT be accepted.
+# Scoped strictly to the Version param + the two compare fragments; no other
+# tab can false-satisfy it.
+# =============================================================================
+ver_ok=1
+ver_param="$(jq -c '[.. | objects | select(.name? == "Version")] | .[0] // {}' "$WB_JSON" 2>/dev/null || echo '{}')"
+
+# (1a) multiSelect true + includeAll true.
+if ! printf '%s' "$ver_param" | jq -e '.multiSelect == true' >/dev/null 2>&1; then
+	note "$WB_JSON: no Version parameter with \"multiSelect\": true — the by-version compare tab needs a data-populated multi-select Version filter (#224 version-multiselect-param)"
+	ver_ok=0
+fi
+if ! printf '%s' "$ver_param" | jq -e '.includeAll == true' >/dev/null 2>&1; then
+	note "$WB_JSON: Version parameter is missing \"includeAll\": true — an 'All' choice must exist so the default selection charts the whole pack (#224)"
+	ver_ok=0
+fi
+
+# (1b) the populating query reads the version dimension FROM the data.
+ver_query="$(printf '%s' "$ver_param" | jq -r '.query // ""' 2>/dev/null || echo "")"
+if ! printf '%s' "$ver_query" | grep -Fq "customDimensions['harness.version']"; then
+	note "$WB_JSON: Version parameter has no populating query over customDimensions['harness.version'] — the version list must come from the data, not a hardcoded set (#224)"
+	ver_ok=0
+fi
+
+# (1c) the include-all wildcard sentinel: a literal "*" all-value. Accept the
+#      field the impl uses (allValue OR selectAllValue) but REQUIRE the "*".
+if ! printf '%s' "$ver_param" | jq -e '(.allValue == "*") or (.selectAllValue == "*")' >/dev/null 2>&1; then
+	note "$WB_JSON: Version parameter has no wildcard all-value sentinel (\"allValue\":\"*\" or \"selectAllValue\":\"*\") — the 'All' selection must resolve to the literal * that the fragment no-op tests (#224)"
+	ver_ok=0
+fi
+
+# (2) BOTH compare fragments must carry BOTH no-op markers so 'All' is a
+#     provable no-op (parity with the unfiltered pack). Re-read them fresh so
+#     this leg does not depend on the hoist leg's locals.
+ver_dep_frag="$(jq -r '[.. | objects | select(.name? == "CmpDepBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+ver_evt_frag="$(jq -r '[.. | objects | select(.name? == "CmpEvtBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
+for pair in "CmpDepBase:$ver_dep_frag" "CmpEvtBase:$ver_evt_frag"; do
+	fname="${pair%%:*}"
+	fval="${pair#*:}"
+	has_wild=0
+	has_in=0
+	if printf '%s' "$fval" | grep -Fq "'*' in ({Version})"; then has_wild=1; fi
+	if printf '%s' "$fval" | grep -Fq 'hv in ({Version})'; then has_in=1; fi
+	if { [ "$has_wild" -eq 1 ] && [ "$has_in" -eq 1 ]; }; then
+		:
+	else
+		note "$WB_JSON: $fname fragment is missing a Version no-op marker (wildcard '*' in ({Version}):$has_wild filter hv in ({Version}):$has_in) — every compare panel must inherit \"where '*' in ({Version}) or hv in ({Version})\" so an 'All' selection drops no rows (#224 parity)"
+		ver_ok=0
+	fi
+done
+
+if [ "$ver_ok" -eq 1 ]; then
+	ok "#224: Version multi-select parameter (data-populated, includeAll + * wildcard) exists and BOTH CmpDepBase/CmpEvtBase fragments carry the '*' in ({Version}) / hv in ({Version}) multi-select no-op filter so 'All' is a provable no-op across all 8 panels"
+fi
+
+# =============================================================================
+# #224 — deferred-metrics-verbatim-guard. The compare tab's `deferred-metrics`
+# text block is a load-bearing honesty artifact: it names the contract-deferred
+# metrics (review-blocking findings, per-feature attribution) as explicitly
+# UNAVAILABLE and pins the honest red_reentry_free_rate / token-cost / #163
+# narrative. The F1/F2 hoist/refactor must retain that block byte-for-byte. This
+# guard jq-extracts ONLY the tab-compare `deferred-metrics` item content (by tab
+# name AND item name, so no other tab/text item can false-satisfy) and
+# SET-asserts the exact pinned sentence fingerprint verbatim: if ANY of the
+# distinctive strings drifts by even one word, the leg goes RED.
+# =============================================================================
+dm_json="$(jq -r '
+	.items[] | select(.name=="tab-compare")
+	| .content.items[] | select(.name=="deferred-metrics")
+	| .content.json // ""
+' "$WB_JSON" 2>/dev/null || echo "")"
+if [ -z "$dm_json" ]; then
+	note "#224: could not jq-extract the tab-compare 'deferred-metrics' text item (.items[]|select(name==\"tab-compare\").content.items[]|select(name==\"deferred-metrics\").content.json) — the verbatim honesty block is missing or moved (deferred-metrics-verbatim-guard)"
+else
+	dm_missing=""
+	# Each string is a distinctive verbatim fingerprint of the pinned block;
+	# together they pin heading, both deferred-metric bullets, the honest
+	# red_reentry_free_rate sentence, and the #163 token-gap pointer.
+	while IFS= read -r pin; do
+		[ -n "$pin" ] || continue
+		if ! printf '%s' "$dm_json" | grep -Fq "$pin"; then
+			dm_missing="$dm_missing
+    - $pin"
+		fi
+	done <<'DM_PINS'
+## Deferred metrics - explicitly UNAVAILABLE
+The following contract-deferred metrics are NOT charted because trace-summary.v1.json does not carry them.
+Review-blocking findings per issue: DEFERRED / unavailable / n/a
+Per-feature attribution of tool calls: DEFERRED / unavailable / n/a
+The red_reentry_free_rate panel above measures no-red-after-green re-entry
+tracked in #163
+DM_PINS
+	if [ -n "$dm_missing" ]; then
+		note "#224: the tab-compare 'deferred-metrics' block drifted from its pinned verbatim text — the F1/F2 refactor must retain it byte-for-byte. Missing verbatim string(s):$dm_missing"
+	else
+		ok "#224: tab-compare 'deferred-metrics' honesty block retained verbatim (heading, both DEFERRED bullets, honest red_reentry_free_rate sentence, and #163 token-gap pointer all pinned) — deferred-metrics-verbatim-guard"
+	fi
+fi
+
+# =============================================================================
+# #224 — compare-map-readme-update. The Version-comparison tab gains two live
+# behaviours in this issue: (1) a multi-select {Version} filter whose 'All'
+# selection is an honest no-op (reproducing the pre-change by-harness.version
+# aggregates), and (2) a per-table base-query hoist (CmpDepBase / CmpEvtBase)
+# that factors the shared `extend hv` prelude into ONE base query per App
+# Insights table (dependencies / customEvents). The dashboards README must
+# DOCUMENT both, not just the workbook JSON. This leg extracts ONLY the
+# "Version comparison" tab bullet passage (from the `- **Version comparison**`
+# line to the next blank line) so nothing outside the compare-tab narrative can
+# false-satisfy, then SET-asserts the distinctive verbatim tokens the two
+# additions introduce. The current README says only "the original
+# by-`harness.version` aggregates and the deferred-metrics block, kept verbatim"
+# — so every token below is absent and the leg is RED until the compare-tab
+# narrative documents the {Version} multi-select no-op filter AND the
+# CmpDepBase/CmpEvtBase hoist.
+# =============================================================================
+cmp_readme_section="$extract_dir/readme-compare-tab.section"
+if [ -f "$DASH_README" ]; then
+	awk '
+		/^- \*\*Version comparison\*\*/ { grab = 1; print; next }
+		grab && /^$/ { grab = 0; next }
+		grab { print }
+	' "$DASH_README" > "$cmp_readme_section" 2>/dev/null || true
+else
+	: > "$cmp_readme_section"
+fi
+if [ ! -s "$cmp_readme_section" ]; then
+	note "#224: could not extract the 'Version comparison' tab bullet from $DASH_README (expected a '- **Version comparison**' bullet in the Workbook structure list) — compare-map-readme-update"
+else
+	# SET of distinctive verbatim tokens the two #224 additions introduce.
+	# (1) {Version} multi-select + honest 'All'/no-op parity; (2) the
+	# CmpDepBase/CmpEvtBase hoist of the shared `extend hv` prelude into one
+	# base query per table (dependencies/customEvents).
+	cmp_rm_missing=""
+	while IFS= read -r tok; do
+		[ -n "$tok" ] || continue
+		if ! grep -Fq "$tok" "$cmp_readme_section"; then
+			cmp_rm_missing="$cmp_rm_missing
+    - $tok"
+		fi
+	done <<'CMP_RM_TOKENS'
+{Version}
+multi-select
+no-op
+'All'
+CmpDepBase
+CmpEvtBase
+extend hv
+dependencies
+customEvents
+base query
+CMP_RM_TOKENS
+	if [ -n "$cmp_rm_missing" ]; then
+		note "#224: the README 'Version comparison' tab narrative does not document the new compare-tab features — it must name the multi-select {Version} filter with its honest 'All'/no-op parity AND the per-table base-query hoist (CmpDepBase/CmpEvtBase factoring the shared 'extend hv' prelude into one base query per table: dependencies/customEvents). Missing token(s):$cmp_rm_missing"
+	else
+		ok "#224: README 'Version comparison' tab narrative documents the multi-select {Version} no-op filter and the CmpDepBase/CmpEvtBase base-query hoist (extend hv factored per dependencies/customEvents table) — compare-map-readme-update"
+	fi
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then
