@@ -1079,6 +1079,66 @@ DM_PINS
 fi
 
 # =============================================================================
+# #224 — compare-map-readme-update. The Version-comparison tab gains two live
+# behaviours in this issue: (1) a multi-select {Version} filter whose 'All'
+# selection is an honest no-op (reproducing the pre-change by-harness.version
+# aggregates), and (2) a per-table base-query hoist (CmpDepBase / CmpEvtBase)
+# that factors the shared `extend hv` prelude into ONE base query per App
+# Insights table (dependencies / customEvents). The dashboards README must
+# DOCUMENT both, not just the workbook JSON. This leg extracts ONLY the
+# "Version comparison" tab bullet passage (from the `- **Version comparison**`
+# line to the next blank line) so nothing outside the compare-tab narrative can
+# false-satisfy, then SET-asserts the distinctive verbatim tokens the two
+# additions introduce. The current README says only "the original
+# by-`harness.version` aggregates and the deferred-metrics block, kept verbatim"
+# — so every token below is absent and the leg is RED until the compare-tab
+# narrative documents the {Version} multi-select no-op filter AND the
+# CmpDepBase/CmpEvtBase hoist.
+# =============================================================================
+cmp_readme_section="$extract_dir/readme-compare-tab.section"
+if [ -f "$DASH_README" ]; then
+	awk '
+		/^- \*\*Version comparison\*\*/ { grab = 1; print; next }
+		grab && /^$/ { grab = 0; next }
+		grab { print }
+	' "$DASH_README" > "$cmp_readme_section" 2>/dev/null || true
+else
+	: > "$cmp_readme_section"
+fi
+if [ ! -s "$cmp_readme_section" ]; then
+	note "#224: could not extract the 'Version comparison' tab bullet from $DASH_README (expected a '- **Version comparison**' bullet in the Workbook structure list) — compare-map-readme-update"
+else
+	# SET of distinctive verbatim tokens the two #224 additions introduce.
+	# (1) {Version} multi-select + honest 'All'/no-op parity; (2) the
+	# CmpDepBase/CmpEvtBase hoist of the shared `extend hv` prelude into one
+	# base query per table (dependencies/customEvents).
+	cmp_rm_missing=""
+	while IFS= read -r tok; do
+		[ -n "$tok" ] || continue
+		if ! grep -Fq "$tok" "$cmp_readme_section"; then
+			cmp_rm_missing="$cmp_rm_missing
+    - $tok"
+		fi
+	done <<'CMP_RM_TOKENS'
+{Version}
+multi-select
+no-op
+'All'
+CmpDepBase
+CmpEvtBase
+extend hv
+dependencies
+customEvents
+base query
+CMP_RM_TOKENS
+	if [ -n "$cmp_rm_missing" ]; then
+		note "#224: the README 'Version comparison' tab narrative does not document the new compare-tab features — it must name the multi-select {Version} filter with its honest 'All'/no-op parity AND the per-table base-query hoist (CmpDepBase/CmpEvtBase factoring the shared 'extend hv' prelude into one base query per table: dependencies/customEvents). Missing token(s):$cmp_rm_missing"
+	else
+		ok "#224: README 'Version comparison' tab narrative documents the multi-select {Version} no-op filter and the CmpDepBase/CmpEvtBase base-query hoist (extend hv factored per dependencies/customEvents table) — compare-map-readme-update"
+	fi
+fi
+
+# =============================================================================
 # G. TERRAFORM FMT (+ best-effort validate only if initialised).
 # =============================================================================
 if command -v terraform >/dev/null 2>&1; then

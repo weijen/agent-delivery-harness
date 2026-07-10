@@ -28,7 +28,12 @@ items switch on it:
   (never an empty chart, never inferred health). When no run is selected the panels
   are honestly empty.
 - **Version comparison** (`selectedTab == compare`) — the original by-`harness.version`
-  aggregates and the deferred-metrics block, kept verbatim.
+  aggregates and the deferred-metrics block, kept verbatim. A multi-select `{Version}`
+  filter scopes the tab; an `'All'` selection is a no-op that reproduces the pre-change
+  aggregates (same numbers, same denominators). The shared `extend hv` prelude is
+  hoisted into one base query per table — `CmpDepBase` (`dependencies`) and
+  `CmpEvtBase` (`customEvents`) — so all eight panels share a single version-extend +
+  filter.
 
 Every panel:
 
