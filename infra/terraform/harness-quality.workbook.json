@@ -66,7 +66,7 @@
             "type": 1,
             "isRequired": false,
             "isHiddenWhenLocked": true,
-            "value": "extend hv = tostring(customDimensions['harness.version']) | where '{Version}' == '*' or hv in ({Version})",
+            "value": "extend hv = tostring(customDimensions['harness.version']) | where '*' in ({Version}) or hv in ({Version})",
             "description": "Shared query prelude for the by-version compare tab panels reading the dependencies table; hoisted so all 7 panels share one extend (#224)."
           },
           {
@@ -76,7 +76,7 @@
             "type": 1,
             "isRequired": false,
             "isHiddenWhenLocked": true,
-            "value": "extend hv = tostring(customDimensions['harness.version']) | where '{Version}' == '*' or hv in ({Version})",
+            "value": "extend hv = tostring(customDimensions['harness.version']) | where '*' in ({Version}) or hv in ({Version})",
             "description": "Shared query prelude for the by-version compare tab customEvents (token-cost) panel; hoisted so it shares one extend (#224)."
           }
         ]

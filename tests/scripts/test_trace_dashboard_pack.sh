@@ -968,16 +968,21 @@ fi
 #       wildcard sentinel — "includeAll": true PLUS a literal "*" all-value
 #       (accept "allValue":"*" OR "selectAllValue":"*", but the "*" literal
 #       MUST be present in the Version param);
-#   (2) BOTH the CmpDepBase AND CmpEvtBase fragments carry all THREE no-op
+#   (2) BOTH the CmpDepBase AND CmpEvtBase fragments carry BOTH no-op
 #       markers so an 'All' selection cannot drop rows:
-#         '{Version}'         (the token is substituted in),
-#         hv in ({Version})   (the filter binds the hoisted hv column), and
-#         == '*'              (the wildcard short-circuit:
-#                              where '{Version}' == '*' or hv in ({Version}))
+#         '*' in ({Version})  (the wildcard short-circuit for a multi-select
+#                              param: on 'All' the '*' sentinel is a member of
+#                              the substituted comma-list, so the whole
+#                              predicate is true and no rows drop), and
+#         hv in ({Version})   (the filter binds the hoisted hv column)
+#       i.e. where '*' in ({Version}) or hv in ({Version}).
 #       Both fragments must inherit the filter so all 8 panels get it. The
-#       == '*' no-op marker is load-bearing: a filter WITHOUT it would drop
-#       every row on an 'All' selection (the parity bug) — a bare
-#       `where hv in ({Version})` is NOT sufficient.
+#       '*' in ({Version}) no-op marker is load-bearing: a filter WITHOUT it
+#       would drop every row on an 'All' selection (the parity bug) — a bare
+#       `where hv in ({Version})` is NOT sufficient. NOTE: the single-select
+#       idiom `'{Version}' == '*'` is WRONG for a multi-select param (on 'All'
+#       {Version} substitutes as a quoted comma-list, not the bare literal *),
+#       so that form must NOT be accepted.
 # Scoped strictly to the Version param + the two compare fragments; no other
 # tab can false-satisfy it.
 # =============================================================================
@@ -1008,7 +1013,7 @@ if ! printf '%s' "$ver_param" | jq -e '(.allValue == "*") or (.selectAllValue ==
 	ver_ok=0
 fi
 
-# (2) BOTH compare fragments must carry ALL THREE no-op markers so 'All' is a
+# (2) BOTH compare fragments must carry BOTH no-op markers so 'All' is a
 #     provable no-op (parity with the unfiltered pack). Re-read them fresh so
 #     this leg does not depend on the hoist leg's locals.
 ver_dep_frag="$(jq -r '[.. | objects | select(.name? == "CmpDepBase") | .value | if type == "string" then . else tojson end] | .[0] // ""' "$WB_JSON" 2>/dev/null || echo "")"
@@ -1016,22 +1021,20 @@ ver_evt_frag="$(jq -r '[.. | objects | select(.name? == "CmpEvtBase") | .value |
 for pair in "CmpDepBase:$ver_dep_frag" "CmpEvtBase:$ver_evt_frag"; do
 	fname="${pair%%:*}"
 	fval="${pair#*:}"
-	has_token=0
+	has_wild=0
 	has_in=0
-	has_star=0
-	if printf '%s' "$fval" | grep -Fq "'{Version}'"; then has_token=1; fi
+	if printf '%s' "$fval" | grep -Fq "'*' in ({Version})"; then has_wild=1; fi
 	if printf '%s' "$fval" | grep -Fq 'hv in ({Version})'; then has_in=1; fi
-	if printf '%s' "$fval" | grep -Fq "== '*'"; then has_star=1; fi
-	if { [ "$has_token" -eq 1 ] && [ "$has_in" -eq 1 ] && [ "$has_star" -eq 1 ]; }; then
+	if { [ "$has_wild" -eq 1 ] && [ "$has_in" -eq 1 ]; }; then
 		:
 	else
-		note "$WB_JSON: $fname fragment is missing a Version no-op marker (token '{Version}':$has_token filter hv in ({Version}):$has_in wildcard == '*':$has_star) — every compare panel must inherit \"where '{Version}' == '*' or hv in ({Version})\" so an 'All' selection drops no rows (#224 parity)"
+		note "$WB_JSON: $fname fragment is missing a Version no-op marker (wildcard '*' in ({Version}):$has_wild filter hv in ({Version}):$has_in) — every compare panel must inherit \"where '*' in ({Version}) or hv in ({Version})\" so an 'All' selection drops no rows (#224 parity)"
 		ver_ok=0
 	fi
 done
 
 if [ "$ver_ok" -eq 1 ]; then
-	ok "#224: Version multi-select parameter (data-populated, includeAll + * wildcard) exists and BOTH CmpDepBase/CmpEvtBase fragments carry the '{Version}' / hv in ({Version}) / == '*' no-op filter so 'All' is a provable no-op across all 8 panels"
+	ok "#224: Version multi-select parameter (data-populated, includeAll + * wildcard) exists and BOTH CmpDepBase/CmpEvtBase fragments carry the '*' in ({Version}) / hv in ({Version}) multi-select no-op filter so 'All' is a provable no-op across all 8 panels"
 fi
 
 # =============================================================================
