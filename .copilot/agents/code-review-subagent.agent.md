@@ -149,6 +149,9 @@ scope/planning decisions.
     Git-metadata / ignored-untracked sweep. Customer-supplied raw media, screenshots, decks, exports, secrets, local
     environment files (`.env`), personal emails, tenant/subscription IDs, and resource endpoints found in pushed or
     soon-to-be-pushed content are **BLOCKING** (see the severity ladder).
+12. **Known false positives for syntax and version support** — Consult the
+    [`known-false-positive registry`](../skills/_review-known-false-positives.md) before raising any syntax or
+    version-support finding, and do not repeat a refuted claim without disproving it on the reviewed HEAD.
 
 For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
 unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
