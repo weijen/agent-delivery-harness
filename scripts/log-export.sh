@@ -60,6 +60,19 @@ yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
+# trace-lib.sh provides trace_redact (the secret-shape redactor). The
+# log-stream gate below fails CLOSED when it is unavailable, so sourcing is
+# best-effort here and re-checked at gate time.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+
+# HARDCODED secret-shape backstop for the log gate, deliberately INDEPENDENT of
+# trace_redact and of trace-lib.sh's TRACE_SECRET_SHAPE_RE (a no-op/broken/absent
+# redactor must never blind it). Lists only unmistakable token shapes whose
+# redacted form ([REDACTED]) cannot self-match.
+LOG_SECRET_SHAPE_RE='gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 # --- Mapping engine selection (mirrors trace-export.sh) ------------------------
 # The log projection can be produced by an embedded jq program or by the Python
@@ -377,19 +390,119 @@ run_log_projection() { # run_log_projection <otlp|appinsights> <python-subcomman
   jq -nRr -f "$filter" < "$LOG_FILE"
 }
 
+# --- Fail-closed LOG redaction/value-cap gate (feature log-export-redaction-gate) ---
+# The log-stream analogue of trace-export.sh's redaction_gate, adapted for the
+# higher-leakage detail stream (message/payload free text). Runs on the STAGED
+# log envelopes/body BEFORE anything is written, on BOTH dry-run seams,
+# fail-closed and all-or-nothing (nothing written on ANY violation). It:
+#   1. REDACTS the staged bytes through trace_redact (this is the redaction
+#      TRANSFORM — the log stream is not pre-redacted like trace.jsonl), so
+#      redaction happens BEFORE the cap is measured (schema log-schema.v1.json:
+#      "redact, then cap"). A missing/failing redactor fails CLOSED.
+#   2. Re-audits the redacted output as a trace_redact FIXED POINT.
+#   3. Runs a HARDCODED secret-shape backstop (LOG_SECRET_SHAPE_RE) INDEPENDENT
+#      of trace_redact, so a no-op/broken redactor cannot blind it.
+#   4. Belt: the allowlist-excluded field names must never appear.
+#   5. Caps EVERY projected string value (OTLP body.stringValue + logRecord
+#      attribute stringValues; App-Insights MessageData message + properties):
+#      max 256 chars (256 ships, 257 refuses) AND printable charset only (any
+#      C0/C1 control byte is a violation). All-or-nothing; never truncated.
+# Return codes: 0 pass · 1 gate violation · 2 the gate itself could not run
+# (both non-zero outcomes mean NOTHING is written). The offending key is named;
+# its value is NEVER echoed.
+log_redaction_gate() { # log_redaction_gate <staged-file> <redacted-out-file>
+  local staged="$1" shipped="$2"
+
+  if [ ! -f "$staged" ]; then
+    red "error: log gate: staged file is missing — refusing (nothing written)" >&2
+    return 2
+  fi
+  if ! declare -F trace_redact >/dev/null 2>&1; then
+    red "error: log gate: scripts/trace-lib.sh (trace_redact) is unavailable — failing closed (nothing written)" >&2
+    return 2
+  fi
+  # 1. Redact-before-cap TRANSFORM: mask secret shapes into the shipped output.
+  if ! trace_redact < "$staged" > "$shipped" 2>/dev/null; then
+    red "error: log gate: trace_redact failed at runtime over the staged log envelopes — failing closed (nothing written)" >&2
+    return 1
+  fi
+  # 2. trace_redact FIXED POINT: a second pass must change nothing.
+  local audited="${TMP_DIR}/log-audit.redacted.json"
+  if ! trace_redact < "$shipped" > "$audited" 2>/dev/null; then
+    red "error: log gate: trace_redact failed re-auditing the redacted log envelopes — failing closed (nothing written)" >&2
+    return 1
+  fi
+  if ! cmp -s "$shipped" "$audited"; then
+    red "error: log gate: the redacted log envelopes are not a trace_redact fixed point — refusing (nothing written)" >&2
+    return 1
+  fi
+  # 3. HARDCODED secret-shape backstop, INDEPENDENT of trace_redact.
+  if grep -qE "$LOG_SECRET_SHAPE_RE" "$shipped"; then
+    red "error: log gate: a well-known secret shape survived into the staged log envelopes (hardcoded backstop) — refusing (nothing written)" >&2
+    return 1
+  fi
+  # 4. Belt: the allowlist-excluded field names must never appear.
+  local excluded
+  for excluded in 'harness.args_summary' 'harness.result_summary' 'harness.summary' 'harness.worktree' 'harness.branch'; do
+    if grep -qF -- "$excluded" "$shipped"; then
+      red "error: log gate: excluded field name '${excluded}' appeared in the staged log envelopes — refusing (nothing written)" >&2
+      return 1
+    fi
+  done
+  # 5. String value caps over EVERY projected string value (measured AFTER
+  #    redaction, so a redacted-short secret ships but a genuine over-cap /
+  #    control-byte value refuses). Covers both projection shapes.
+  local cap_report
+  if ! cap_report="$(grep -v '^//' "$shipped" | jq -r '
+      def is_over:
+        (type == "string")
+        and ((length > 256)
+             or (explode | any(. < 32 or (. >= 127 and . <= 159))));
+      if type == "array" then
+        # App-Insights MessageData envelope array: message + customDimensions.
+        [ .[]?
+          | ((.data.baseData.message // null) | select(is_over) | "message"),
+            (.data.baseData.properties // {}
+             | to_entries[] | select(.value | is_over) | .key) ]
+      else
+        # OTLP resourceLogs body: logRecord body.stringValue + attribute values.
+        [ .resourceLogs[]?.scopeLogs[]?.logRecords[]?
+          | ((.body.stringValue // null) | select(is_over) | "body"),
+            (.attributes[]? | select(.value.stringValue | is_over) | .key) ]
+      end
+      | unique
+      | .[]' 2>/dev/null)"; then
+    red "error: log gate: could not audit the log value caps over the staged envelopes — failing closed (nothing written)" >&2
+    return 1
+  fi
+  if [ -n "$cap_report" ]; then
+    printf 'error: log gate: projected string value fails the cap (over 256 chars or non-printable control byte): %s\n' \
+      "$(printf '%s' "$cap_report" | tr '\n' ' ')" >&2
+    red "error: log gate: a shippable log value exceeds the 256-char cap or carries a control byte — refusing the whole export (all-or-nothing; nothing written)" >&2
+    return 1
+  fi
+  return 0
+}
+
 # stage_and_write — parse the projection's markers, stage the body behind the
-# // seam header, and move it to the dry-run destination.
+# // seam header, run the fail-closed log gate over it, and move the redacted
+# output to the dry-run destination only when the gate passes. Nothing is
+# written on any gate violation (all-or-nothing).
 stage_and_write() { # stage_and_write <projection> <dest> <label>
   local projection="$1" dest="$2" label="$3"
-  local skipped count staged out_dir
+  local skipped count staged shipped out_dir grc=0
   skipped="$(printf '%s\n' "$projection" | sed -n '1s/^::skipped //p')"
   count="$(printf '%s\n' "$projection" | sed -n '2s/^::count //p')"
   if ! [[ "$skipped" =~ ^[0-9]+$ && "$count" =~ ^[0-9]+$ ]]; then
     red "error: the ${label} projection produced an unreadable header" >&2
     exit 2
   fi
+  # Invalid JSONL is a DISQUALIFYING abort for the higher-leakage log stream:
+  # there is no log validator, so a malformed line reaching the projector
+  # cannot be proven clean (a truncated line may bisect a secret). Fail closed.
   if [ "$skipped" -gt 0 ]; then
-    yellow "notice: skipped ${skipped} malformed log line(s) (not valid JSON records)" >&2
+    red "error: ${label}: ${skipped} malformed log line(s) reached the projector — the log stream fails closed on invalid JSONL (nothing written)" >&2
+    exit 1
   fi
   staged="${TMP_DIR}/${label}.staged.json"
   {
@@ -397,9 +510,15 @@ stage_and_write() { # stage_and_write <projection> <dest> <label>
     printf '// This format is not a stable contract; it may change without notice.\n'
     printf '%s\n' "$projection" | tail -n +3
   } > "$staged"
+  shipped="${TMP_DIR}/${label}.shipped.json"
+  log_redaction_gate "$staged" "$shipped" || grc=$?
+  if [ "$grc" -ne 0 ]; then
+    rm -f "$shipped"
+    exit "$grc"
+  fi
   out_dir="$(dirname "$dest")"
   mkdir -p "$out_dir"
-  mv "$staged" "$dest"
+  mv "$shipped" "$dest"
   green "dry run: wrote ${count} ${label} record(s) to ${dest} (nothing shipped)"
 }
 
