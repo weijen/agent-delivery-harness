@@ -4,7 +4,7 @@
 #
 # Contract under test (PINNED HERE as the executable spec): the docs must
 # explain the authority split between handback evidence, runtime hook spans,
-# local hook seeding, and best-effort closeout export — plus the
+# local hook seeding, and the decommissioned cloud export leg — plus the
 # unregistered-named-subagent fallback. Each obligation is pinned against a
 # SPECIFIC doc with distinctive, prose-tolerant substrings.
 #
@@ -17,9 +17,9 @@
 #   C — docs/runtime-adapters/github-copilot.md documents local hook seeding:
 #       start-issue seeds .github/hooks/harness-trace.json into a new
 #       worktree when present; absent is a clean no-op.
-#   D — docs/runtime-adapters/otlp-azure-monitor.md documents the best-effort
-#       closeout export: finish-issue.sh attempts the exporter best-effort
-#       only when configured, while it stays opt-in and fail-closed.
+#   D — docs/runtime-adapters/otlp-azure-monitor.md documents that issue #272
+#       decommissioned the cloud export leg and retains only the OTel/App
+#       Insights attribute-name mapping / exit-ramp contract.
 #   E — docs/HARNESS.md documents the unregistered-named-subagent fallback:
 #       when a repo defines an agent file but the runner does not register
 #       that agentName, invoke a blank/current subagent with the full role
@@ -137,19 +137,19 @@ if require_doc "$DOC_COPILOT" "docs/runtime-adapters/github-copilot.md"; then
 fi
 
 # ==============================================================================
-# D. otlp-azure-monitor.md — best-effort closeout export from finish-issue.
+# D. otlp-azure-monitor.md — decommissioned export leg / exit-ramp contract.
 # ==============================================================================
 if require_doc "$DOC_OTLP" "docs/runtime-adapters/otlp-azure-monitor.md"; then
   D_FLAT="$(flat "$DOC_OTLP")"
 
-  grep -qiF 'finish-issue' "$D_FLAT" \
-    || fail "otlp-azure-monitor.md must document finish-issue's best-effort closeout export (D)"
-  grep -qiE 'best[- ]effort' "$D_FLAT" \
-    || fail "otlp-azure-monitor.md must describe the closeout export as best-effort (D)"
-  grep -qF 'TRACE_EXPORT_OTLP' "$D_FLAT" \
-    || fail "otlp-azure-monitor.md must state the closeout export runs only when TRACE_EXPORT_OTLP is configured (D)"
-  grep -qiE 'opt-in|fail-closed|never blocks|warn' "$D_FLAT" \
-    || fail "otlp-azure-monitor.md must state the exporter stays opt-in / fail-closed / never blocks (warn) (D)"
+  grep -qiE 'decommissioned by #272|issue #272 removed' "$D_FLAT" \
+    || fail "otlp-azure-monitor.md must state the cloud export leg was decommissioned by issue #272 (D)"
+  grep -qiE 'no in-loop export consumer|no longer ships spans or logs|no tracked harness script currently posts' "$D_FLAT" \
+    || fail "otlp-azure-monitor.md must state the harness no longer ships spans/logs through an in-loop export path (D)"
+  grep -qiE 'attribute-name mapping|exit-ramp contract' "$D_FLAT" \
+    || fail "otlp-azure-monitor.md must retain the OTel/App Insights attribute-name mapping / exit-ramp contract framing (D)"
+  grep -qF 'COPILOT_OTEL_' "$D_FLAT" \
+    || fail "otlp-azure-monitor.md must keep the COPILOT_OTEL_* vocabulary reference while the export leg is dormant (D)"
 fi
 
 # ==============================================================================

@@ -5,7 +5,7 @@
 #
 # Contract pinned here (models the exporter's "Fail-closed export gates" in
 # docs/runtime-adapters/otlp-azure-monitor.md; reuses the repo's redaction
-# policy in scripts/trace-lib.sh `trace_redact` / scripts/sanitize-trace.sh;
+# policy in scripts/trace-lib.sh `trace_redact`;
 # failure_type vocabulary in docs/evaluation/l0-solution/spec.md § "Scorecard
 # Schema"):
 #
@@ -23,8 +23,7 @@
 # The grader below prints a clearly-FAKE, shape-valid GitHub personal-access
 # token to stdout. `ghp_FAKE0000000000000000000000000000000000` matches the
 # repo redactor's very first rule in scripts/trace-lib.sh `trace_redact`
-# (`s/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g`) and the hardcoded leak-audit
-# backstop in scripts/sanitize-trace.sh (a `ghp_` grep). It is NOT a real
+# (`s/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g`). It is NOT a real
 # credential — it is the literal word FAKE followed by zeros — so committing
 # this sensor leaks nothing.
 #

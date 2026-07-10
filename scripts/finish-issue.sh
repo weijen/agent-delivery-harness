@@ -47,8 +47,8 @@ if ! declare -F trace_span >/dev/null 2>&1; then
 fi
 
 # --- Closeout helpers (issue #215, scripts-portfolio P-4) --------------------
-# The best-effort export/reconstruct/hygiene helpers and the two-phase trace
-# gate live in finish-lib.sh so this script stays a thin teardown orchestrator.
+# The best-effort hygiene helper and the two-phase trace gate
+# live in finish-lib.sh so this script stays a thin teardown orchestrator.
 # Guarded source: a missing finish-lib.sh must never break teardown — fall back
 # to no-op helpers (the optional closeout steps are skipped and the gate lets
 # teardown proceed, exactly as when their underlying tooling is absent).
@@ -61,9 +61,6 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
   best_effort_economics_stamp() { return 0; }
-  best_effort_trace_export() { return 0; }
-  best_effort_log_export() { return 0; }
-  best_effort_trace_reconstruct() { return 0; }
   best_effort_state_hygiene() { return 0; }
 fi
 
@@ -180,25 +177,6 @@ else
 fi
 
 git worktree prune
-
-# --- Best-effort closeout trace export (issue #144) --------------------------
-# After teardown so a failed export can never block worktree removal; gated on
-# both config vars so it is a clean no-op unless explicitly opted in.
-TRACE_STAGE="trace_export"
-best_effort_trace_export
-
-# --- Best-effort closeout log export (issue #220) ----------------------------
-# After teardown so a failed export can never block worktree removal; gated on
-# both config vars so it is a clean no-op unless explicitly opted in.
-TRACE_STAGE="log_export"
-best_effort_log_export
-
-# --- Best-effort closeout trace reconstruction (issue #149) ------------------
-# Local-only, no-secret step: run unconditionally after teardown so a failed
-# reconstruction can never block worktree removal. The reconstruct script
-# no-ops when the transcript dir is absent.
-TRACE_STAGE="trace_reconstruct"
-best_effort_trace_reconstruct
 
 # --- Best-effort closeout state hygiene (issue #175) -------------------------
 TRACE_STAGE="state_hygiene"

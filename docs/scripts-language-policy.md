@@ -31,11 +31,11 @@ depends on them staying interpreter-free:
 
 ## 2. May become Python — trigger-based, never wholesale
 
-Only the **six trace-analytics tools** are candidates: `trace-export.sh`,
-`validate-trace.sh`, `trace-report.sh`, `trace-scorecard.sh`,
-`check-trace-consistency.sh`, and `sanitize-trace.sh`. They are already "Python
-programs wearing a bash costume" (~600 lines of jq in heredocs, no types, no
-debugger, no unit-test seams).
+Only the **four surviving trace-analytics tools** are candidates:
+`validate-trace.sh`, `trace-report.sh`, `trace-scorecard.sh`, and
+`check-trace-consistency.sh`. They are already "Python programs wearing a bash
+costume" (~600 lines of jq in heredocs, no types, no debugger, no unit-test
+seams).
 
 Migration is allowed **only** under all of these conditions:
 
@@ -49,47 +49,24 @@ Migration is allowed **only** under all of these conditions:
   available, else today's jq path), evaluate the diff-size / review-effort win at
   the decision gate, and only then migrate the rest.
 
-A new Python package lives at **`scripts/trace_tools/`** (uv-managed,
-`uv run python -m ...`) so it gets a home without moving any frozen path. Go / Rust
-were considered and rejected for the analytics layer: the write-and-review loop
-matters more than single-binary distribution, and the harness already carries a
-Python profile/instructions ecosystem.
+A future Python package for the analytics cluster would live at
+**`scripts/trace_tools/`** (uv-managed, `uv run python -m ...`) so it gets a
+home without moving any frozen path. Go / Rust were considered and rejected for
+the analytics layer: the write-and-review loop matters more than single-binary
+distribution, and the harness already carries a Python profile/instructions
+ecosystem.
 
-### Decision-gate verdict — issue #220
+### Decision-gate history — issue #220 pilot, reverted by #272
 
-The gated pilot (issue **#220**) migrated the first tool, `trace-export.sh`,
-behind the `scripts/trace_tools/` dispatcher: App-Insights ingestion, OTLP
-emission, and log correlation now run in Python (`appinsights.py`, `otlp.py`,
-`logmap.py`, `mapping.py`) selected by an `auto` engine — Python when `python3`
-+ `uv` are present, else today's jq path. The decision gate is resolved with a
-**verdict** of **qualified win** for the trace-analytics / data-mapping cluster.
-
-**Gate conditions met:**
-
-- **Byte-identical output** across engines — the parity oracle passes and log
-  correlation held, so the frozen CLI contract is honoured on both paths.
-- **Single-source `ALLOWLIST`** in `trace_tools/mapping.py` replaces two
-  byte-duplicated jq `def allowlist` blocks, removing a real duplication hazard.
-- **Unit-test and type seams** the jq heredocs never had — `pytest` and `mypy`
-  now cover the mapping logic, and the `uv`/`ruff`/`mypy`/`pytest` toolchain is
-  dogfooded in CI (`harness-smoke.yml`).
-
-**Why the win is _qualified_, not blanket:** the pilot introduced a real Python
-toolchain (cost side of the gate). So the verdict endorses Python only for the
-data-mapping cluster, not a wholesale bash→Python migration. jq stays the
-always-available **fallback** (the `auto` engine falls back to jq whenever the
-Python toolchain is absent, with byte-identical output proven by the parity
-oracle), and the lifecycle core stays bash — §1 is unchanged.
-
-**Scope stays trigger-based / never wholesale:** the remaining five analytics
-tools (`validate-trace.sh`, `trace-report.sh`, `trace-scorecard.sh`,
-`check-trace-consistency.sh`, `sanitize-trace.sh`) migrate only on their own
-trigger, per the §2 rule above — not as a batch on the back of this verdict.
-
-**Follow-up:** a **Phase-2** **migration** issue is recommended to consolidate
-the still-duplicated jq mapping blocks remaining in `trace-export.sh` behind
-`trace_tools`, finishing the single-source consolidation the pilot started. This
-verdict was reported back to epic **#212**.
+The gated pilot (issue **#220**) migrated the first tool behind a
+`scripts/trace_tools/` Python dispatcher. That tool was the cloud **export**
+leg, which issue **#272** deleted outright after an L4 deletion review found it
+had no in-loop gate or recurring human consumer. With the export leg removed,
+the pilot's Python package (`scripts/trace_tools/`) was deleted with it, so
+**no Python analytics package currently ships** — the trigger-based §2 rule
+above stands unexercised again, and jq remains the always-available path for
+every surviving analytics tool. Any future migration must re-open the decision
+gate on its own trigger, not inherit the reverted pilot's verdict.
 
 ## 3. Structure — split thresholds, not preemptive reorganization
 

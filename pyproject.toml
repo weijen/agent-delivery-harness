@@ -1,15 +1,15 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
 version = "0.8.1"
-description = "Python pilot for the harness deep-trace span/log exporters (scripts/trace_tools)."
+description = "Dormant Python toolchain (ruff/mypy/pytest) for the harness; the trace_tools export package was removed by issue #272 — retained so a future Python component has a ready home."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
-# The importable package lives under scripts/ (scripts/trace_tools), not a
-# standard src/ layout, and is executed via `PYTHONPATH=scripts python3 -m
-# trace_tools`. Tell uv not to build/install this project as a wheel — the dev
-# gates only need a virtualenv carrying the tools below.
+# Issue #272 removed the only Python package (scripts/trace_tools, the cloud
+# export leg). No Python source ships today; the uv/ruff/mypy/pytest toolchain
+# is kept dormant. Tell uv not to build/install this project as a wheel — the
+# dev gates only need a virtualenv carrying the tools below.
 [tool.uv]
 package = false
 
@@ -23,14 +23,19 @@ src = ["scripts"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+# NOTE: issue #272 deleted the only Python package (scripts/trace_tools/, the
+# cloud export leg). No Python source remains today; the uv/ruff/mypy/pytest
+# toolchain is retained dormant so a future Python component gets a ready home.
+# These paths intentionally point at the (Python-free) scripts/ dir, so mypy and
+# pytest cleanly no-op (init.sh reports them as skipped) until Python code lands.
 [tool.mypy]
-files = ["scripts/trace_tools"]
+files = ["scripts"]
 mypy_path = "scripts"
 explicit_package_bases = true
 strict = true
 
 [tool.pytest.ini_options]
-testpaths = ["scripts/trace_tools/tests"]
+testpaths = ["scripts"]
 pythonpath = ["scripts"]
 
 # python-semantic-release (issue #257): automate SemVer bumps + changelog from

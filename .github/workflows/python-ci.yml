@@ -1,6 +1,9 @@
 name: Python CI
 
-# Project CI for the repository's Python surface (scripts/trace_tools). This is
+# Project CI for the repository's Python surface. Issue #272 removed the only
+# Python package (scripts/trace_tools, the cloud export leg); the uv/ruff/mypy/
+# pytest toolchain is retained dormant so a future Python component gets a ready
+# home (mypy exit 2 / pytest exit 5 are treated as no-op skips below). This is
 # the adopting-project gate the harness ci-coverage check requires: harness-smoke
 # runs the harness's own sensors and is deliberately excluded from that check, so
 # the Python profile gates (ruff / mypy / pytest) get their own workflow here.
@@ -34,7 +37,15 @@ jobs:
         run: uv run ruff check
 
       - name: mypy
-        run: uv run mypy
+        run: |
+          # issue #272 removed the only Python package; mypy exit 2 ("no .py
+          # files") is the no-op/skip code while the repo carries no Python
+          # source. Any other non-zero is a real type error.
+          uv run mypy || { rc=$?; [ "$rc" -eq 2 ] || exit "$rc"; }
 
       - name: pytest
-        run: uv run pytest -q
+        run: |
+          # pytest exit 5 ("no tests collected") is the skip code while no
+          # Python source remains (issue #272); any other non-zero is a real
+          # test failure.
+          uv run pytest -q || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }

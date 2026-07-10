@@ -245,13 +245,9 @@ end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contra
 # The contract must freeze the issue #264 teeth-proof gate boundary explicitly.
 # If any YAML record is deleted, this scenario fails before the generic
 # check_owner_present scans can silently shrink their worklist.
-require_contract_record scripts path scripts/trace-export.sh
 require_contract_record scripts path scripts/check-trace-consistency.sh
 require_contract_record lifecycle id local-hook-seeding scripts/start-issue.sh
-require_contract_record lifecycle id trace-export scripts/finish-issue.sh
 require_contract_record lifecycle id interval-attribution scripts/copilot-trace-hook.sh
-require_contract_record env_flags name TRACE_EXPORT_OTLP 'scripts/finish-issue.sh|scripts/finish-lib.sh|scripts/trace-export.sh'
-require_contract_record env_flags name TRACE_EXPORT_OTLP_HTTP scripts/trace-export.sh
 require_contract_record failure_modes id missing-teeth-proof-evidence scripts/review-gate.sh
 require_contract_record failure_modes id red-first-ordering-absent scripts/check-trace-consistency.sh
 require_contract_record lifecycle id pr-path-red-first-gate scripts/review-gate.sh

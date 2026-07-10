@@ -96,9 +96,10 @@ for o in connection_string instrumentation_key; do
 done
 
 # --- 5. Non-goal guard: no alerts / monitor / portal-dashboard footprint ------
-# Issue #113 deliberately adds ONE azurerm_application_insights_workbook (the
-# harness-quality dashboard), so the workbook is no longer a non-goal. Alerts,
-# action groups, monitor.* and portal/legacy dashboards stay out of scope
+# Issue #113 added ONE azurerm_application_insights_workbook (the harness-quality
+# dashboard); issue #272 decommissioned it (the trace/log export leg that fed it
+# was deleted), so the workbook is a non-goal again. Alerts, action groups,
+# monitor.* and portal/legacy dashboards stay out of scope
 # (#113 documents suggested alerts as spec only — not deployed resources).
 nongoal="$(grep -rEn '^resource[[:space:]]+"(azurerm_monitor_[a-z0-9_]+|azurerm_portal_dashboard|azurerm_dashboard[a-z0-9_]*|[a-z0-9_]*action_group[a-z0-9_]*)"' "$TF_DIR" --include='*.tf' || true)"
 if [ -n "$nongoal" ]; then

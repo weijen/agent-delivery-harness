@@ -21,9 +21,8 @@
 #   * a cross-link to failure-mode-taxonomy.md (vocabulary authority).
 #
 # It also pins the one-line governance cross-ref: dataset-governance.md
-# must reference the sanitize/fixture flow (scripts/sanitize-trace.sh or
-# tests/evals/fixtures/traces/) so the failure-corpus cadence points at the
-# mechanism that feeds it.
+# must reference the fixture flow (tests/evals/fixtures/traces/) so the
+# failure-corpus cadence points at the mechanism that feeds it.
 #
 # This sensor fails if the template is missing, later drops a section, or
 # the governance cross-ref disappears.
@@ -99,11 +98,11 @@ else
 	fi
 fi
 
-# --- 2. Governance cross-ref: dataset-governance.md -> sanitize/fixture flow ---
+# --- 2. Governance cross-ref: dataset-governance.md -> fixture flow ---
 if [ ! -f "$GOVERNANCE" ]; then
 	note "missing $GOVERNANCE"
-elif ! grep -qE 'sanitize-trace\.sh|tests/evals/fixtures/traces' "$GOVERNANCE"; then
-	note "$GOVERNANCE must cross-reference the sanitize/fixture flow (scripts/sanitize-trace.sh or tests/evals/fixtures/traces/) from its failure-corpus cadence"
+elif ! grep -qE 'tests/evals/fixtures/traces' "$GOVERNANCE"; then
+	note "$GOVERNANCE must cross-reference the fixture flow (tests/evals/fixtures/traces/) from its failure-corpus cadence"
 fi
 
 if [ "$fail" -ne 0 ]; then

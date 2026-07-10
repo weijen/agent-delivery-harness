@@ -59,7 +59,18 @@ PROFILE_GATE_typecheck_OK="mypy clean"
 PROFILE_GATE_typecheck_FAIL="mypy failed"
 PROFILE_GATE_typecheck_FIX="uv run mypy"
 
-profile_gate_test() { uv run pytest -q; }
+profile_gate_test() {
+  # A Python surface can legitimately carry no collectible tests (e.g. after the
+  # only Python package is removed). pytest exit code 5 == "no tests collected";
+  # treat it as SKIP (rc 2) so preflight WARNs rather than fails. Any other
+  # non-zero is a real test failure.
+  local rc
+  uv run pytest -q
+  rc=$?
+  [ "$rc" -eq 5 ] && return 2
+  return "$rc"
+}
 PROFILE_GATE_test_OK="pytest passing"
 PROFILE_GATE_test_FAIL="pytest failed"
 PROFILE_GATE_test_FIX="uv run pytest"
+PROFILE_GATE_test_SKIP="pytest skipped — no Python tests collected"

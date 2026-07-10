@@ -253,17 +253,12 @@ no `parent_span_id` is always legal.
   so tool spans omit `parent_span_id`. Fabricating a session-root agent span to
   parent them to would be inventing a parent that never ran, which the
   omit-never-fake rule forbids.
-- **Reconstructed spans (omitted).** `trace-reconstruct.sh` rebuilds tool spans
-  from a transcript by time-window intersection; it emits no agent span of its
-  own and has no deterministic parent within the reconstructed window, so it
-  omits `parent_span_id`. Absence here is the intended, deterministic default,
-  not a gap. Each reconstructed tool span instead carries
-  `harness.tool_call_id` (the transcript's `data.toolCallId`); together with
-  `harness.session_id` this is the deterministic identity that makes
-  reconstruction **idempotent** — a second run over the same transcript skips
-  any `(session_id, tool_call_id)` already present and appends zero new spans.
-  A pair with no usable `toolCallId` is skipped with a WARN rather than
-  deduplicated by guess (omit-never-fake).
+- **Transcript-derived tool spans (omitted).** Issue #272 removed the
+  transcript reconstruction script, so this is no longer a live flow. If a
+  future transcript-derived importer is re-introduced, it must still obey the
+  omit-never-fake rule: no deterministic parent means no `parent_span_id`, and
+  any idempotency key must come from stable runtime identity such as
+  `harness.session_id` plus a tool-call id rather than by guess.
 
 **Trace identity: no per-run `trace_id` in the schema.** Schema v1 deliberately
 has **no** `trace_id` field, and this issue's decision is to keep it that way —
@@ -271,11 +266,11 @@ a per-run `trace_id` is **rejected**, not added. Within the harness a "trace" is
 already scoped by `harness.issue` (every span carries it) and shaped by
 `span_id`/`parent_span_id`; a redundant top-level `trace_id` would have to be
 threaded through every emitter and kept from drifting for no analytical gain.
-The single place a `trace_id` exists is at OTLP export: `trace-export.sh`
-fabricates a deterministic `traceId` from `harness.issue` at export time only
-(see [runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md)).
-That export-time fabrication rule stays consistent with rejecting an in-trace
-`trace_id`: the correlation id is derived, never stored on the raw spans.
+The old cloud export leg derived a deterministic transport correlation id from
+`harness.issue` outside the raw trace. Issue #272 removed that exporter, but the
+schema decision remains: a future export/import exit ramp may derive a transport
+id, never store it on raw spans. See the retained mapping contract in
+[runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md).
 
 ## Public Trace Examples
 

@@ -61,10 +61,7 @@ scripts:
     role: Tear down the worktree after the PR merges.
   - id: finish-lib
     path: scripts/finish-lib.sh
-    role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort export/reconstruct/state-hygiene); sourced, not executed.
-  - id: trace-export
-    path: scripts/trace-export.sh
-    role: Opt-in trace exporter; best-effort closeout export target.
+    role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
   - id: copilot-trace-hook
     path: scripts/copilot-trace-hook.sh
     role: GitHub Copilot runtime adapter hook; emits tool/agent spans with git-first, interval-fallback issue attribution (#146). Exit-0/stdout-clean on every path.
@@ -114,9 +111,6 @@ lifecycle:
   - id: local-hook-seeding
     owner: scripts/start-issue.sh
     present: harness-trace\.json
-  - id: trace-export
-    owner: scripts/finish-issue.sh
-    present: best_effort_trace_export
   - id: interval-attribution
     owner: scripts/copilot-trace-hook.sh
     present: hook__resolve_issue_by_interval
@@ -156,12 +150,6 @@ env_flags:
   - name: SKIP_CI_GATE
     owner: scripts/review-gate.sh
     present: SKIP_CI_GATE
-  - name: TRACE_EXPORT_OTLP
-    owner: scripts/finish-lib.sh
-    present: TRACE_EXPORT_OTLP
-  - name: TRACE_EXPORT_OTLP_HTTP
-    owner: scripts/trace-export.sh
-    present: TRACE_EXPORT_OTLP_HTTP
 
 # ---------------------------------------------------------------------------
 # Required outputs and state transitions. Each declared artifact / naming rule
