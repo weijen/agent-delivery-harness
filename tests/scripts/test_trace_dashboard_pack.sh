@@ -521,6 +521,34 @@ else
 	note "$WB_JSON: no per-run tool/skill panel for {Issue} — #223 panel 3 (need a tab-drilldown KqlItem: dependencies filtered on harness.issue == '{Issue}', referencing gen_ai.tool.name AND harness.skill.name, for call volume/failures/top-durations)"
 fi
 
+# #225 F1 panel 4 — failure-detail log panel over the `traces` table (the WHY).
+# The drill-down tab must ALSO carry a KQL panel that surfaces the selected
+# run's gate/sensor FAILURE log records with their captured output. UNLIKE the
+# dependencies panels 1-3 and the customEvents cost strip (panel 5), this panel
+# queries the `traces` table — the log stream's landing table (App-Insights
+# MessageData, per #220's logmap.py) — scoped to the selected run via the native
+# `operation_Id == 'issue-{Issue}'` correlation key, filtered to FAILURE records
+# (`severityLevel` >= 3 AND customDimensions['harness.outcome'] == 'fail'),
+# projecting the captured `message`, and correlated to the failing span via the
+# native traces column `operation_ParentId` — NEVER `parent_span_id` (the
+# panel-6 waterfall leg below forbids rebuilding the span tree in KQL). Reuse
+# the same flattened tab-drilldown query lines and require a SINGLE query to
+# carry ALL the markers at once (traces table + operation_Id/issue- filter +
+# operation_ParentId correlation + severityLevel + harness.outcome + message) so
+# the dependencies/customEvents panels 1-3,5 — none of which name the traces
+# table or operation_ParentId — cannot satisfy this by accident.
+if grep -F 'traces' "$dd_timeline" \
+	| grep -F 'operation_Id' \
+	| grep -F 'issue-' \
+	| grep -F 'operation_ParentId' \
+	| grep -F 'severityLevel' \
+	| grep -F "customDimensions['harness.outcome']" \
+	| grep -Fq 'message'; then
+	ok "#225: drilldown tab carries a failure-detail log panel over 'traces' for {Issue} (panel 4)"
+else
+	note "$WB_JSON: no failure-detail log panel over 'traces' for {Issue} — #225 panel 4 (need a tab-drilldown KqlItem: traces filtered on operation_Id == 'issue-{Issue}', severityLevel >= 3 AND customDimensions['harness.outcome'] == 'fail', projecting message, correlated to the failing span via operation_ParentId — NOT parent_span_id)"
+fi
+
 # #223 panel 5 — per-run cost strip. The drill-down tab must ALSO carry a KQL
 # panel that surfaces the selected run's model token cost. UNLIKE panels 1-3
 # (which read the dependencies table) this panel queries the customEvents table
