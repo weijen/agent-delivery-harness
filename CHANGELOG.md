@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-07-10)
+
+### Documentation
+
+- **#267**: Document delivery economics block and finish-issue.economics span
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+- **#267**: Record delivery-economics issue in PROGRESS.md
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+### Features
+
+- **#267**: Auto-stamp trace-derived delivery economics at closeout
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+- **#267**: Compute_delivery_economics trace-derived summary helper
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+- **#267**: Emit finish-issue.economics span with numeric aggregates
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+- **#267**: Stamp delivery-economics block into progress.md at finish
+  ([#279](https://github.com/weijen/agent-delivery-harness/pull/279),
+  [`aa8be84`](https://github.com/weijen/agent-delivery-harness/commit/aa8be84f447b7aab720d7932c1a52aa516d12a96))
+
+
 ## v0.7.0 (2026-07-10)
 
 ### Bug Fixes
