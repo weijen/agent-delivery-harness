@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # test_trace_export_python_parity.sh — regression sensor for the Python
 # App-Insights mapping pilot (issue #220, feature
-# `python-appinsights-mapping-parity`, plan Phase 2).
+# `python-appinsights-mapping-parity`, plan Phase 2) AND the Python OTLP
+# resourceSpans mapping (feature `python-otlp-mapping-parity`, plan Phase 3 —
+# the OTLP HALF appended at the bottom of this file).
 #
 # Contract under test (PINNED HERE as the executable spec):
 #
@@ -99,6 +101,13 @@ command -v jq >/dev/null 2>&1 \
 
 ISSUE="220"
 
+# Deterministic 32-lowercase-hex OTLP TraceId for issue 220 — computed the SAME
+# way the jq `trace_id` def does: 220 decimal → hex `dc`, left-padded with `0`
+# to 32 chars. This is the id #223's App Insights deep-link keys on, so it is
+# PINNED here as a literal (not recomputed) — a mapping regression that changed
+# the derivation would fail this assertion, in BOTH engines.
+OTLP_TRACE_ID_220="000000000000000000000000000000dc"
+
 # --- Corpus: representative schema-v1 traces, built inline (no static fixtures,
 #     matching the neighbour sensors) -------------------------------------------
 # Every real span carries harness.issue=220 and harness.version (census). Files
@@ -165,8 +174,26 @@ run_engine() { # run_engine <engine> <fixture> <out-json> <log>
 	return "${rc}"
 }
 
+# run_engine_otlp — the OTLP twin of run_engine: drive the --dry-run-otlp-to-file
+# seam (the { resourceSpans: [...] } projection) for one engine. Same zero-ship
+# env hygiene (no connection string, no live OTLP/HTTP transport); the dry-run
+# OTLP seam needs no config beyond TRACE_EXPORT_OTLP=1. stdout+stderr → the log
+# so the engine-selection notice is greppable from either stream.
+run_engine_otlp() { # run_engine_otlp <engine> <fixture> <out-json> <log>
+	local engine="$1" fixture="$2" out="$3" log="$4" rc=0
+	( env -u APPLICATIONINSIGHTS_CONNECTION_STRING -u TRACE_EXPORT_OTLP_HTTP \
+		TRACE_EXPORT_OTLP=1 TRACE_EXPORT_ENGINE="${engine}" \
+		"${EXPORTER}" "${fixture}" --dry-run-otlp-to-file "${out}" ) > "${log}" 2>&1 || rc=$?
+	return "${rc}"
+}
+
 # Strip the leading // header comment lines to obtain the JSON envelope array.
 envelope_body() { grep -v '^//' "$1"; }
+
+# Flatten the OTLP body: strip the // header, then collect every span across
+# resourceSpans/scopeSpans as a JSON array (the working set for shape/traceId
+# assertions). Mirrors the flatten step in test_trace_export_otlp_mapping.sh.
+otlp_spans() { grep -v '^//' "$1" | jq -c '[.resourceSpans[].scopeSpans[].spans[]]'; }
 
 PY_OK=0
 if command -v python3 >/dev/null 2>&1; then
@@ -241,6 +268,122 @@ else
 		tap_ok "python engine: issue fixture stamps ai.operation.id == issue-${ISSUE} on every envelope (#223 deep-link)"
 	else
 		tap_not_ok "python engine: issue fixture stamps ai.operation.id == issue-${ISSUE} on every envelope (#223 deep-link) — python dispatch/parity missing"
+	fi
+fi
+
+# ==============================================================================
+# ============================  OTLP HALF  =====================================
+# ==============================================================================
+# The SAME parity-oracle discipline applied to the OTLP resourceSpans seam
+# (--dry-run-otlp-to-file) instead of the App-Insights envelope seam. This is
+# the branch that most directly guards the deterministic per-issue `traceId`
+# #223's App Insights deep-link relies on, so the byte-parity oracle plus an
+# explicit traceId pin live here.
+#
+# The corpus above is REUSED verbatim: it already exercises every OTLP-relevant
+# dimension —
+#   * traceId derivation from harness.issue=220 (32-hex) on every span;
+#   * startTimeUnixNano / endTimeUnixNano string-concat math: duration present
+#     (01, 06a → non-zero end), a >= 24h / large duration (06b, 90061234 ms →
+#     the whole-seconds fold + a 9-digit nanos remainder), duration absent
+#     (02, 03, 05, 07 lifecycle/agent/model → end == start, single-point);
+#   * spans WITH (01, 07 tool) and WITHOUT (lifecycle/agent/model) parent_span_id
+#     (parentSpanId OMITTED when absent);
+#   * numeric gen_ai.usage.* → stringValue attributes (04, 07 model);
+#   * multiple spans per trace (01, 06, 07);
+#   * a malformed non-JSON line → skip-and-count census (07);
+#   * harness.version on every real span (the all-or-nothing census).
+# (The jq `trace_id` def also folds a MISSING harness.issue to 32 zeros, but a
+# schema-v1 trace requires harness.issue — validate-trace.sh's input gate would
+# reject an issue-less fixture before either engine could project it — so that
+# branch is unreachable through the gated dry-run seam and is not forced here;
+# the reachable, #223-critical derivation is the issue-220 → ...dc pin below.)
+#
+# Assertions per fixture:
+#   1. jq engine    → --dry-run-otlp-to-file emits a valid { resourceSpans }
+#      object with >= 1 span carrying a 32-hex traceId (jq-path sanity, runs on
+#      every host).
+#   2. python engine GENUINELY selected for the OTLP seam — engine=python
+#      announced (guards against the knob being ignored / silently falling back
+#      to jq, which would make cmp pass spuriously for the OTLP body too).
+#   3. cmp -s jq-OTLP-output vs python-OTLP-output → byte-identical.
+# Plus an explicit pin: BOTH engines stamp traceId == ...00dc on every span of
+# the issue-bearing fixture (the #223 deep-link contract, checked directly).
+# Degradation mirrors the App-Insights half exactly: python3 absent → SKIP the
+# python comparisons with a warning (exit 0), but the jq-engine OTLP sanity +
+# traceId pin STILL run on every host.
+# ==============================================================================
+for fx in "${CORPUS}"/*.jsonl; do
+	name="$(basename "${fx}" .jsonl)"
+	jq_otlp="${TMP_DIR}/${name}.otlp.jq.json"
+	jq_olog="${TMP_DIR}/${name}.otlp.jq.log"
+	py_otlp="${TMP_DIR}/${name}.otlp.py.json"
+	py_olog="${TMP_DIR}/${name}.otlp.py.log"
+
+	# --- jq engine OTLP sanity: exit 0, file written, valid resourceSpans with
+	#     >= 1 span whose traceId is 32-lowercase-hex -------------------------
+	jqrc=0
+	run_engine_otlp jq "${fx}" "${jq_otlp}" "${jq_olog}" || jqrc=$?
+	if [ "${jqrc}" -eq 0 ] && [ -f "${jq_otlp}" ] \
+		&& otlp_spans "${jq_otlp}" \
+			| jq -e 'length >= 1 and all(.[]; .traceId | test("^[0-9a-f]{32}$"))' >/dev/null 2>&1; then
+		tap_ok "jq engine OTLP: ${name} → valid resourceSpans, 32-hex traceId(s)"
+	else
+		tap_not_ok "jq engine OTLP: ${name} → valid resourceSpans, 32-hex traceId(s) (rc=${jqrc}; $(tr '\n' '|' < "${jq_olog}" 2>/dev/null))"
+	fi
+
+	# --- python engine OTLP: genuineness + byte-identity (HARD when python3) ---
+	if [ "${PY_OK}" -ne 1 ]; then
+		tap_skip "python engine OTLP: ${name} genuinely selected (engine=python announced)" "python3 not on PATH"
+		tap_skip "python engine OTLP: ${name} → byte-identical to jq (cmp -s)" "python3 not on PATH"
+		continue
+	fi
+
+	pyrc=0
+	run_engine_otlp python "${fx}" "${py_otlp}" "${py_olog}" || pyrc=$?
+
+	# Genuineness: the python OTLP run MUST announce the resolved engine. Absent
+	# today (the --dry-run-otlp-to-file path ignores TRACE_EXPORT_ENGINE and
+	# only ever runs jq) → RED; this is what stops a spurious cmp pass when jq
+	# silently ran twice for the OTLP body.
+	if grep -Eqi 'engine[=: ]+python' "${py_olog}"; then
+		tap_ok "python engine OTLP: ${name} genuinely selected (engine=python announced)"
+	else
+		tap_not_ok "python engine OTLP: ${name} genuinely selected (engine=python announced) — TRACE_EXPORT_ENGINE=python not honored for the OTLP seam yet"
+	fi
+
+	# Byte-parity oracle: the full --dry-run-otlp-to-file files must be identical.
+	if [ "${pyrc}" -eq 0 ] && [ -f "${py_otlp}" ] && cmp -s "${jq_otlp}" "${py_otlp}"; then
+		tap_ok "python engine OTLP: ${name} → byte-identical to jq (cmp -s)"
+	else
+		tap_not_ok "python engine OTLP: ${name} → byte-identical to jq (cmp -s) (pyrc=${pyrc}; $(tr '\n' '|' < "${py_olog}" 2>/dev/null))"
+	fi
+done
+
+# ==============================================================================
+# Explicit #223 deep-link contract for the OTLP seam: traceId == ...00dc (the
+# deterministic 32-hex derivation of harness.issue=220) on EVERY span of the
+# issue-bearing fixture, in BOTH engine outputs.
+# ==============================================================================
+ISSUE_OTLP_JQ="${TMP_DIR}/07-multi-malformed.otlp.jq.json"
+if [ -f "${ISSUE_OTLP_JQ}" ] \
+	&& otlp_spans "${ISSUE_OTLP_JQ}" \
+		| jq -e 'length >= 1 and all(.[]; .traceId == "'"${OTLP_TRACE_ID_220}"'")' >/dev/null 2>&1; then
+	tap_ok "jq engine OTLP: issue fixture stamps traceId == ${OTLP_TRACE_ID_220} on every span (#223 deep-link)"
+else
+	tap_not_ok "jq engine OTLP: issue fixture stamps traceId == ${OTLP_TRACE_ID_220} on every span (#223 deep-link)"
+fi
+
+if [ "${PY_OK}" -ne 1 ]; then
+	tap_skip "python engine OTLP: issue fixture stamps traceId == ${OTLP_TRACE_ID_220} on every span (#223 deep-link)" "python3 not on PATH"
+else
+	ISSUE_OTLP_PY="${TMP_DIR}/07-multi-malformed.otlp.py.json"
+	if [ -f "${ISSUE_OTLP_PY}" ] \
+		&& otlp_spans "${ISSUE_OTLP_PY}" \
+			| jq -e 'length >= 1 and all(.[]; .traceId == "'"${OTLP_TRACE_ID_220}"'")' >/dev/null 2>&1; then
+		tap_ok "python engine OTLP: issue fixture stamps traceId == ${OTLP_TRACE_ID_220} on every span (#223 deep-link)"
+	else
+		tap_not_ok "python engine OTLP: issue fixture stamps traceId == ${OTLP_TRACE_ID_220} on every span (#223 deep-link) — python OTLP dispatch/parity missing"
 	fi
 fi
 

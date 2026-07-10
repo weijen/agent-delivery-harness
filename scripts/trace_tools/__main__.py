@@ -17,6 +17,7 @@ from collections.abc import Sequence
 
 from trace_tools import __version__
 from trace_tools.appinsights import project
+from trace_tools.otlp import project as project_otlp
 
 _USAGE = """\
 usage: python -m trace_tools [--help] [--version] [<command>]
@@ -31,6 +32,9 @@ commands:
   map-appinsights   read schema-v1 JSONL on stdin; write the marker protocol
                     (::skipped/::noversion/::count) then the App-Insights
                     envelope array as compact JSON on stdout.
+  map-otlp          read schema-v1 JSONL on stdin; write the marker protocol
+                    (::skipped/::noversion/::count) then the OTLP resourceSpans
+                    object as compact JSON on stdout.
 """
 
 
@@ -47,6 +51,24 @@ def _map_appinsights() -> int:
     out.write(f"::noversion {noversion}\n")
     out.write(f"::count {len(envelopes)}\n")
     out.write(json.dumps(envelopes, separators=(",", ":"), ensure_ascii=False))
+    out.write("\n")
+    return 0
+
+
+def _map_otlp() -> int:
+    """Project stdin JSONL onto markers + a compact resourceSpans object on stdout.
+
+    Emits the three marker lines the jq OTLP projection produces, then the
+    ``resourceSpans`` object as compact JSON. scripts/trace-export.sh owns
+    pretty-printing (via ``jq .``) so serialization stays jq-canonical across
+    engines.
+    """
+    skipped, noversion, count, body = project_otlp(sys.stdin.read())
+    out = sys.stdout
+    out.write(f"::skipped {skipped}\n")
+    out.write(f"::noversion {noversion}\n")
+    out.write(f"::count {count}\n")
+    out.write(json.dumps(body, separators=(",", ":"), ensure_ascii=False))
     out.write("\n")
     return 0
 
@@ -71,6 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args[0] == "map-appinsights" and len(args) == 1:
         return _map_appinsights()
+    if args[0] == "map-otlp" and len(args) == 1:
+        return _map_otlp()
     print(_USAGE, end="", file=sys.stderr)
     return 2
 

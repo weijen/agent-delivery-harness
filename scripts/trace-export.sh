@@ -161,6 +161,23 @@ map_appinsights_python() {
   printf '%s\n%s\n' "$header" "$body"
 }
 
+# map_otlp_python — run the Python pilot's OTLP resourceSpans projection over
+# stdin, emitting the SAME marker protocol as jq then a jq-pretty resourceSpans
+# body. The pilot writes compact JSON; `jq .` re-serializes it so the staged
+# bytes are jq-canonical (and byte-identical to the jq engine). Reads stdin,
+# writes the reconstructed projection (markers + pretty object) on stdout.
+map_otlp_python() {
+  local raw header body
+  if ! raw="$(PYTHONPATH="${SCRIPT_DIR}" python3 -m trace_tools map-otlp)"; then
+    return 1
+  fi
+  header="$(printf '%s\n' "$raw" | sed -n '1,3p')"
+  if ! body="$(printf '%s\n' "$raw" | tail -n +4 | jq .)"; then
+    return 1
+  fi
+  printf '%s\n%s\n' "$header" "$body"
+}
+
 usage() {
   {
     echo "usage: ./scripts/trace-export.sh <issue-number|trace-path> [--dry-run-to-file <out.json>]"
@@ -714,7 +731,19 @@ def otlp_span:
                  spans: [ $spans[] | otlp_span ] } ] } ] })
 JQ
 
-  if ! otlp_projection="$(jq -nRr -f "$OTLP_FILTER" < "$TRACE_FILE")"; then
+  # Engine dispatch (feature python-otlp-mapping-parity): the OTLP resourceSpans
+  # projection is produced by jq (historical) or by the Python pilot
+  # (scripts/trace_tools). Both engines yield the SAME three marker lines then a
+  # jq-pretty resourceSpans object — the Python body is pretty-printed through
+  # the same `jq .`, so the staged bytes are jq-canonical (and byte-identical)
+  # either way, preserving the deterministic per-issue traceId (#223).
+  OTLP_ENGINE="$(resolve_trace_export_engine)"
+  if [ "$OTLP_ENGINE" = "python" ]; then
+    if ! otlp_projection="$(map_otlp_python < "$TRACE_FILE")"; then
+      red "error: the OTLP projection (python engine) failed to run" >&2
+      exit 2
+    fi
+  elif ! otlp_projection="$(jq -nRr -f "$OTLP_FILTER" < "$TRACE_FILE")"; then
     red "error: the OTLP projection jq pass failed to run" >&2
     exit 2
   fi
