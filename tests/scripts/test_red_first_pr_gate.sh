@@ -351,6 +351,7 @@ fi
 C6="${TMP_DIR}/c75"; make_fixture "$C6" 75
 WT6="${C6}-worktrees/issue-75"; ID6="${C6}/.copilot-tracking/issues/issue-75"
 set_fl "$ID6" "$FL_MISSING"   # passes:true, no teeth_proof/waiver — evidence comes from the trace
+add_span "$ID6" 75 conductor feature_start feat-a pass
 add_span "$ID6" 75 test-subagent red_handback feat-a pass
 add_span "$ID6" 75 implementation-subagent impl_handback feat-a pass
 add_span "$ID6" 75 test-subagent green_handback feat-a pass
@@ -371,10 +372,15 @@ fi
 C7="${TMP_DIR}/c76"; make_fixture "$C7" 76
 WT7="${C7}-worktrees/issue-76"; ID7="${C7}/.copilot-tracking/issues/issue-76"
 set_fl "$ID7" "$FL_MISSING"   # passes:true feat-a, backed by a real triple below
+add_span "$ID7" 76 conductor feature_start feat-a pass
 add_span "$ID7" 76 test-subagent red_handback feat-a pass
 add_span "$ID7" 76 implementation-subagent impl_handback feat-a pass
 add_span "$ID7" 76 test-subagent green_handback feat-a pass
-# An unrelated consistency finding (a hand bullet with no matching span).
+# An unrelated consistency finding: a SECOND hand-written feature_start
+# bullet with no matching span of its own (the real feature_start span
+# above already satisfies feature_start_missing, so this extra bullet
+# is purely an unmatched log_without_span — it does not double as the
+# required evidence).
 add_bullet_only "$ID7" conductor feature_start feat-a pass
 commit_docs "$WT7" "issue-76 warn-only guard leg"
 rc="$(run_in "$WT7" "$OUT" -- ./scripts/review-gate.sh approve)"

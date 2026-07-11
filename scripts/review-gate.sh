@@ -409,8 +409,12 @@ log_completeness_gate() {
 #
 # Unlike the broader warn-only trace_gate, this gate BLOCKS BY DEFAULT (no env
 # flag). It runs check-trace-consistency.sh for the current issue and fails
-# ONLY when the teeth-proof finding is present:
+# ONLY when one of the two hard teeth-proof findings is present:
 #   VIOLATION consistency: teeth_proof_missing <fid>
+#   VIOLATION consistency: feature_start_missing <fid>
+# (issue #291: feature_start_missing is the per-feature selection-evidence
+# counterpart of teeth_proof_missing — both are hard obligations on a
+# passes:true feature, cleared by the same governed waiver.)
 # The red-first ordering finding is warn-only and must never block here:
 #   WARNING consistency: red_first_ordering_absent <fid>
 # Every OTHER consistency / validate-trace finding stays warn-only via
@@ -448,11 +452,13 @@ red_first_evidence_gate() {
     return 0
   fi
 
-  # Block ONLY on the teeth-proof violation — never on warnings or any other
-  # finding.
+  # Block on the teeth-proof violation OR the feature-start violation — never
+  # on warnings or any other finding. The two are independent hard
+  # obligations on a passes:true feature (issue #291), so match either exact
+  # VIOLATION prefix.
   local findings=""
   findings="$(printf '%s\n' "$out" \
-    | grep -E 'VIOLATION consistency: teeth_proof_missing' || true)"
+    | grep -E 'VIOLATION consistency: (teeth_proof_missing|feature_start_missing)' || true)"
   if [ -n "$findings" ]; then
     red "✗ red-first gate: completed feature(s) lack sensor teeth-proof evidence."
     printf '%s\n' "$findings"
