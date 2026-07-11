@@ -34,7 +34,9 @@
 #     gate conditions).
 #   * red_first_ordering_absent stays warn-only when teeth_proof is present.
 #   * An UNRELATED consistency finding (e.g. log_without_span) does NOT block
-#     by default — only the teeth_proof_missing violation blocks.
+#     by default — only the teeth_proof_missing and feature_start_missing
+#     violations block (issue #291 widened the gate to the latter token; see
+#     tests/scripts/test_feature_start_pr_gate.sh).
 #
 # The sensor asserts PR-path BEHAVIOUR (exit codes + the approved-head marker
 # + whether `gh pr create` ran), not the checker internals — those are pinned
@@ -257,6 +259,7 @@ FL_TEETH='{"issue":1,"features":[{"id":"feat-a","title":"A","passes":true,"teeth
 C1="${TMP_DIR}/c70"; make_fixture "$C1" 70
 WT1="${C1}-worktrees/issue-70"; ID1="${C1}/.copilot-tracking/issues/issue-70"
 set_fl "$ID1" "$FL_MISSING"
+add_span "$ID1" 70 conductor feature_start feat-a pass
 add_span "$ID1" 70 implementation-subagent impl_handback feat-a pass
 add_span "$ID1" 70 test-subagent green_handback feat-a pass
 commit_docs "$WT1" "issue-70 teeth-proof approve leg"
@@ -274,6 +277,7 @@ grep -Eiq 'teeth' "$OUT" \
 C2="${TMP_DIR}/c71"; make_fixture "$C2" 71
 WT2="${C2}-worktrees/issue-71"; ID2="${C2}/.copilot-tracking/issues/issue-71"
 set_fl "$ID2" "$FL_MISSING"
+add_span "$ID2" 71 conductor feature_start feat-a pass
 add_span "$ID2" 71 implementation-subagent impl_handback feat-a pass
 add_span "$ID2" 71 test-subagent green_handback feat-a pass
 commit_docs "$WT2" "issue-71 teeth-proof check leg"
@@ -290,6 +294,7 @@ grep -Eiq 'teeth' "$OUT" \
 C3="${TMP_DIR}/c72"; make_fixture "$C3" 72
 WT3="${C3}-worktrees/issue-72"; ID3="${C3}/.copilot-tracking/issues/issue-72"
 set_fl "$ID3" "$FL_MISSING"
+add_span "$ID3" 72 conductor feature_start feat-a pass
 add_span "$ID3" 72 implementation-subagent impl_handback feat-a pass
 add_span "$ID3" 72 test-subagent green_handback feat-a pass
 commit_docs "$WT3" "issue-72 teeth-proof create-pr leg"
@@ -387,7 +392,7 @@ rc="$(run_in "$WT7" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "warn_only_unrelated_trace_finding_does_not_block: an ordered triple is present, so an unrelated consistency finding (log_without_span) must NOT block approve by default — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$WT7")" ] \
-  || fail "warn_only_unrelated_trace_finding_does_not_block: approve must write the approved-head marker (only teeth_proof_missing blocks by default)"
+  || fail "warn_only_unrelated_trace_finding_does_not_block: approve must write the approved-head marker (neither hard evidence violation is present)"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

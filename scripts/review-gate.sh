@@ -460,11 +460,14 @@ red_first_evidence_gate() {
   findings="$(printf '%s\n' "$out" \
     | grep -E 'VIOLATION consistency: (teeth_proof_missing|feature_start_missing)' || true)"
   if [ -n "$findings" ]; then
-    red "✗ red-first gate: completed feature(s) lack sensor teeth-proof evidence."
+    red "✗ red-first gate: completed feature(s) fail a hard evidence obligation."
     printf '%s\n' "$findings"
-    echo "  Provide a valid teeth_proof, a role-correct ordered red_handback -> impl_handback"
-    echo "  -> green_handback triple, or a governed waiver before opening the PR — the"
-    echo "  teeth-proof gate blocks by default."
+    echo "  teeth_proof_missing: provide a valid teeth_proof, a role-correct ordered"
+    echo "  red_handback -> impl_handback -> green_handback triple, or a governed waiver."
+    echo "  feature_start_missing: record a matching feature_start agent span via"
+    echo "  scripts/log-handback.sh, or a governed waiver."
+    echo "  Both are independent hard obligations that block by default; a governed"
+    echo "  waiver clears both."
     return 1
   fi
 

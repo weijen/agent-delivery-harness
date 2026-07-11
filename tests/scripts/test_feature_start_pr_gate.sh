@@ -71,7 +71,9 @@
 #   1 approve_blocks_missing_feature_start   full triple (teeth_proof
 #       satisfied), no feature_start span, no waiver -> approve exits
 #       non-zero AND approved-head is NOT written; output names the literal
-#       feature_start_missing token.
+#       feature_start_missing token AND the feature_start remedy
+#       (scripts/log-handback.sh), even though teeth-proof is independently
+#       satisfied.
 #   2 check_blocks_missing_feature_start     same gap, marker==HEAD + docs
 #       changed (approval + status-doc satisfied) -> check exits non-zero on
 #       feature_start_missing.
@@ -313,6 +315,8 @@ grep -Fq 'feature_start_missing' "$OUT" \
   || fail "approve_blocks_missing_feature_start: the refusal must name the literal feature_start_missing token (output: $(tr '\n' '|' < "$OUT"))"
 grep -Fq 'feature_start_missing feat-a' "$OUT" \
   || fail "approve_blocks_missing_feature_start: the refusal must attribute feature_start_missing to feat-a (output: $(tr '\n' '|' < "$OUT"))"
+grep -Fq 'scripts/log-handback.sh' "$OUT" \
+  || fail "approve_blocks_missing_feature_start: a pure feature_start_missing refusal (teeth-proof already satisfied via the triple) must still name the feature_start remedy — record a matching feature_start span via scripts/log-handback.sh (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
 # Case 2: check_blocks_missing_feature_start (issue 81)
