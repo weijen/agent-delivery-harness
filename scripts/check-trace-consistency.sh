@@ -45,6 +45,17 @@
 #                     harness.feature_id, and harness.outcome=="pass" —
 #                     completion without evidence otherwise.
 #                         VIOLATION consistency: unverified_feature_pass <feature_id>
+#   feature_start_missing
+#                     every passes:true entry in feature_list.json must be
+#                     backed by at least one agent span with
+#                     harness.lifecycle_step=="feature_start" and matching
+#                     harness.feature_id (issue #291; role not enforced —
+#                     narrower than the red-first triple's role check).
+#                     Waived by the same governed teeth_proof_waiver /
+#                     deprecated red_first_waiver alias as teeth_proof_missing
+#                     (key-presence precedence: a malformed canonical key
+#                     shadows a valid legacy one and does not waive).
+#                         VIOLATION consistency: feature_start_missing <feature_id>
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
@@ -237,6 +248,7 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 #   ::gap <N>        span=="agent" on line N lacks gen_ai.agent.name or its
 #                    value is outside the closed log-handback role enum
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
+#   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
 #   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
 #   ::pr <num>       pr_create span's harness.pr_number
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
@@ -265,6 +277,12 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::green \($span["harness.feature_id"])"
       else empty
       end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "feature_start")
+         and (($span["harness.feature_id"] | type) == "string")
+      then "::fstart \($span["harness.feature_id"])"
+      else empty
+      end ),
     ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
          and (($span["harness.review_gate_sha"] | type) == "string")
       then "::approve \($span["harness.review_gate_sha"])"
@@ -283,6 +301,7 @@ if ! state_out="$(jq -nRr -f "$STATE_FILTER" < "$TRACE_FILE")"; then
 fi
 
 green_ids=$'\n'
+feature_start_ids=$'\n'
 approve_sha=""
 pr_span_number=""
 while IFS= read -r out_line; do
@@ -293,6 +312,7 @@ while IFS= read -r out_line; do
       violations=$((violations + 1))
       ;;
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
+    '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
   esac
@@ -437,6 +457,14 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         printf 'VIOLATION consistency: teeth_proof_missing %s\n' "$fid"
         violations=$((violations + 1))
         printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
+      fi
+      if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        :  # governed waiver — feature_start not required
+      elif [[ "$feature_start_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        :  # feature_start span present for this feature_id
+      else
+        printf 'VIOLATION consistency: feature_start_missing %s\n' "$fid"
+        violations=$((violations + 1))
       fi
     done <<< "$passing_ids"
   else

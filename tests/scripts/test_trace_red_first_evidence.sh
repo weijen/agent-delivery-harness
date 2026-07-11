@@ -178,8 +178,14 @@ FL_A_BOTH_WAIVERS_TRAP='{"issue":77,"features":[{"id":"feat-a","title":"A","pass
 FL_A_TEETH_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"red_first","evidence":"sensor X failed before impl at abc123"}},{"id":"feat-b","title":"B","passes":false}]}'
 FL_A_TEETH_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"nonsense","evidence":""}}]}'
 
-# 1. Complete ordered role-correct triple.
+# 1. Complete ordered role-correct triple. A feature_start span is included
+#    so this exit-0 fixture also satisfies the independent issue #291
+#    feature_start_missing obligation (see
+#    tests/scripts/test_trace_feature_start_evidence.sh) — otherwise a
+#    genuinely clean red-first triple would be flipped to exit 1 by an
+#    unrelated rule.
 mk_case complete_triple_passes "$FL_A_PASS" \
+  "conductor|feature_start|feat-a|pass" \
   "test-subagent|red_handback|feat-a|pass" \
   "implementation-subagent|impl_handback|feat-a|pass" \
   "test-subagent|green_handback|feat-a|pass"
@@ -225,8 +231,11 @@ mk_case teeth_proof_waiver_passes "$FL_A_TEETH_WAIVER_OK" \
 mk_case teeth_proof_waiver_malformed_still_fails "$FL_A_TEETH_WAIVER_BAD" \
   "test-subagent|green_handback|feat-a|pass"
 
-# 10. Valid teeth_proof, no triple — hard pass with warn-only ordering context.
+# 10. Valid teeth_proof, no triple — hard pass with warn-only ordering
+#     context. A feature_start span is included so this exit-0 fixture also
+#     satisfies the independent issue #291 feature_start_missing obligation.
 mk_case teeth_proof_only_passes "$FL_A_TEETH_OK" \
+  "conductor|feature_start|feat-a|pass" \
   "test-subagent|green_handback|feat-a|pass"
 
 # 11. Malformed teeth_proof, no triple — treated as no teeth_proof.

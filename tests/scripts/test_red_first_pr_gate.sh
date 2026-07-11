@@ -325,6 +325,7 @@ fi
 C5="${TMP_DIR}/c74"; make_fixture "$C5" 74
 WT5="${C5}-worktrees/issue-74"; ID5="${C5}/.copilot-tracking/issues/issue-74"
 set_fl "$ID5" "$FL_TEETH"
+add_span "$ID5" 74 conductor feature_start feat-a pass  # issue #291 evidence
 add_span "$ID5" 74 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass; no ordered triple
 commit_docs "$WT5" "issue-74 teeth-proof approve leg"
 rc="$(run_in "$WT5" "$OUT" -- ./scripts/check-trace-consistency.sh 74)"
