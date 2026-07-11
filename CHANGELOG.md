@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.11.1 (2026-07-11)
+
+### Bug Fixes
+
+- **#285**: Close batch-review residue in sensors and artifacts
+  ([#289](https://github.com/weijen/agent-delivery-harness/pull/289),
+  [`f5157f6`](https://github.com/weijen/agent-delivery-harness/commit/f5157f620916dbe40b0c817a9f10ea0d615b6ae8))
+
+- **#285**: Group cd && pwd -P to satisfy newer shellcheck (SC2015)
+  ([#289](https://github.com/weijen/agent-delivery-harness/pull/289),
+  [`f5157f6`](https://github.com/weijen/agent-delivery-harness/commit/f5157f620916dbe40b0c817a9f10ea0d615b6ae8))
+
+
 ## v0.11.0 (2026-07-10)
 
 ### Features
