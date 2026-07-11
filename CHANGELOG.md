@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.11.3 (2026-07-11)
+
+### Bug Fixes
+
+- **#291**: Block missing feature starts
+  ([#293](https://github.com/weijen/agent-delivery-harness/pull/293),
+  [`c842b9d`](https://github.com/weijen/agent-delivery-harness/commit/c842b9da0942f36eb6f0a05f9bbc80b6f2c308da))
+
+- **#291**: Clarify evidence gate guidance
+  ([#293](https://github.com/weijen/agent-delivery-harness/pull/293),
+  [`c842b9d`](https://github.com/weijen/agent-delivery-harness/commit/c842b9da0942f36eb6f0a05f9bbc80b6f2c308da))
+
+- **#291**: Enforce feature start evidence
+  ([#293](https://github.com/weijen/agent-delivery-harness/pull/293),
+  [`c842b9d`](https://github.com/weijen/agent-delivery-harness/commit/c842b9da0942f36eb6f0a05f9bbc80b6f2c308da))
+
+- **#291**: Require feature start evidence
+  ([#293](https://github.com/weijen/agent-delivery-harness/pull/293),
+  [`c842b9d`](https://github.com/weijen/agent-delivery-harness/commit/c842b9da0942f36eb6f0a05f9bbc80b6f2c308da))
+
+### Documentation
+
+- **#291**: Define feature start contract
+  ([#293](https://github.com/weijen/agent-delivery-harness/pull/293),
+  [`c842b9d`](https://github.com/weijen/agent-delivery-harness/commit/c842b9da0942f36eb6f0a05f9bbc80b6f2c308da))
+
+
 ## v0.11.2 (2026-07-11)
 
 ### Bug Fixes
