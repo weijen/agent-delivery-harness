@@ -9,6 +9,7 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
 #
@@ -203,6 +204,77 @@ finish__warn() {
   fi
 }
 
+# Shared main-checkout resolver (issue #290): both best_effort_progress_migrate
+# and best_effort_economics_stamp need the MAIN checkout root (it survives
+# `git worktree remove`; a linked worktree does not). trace__main_root (from
+# trace-lib.sh) is the primary source; when trace-lib.sh was not sourced (or a
+# checkout predates it) fall back to `git rev-parse --git-common-dir`, whose
+# parent directory is the surviving main checkout even from inside a linked
+# worktree. Prints the resolved path (possibly empty) on stdout; never fails.
+finish__resolve_main_root() {
+  local main_root=""
+  if declare -F trace__main_root >/dev/null 2>&1; then
+    main_root="$(trace__main_root 2>/dev/null || true)"
+  fi
+  if [ -z "$main_root" ]; then
+    local common_dir=""
+    common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+    if [ -n "$common_dir" ] && [ -d "$common_dir" ]; then
+      main_root="$( { cd "${common_dir}/.." 2>/dev/null && pwd -P; } || true)"
+    fi
+  fi
+  printf '%s' "$main_root"
+}
+
+# Path-safety helper shared by best_effort_progress_migrate and
+# best_effort_economics_stamp (issue #290, M9): validates that
+# main_root/.copilot-tracking/issues/issue-<issue_pad> is reachable through a
+# chain of REAL (non-symlink) directories only — i.e. no ancestor component
+# (.copilot-tracking, issues, or issue-NN itself) may be a symlink to
+# somewhere outside the canonical main root. `mkdir -p` alone cannot detect
+# this: on an already-existing symlinked ancestor it is a silent no-op, and a
+# later plain write then resolves straight through the link. This walks the
+# chain one component at a time so a pre-existing symlink at ANY level is
+# caught with `-L` (which never dereferences) before anything is written
+# beneath it.
+#
+# Args: <main_root> <issue_pad> [create]
+#   main_root/issue_pad — as resolved by finish__resolve_main_root / printf
+#     '%02d'. create     — pass the literal string "create" to create any
+#     missing components (mkdir, one level at a time); omit to only validate
+#     an already-existing chain (used by the economics stamp, which must
+#     never conjure tracking directories that migration didn't).
+#
+# Prints the resulting physical directory path on stdout on success. Prints
+# nothing on any rejection (symlink component, non-directory component, a
+# missing component when create was not requested, mkdir failure, or a final
+# physical-path mismatch). Never fails; always returns 0 — callers must treat
+# empty output as "unsafe, skip".
+finish__safe_tracking_dir() {
+  local main_root="$1" issue_pad="$2" create="${3:-}"
+  local cur="$main_root" part next physical expected
+
+  for part in ".copilot-tracking" "issues" "issue-${issue_pad}"; do
+    next="${cur}/${part}"
+    if [ -L "$next" ]; then
+      return 0
+    elif [ -e "$next" ]; then
+      [ -d "$next" ] || return 0
+    elif [ "$create" = "create" ]; then
+      mkdir -- "$next" 2>/dev/null || return 0
+      [ -L "$next" ] && return 0
+    else
+      return 0
+    fi
+    cur="$next"
+  done
+
+  expected="${main_root}/.copilot-tracking/issues/issue-${issue_pad}"
+  physical="$( { cd "$cur" 2>/dev/null && pwd -P; } || true)"
+  [ -n "$physical" ] && [ "$physical" = "$expected" ] || return 0
+  printf '%s' "$physical"
+}
+
 # Idempotently stamp a human-readable delivery economics block into progress.md
 # using marker lines. The block text may contain shell-sensitive characters and
 # multiple lines, so replacement is done with awk variables, never sed
@@ -214,6 +286,18 @@ economics_stamp_into() {
   local end_marker='<!-- delivery-economics:end -->'
   local tmp_file=""
   local block_file=""
+
+  # A destination that is itself a symlink must be rejected BEFORE the
+  # regular-file check below (issue #290, M8): `[ -f "$progress_file" ]`
+  # DEREFERENCES symlinks, so a symlink pointing at a regular file elsewhere
+  # would pass that check and the append/awk-rewrite below would then write
+  # straight through the link. `-L` never dereferences, so test it first —
+  # independently of any caller-side guard (e.g. best_effort_progress_migrate
+  # rejecting the same path), since this function is also called on its own.
+  if [ -n "$progress_file" ] && [ -L "$progress_file" ]; then
+    finish__warn "⚠ economics stamp skipped: ${progress_file} is a symlink"
+    return 0
+  fi
 
   if [ -z "$progress_file" ] || [ ! -f "$progress_file" ] || [ ! -w "$progress_file" ]; then
     finish__warn "⚠ economics stamp skipped: progress.md not writable at ${progress_file:-<empty>}"
@@ -362,15 +446,160 @@ economics_numeric_aggregates() {
   return 0
 }
 
-# Best-effort pre-teardown delivery economics stamp (issue #267). It runs while
-# the worktree is still present so the worktree progress.md and feature_list can
-# be used. The durable machine record is the finish-issue.economics span added
-# by a later feature; this markdown stamp is operator-facing and never blocks.
+# Best-effort pre-teardown progress.md migration (issue #290,
+# finish-migrate-progress-md-survives-teardown). The worktree's
+# .copilot-tracking/issues/issue-NN/progress.md — in particular its
+# '## Action Log' section — is the authoritative delivery record, but
+# `git worktree remove` deletes it with the worktree. This helper
+# verbatim-copies that file over any existing MAIN-root progress.md (the
+# worktree copy always wins) BEFORE best_effort_economics_stamp runs, so the
+# stamp lands on the real Action Log instead of synthesizing a hollow stub.
+# Reads ISSUE_NUM/WORKTREE_DIR at CALL time (same contract as
+# best_effort_economics_stamp) and shares finish__resolve_main_root with it.
+# Warn-never-fail: any missing/invalid path, an occupied non-file destination,
+# or a copy failure is advisory only and ALWAYS returns 0 — migration must
+# never block finish-issue.sh or worktree removal.
+# Caller-visible outcome flag (issue #290, M10): reset false at every entry
+# and set true ONLY after this run's atomic `mv` onto the main-root
+# progress.md has succeeded. finish-issue.sh reads this to decide whether
+# best_effort_economics_stamp may run — a stale pre-existing main-root
+# progress.md (e.g. left over from a prior finish) must never be
+# economics-stamped as if it reflected THIS run's migration.
+# shellcheck disable=SC2034 # read by finish-issue.sh, not finish-lib.sh itself
+PROGRESS_MIGRATED=false
+
+best_effort_progress_migrate() {
+  PROGRESS_MIGRATED=false
+  local migrate_issue="${ISSUE_NUM:-}"
+  local worktree_dir="${WORKTREE_DIR:-}"
+  local issue_pad="" main_root="" main_issue_dir="" worktree_issue_dir=""
+  local src="" dst=""
+
+  if ! [[ "$migrate_issue" =~ ^[0-9]+$ ]]; then
+    finish__warn "⚠ progress migrate skipped: ISSUE_NUM is not set"
+    return 0
+  fi
+  issue_pad="$(printf '%02d' "$migrate_issue" 2>/dev/null)" || {
+    finish__warn "⚠ progress migrate skipped: could not format issue ${migrate_issue}"
+    return 0
+  }
+
+  if [ -z "$worktree_dir" ]; then
+    finish__warn "⚠ progress migrate skipped: WORKTREE_DIR is not set"
+    return 0
+  fi
+
+  worktree_issue_dir="${worktree_dir}/.copilot-tracking/issues/issue-${issue_pad}"
+  src="${worktree_issue_dir}/progress.md"
+  if [ ! -e "$worktree_dir" ] || [ ! -f "$src" ]; then
+    finish__warn "⚠ progress migrate skipped: worktree progress.md not found at ${src}"
+    return 0
+  fi
+
+  main_root="$(finish__resolve_main_root)"
+  if [ -z "$main_root" ]; then
+    finish__warn "⚠ progress migrate skipped: could not resolve repo root"
+    return 0
+  fi
+
+  # Validate (and create, if missing) the tracking-directory chain one
+  # component at a time so a symlinked ANCESTOR (issue #290, M9 — e.g. main
+  # .copilot-tracking/issues/issue-NN itself replaced by a symlink to an
+  # external directory) is rejected before anything is written beneath it.
+  # `mkdir -p` alone cannot catch this: on an already-existing symlinked
+  # ancestor it is a silent no-op.
+  main_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad" create)"
+  if [ -z "$main_issue_dir" ]; then
+    finish__warn "⚠ progress migrate skipped: ${main_root}/.copilot-tracking/issues/issue-${issue_pad} has an unsafe (symlinked) ancestor"
+    return 0
+  fi
+  dst="${main_issue_dir}/progress.md"
+
+  # A destination that is itself a symlink must be rejected BEFORE the
+  # regular-file check below: `[ -f "$dst" ]` dereferences the symlink, so a
+  # symlink pointing at a regular file elsewhere would pass that check and
+  # `cp -f` would then follow the link and overwrite whatever it points to
+  # (potentially outside .copilot-tracking entirely). Test with `-L` first,
+  # which never dereferences.
+  if [ -L "$dst" ]; then
+    finish__warn "⚠ progress migrate skipped: ${dst} is a symlink"
+    return 0
+  fi
+
+  # A destination occupied by something other than a regular file (e.g. a
+  # directory) must be left exactly as-is: `cp src dst` would otherwise
+  # silently "succeed" by copying INTO the directory (dst/progress.md)
+  # instead of genuinely writing dst — that is still a migration failure and
+  # must be reported, not swallowed.
+  if [ -e "$dst" ] && [ ! -f "$dst" ]; then
+    finish__warn "⚠ progress migrate skipped: ${dst} exists and is not a regular file"
+    return 0
+  fi
+
+  # Failure-atomic copy (issue #290, M5b/M5c): a real `cp` can begin writing
+  # its destination before failing partway through (disk full, killed
+  # mid-write). A direct `cp -f -- src dst` would let such a failure corrupt
+  # an existing dst in place — and even a fully-SUCCEEDING direct copy would
+  # silently replace an existing survivor with no atomic way to protect it.
+  # So we copy into a uniquely-named scratch REGULAR file created by
+  # `mktemp` in the SAME directory as dst (same filesystem, so the final
+  # `mv` is an atomic rename, and mktemp's own atomic O_EXCL-style creation
+  # rules out a pre-planted symlink/name-collision at the temp path), verify
+  # the copy succeeded, and only then rename it over dst. On any failure the
+  # scratch file is removed and dst is left untouched. Both `mktemp` and
+  # `mv` are REQUIRED for this atomicity guarantee: when either is missing
+  # from PATH there is no safe way to land the copy, so the migration is
+  # skipped entirely (dst is left byte-identical) rather than falling back
+  # to an unsafe direct `cp -f -- src dst`.
+  if ! command -v mktemp >/dev/null 2>&1 || ! command -v mv >/dev/null 2>&1; then
+    finish__warn "⚠ progress migrate skipped: atomic copy tools (mktemp/mv) are unavailable"
+    return 0
+  fi
+
+  local tmp_dst=""
+  tmp_dst="$(mktemp "${main_issue_dir}/.progress.md.XXXXXX" 2>/dev/null)" || {
+    finish__warn "⚠ progress migrate skipped: could not create a temp file in ${main_issue_dir}"
+    return 0
+  }
+  if [ -L "$tmp_dst" ] || [ ! -f "$tmp_dst" ]; then
+    finish__warn "⚠ progress migrate skipped: temp file ${tmp_dst} is not a plain regular file"
+    rm -f -- "$tmp_dst" 2>/dev/null || true
+    return 0
+  fi
+
+  if ! cp -f -- "$src" "$tmp_dst" 2>/dev/null; then
+    finish__warn "⚠ progress migrate skipped: could not copy ${src} to ${dst}"
+    rm -f -- "$tmp_dst" 2>/dev/null || true
+    return 0
+  fi
+
+  if ! mv -f -- "$tmp_dst" "$dst" 2>/dev/null; then
+    finish__warn "⚠ progress migrate skipped: could not finalize copy to ${dst}"
+    rm -f -- "$tmp_dst" 2>/dev/null || true
+    return 0
+  fi
+
+  # shellcheck disable=SC2034 # read by finish-issue.sh, not finish-lib.sh itself
+  PROGRESS_MIGRATED=true
+  return 0
+}
+
+# Best-effort pre-teardown delivery economics stamp (issue #267, simplified by
+# #290). It stamps ONLY the migrated MAIN-root progress.md — the worktree copy
+# is no longer dual-written here (best_effort_progress_migrate already carried
+# the real Action Log to main root before this runs) and a missing main-root
+# progress.md is no longer synthesized as a hollow stub: economics_stamp_into
+# is itself warn-only, so an absent file simply skips the stamp instead of
+# fabricating one. The feature-list read still prefers the worktree copy (it
+# is still present at economics_stamp time) so the metrics reflect the live
+# feature_list.json. The durable machine record is the finish-issue.economics
+# span added by a later feature; this markdown stamp is operator-facing and
+# never blocks.
 best_effort_economics_stamp() {
   local stamp_issue="${ISSUE_NUM:-}"
   local issue_pad="" main_root="" worktree_dir="${WORKTREE_DIR:-}"
   local main_issue_dir="" worktree_issue_dir="" trace_file=""
-  local feature_list="-" progress_md="" block=""
+  local feature_list="-" block=""
 
   if ! [[ "$stamp_issue" =~ ^[0-9]+$ ]]; then
     finish__warn "⚠ economics stamp skipped: ISSUE_NUM is not set"
@@ -381,19 +610,7 @@ best_effort_economics_stamp() {
     return 0
   }
 
-  if declare -F trace__main_root >/dev/null 2>&1; then
-    main_root="$(trace__main_root 2>/dev/null || true)"
-  fi
-  if [ -z "$main_root" ]; then
-    # Fallback: derive the MAIN working tree even from inside a linked worktree.
-    # `--show-toplevel` returns the (doomed) worktree root; `--git-common-dir`
-    # points at the shared .git, whose parent is the surviving main checkout.
-    local common_dir=""
-    common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
-    if [ -n "$common_dir" ] && [ -d "$common_dir" ]; then
-      main_root="$( { cd "${common_dir}/.." 2>/dev/null && pwd -P; } || true)"
-    fi
-  fi
+  main_root="$(finish__resolve_main_root)"
   if [ -z "$main_root" ]; then
     finish__warn "⚠ economics stamp skipped: could not resolve repo root"
     return 0
@@ -421,23 +638,28 @@ best_effort_economics_stamp() {
   fi
 
   printf '%s\n' "$block"
-  # Stamp the human-readable block into the operator's live worktree progress.md
-  # (when the worktree is still present) AND — critically — into the MAIN-checkout
-  # tracking dir, which SURVIVES `git worktree remove` (issue #285). trace.jsonl
+  # Stamp the human-readable block into the migrated MAIN-checkout progress.md
+  # — the tracking dir SURVIVES `git worktree remove` (issue #285). trace.jsonl
   # already lives there, so the flagship #267 artifact gets the same survival
-  # guarantee instead of being deleted with the worktree.
-  if [ -n "$worktree_dir" ] && [ -e "$worktree_dir" ] && [ -n "$worktree_issue_dir" ]; then
-    progress_md="${worktree_issue_dir}/progress.md"
-    economics_stamp_into "$progress_md" "$block" || true
+  # guarantee instead of being deleted with the worktree. economics_stamp_into
+  # is warn-only: if migration did not run (or failed) there is no main-root
+  # progress.md yet, and the stamp is skipped rather than synthesizing one.
+  #
+  # Re-validate the tracking-directory chain here too (issue #290, M9) rather
+  # than trusting best_effort_progress_migrate's own rejection: this function
+  # can run on its own, and a symlinked ANCESTOR (e.g. issue-NN itself)
+  # otherwise resolves straight through on a plain path-string join — no
+  # component here is created (unlike migration, this call never creates
+  # tracking directories the migration step didn't), so an absent chain
+  # simply skips the stamp exactly as it already does today.
+  local safe_issue_dir=""
+  safe_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad")"
+  if [ -n "$safe_issue_dir" ]; then
+    local main_progress="${safe_issue_dir}/progress.md"
+    economics_stamp_into "$main_progress" "$block" || true
+  else
+    finish__warn "⚠ economics stamp skipped: ${main_issue_dir} has an unsafe (symlinked) ancestor"
   fi
-  local main_progress="${main_issue_dir}/progress.md"
-  if [ ! -f "$main_progress" ]; then
-    mkdir -p "$main_issue_dir" 2>/dev/null || true
-    if [ -d "$main_issue_dir" ] && [ -w "$main_issue_dir" ]; then
-      printf '# Issue %s progress\n' "$stamp_issue" > "$main_progress" 2>/dev/null || true
-    fi
-  fi
-  economics_stamp_into "$main_progress" "$block" || true
 
   # Durable machine record: append exactly one finish-issue.economics tool span
   # with the numeric aggregates. Advisory — never blocks teardown.

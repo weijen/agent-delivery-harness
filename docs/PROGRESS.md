@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-10 (#285)_
+_Last updated: 2026-07-11 (#290)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-10 (#285)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 166 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 168 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,9 @@ _Last updated: 2026-07-10 (#285)_
 ---
 
 ## Delivered (newest first)
+
+### Action Log survival (#290): migrate the authoritative worktree record before teardown
+- **#290 — post-hoc trace consistency was blind after closeout because `log-handback.sh` wrote the Action Log only to the worktree `progress.md`, which `git worktree remove` deleted.** The #285 economics dual-stamp left a surviving but hollow main-root file, so the checker compared real agent spans against an empty Action Log and reported false `span_without_log` findings. **Two sensor-owned features:** (1) `finish-migrate-progress-md-survives-teardown` — `finish-issue.sh` now runs `progress_migrate → economics_stamp → worktree_remove`; `best_effort_progress_migrate` copies the authoritative worktree file verbatim into the main-checkout tracking dir through a validated, non-symlink path, uses temp-copy + atomic rename so failed copies cannot corrupt an existing survivor, and warns/skips without blocking teardown when the source/path/atomic tools are unavailable. Economics markdown stamping runs only after confirmed migration, eliminating both worktree dual-writing and hollow-file synthesis. The 14-leg `tests/scripts/test_finish_issue_progress_migration.sh` drives real start/handback/finish/checker flows and pins byte-identical authority, ordering, idempotent pre-teardown retries, gone-worktree skips, existing-main replacement, copy/tool failures, leaf/ancestor symlink safety, stale-file preservation, single-write `log-handback.sh`, and post-teardown `check-trace-consistency.sh <N>` success. (2) `docs-progress-md-survives-teardown` — `docs/HARNESS.md` Local Tracking documents worktree authority, main-root migration/survival, post-hoc consistency, and the shared `trace.jsonl` rationale; `tests/meta/test_progress_survival_docs.sh` structurally guards the vocabulary, relationships, and executable production stage order without sentence pinning. Full 168-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### batch-review residue (#285): economics-stamp survival, generator-supported README, export-leg residue, sensor blind spots
 - **#285 — an L4 batch-review left six residue items where a sensor or artifact looked delivered but wasn't.** Each was reproduced before fixing. **Six features, all red-first (`red_handback → impl_handback → green_handback`):** (1) `economics-stamp-survives-teardown` — `best_effort_economics_stamp` in `scripts/finish-lib.sh` stamped the delivery-economics block only into the *worktree* `progress.md`, which `git worktree remove` then deleted; it now also stamps into the surviving **main-checkout** `.copilot-tracking/issues/issue-NN/progress.md` (seeding a minimal header if absent), and `tests/scripts/test_finish_issue_economics_stamp.sh` asserts the block survives *after* teardown. (2) `profiles-readme-generator-supported` — `profiles/README.md` still framed Go/Ruby/Java as shipped `*.profile.sh` descriptors (removed in #274); rewritten as generator-supported (scaffolded on demand), and `tests/scripts/test_docs_shipped_profiles.sh` widened to enforce it. (3) `remove-dead-export-residue` — the consumerless `TRACE_SECRET_SHAPE_RE` constant (`scripts/trace-lib.sh`) and production-dead `load_env_allowlist` (`scripts/finish-lib.sh`, plus its `test_finish_env_allowlist.sh`) — both orphaned by the #272 export-leg deletion — removed; `tests/meta/test_no_deleted_export_refs.sh` sweep widened to `scripts/`. (4) `revision-loops-missing-file-guard` — `tests/meta/test_revision_loops.sh` `if [ -f file ]` guards had no else branch, so deleting a guarded doc/agent file silently passed; each guard gained an else-fail branch (proven by a negative fixture). (5) `waiver-precedence-fixtures` — `tests/scripts/test_trace_red_first_evidence.sh` gained both-keys fixtures proving `teeth_proof_waiver` wins by key presence — a malformed `teeth_proof_waiver` shadows a *valid* legacy `red_first_waiver` and VIOLATES (the trap), and the self-contradicting header was corrected. (6) `review-doctrine-artifact-survival` — `.copilot/agents/code-review-subagent.agent.md` Verdict-3 test-adequacy gains a checklist point: for a file/record deliverable, verify the artifact SURVIVES the full lifecycle (worktree teardown), not merely that it is emitted; guarded by new `tests/meta/test_review_artifact_survival.sh`. Full 166-sensor suite + shellcheck (CI glob) + L0 green.

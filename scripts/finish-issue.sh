@@ -60,16 +60,23 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
+  best_effort_progress_migrate() { PROGRESS_MIGRATED=false; return 0; }
   best_effort_economics_stamp() { return 0; }
   best_effort_state_hygiene() { return 0; }
 fi
+# Set unconditionally (even when finish-lib.sh sourced successfully) so both
+# the missing/no-op fallback above and every real invocation start from a
+# known false state before best_effort_progress_migrate runs (issue #290,
+# M10) — best_effort_progress_migrate itself also resets it at entry.
+PROGRESS_MIGRATED=false
 
 # Terminal `finish` lifecycle span via the shared EXIT-trap helper (issue #213
 # P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
 # survives teardown only because trace-lib pins the trace file to the MAIN
 # checkout root (plan D1). TRACE_STAGE names the last stage reached
-# (completion_check|trace_gate|worktree_remove|branch_delete|done), surfaced as
-# harness.stage by the attr callback; refusals before arming emit nothing.
+# (completion_check|trace_gate|log_completeness_gate|progress_migrate|
+# economics_stamp|worktree_remove|state_hygiene|branch_delete|done), surfaced
+# as harness.stage by the attr callback; refusals before arming emit nothing.
 TRACE_STAGE=""
 WORKTREE_REMOVED=false
 BRANCH_DELETED=false
@@ -153,11 +160,25 @@ if ! finish_log_completeness_gate; then
   exit 1
 fi
 
+# Best-effort progress.md migration (issue #290) — run BEFORE the economics
+# stamp so the migrated worktree Action Log is what gets stamped, not a hollow
+# main-root stub. Advisory: it must never change finish-issue's exit code.
+TRACE_STAGE="progress_migrate"
+best_effort_progress_migrate
+
 # Best-effort delivery economics stamp (issue #267) — run before teardown so it
-# can use the worktree-local progress.md and feature list. This is advisory and
-# must never change finish-issue's exit code.
+# can use the worktree-local feature list. This is advisory and must never
+# change finish-issue's exit code. Only stamp when THIS run's migration above
+# actually landed the worktree's progress.md at main root (issue #290, M10):
+# stamping a stale pre-existing main-root progress.md — e.g. left over from a
+# prior finish, when this run's migration was skipped or failed atomically —
+# would falsely present it as reflecting this run's delivery.
 TRACE_STAGE="economics_stamp"
-best_effort_economics_stamp
+if [ "${PROGRESS_MIGRATED}" = "true" ]; then
+  best_effort_economics_stamp
+else
+  yellow "⚠ economics stamp skipped: progress.md migration did not land this run"
+fi
 
 TRACE_STAGE="worktree_remove"
 if [ ! -e "$WORKTREE_DIR" ]; then

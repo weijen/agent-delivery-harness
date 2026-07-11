@@ -204,7 +204,12 @@ warn_out="$(call_economics_stamp_into "${TMP_DIR}/does-not-exist/progress.md" "b
 
 # BEHAVIOR: finish-issue prints/stamps the economics block before teardown.
 BIN="${TMP_DIR}/bin"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc chmod cp head
+# mktemp/mv are included (issue #290) so best_effort_progress_migrate takes
+# its atomic temp-copy-then-rename path rather than the rejected direct
+# `cp -f` fallback — this fixture asserts the migrated progress.md survives
+# teardown, so it must exercise the real (non-fallback) migration path.
+link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc chmod cp head \
+  mktemp mv
 write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
 assert_behavioral_finish_stamps_before_remove "${TMP_DIR}/r86" 86
