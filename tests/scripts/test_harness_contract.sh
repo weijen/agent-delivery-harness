@@ -257,6 +257,41 @@ end_scenario "contract declares the #264 teeth-proof gate boundary"
 require_contract_record failure_modes id teeth-proof-missing-warn scripts/check-feature-list.sh
 end_scenario "contract declares the teeth-proof-missing warn failure mode"
 
+# --- 2h. feature_start evidence gate registration backstop (issue #291) ------
+# feature_start_missing is the per-feature selection-evidence counterpart of
+# teeth_proof_missing. The contract must register the exact token on the
+# EXISTING PR-path red-first / teeth-proof evidence gate
+# (failure_modes/missing-teeth-proof-evidence, owner scripts/review-gate.sh) —
+# never as a new, parallel lifecycle or failure-mode entry. Two checks:
+#   (a) the existing entry's `present:` regex names feature_start_missing;
+#   (b) no lifecycle/failure_modes record carries a distinct feature-start-*
+#       id (that would be a second, parallel gate instead of the same one).
+missing_teeth_present="$(parse_records failure_modes | while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  if [ "$(field "$rec" id)" = "missing-teeth-proof-evidence" ]; then
+    field "$rec" present
+  fi
+done)"
+case "$missing_teeth_present" in
+  *feature_start_missing*) : ;;
+  *) fail "failure_modes/missing-teeth-proof-evidence: present regex does not register feature_start_missing on the existing PR-path evidence gate (issue #291)" ;;
+esac
+for section in lifecycle failure_modes; do
+  while IFS= read -r rec; do
+    [ -n "$rec" ] || continue
+    id="$(field "$rec" id)"
+    case "$id" in
+      missing-teeth-proof-evidence | pr-path-red-first-gate) continue ;;
+    esac
+    case "$id" in
+      *feature-start* | *feature_start*)
+        fail "${section}/${id}: feature_start registered as a new parallel gate id instead of riding the existing PR-path evidence gate (issue #291)"
+        ;;
+    esac
+  done < <(parse_records "$section")
+done
+end_scenario "contract registers feature_start_missing on the existing PR-path evidence gate, not a new lifecycle gate"
+
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
 check_owner_present() {
@@ -336,6 +371,48 @@ if [ -n "$stale_status_refs" ]; then
   done <<< "$stale_status_refs"
 fi
 end_scenario "no stale IMPLEMENTATION-STATUS references in tracked files"
+
+# --- 6. Doctrine: feature_start obligation + governed-waiver precedence -----
+# harness.instructions.md must state, next to the handback-triple rule (the
+# "Required per-feature handoff sequence" section through its adjacent
+# "Teeth-proof evidence" subsection), that every passes:true feature requires
+# a matching feature_start agent span keyed by feature id, and that the SAME
+# governed teeth_proof_waiver (canonical) / red_first_waiver (deprecated
+# alias) waives both feature_start and teeth-proof obligations, with
+# canonical key-presence precedence — a malformed canonical key still shadows
+# the legacy alias. Structure-level: heading anchor + closed-vocabulary check;
+# wording is free to change.
+DOCTRINE="${ROOT}/.copilot/instructions/harness.instructions.md"
+if [ -f "$DOCTRINE" ]; then
+  handback_section="$(awk '
+    /^#### Required per-feature handoff sequence/ { f=1 }
+    /^#### Agent-span conventions/ { if (f) exit }
+    f { print }
+  ' "$DOCTRINE")"
+  if [ -z "$handback_section" ]; then
+    fail "harness.instructions.md: missing the 'Required per-feature handoff sequence' heading anchor (issue #291)"
+  else
+    for token in 'feature_start' 'passes:true'; do
+      printf '%s' "$handback_section" | grep -qi -- "$token" \
+        || fail "harness.instructions.md handback-triple section must mention '${token}' (issue #291 feature_start obligation)"
+    done
+    printf '%s' "$handback_section" | grep -Eqi 'feature[ _]id' \
+      || fail "harness.instructions.md handback-triple section must key the feature_start obligation by feature id (issue #291)"
+    printf '%s' "$handback_section" | grep -Eqi '\b(required|must|mandatory)\b' \
+      || fail "harness.instructions.md handback-triple section must state the feature_start obligation with required/must/mandatory wording (issue #291)"
+    for token in 'teeth_proof_waiver' 'red_first_waiver' 'deprecated'; do
+      printf '%s' "$handback_section" | grep -qi -- "$token" \
+        || fail "harness.instructions.md handback-triple section must document the governed-waiver token '${token}' (issue #291)"
+    done
+    printf '%s' "$handback_section" | grep -Eqi '\bcanonical\b' \
+      || fail "harness.instructions.md handback-triple section must name the canonical waiver key (issue #291)"
+    printf '%s' "$handback_section" | grep -Eqi '\b(malformed|shadow|shadows|shadowed|precedence)\b' \
+      || fail "harness.instructions.md handback-triple section must document canonical key-presence precedence over the legacy alias (issue #291)"
+  fi
+else
+  fail "missing ${DOCTRINE}"
+fi
+end_scenario "doctrine states the per-feature feature_start obligation and governed-waiver precedence next to the handback-triple rule"
 
 # --- Result: one TAP plan line; non-zero exit iff any scenario failed ---------
 tap_done

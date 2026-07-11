@@ -242,7 +242,7 @@ failure_modes:
   - id: missing-teeth-proof-evidence
     kind: hard
     owner: scripts/review-gate.sh
-    present: teeth_proof_missing
+    present: teeth_proof_missing|feature_start_missing
   - id: red-first-ordering-absent
     kind: warn
     owner: scripts/check-trace-consistency.sh

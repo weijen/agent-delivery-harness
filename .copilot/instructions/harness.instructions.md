@@ -171,6 +171,12 @@ If a step fails, the conductor routes the handback to the owning subagent (produ
 `implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
 itself.
 
+Every `passes:true` feature is **required** to have a matching `feature_start` agent span keyed by its feature id —
+the one recorded at step 1 above. `scripts/check-trace-consistency.sh` reports a missing span as a standalone
+`feature_start_missing` finding (role and step ordering are not enforced for this check, only presence by feature
+id); on the PR path this finding hard-blocks through the existing red-first / teeth-proof evidence gate in
+`scripts/review-gate.sh` (see Teeth-proof evidence below), not a separate gate.
+
 #### Teeth-proof evidence
 
 `teeth_proof` is the optional per-feature object that records how the `regression_sensor` was proven able to fail:
@@ -179,6 +185,12 @@ mutated or reverted after GREEN and the sensor observed RED; `negative_fixture` 
 rejected by the sensor. The `test-subagent` records `teeth_proof` at the moment it flips `passes:true`, with the kind
 and non-empty evidence. `check-feature-list.sh` reports `teeth_proof_missing` as warn-only today; a follow-up issue
 will promote that coverage check to a hard gate.
+
+A valid canonical `teeth_proof_waiver` object, or the deprecated `red_first_waiver` alias when no canonical key is
+present, waives **both** the `teeth_proof_missing` coverage warning and the `feature_start_missing` hard finding for
+that feature. Key-presence precedence applies: if the canonical `teeth_proof_waiver` key is present but malformed
+(wrong kind, empty reason), it shadows a valid legacy `red_first_waiver` and the feature is treated as unwaived —
+the malformed canonical key wins over the alias, it does not fall back.
 
 #### Agent-span conventions (single-source with the Action Log)
 
