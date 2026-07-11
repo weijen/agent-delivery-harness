@@ -391,7 +391,7 @@ best_effort_economics_stamp() {
     local common_dir=""
     common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
     if [ -n "$common_dir" ] && [ -d "$common_dir" ]; then
-      main_root="$(cd "${common_dir}/.." 2>/dev/null && pwd -P || true)"
+      main_root="$( { cd "${common_dir}/.." 2>/dev/null && pwd -P; } || true)"
     fi
   fi
   if [ -z "$main_root" ]; then
