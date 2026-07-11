@@ -385,7 +385,14 @@ best_effort_economics_stamp() {
     main_root="$(trace__main_root 2>/dev/null || true)"
   fi
   if [ -z "$main_root" ]; then
-    main_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P 2>/dev/null || true)"
+    # Fallback: derive the MAIN working tree even from inside a linked worktree.
+    # `--show-toplevel` returns the (doomed) worktree root; `--git-common-dir`
+    # points at the shared .git, whose parent is the surviving main checkout.
+    local common_dir=""
+    common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+    if [ -n "$common_dir" ] && [ -d "$common_dir" ]; then
+      main_root="$( { cd "${common_dir}/.." 2>/dev/null && pwd -P; } || true)"
+    fi
   fi
   if [ -z "$main_root" ]; then
     finish__warn "⚠ economics stamp skipped: could not resolve repo root"
@@ -404,12 +411,6 @@ best_effort_economics_stamp() {
     feature_list="${main_issue_dir}/feature_list.json"
   fi
 
-  if [ -n "$worktree_dir" ] && [ -e "$worktree_dir" ]; then
-    progress_md="${worktree_issue_dir}/progress.md"
-  else
-    progress_md="${main_issue_dir}/progress.md"
-  fi
-
   if ! declare -F compute_delivery_economics >/dev/null 2>&1; then
     finish__warn "⚠ economics stamp skipped: compute_delivery_economics unavailable"
     return 0
@@ -420,7 +421,23 @@ best_effort_economics_stamp() {
   fi
 
   printf '%s\n' "$block"
-  economics_stamp_into "$progress_md" "$block" || true
+  # Stamp the human-readable block into the operator's live worktree progress.md
+  # (when the worktree is still present) AND — critically — into the MAIN-checkout
+  # tracking dir, which SURVIVES `git worktree remove` (issue #285). trace.jsonl
+  # already lives there, so the flagship #267 artifact gets the same survival
+  # guarantee instead of being deleted with the worktree.
+  if [ -n "$worktree_dir" ] && [ -e "$worktree_dir" ] && [ -n "$worktree_issue_dir" ]; then
+    progress_md="${worktree_issue_dir}/progress.md"
+    economics_stamp_into "$progress_md" "$block" || true
+  fi
+  local main_progress="${main_issue_dir}/progress.md"
+  if [ ! -f "$main_progress" ]; then
+    mkdir -p "$main_issue_dir" 2>/dev/null || true
+    if [ -d "$main_issue_dir" ] && [ -w "$main_issue_dir" ]; then
+      printf '# Issue %s progress\n' "$stamp_issue" > "$main_progress" 2>/dev/null || true
+    fi
+  fi
+  economics_stamp_into "$main_progress" "$block" || true
 
   # Durable machine record: append exactly one finish-issue.economics tool span
   # with the numeric aggregates. Advisory — never blocks teardown.
@@ -435,49 +452,6 @@ best_effort_economics_stamp() {
       "harness.outcome=pass" \
       ${econ_agg[@]+"${econ_agg[@]}"} >/dev/null 2>&1 || true
   fi
-
-  return 0
-}
-
-# Safe data-only trace export env allowlist loader (issue #244). Reads optional
-# .env files without evaluating values and only fills unset allowlisted keys.
-load_env_allowlist() {
-  local env_file="$1"
-  [ -r "$env_file" ] || return 0
-
-  local line trimmed key value first_char last_char single_quote_escape single_quote
-  single_quote_escape="'\\''"
-  single_quote="'"
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%$'\r'}"
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-    [ -n "$trimmed" ] || continue
-    [ "${trimmed:0:1}" != "#" ] || continue
-    [ "$trimmed" != "${trimmed%%=*}" ] || continue
-
-    key="${trimmed%%=*}"
-    value="${trimmed#*=}"
-    case "$key" in
-      TRACE_EXPORT_OTLP|APPLICATIONINSIGHTS_CONNECTION_STRING|TRACE_EXPORT_OTLP_HTTP|\
-        LOG_EXPORT_OTLP|LOG_EXPORT_OTLP_HTTP|\
-        OTEL_EXPORTER_OTLP_ENDPOINT|OTEL_EXPORTER_OTLP_TRACES_ENDPOINT|OTEL_EXPORTER_OTLP_HEADERS)
-        ;;
-      *)
-        continue
-        ;;
-    esac
-    [ -z "${!key+x}" ] || continue
-
-    first_char="${value:0:1}"
-    last_char="${value: -1}"
-    if [ "${#value}" -ge 2 ] && [ "$first_char" = "'" ] && [ "$last_char" = "'" ]; then
-      value="${value:1:${#value}-2}"
-      value="${value//"$single_quote_escape"/$single_quote}"
-    elif [ "${#value}" -ge 2 ] && [ "$first_char" = '"' ] && [ "$last_char" = '"' ]; then
-      value="${value:1:${#value}-2}"
-    fi
-    export "$key=$value"
-  done < "$env_file"
 
   return 0
 }

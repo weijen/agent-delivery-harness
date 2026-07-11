@@ -155,6 +155,20 @@ assert_behavioral_finish_stamps_before_remove() {
   [ -n "$removed_line" ] || fail "could not locate Removed worktree line in finish output"
   [ "$economics_line" -lt "$removed_line" ] \
     || fail "delivery economics must print before Removed worktree"
+
+  # SURVIVAL (#285 item 1): the flagship human-readable artifact must OUTLIVE
+  # `git worktree remove`. The worktree progress.md is deleted with the
+  # worktree, so the block must land in a surviving file under the MAIN
+  # checkout tracking dir (where trace.jsonl already lives).
+  local pad main_progress
+  pad="$(printf '%02d' "$issue")"
+  main_progress="${main}/.copilot-tracking/issues/issue-${pad}/progress.md"
+  [ ! -d "${main}-worktrees/issue-${pad}" ] \
+    || fail "worktree for issue ${issue} must be removed after finish"
+  [ -f "$main_progress" ] \
+    || fail "economics block must survive teardown in a MAIN-checkout progress.md (${main_progress} missing)"
+  grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress" \
+    || { echo "--- ${main_progress} ---"; cat "$main_progress" 2>/dev/null; fail "surviving MAIN-checkout progress.md must contain the delivery economics block after teardown"; }
 }
 
 # UNIT U1: append the economics region into progress.md.

@@ -98,18 +98,6 @@ trace_redact() {
     -e 's/-----BEGIN [A-Z ]*PRIVATE KEY-----[^-]*-----END [A-Z ]*PRIVATE KEY-----/[REDACTED]/g'
 }
 
-# Single-sourced secret-shape backstop (issue #172). This is the ONE definition
-# of the well-known, token-shaped secret literals that the OTLP export gate and
-# sanitize-trace.sh grep for as a fail-closed audit AFTER trace_redact has run.
-# It is kept as a static constant (not derived from trace_redact) so the audit
-# stays independent of the redactor's EXECUTION: a broken/no-op trace_redact
-# still cannot blind a grep against this pattern. It intentionally lists only
-# unmistakable token shapes whose redacted form ([REDACTED]) cannot self-match —
-# generic key=value shapes (sig=, AccountKey=) are masked by trace_redact but are
-# NOT re-audited here, because "sig=[REDACTED]" would trivially re-trigger them.
-# shellcheck disable=SC2034  # consumed by the export gate / sanitize-trace.sh via source
-TRACE_SECRET_SHAPE_RE='gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
-
 # Integer epoch milliseconds, portable across macOS bash 3.2 and Linux.
 # Preference order: GNU `date +%s%N` (Linux) when it yields pure digits,
 # then perl Time::HiRes, then python3, then seconds*1000 as a last resort.

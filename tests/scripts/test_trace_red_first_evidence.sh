@@ -24,8 +24,10 @@
 # or triple satisfies the hard proof requirement but must keep warn-only context
 # that ordering was not proven. A passes:true feature with none of the three
 # emits both the hard violation and the warn-only ordering context. passes:false
-# features are never flagged. The alias key `.teeth_proof_waiver` is intentionally
-# out of scope for this sensor.
+# features are never flagged. When BOTH waiver keys are present, teeth_proof_waiver
+# takes precedence by key presence — even a malformed teeth_proof_waiver shadows a
+# valid legacy red_first_waiver (the feature then VIOLATES rather than being
+# rescued by the legacy key).
 #
 # Two issue #264 findings are pinned literally so they cannot silently drift:
 #     VIOLATION consistency: teeth_proof_missing <feature_id>
@@ -79,6 +81,11 @@
 #                                  teeth_proof_missing, ordering warning present
 #  11 teeth_proof_malformed_fails  malformed teeth_proof -> exit 1,
 #                                  teeth_proof_missing
+#  12 both_waivers_teeth_wins      valid teeth_proof_waiver + valid legacy
+#                                  red_first_waiver -> exit 0 (new key wins)
+#  13 both_waivers_malformed_teeth_shadows_legacy malformed teeth_proof_waiver
+#                                  shadows a VALID legacy red_first_waiver ->
+#                                  exit 1, teeth_proof_missing (the #275 trap)
 #   + false-positive guard         a passes:false feat-b is never flagged
 #
 # RED status at authoring time: the shipped checker still emits the retired
@@ -160,6 +167,14 @@ FL_A_WAIVER_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true
 FL_A_WAIVER_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"red_first_waiver":{"kind":"whatever","reason":"x"}}]}'
 FL_A_TEETH_WAIVER_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{"kind":"doc-only","reason":"docs only, no code path"}}]}'
 FL_A_TEETH_WAIVER_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{}}]}'
+# Both waiver keys present. Precedence: teeth_proof_waiver wins by KEY PRESENCE
+# (check-trace-consistency: `if has("teeth_proof_waiver") then … else …`).
+#   _BOTH_OK   — valid teeth_proof_waiver + valid legacy red_first_waiver → waived.
+#   _BOTH_TRAP — MALFORMED teeth_proof_waiver shadows a VALID legacy
+#                red_first_waiver → the new key is selected, refused, and the
+#                feature flips to VIOLATION (the trap the #275 alias introduced).
+FL_A_BOTH_WAIVERS_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{"kind":"doc-only","reason":"docs only, no code path"},"red_first_waiver":{"kind":"doc-only","reason":"legacy alias also present"}}]}'
+FL_A_BOTH_WAIVERS_TRAP='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof_waiver":{},"red_first_waiver":{"kind":"doc-only","reason":"valid legacy waiver that must NOT rescue the malformed new key"}}]}'
 FL_A_TEETH_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"red_first","evidence":"sensor X failed before impl at abc123"}},{"id":"feat-b","title":"B","passes":false}]}'
 FL_A_TEETH_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"nonsense","evidence":""}}]}'
 
@@ -218,13 +233,26 @@ mk_case teeth_proof_only_passes "$FL_A_TEETH_OK" \
 mk_case teeth_proof_malformed_fails "$FL_A_TEETH_BAD" \
   "test-subagent|green_handback|feat-a|pass"
 
+# 12. Both waiver keys present and BOTH valid — teeth_proof_waiver takes
+#     precedence; still a valid waiver, so exit 0, no violation.
+mk_case both_waivers_teeth_wins "$FL_A_BOTH_WAIVERS_OK" \
+  "test-subagent|green_handback|feat-a|pass"
+
+# 13. TRAP: malformed teeth_proof_waiver shadows a VALID legacy red_first_waiver.
+#     Precedence is by key presence, so the malformed new key is selected and
+#     refused — the legacy waiver does NOT rescue it and the feature is a
+#     VIOLATION.
+mk_case both_waivers_malformed_teeth_shadows_legacy "$FL_A_BOTH_WAIVERS_TRAP" \
+  "test-subagent|green_handback|feat-a|pass"
+
 # Fixture self-check: every trace line parses (a malformed fixture would make
 # findings unattributable).
 for c in complete_triple_passes missing_red_fails missing_impl_fails \
          wrong_order_fails wrong_green_role_fails waiver_passes \
          waiver_malformed_still_fails teeth_proof_waiver_passes \
          teeth_proof_waiver_malformed_still_fails teeth_proof_only_passes \
-         teeth_proof_malformed_fails; do
+         teeth_proof_malformed_fails both_waivers_teeth_wins \
+         both_waivers_malformed_teeth_shadows_legacy; do
   jq empty "$(trace_path "$c")" >/dev/null 2>&1 \
     || hard_fail "fixture ${c}: trace.jsonl does not parse — sensor bug"
 done
@@ -357,6 +385,22 @@ rc="$(run_checker "$(trace_path teeth_proof_malformed_fails)")"
   || fail "teeth_proof_malformed_fails: malformed teeth_proof is not proof — expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
 assert_present teeth_proof_malformed_fails 'VIOLATION consistency: teeth_proof_missing feat-a'
 assert_no_retired_tokens teeth_proof_malformed_fails
+
+# --- 12. both_waivers_teeth_wins -> exit 0 (valid teeth_proof_waiver wins) ----
+rc="$(run_checker "$(trace_path both_waivers_teeth_wins)")"
+[ "$rc" = "0" ] \
+  || fail "both_waivers_teeth_wins: a valid teeth_proof_waiver must waive even when a legacy red_first_waiver is also present — expected exit 0, got ${rc} (stdout: $(stdout_oneline))"
+assert_absent both_waivers_teeth_wins 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_no_retired_tokens both_waivers_teeth_wins
+
+# --- 13. TRAP: malformed teeth_proof_waiver shadows a valid legacy waiver -----
+# Precedence is by key presence, so the malformed new key is selected and
+# refused; the valid legacy red_first_waiver must NOT rescue it.
+rc="$(run_checker "$(trace_path both_waivers_malformed_teeth_shadows_legacy)")"
+[ "$rc" = "1" ] \
+  || fail "both_waivers_malformed_teeth_shadows_legacy: a malformed teeth_proof_waiver must shadow (not defer to) a valid legacy red_first_waiver — expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
+assert_present both_waivers_malformed_teeth_shadows_legacy 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_no_retired_tokens both_waivers_malformed_teeth_shadows_legacy
 
 # --- Result -------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
