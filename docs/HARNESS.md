@@ -271,6 +271,17 @@ for logging when they are not authorized to edit local issue progress directly.
 `progress.md` should include an Action Log section for substantive lifecycle actions, including conductor decisions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
+While an issue is open, the **worktree** copy of `progress.md` is authoritative: `scripts/log-handback.sh` writes
+each Action Log line there (see Trace emission below). `./scripts/finish-issue.sh` migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
+Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
+into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
+deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
+available for the post-hoc `check-trace-consistency.sh` audit. Like the other `best_effort_*` closeout helpers, the
+migration is best-effort and idempotent — while the worktree/source `progress.md` still exists, re-running
+`finish-issue.sh` safely replaces the main-root file with the same content, without corrupting or duplicating it;
+once teardown has removed the worktree, a rerun has no source to copy from, so it warns or skips migration and
+leaves the already-migrated main-root record intact — and a missing or failed migration never blocks teardown.
+
 At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
 (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from
 the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span (first→last span
