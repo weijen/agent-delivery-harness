@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.11.2 (2026-07-11)
+
+### Bug Fixes
+
+- **#290**: Preserve action log after teardown
+  ([#292](https://github.com/weijen/agent-delivery-harness/pull/292),
+  [`01fe591`](https://github.com/weijen/agent-delivery-harness/commit/01fe591e22a8a724ca4780845f407fa24f2fa37c))
+
+### Documentation
+
+- **#290**: Document action log survival
+  ([#292](https://github.com/weijen/agent-delivery-harness/pull/292),
+  [`01fe591`](https://github.com/weijen/agent-delivery-harness/commit/01fe591e22a8a724ca4780845f407fa24f2fa37c))
+
+- **#290**: Record action log survival delivery
+  ([#292](https://github.com/weijen/agent-delivery-harness/pull/292),
+  [`01fe591`](https://github.com/weijen/agent-delivery-harness/commit/01fe591e22a8a724ca4780845f407fa24f2fa37c))
+
+
 ## v0.11.1 (2026-07-11)
 
 ### Bug Fixes
