@@ -80,6 +80,7 @@ PR: https://github.com/acme/widgets/pull/123
 
 ## Action Log
 
+- [conductor] feature_start feat-a pass — selected feat-a next
 - [test-subagent] red_handback feat-a pass — feat-a sensor RED first
 - [implementation-subagent] impl_handback feat-a pass — implemented feat-a
 - [test-subagent] green_handback feat-a pass — verified feat-a GREEN
@@ -97,7 +98,7 @@ write_trace() {
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:00Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"preflight\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:01Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"worktree_create\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:02Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"plan_handback\",\"harness.outcome\":\"pass\"}"
-  append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:03Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"feature_start\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"
+  append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:03Z\",\"span\":\"agent\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"feature_start\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:04Z\",\"span\":\"agent\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"test-subagent\",\"harness.lifecycle_step\":\"red_handback\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:05Z\",\"span\":\"agent\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"implementation-subagent\",\"harness.lifecycle_step\":\"impl_handback\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:06Z\",\"span\":\"agent\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"test-subagent\",\"harness.lifecycle_step\":\"green_handback\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"

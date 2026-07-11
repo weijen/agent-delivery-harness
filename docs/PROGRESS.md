@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-11 (#290)_
+_Last updated: 2026-07-11 (#291)_
 
 ---
 
@@ -42,17 +42,17 @@ _Last updated: 2026-07-11 (#290)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 168 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 170 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
   a green run is a hard merge precondition (enforced by `merge-pr.sh`).
-- **Red-first evidence is enforced, not just counted (#144):** the PR path
+- **Per-feature evidence is enforced, not just counted (#144, #291):** the PR path
   (`review-gate.sh approve`/`check`, inherited by `create-pr.sh`) hard-blocks by
-  default when a `passes:true` feature lacks a role-correct ordered
-  `red_handback → impl_handback → green_handback` triple and has no governed
-  `red_first_waiver`; `start-issue.sh` seeds the local Copilot hook into new
-  worktrees.
+  default when a `passes:true` feature lacks either a matching `feature_start`
+  span or a role-correct ordered `red_handback → impl_handback → green_handback`
+  triple and has no governed teeth-proof waiver; `start-issue.sh` seeds the
+  local Copilot hook into new worktrees.
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
 - **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
@@ -108,6 +108,9 @@ _Last updated: 2026-07-11 (#290)_
 ---
 
 ## Delivered (newest first)
+
+### Feature-start enforcement (#291): preserve the per-feature selection boundary
+- **#291 — `feature_start` was documented but not enforced, so feature execution could drift directly into RED/implementation without a traceable selection-time boundary.** Three sensor-owned features close the gap: (1) `checker-feature-start-missing` makes `check-trace-consistency.sh` emit `feature_start_missing <fid>` for every unwaived `passes:true` feature without a matching agent `feature_start` span; (2) `gate-blocks-feature-start-missing` promotes that finding through the existing PR evidence gate so approve, check, and create-pr reject it while standalone trace rollout remains warn-only by default; and (3) `contract-and-doctrine-feature-start` freezes the token on the existing gate and documents the shared canonical `teeth_proof_waiver` / deprecated `red_first_waiver` precedence. The dedicated checker and PR-path sensors cover matching/missing/wrong-feature spans, both waiver forms, malformed-canonical shadowing, all three closeout paths, and standalone trace behavior. Full 170-sensor suite + shellcheck (CI glob) + L0 green.
 
 ### Action Log survival (#290): migrate the authoritative worktree record before teardown
 - **#290 — post-hoc trace consistency was blind after closeout because `log-handback.sh` wrote the Action Log only to the worktree `progress.md`, which `git worktree remove` deleted.** The #285 economics dual-stamp left a surviving but hollow main-root file, so the checker compared real agent spans against an empty Action Log and reported false `span_without_log` findings. **Two sensor-owned features:** (1) `finish-migrate-progress-md-survives-teardown` — `finish-issue.sh` now runs `progress_migrate → economics_stamp → worktree_remove`; `best_effort_progress_migrate` copies the authoritative worktree file verbatim into the main-checkout tracking dir through a validated, non-symlink path, uses temp-copy + atomic rename so failed copies cannot corrupt an existing survivor, and warns/skips without blocking teardown when the source/path/atomic tools are unavailable. Economics markdown stamping runs only after confirmed migration, eliminating both worktree dual-writing and hollow-file synthesis. The 14-leg `tests/scripts/test_finish_issue_progress_migration.sh` drives real start/handback/finish/checker flows and pins byte-identical authority, ordering, idempotent pre-teardown retries, gone-worktree skips, existing-main replacement, copy/tool failures, leaf/ancestor symlink safety, stale-file preservation, single-write `log-handback.sh`, and post-teardown `check-trace-consistency.sh <N>` success. (2) `docs-progress-md-survives-teardown` — `docs/HARNESS.md` Local Tracking documents worktree authority, main-root migration/survival, post-hoc consistency, and the shared `trace.jsonl` rationale; `tests/meta/test_progress_survival_docs.sh` structurally guards the vocabulary, relationships, and executable production stage order without sentence pinning. Full 168-sensor suite + shellcheck (CI glob) + L0 green.
