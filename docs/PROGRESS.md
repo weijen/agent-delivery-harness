@@ -42,7 +42,7 @@ _Last updated: 2026-07-17 (#296)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 172 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 174 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -69,17 +69,6 @@ _Last updated: 2026-07-17 (#296)_
 
 ## Next up
 
-- **Generator-role experiment (#296) - instrumentation in progress:** the active
-  workflow now uses one generator for RED, implementation, and GREEN while the
-  reviewer owns test-only adversarial coverage. Trace summaries and scorecards
-  now expose optional role-neutral per-feature elapsed, review-fail,
-  blocked-GREEN, and coverage measurements derived from observed lifecycle
-  spans. This issue does not claim adoption. A later decision requires at least
-  30 paired observations per arm, no critical false negatives, review detection
-  non-inferiority within 10 percentage points on controlled adversarial
-  fixtures, and a median elapsed reduction of at least 20% with the documented
-  confidence-interval criterion. Blocked GREEN is diagnostic only; an
-  underpowered sample yields `insufficient evidence`.
 - **CI workflow hardening (#268) — in review:** third-party actions in
   `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
   readable version comments; non-release workflows now explicitly use
@@ -119,6 +108,23 @@ _Last updated: 2026-07-17 (#296)_
 ---
 
 ## Delivered (newest first)
+
+### Generator-role workflow and experiment instrumentation (#296): delivery complete
+- **#296 completes all four workflow and instrumentation features.** The active
+  feature cycle now uses one `generator-subagent` for RED, implementation,
+  GREEN, teeth proof, and pass-state updates. The reviewer owns test-only
+  adversarial coverage and routes production defects back to the generator.
+  Trace evidence accepts complete generator triples while preserving historical
+  role traces and rejecting mixed-role triples. Trace summaries and scorecards
+  expose optional role-neutral per-feature elapsed, review-fail, blocked-GREEN,
+  and coverage measurements derived from observed lifecycle spans. This delivery
+  does not adopt the generator model. The final adoption decision remains
+  deferred until later measured evidence provides at least 30 paired
+  observations per arm, no critical false negatives, review detection
+  non-inferiority within 10 percentage points on controlled adversarial
+  fixtures, and a median elapsed reduction of at least 20% under the documented
+  confidence-interval criterion. Blocked GREEN remains diagnostic only, and an
+  underpowered sample yields `insufficient evidence`.
 
 ### Installed runtime closure (#294): make adopted harnesses self-sufficient
 - **#294 — `install-harness.sh --write` omitted runtime dependencies required by the trace and hook sensors it copied, so a fresh adopter failed immediately and stamped spans as `harness.version: 0.0.0-dev`.** One red-first feature closes the installed-runtime boundary: `HARNESS_ASSETS` now includes `VERSION`, the trace/log/summary/scorecard schemas, the observability contract required by the adapter-doc sensor, and `docs/runtime-adapters/` recursively. The dedicated `tests/meta/test_installed_harness_runtime.sh` installs into an isolated temporary target, verifies every required asset byte-for-byte, parses the schemas and hook examples, checks installer help and onboarding inventory, and runs six curated version/trace/schema/adapter/hook sensors from the installed target. Existing dry-run, write, idempotency, no-clobber, and update behavior remains covered by `test_install_harness.sh`; the optional `--with-hooks` proposal is deferred to a separate issue.
