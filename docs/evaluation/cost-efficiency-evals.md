@@ -50,6 +50,44 @@ telemetry only.
 - Time spent in the slowest single tool call.
 - Median and p95 latency across repeated trials for nondeterministic fixtures.
 
+### Generator workflow experiment
+
+Issue #296 instruments comparison of the historical test plus implementation
+workflow with the merged generator workflow. It does not decide adoption.
+`scripts/trace-report.sh` derives per-feature elapsed time from the first
+observed `feature_start` to the last observed later `green_handback` for the
+same feature. This clock includes all time between those recorded edges. It
+does not attribute tool-call duration to a feature.
+
+The trace summary also reports observed review verdicts and GREEN handbacks as
+pass, fail, blocked, and total counts. Rates are present only when their
+observed denominator is nonzero. Started features without a later GREEN edge
+remain coverage gaps; they do not receive a zero elapsed value. Historical
+legacy roles and the generator role are included because the projections use
+lifecycle steps and feature ids, not agent-role filters.
+
+The scorecard groups these measurements by harness version and reports elapsed
+sample count, median, p75, p95, started-feature coverage, review failures as
+`{fail, of}`, blocked GREEN as `{blocked, of}`, and per-issue source rows. Old
+summaries remain valid and contribute no invented observations or
+denominators.
+
+A later decision issue owns the adoption verdict. Its comparison must use at
+least 30 paired observations per arm, stratified by task shape and holding the
+model version, tool version, host class, and required gates constant. It must
+record `insufficient evidence` when the sample cannot support the decision
+criteria. The adoption gate is:
+
+1. No critical false negatives in correctness, security, lifecycle, or sensor
+  teeth checks.
+2. Review detection is non-inferior on controlled adversarial fixtures with a
+  10 percentage-point margin. The lower confidence bound of the difference
+  `(new - baseline)` must exceed `-0.10`.
+3. Median paired elapsed time is at least 20% lower. The upper confidence bound
+  of the new-to-baseline median ratio must be at most `0.80`.
+4. Blocked-GREEN counts, rates, and reasons are reported as diagnostics only.
+  They cannot offset a failed quality or elapsed-time gate.
+
 ### Efficiency / Navigation
 
 - Useful-action ratio: state-changing actions divided by total actions.

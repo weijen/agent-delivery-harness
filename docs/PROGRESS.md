@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-17 (#294)_
+_Last updated: 2026-07-17 (#296)_
 
 ---
 
@@ -40,9 +40,9 @@ _Last updated: 2026-07-17 (#294)_
   five audit skills, security-audit, sync-docs, public-exposure-audit). The
   obsolete `general` skill was removed in #177 (its fallback role moved to the
   harness contract + AGENTS.md conventions).
-- **Subagents:** planning, implementation, test, code-review under
+- **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 171 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 172 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -69,6 +69,17 @@ _Last updated: 2026-07-17 (#294)_
 
 ## Next up
 
+- **Generator-role experiment (#296) - instrumentation in progress:** the active
+  workflow now uses one generator for RED, implementation, and GREEN while the
+  reviewer owns test-only adversarial coverage. Trace summaries and scorecards
+  now expose optional role-neutral per-feature elapsed, review-fail,
+  blocked-GREEN, and coverage measurements derived from observed lifecycle
+  spans. This issue does not claim adoption. A later decision requires at least
+  30 paired observations per arm, no critical false negatives, review detection
+  non-inferiority within 10 percentage points on controlled adversarial
+  fixtures, and a median elapsed reduction of at least 20% with the documented
+  confidence-interval criterion. Blocked GREEN is diagnostic only; an
+  underpowered sample yields `insufficient evidence`.
 - **CI workflow hardening (#268) — in review:** third-party actions in
   `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
   readable version comments; non-release workflows now explicitly use

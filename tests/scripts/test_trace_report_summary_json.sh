@@ -85,6 +85,13 @@ else
   jq -e '.summary_schema_version == 1' "$CONTRACT_DOC" >/dev/null 2>&1 \
     || fail "contract doc must declare summary_schema_version 1 as a JSON number"
   jq -e '
+    (.fields | has("feature_delivery") and has("review_verdicts") and has("green_handbacks"))
+    and ((.required_top_level | index("feature_delivery")) == null)
+    and ((.required_top_level | index("review_verdicts")) == null)
+    and ((.required_top_level | index("green_handbacks")) == null)
+  ' "$CONTRACT_DOC" >/dev/null 2>&1 \
+    || fail "experiment projections must be documented as optional additive fields, never required_top_level"
+  jq -e '
     (.required_top_level // []) as $r
     | ["summary_schema_version","trace_file","issue","harness_versions",
        "finished","final_outcome","span_counts","wall_clock","stages",
@@ -181,6 +188,10 @@ else
   expect_summary "wall clock elapsed"   '.wall_clock.elapsed_seconds == 630'
   expect_summary "tokens null when no model spans (absence is null, plan D5)" \
     '.tokens == null and has("tokens")'
+  expect_summary "experiment additive empty measurements are honest" \
+    '.feature_delivery == {"rows":[],"coverage":{"paired":0,"of":1}}
+     and .review_verdicts == {"pass":0,"fail":0,"blocked":0,"total":0,"fail_rate":null}
+     and .green_handbacks == {"pass":0,"fail":0,"blocked":0,"total":0,"blocked_rate":null}'
 
   # --- 3a. Null-vs-zero: absent duration is null, never 0 ------------------------
   expect_summary "red_handback stage duration is null (agent span carries no harness.duration_ms)" \
@@ -193,6 +204,8 @@ else
     || fail "agreement: markdown must carry the same git calls=3 the JSON reports"
   grep -Eiq 'invalid lines: 2' "$OUT" \
     || fail "agreement: markdown must carry the same invalid_lines=2 the JSON reports"
+  grep -Fq 'feature elapsed coverage: 0/1' "$OUT" \
+    || fail "agreement: markdown must carry the same feature elapsed coverage 0/1 the JSON reports"
 
   # --- 5. Idempotent overwrite (re-run: one document, same numbers) ---------------
   rc="$(run_report "$REPORT_SH" "$TRACE")"

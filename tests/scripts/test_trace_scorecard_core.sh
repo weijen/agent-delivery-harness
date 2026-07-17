@@ -283,6 +283,20 @@ jq -e '
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "#131: vA (coverage present) must give tool_coverage 1/1 and propagate the row coverage; vB (pre-#131 summary) must give tool_coverage 0/1 and row coverage null: $(jq -c '[.by_version[] | {v: .harness_version, tc: .tool_coverage, rc: .issues[0].coverage}]' "$SCORECARD" 2>/dev/null)"
 
+# Pre-#296 summaries remain valid and produce coverage gaps, not invented
+# experiment observations or zero-rate denominators.
+jq -e '
+  all(.by_version[];
+    .feature_delivery == {"samples":null,"median_seconds":null,"p75_seconds":null,"p95_seconds":null,"coverage":null}
+    and .review_fail == {"fail":null,"of":null,"rate":null}
+    and .blocked_green == {"blocked":null,"of":null,"rate":null}
+    and all(.issues[];
+      .feature_delivery == null
+      and .review_verdicts == null
+      and .green_handbacks == null))
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "pre-#296 summaries must aggregate with null experiment coverage and null per-issue source projections"
+
 # --- 3b#139. skills aggregate per bucket + per-run propagation ----------------
 jq -e '
   (.by_version[] | select(.harness_version == "vA")) as $a

@@ -226,6 +226,20 @@ jq -e '.inputs.summaries_found == 5' "$SCORECARD" >/dev/null 2>&1 \
 jq -e '([.by_version[].runs] | add) == 5' "$SCORECARD" >/dev/null 2>&1 \
   || fail "bucket runs must sum to 5 — every aggregated run in exactly one bucket, skipped files in none: $(jq -c '[.by_version[] | {harness_version, runs}]' "$SCORECARD" 2>/dev/null)"
 
+# Every fixture is an old summary without #296's optional projections. Missing
+# fields must remain a visible coverage gap in every bucket.
+jq -e '
+  all(.by_version[];
+    .feature_delivery.samples == null
+    and .feature_delivery.median_seconds == null
+    and .feature_delivery.p75_seconds == null
+    and .feature_delivery.p95_seconds == null
+    and .feature_delivery.coverage == null
+    and .review_fail == {"fail":null,"of":null,"rate":null}
+    and .blocked_green == {"blocked":null,"of":null,"rate":null})
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "missing #296 projections must stay null coverage gaps, never fabricated zero-rate measurements"
+
 # --- 5. Regression pin: zero summaries → empty-but-valid, exit 0 ----------------
 EMPTY_ROOT="${TMP_DIR}/empty-root"
 mkdir -p "${EMPTY_ROOT}/.copilot-tracking/issues"

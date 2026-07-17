@@ -218,6 +218,21 @@ done
 # saying why; rates always carry an explicit `of` denominator.
 AGG_FILTER="${TMP_DIR}/build-scorecard.jq"
 cat > "$AGG_FILTER" <<'JQ'
+def percentile($values; $p):
+  ($values | sort) as $sorted
+  | ($sorted | length) as $count
+  | if $count == 0 then null
+    else
+      (($count - 1) * $p) as $position
+      | ($position | floor) as $lower
+      | ($position | ceil) as $upper
+      | if $lower == $upper then $sorted[$lower]
+        else
+          ($sorted[$lower]
+           + (($sorted[$upper] - $sorted[$lower]) * ($position - $lower)))
+        end
+    end;
+
 {
   scorecard_schema_version: 1,
   generator: "scripts/trace-scorecard.sh",
@@ -237,6 +252,14 @@ cat > "$AGG_FILTER" <<'JQ'
          . as $g
          | ($g | length) as $runs
          | [$g[].summary.tokens | select(. != null)] as $toks
+         | [$g[].summary.feature_delivery? | objects] as $feature_delivery
+         | [$feature_delivery[].rows[]?.elapsed_seconds | numbers] as $elapsed
+         | [$g[].summary.review_verdicts? | objects] as $reviews
+         | [$g[].summary.green_handbacks? | objects] as $greens
+         | ([$reviews[].fail | numbers] | add // 0) as $review_fail
+         | ([$reviews[].total | numbers] | add // 0) as $review_total
+         | ([$greens[].blocked | numbers] | add // 0) as $green_blocked
+         | ([$greens[].total | numbers] | add // 0) as $green_total
          | {
              harness_version: $g[0].attributed,
              runs: $runs,
@@ -274,6 +297,46 @@ cat > "$AGG_FILTER" <<'JQ'
                  ([$g[] | select(.summary.coverage.has_tool_spans == true)] | length),
                of: $runs
              },
+             feature_delivery: {
+               samples:
+                 (if ($feature_delivery | length) == 0 then null
+                  else ($elapsed | length)
+                  end),
+               median_seconds: percentile($elapsed; 0.5),
+               p75_seconds: percentile($elapsed; 0.75),
+               p95_seconds: percentile($elapsed; 0.95),
+               coverage:
+                 (if ($feature_delivery | length) == 0 then null
+                  else {
+                    paired:
+                      ([$feature_delivery[].coverage.paired? | numbers] | add // 0),
+                    of:
+                      ([$feature_delivery[].coverage.of? | numbers] | add // 0)
+                  }
+                  end)
+             },
+             review_fail:
+               (if ($reviews | length) == 0 then
+                  {fail: null, of: null, rate: null}
+                else
+                  {fail: $review_fail,
+                   of: $review_total,
+                   rate:
+                     (if $review_total == 0 then null
+                      else ($review_fail / $review_total)
+                      end)}
+                end),
+             blocked_green:
+               (if ($greens | length) == 0 then
+                  {blocked: null, of: null, rate: null}
+                else
+                  {blocked: $green_blocked,
+                   of: $green_total,
+                   rate:
+                     (if $green_total == 0 then null
+                      else ($green_blocked / $green_total)
+                      end)}
+                end),
              skills:
                ([$g[].summary.skills[]? | select(. != null)]
                 | group_by(.name)
@@ -295,6 +358,9 @@ cat > "$AGG_FILTER" <<'JQ'
                       ([.summary.tools[]?.fail_calls | numbers] | add // 0),
                     wall_clock_elapsed_seconds:
                       (.summary.wall_clock.elapsed_seconds? // null),
+                    feature_delivery: (.summary.feature_delivery? // null),
+                    review_verdicts: (.summary.review_verdicts? // null),
+                    green_handbacks: (.summary.green_handbacks? // null),
                     tokens: .summary.tokens,
                     coverage: (.summary.coverage // null),
                     skills: (.summary.skills // []),
@@ -330,6 +396,11 @@ printf 'scorecard written: %s\n' "$OUT_FILE" >&2
 # as n/a, never 0.
 RENDER_FILTER="${TMP_DIR}/render-markdown.jq"
 cat > "$RENDER_FILTER" <<'JQ'
+def na: if . == null then "n/a" else tostring end;
+def ratio($value; $of; $rate):
+  if $of == null then "n/a"
+  else "\($value)/\($of) (\($rate | na))"
+  end;
 . as $s
 | [
     "# Trace scorecard: \($s.source_root)",
@@ -345,6 +416,15 @@ cat > "$RENDER_FILTER" <<'JQ'
      | "| \(.harness_version) | \(.runs) | \(.passed) | \(.red_reentry_free_rate.free)/\(.red_reentry_free_rate.of) | \(.deviations.count) | \(.tool_calls.calls) | \(if .tokens == null then "n/a" else "in \(.tokens.input) / out \(.tokens.output)" end) |"),
     "",
     "Definitions: red-reentry-free = finished, passing runs with no red-after-green re-entry (NOT literally first-pass green — a red before the first green is invisible to trace-summary v1); a version row labeled mixed holds multi-version runs with no readable trace to attribute (never guessed); tokens n/a = no run in the bucket carried token data (absence is null, never 0).",
+    "",
+    "## Generator experiment metrics",
+    "",
+    "Per-feature elapsed is the first observed feature_start to the last observed later green_handback for the same feature. It includes between-edge time and does not attribute tool calls to a feature. Percentiles use linear interpolation over paired observations.",
+    "",
+    "| version | elapsed samples | median seconds | p75 seconds | p95 seconds | started-feature coverage | review fail | blocked GREEN |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ($s.by_version[]
+      | "| \(.harness_version) | \(.feature_delivery.samples | na) | \(.feature_delivery.median_seconds | na) | \(.feature_delivery.p75_seconds | na) | \(.feature_delivery.p95_seconds | na) | \(if .feature_delivery.coverage == null then "n/a" else "\(.feature_delivery.coverage.paired)/\(.feature_delivery.coverage.of)" end) | \(ratio(.review_fail.fail; .review_fail.of; .review_fail.rate)) | \(ratio(.blocked_green.blocked; .blocked_green.of; .blocked_green.rate)) |"),
     (if ($s.inputs.missing_summaries | length) > 0 then
        ("",
         "## Missing summaries (reported, never repaired)",

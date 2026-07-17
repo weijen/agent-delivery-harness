@@ -155,10 +155,23 @@ def bucket_key(k):
 def tok_buckets(keyf):
   group_by(keyf) | map({ key: (.[0] | keyf), value: tok_sums }) | from_entries;
 
-# Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are normalized
-# before parsing so sub-second precision never nulls the elapsed clock.
+# Parse the whole-second UTC timestamp with jq's strict ISO parser and include
+# the captured fraction in the numeric epoch used for ordering and arithmetic.
+def ts_parts:
+  try (
+    capture("^(?<whole>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<fraction>\\.[0-9]+)?Z$")
+    | { whole: (.whole + "Z" | fromdateiso8601),
+        fraction: ((.fraction // "0") | tonumber) }
+  ) catch null;
 def ts_secs:
-  sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+  ts_parts
+  | if . == null then null else (.whole + .fraction) end;
+def elapsed_secs($start; $end):
+  ($start | ts_secs) as $a
+  | ($end | ts_secs) as $b
+  | if $a == null or $b == null then null
+    else (((($b * 1000000) | round) - (($a * 1000000) | round)) / 1000000)
+    end;
 
 [inputs] as $lines
 | [$lines[] | fromjson? | select(type == "object")] as $spans
@@ -170,6 +183,12 @@ def ts_secs:
    | select(.span == "model")
    | select(((.["gen_ai.usage.input_tokens"]?  | type) == "number")
             or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
+| [$spans[]
+  | select(.["harness.lifecycle_step"] == "feature_start")
+  | select((.["harness.feature_id"]? | type) == "string")
+  | select((.["harness.feature_id"] | length) > 0)] as $feature_starts
+| [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
+| [$spans[] | select(.["harness.lifecycle_step"] == "green_handback")] as $greens
 | {
     summary_schema_version: 1,
     trace_file: $trace_file,
@@ -189,15 +208,19 @@ def ts_secs:
       has_model_spans: (([$spans[] | select(.span? == "model")] | length) > 0)
     },
     wall_clock:
-      (if ($ts | length) == 0 then null
-       else
-         (($ts | min | ts_secs)) as $a
-         | (($ts | max | ts_secs)) as $b
-         | { first_timestamp: ($ts | min),
-             last_timestamp: ($ts | max),
-             elapsed_seconds:
-               (if $a == null or $b == null then null else ($b - $a) end) }
-       end),
+      (([$ts[] as $timestamp
+         | ($timestamp | ts_secs) as $secs
+         | select($secs != null)
+         | { timestamp: $timestamp, secs: $secs }]
+        | sort_by(.secs)) as $ordered_ts
+       | if ($ordered_ts | length) == 0 then null
+         else
+           ($ordered_ts[0]) as $first
+           | ($ordered_ts[-1]) as $last
+           | { first_timestamp: $first.timestamp,
+               last_timestamp: $last.timestamp,
+               elapsed_seconds: elapsed_secs($first.timestamp; $last.timestamp) }
+         end),
     stages:
       ([$spans[] | select((.["harness.lifecycle_step"]? | type) == "string")]
        | group_by(.["harness.lifecycle_step"])
@@ -238,6 +261,56 @@ def ts_secs:
           + { by_role:    ($tok_models | tok_buckets(bucket_key("gen_ai.agent.name"))),
               by_feature: ($tok_models | tok_buckets(bucket_key("harness.feature_id"))) })
        end),
+    feature_delivery:
+      (($feature_starts
+        | group_by(.["harness.feature_id"])
+        | map(
+            .[0] as $start
+            | $start["harness.feature_id"] as $fid
+            | ($start.timestamp? // null) as $start_ts
+            | ($start_ts
+               | if type == "string" then ts_secs else null end) as $start_secs
+            | [$greens[]
+               | select(.["harness.feature_id"]? == $fid)
+               | . as $green
+               | ($green.timestamp? // null) as $green_ts
+               | ($green_ts
+                  | if type == "string" then ts_secs else null end) as $green_secs
+               | select($start_secs != null
+                        and $green_secs != null
+                        and $green_secs > $start_secs)
+               | {span: $green, timestamp: $green_ts, secs: $green_secs}] as $later
+            | select(($later | length) > 0)
+            | ($later[-1]) as $last
+            | { id: $fid,
+                start_timestamp: $start_ts,
+                green_timestamp: $last.timestamp,
+                elapsed_seconds: elapsed_secs($start_ts; $last.timestamp),
+                final_green_outcome: ($last.span["harness.outcome"]? // null),
+                blocked_green_count:
+                  ([$later[]
+                    | select(.span["harness.outcome"]? == "blocked")]
+                   | length) })) as $rows
+       | { rows: $rows,
+           coverage: {
+             paired: ($rows | length),
+             of: ($feature_starts
+                  | map(.["harness.feature_id"])
+                  | unique
+                  | length) } }),
+    review_verdicts:
+      ({ pass: ([$reviews[] | select(.["harness.outcome"]? == "pass")] | length),
+         fail: ([$reviews[] | select(.["harness.outcome"]? == "fail")] | length),
+         blocked: ([$reviews[] | select(.["harness.outcome"]? == "blocked")] | length),
+         total: ($reviews | length) }
+       | . + { fail_rate: (if .total == 0 then null else (.fail / .total) end) }),
+    green_handbacks:
+      ({ pass: ([$greens[] | select(.["harness.outcome"]? == "pass")] | length),
+         fail: ([$greens[] | select(.["harness.outcome"]? == "fail")] | length),
+         blocked: ([$greens[] | select(.["harness.outcome"]? == "blocked")] | length),
+         total: ($greens | length) }
+       | . + { blocked_rate:
+                 (if .total == 0 then null else (.blocked / .total) end) }),
     loop_indicators:
       ([$spans[]
         | del(.span_id, .parent_span_id, .timestamp,
@@ -339,6 +412,29 @@ def na: if . == null then "n/a" else tostring end;
     (if $s.wall_clock == null
      then "- first-to-last timestamp elapsed: n/a (no timestamps)"
      else "- first-to-last timestamp elapsed: \($s.wall_clock.elapsed_seconds | na) seconds (\($s.wall_clock.first_timestamp) → \($s.wall_clock.last_timestamp); wall clock, includes agent thinking time between spans)"
+     end),
+    "- feature elapsed coverage: \($s.feature_delivery.coverage.paired)/\($s.feature_delivery.coverage.of)",
+    ("- review failures: \($s.review_verdicts.fail)/\($s.review_verdicts.total) ("
+     + (if $s.review_verdicts.fail_rate == null
+      then "n/a"
+      else ($s.review_verdicts.fail_rate | tostring)
+      end) + ")"),
+    ("- blocked GREEN handbacks: \($s.green_handbacks.blocked)/\($s.green_handbacks.total) ("
+     + (if $s.green_handbacks.blocked_rate == null
+      then "n/a"
+      else ($s.green_handbacks.blocked_rate | tostring)
+      end) + ")"),
+    "",
+    "## Feature delivery",
+    "",
+    "Elapsed time is first observed feature_start to the last observed later green_handback for the same feature. It includes time between recorded edges and does not attribute tool-call time to a feature.",
+    "",
+    "| feature | elapsed seconds | final GREEN outcome | blocked GREEN count |",
+    "| --- | --- | --- | --- |",
+    (if ($s.feature_delivery.rows | length) == 0
+     then "| n/a | n/a | n/a | n/a |"
+     else ($s.feature_delivery.rows[]
+         | "| \(.id) | \(.elapsed_seconds) | \(.final_green_outcome | na) | \(.blocked_green_count) |")
      end),
     "",
     "## Lifecycle stages",
