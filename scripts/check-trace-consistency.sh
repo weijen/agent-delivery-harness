@@ -31,8 +31,9 @@
 #   role_attribution_gap
 #                     every span=="agent" line must carry a gen_ai.agent.name
 #                     inside the closed log-handback role enum (conductor |
-#                     planning-subagent | implementation-subagent |
-#                     test-subagent | code-review-subagent). Line-numbered
+#                     planning-subagent | generator-subagent |
+#                     implementation-subagent | test-subagent |
+#                     code-review-subagent). Line-numbered
 #                     and VALUE-FREE (an out-of-enum role is an attribute
 #                     value and is not echoed):
 #                         VIOLATION consistency: role_attribution_gap line <N>
@@ -255,7 +256,7 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 STATE_FILTER="${TMP_DIR}/consistency-state.jq"
 cat > "$STATE_FILTER" <<'JQ'
 # >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
-["conductor", "planning-subagent", "implementation-subagent",
+["conductor", "planning-subagent", "generator-subagent", "implementation-subagent",
  "test-subagent", "code-review-subagent"] as $roles
 # <<< trace-schema:roles
 | [inputs] as $lines
@@ -319,19 +320,21 @@ while IFS= read -r out_line; do
 done <<< "$state_out"
 
 # --- Second trace pass: red-first evidence per feature (issue #144) ------------
-# A completed (passes:true) coded feature must show role-correct, file-ordered
-# RED-first evidence for the SAME harness.feature_id, all harness.outcome==pass,
-# in TRACE FILE ORDER:
-#   test-subagent            red_handback   ->
-#   implementation-subagent  impl_handback  ->
-#   test-subagent            green_handback
+# A completed (passes:true) coded feature must show one complete role-correct,
+# file-ordered RED-first profile for the SAME harness.feature_id, all
+# harness.outcome==pass, in TRACE FILE ORDER. Accepted profiles are:
+#   generator-subagent red_handback -> impl_handback -> green_handback
+# or the historical:
+#   test-subagent red_handback -> implementation-subagent impl_handback ->
+#   test-subagent green_handback
 # (strictly increasing file positions red < impl < green). This pass does NOT
 # read feature_list.json and never fabricates spans — it only observes what the
 # trace already contains and emits one verdict per feature that has ≥1 agent
 # span carrying a harness.feature_id:
 #   ::redfirst <fid> ok       a role-correct ordered triple exists
 #   ::redfirst <fid> role     an ordered triple exists by lifecycle step but a
-#                             participating span has the wrong role
+#                             participating span has the wrong role profile;
+#                             a passing feature emits red_first_profile_mismatch
 #   ::redfirst <fid> missing  no ordered triple of the three steps exists
 # A feature with no span here yields no line; the passing-feature loop below
 # treats an absent verdict exactly like `missing`. The waiver decision and the
@@ -368,7 +371,11 @@ def ordered($reds; $impls; $greens):
 | [ $reds[]   | select(.role == "test-subagent") ]           as $rcRed
 | [ $impls[]  | select(.role == "implementation-subagent") ] as $rcImpl
 | [ $greens[] | select(.role == "test-subagent") ]           as $rcGreen
-| ( if ordered($rcRed; $rcImpl; $rcGreen) then "ok"
+| [ $reds[]   | select(.role == "generator-subagent") ] as $generatorRed
+| [ $impls[]  | select(.role == "generator-subagent") ] as $generatorImpl
+| [ $greens[] | select(.role == "generator-subagent") ] as $generatorGreen
+| ( if ordered($rcRed; $rcImpl; $rcGreen)
+         or ordered($generatorRed; $generatorImpl; $generatorGreen) then "ok"
     elif ordered($reds; $impls; $greens) then "role"
     else "missing" end ) as $verdict
 | "::redfirst \($fid) \($verdict)"
@@ -379,6 +386,7 @@ if ! redfirst_out="$(jq -nRr -f "$REDFIRST_FILTER" < "$TRACE_FILE")"; then
 fi
 
 redfirst_ok_ids=$'\n'
+redfirst_role_ids=$'\n'
 while IFS= read -r rf_line; do
   case "$rf_line" in
     '::redfirst '*)
@@ -387,6 +395,7 @@ while IFS= read -r rf_line; do
       rf_verdict="${rf_rest##* }"
       case "$rf_verdict" in
         ok) redfirst_ok_ids="${redfirst_ok_ids}${rf_fid}"$'\n' ;;
+        role) redfirst_role_ids="${redfirst_role_ids}${rf_fid}"$'\n' ;;
       esac
       ;;
   esac
@@ -445,6 +454,11 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
       [ -n "$fid" ] || continue
       if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
         printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
+        violations=$((violations + 1))
+      fi
+      if [[ "$waiver_ids" != *$'\n'"$fid"$'\n'* ]] \
+          && [[ "$redfirst_role_ids" == *$'\n'"$fid"$'\n'* ]]; then
+        printf 'VIOLATION consistency: red_first_profile_mismatch %s\n' "$fid"
         violations=$((violations + 1))
       fi
       if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then

@@ -55,6 +55,14 @@ AUTH_SPANS="$(auth_set span_types)"
   || fail "authority .roles is missing/empty in $CONTRACT — add the role enum to the contract (issue #173)"
 [ -n "$AUTH_SPANS" ] \
   || fail "authority .span_types is missing/empty in $CONTRACT"
+for role in generator-subagent implementation-subagent test-subagent; do
+  printf '%s\n' "$AUTH_ROLES" | grep -qxF "$role" \
+    || fail "authority .roles must retain active generator and historical implementation/test roles (missing ${role})"
+done
+for step in red_handback impl_handback green_handback; do
+  jq -e --arg step "$step" '.lifecycle_steps | index($step) != null' "$CONTRACT" >/dev/null \
+    || fail "authority .lifecycle_steps must retain the stable '${step}' name"
+done
 
 # validate-trace.sh types both the trace-lib numeric keys and the structural
 # numerics (harness.issue, schema_version), so its expected set is the union.

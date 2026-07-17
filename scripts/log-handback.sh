@@ -15,8 +15,8 @@
 # span is written first, then the log line.
 #
 # Closed enums (plan D1/D2):
-#   role:    conductor | planning-subagent | implementation-subagent |
-#            test-subagent | code-review-subagent
+#   role:    conductor | planning-subagent | generator-subagent |
+#            implementation-subagent | test-subagent | code-review-subagent
 #   step:    plan_handback | feature_start | red_handback | impl_handback |
 #            green_handback | review_verdict | deviation
 #   outcome: pass | fail | blocked
@@ -60,7 +60,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat >&2 <<'EOF'
 usage: log-handback.sh <role> <lifecycle_step> <feature_id> <outcome> <summary...>
-  role:    conductor|planning-subagent|implementation-subagent|test-subagent|code-review-subagent
+  role:    conductor|planning-subagent|generator-subagent|implementation-subagent|test-subagent|code-review-subagent
   step:    plan_handback|feature_start|red_handback|impl_handback|green_handback|review_verdict|deviation
   outcome: pass|fail|blocked
 EOF
@@ -90,7 +90,7 @@ SUMMARY="$*"
 
 case "$ROLE" in
   # >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
-  conductor|planning-subagent|implementation-subagent|test-subagent|code-review-subagent) ;;
+  conductor|planning-subagent|generator-subagent|implementation-subagent|test-subagent|code-review-subagent) ;;
   # <<< trace-schema:roles
   *) usage; fail "unknown role '${ROLE}' (closed enum)" ;;
 esac

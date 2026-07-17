@@ -11,7 +11,9 @@
 #     doc-only, justified} and non-empty reason), with deprecated alias
 #     red_first_waiver still accepted,
 #   * a role-correct, file-ordered RED-first triple for the SAME
-#     harness.feature_id, all harness.outcome==pass:
+#     harness.feature_id, all harness.outcome==pass, using either:
+#       generator-subagent red_handback -> generator-subagent impl_handback ->
+#       generator-subagent green_handback, or the historical
 #       test-subagent red_handback -> implementation-subagent impl_handback ->
 #       test-subagent green_handback,
 #   * a governed teeth_proof object (kind ∈ {red_first, mutation,
@@ -57,10 +59,16 @@
 # so those state rules NOTE-skip (never fire).
 #
 # CASES (expected findings pinned literally):
-#   1 complete_triple_passes       ordered test/impl/test triple -> exit 0, no
+#   1 generator_triple_passes      ordered generator/generator/generator triple
+#                                  -> exit 0, no findings
+#   2 complete_triple_passes       historical ordered test/impl/test triple -> exit 0, no
 #                                  teeth_proof_missing, no ordering warning,
 #                                  no retired tokens
-#   2 missing_red_fails            impl+green, no red -> teeth_proof_missing +
+#   3 mixed_role_triple_fails      test/generator/generator cannot satisfy
+#                                  either complete role profile ->
+#                                  red_first_profile_mismatch +
+#                                  teeth_proof_missing + ordering warning
+#   4 missing_red_fails            impl+green, no red -> teeth_proof_missing +
 #                                  red_first_ordering_absent
 #   3 missing_impl_fails           red+green, no impl -> teeth_proof_missing +
 #                                  red_first_ordering_absent
@@ -75,6 +83,12 @@
 #                                  teeth_proof_missing + ordering warning
 #   8 teeth_proof_waiver_passes    governed doc-only teeth_proof_waiver ->
 #                                  exit 0, no teeth_proof_missing
+#   9 teeth_waiver_mixed_profile_passes governed canonical waiver plus
+#                                  duplicate mixed-role spans -> exit 0, no
+#                                  red_first_profile_mismatch
+#  10 legacy_waiver_mixed_profile_passes governed legacy alias (canonical key
+#                                  absent) plus duplicate mixed-role spans ->
+#                                  exit 0, no red_first_profile_mismatch
 #   9 teeth_proof_waiver_malformed_still_fails empty teeth_proof_waiver ->
 #                                  teeth_proof_missing + ordering warning
 #  10 teeth_proof_only_passes      valid teeth_proof only -> exit 0, no
@@ -83,9 +97,11 @@
 #                                  teeth_proof_missing
 #  12 both_waivers_teeth_wins      valid teeth_proof_waiver + valid legacy
 #                                  red_first_waiver -> exit 0 (new key wins)
-#  13 both_waivers_malformed_teeth_shadows_legacy malformed teeth_proof_waiver
-#                                  shadows a VALID legacy red_first_waiver ->
-#                                  exit 1, teeth_proof_missing (the #275 trap)
+#  15 both_waivers_malformed_teeth_shadows_legacy malformed teeth_proof_waiver
+#                                  shadows a VALID legacy red_first_waiver even
+#                                  with duplicate mixed-role spans -> exit 1,
+#                                  red_first_profile_mismatch +
+#                                  teeth_proof_missing (the #275 trap)
 #   + false-positive guard         a passes:false feat-b is never flagged
 #
 # RED status at authoring time: the shipped checker still emits the retired
@@ -178,7 +194,16 @@ FL_A_BOTH_WAIVERS_TRAP='{"issue":77,"features":[{"id":"feat-a","title":"A","pass
 FL_A_TEETH_OK='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"red_first","evidence":"sensor X failed before impl at abc123"}},{"id":"feat-b","title":"B","passes":false}]}'
 FL_A_TEETH_BAD='{"issue":77,"features":[{"id":"feat-a","title":"A","passes":true,"teeth_proof":{"kind":"nonsense","evidence":""}}]}'
 
-# 1. Complete ordered role-correct triple. A feature_start span is included
+# 1. Complete ordered generator triple. A feature_start span is included so
+#    the fixture isolates generator role/triple acceptance from the independent
+#    feature_start_missing obligation.
+mk_case generator_triple_passes "$FL_A_PASS" \
+  "conductor|feature_start|feat-a|pass" \
+  "generator-subagent|red_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass"
+
+# 2. Complete ordered historical role-correct triple. A feature_start span is included
 #    so this exit-0 fixture also satisfies the independent issue #291
 #    feature_start_missing obligation (see
 #    tests/scripts/test_trace_feature_start_evidence.sh) — otherwise a
@@ -190,7 +215,16 @@ mk_case complete_triple_passes "$FL_A_PASS" \
   "implementation-subagent|impl_handback|feat-a|pass" \
   "test-subagent|green_handback|feat-a|pass"
 
-# 2. impl + green, red_handback absent (green keeps unverified_feature_pass
+# 3. Lifecycle steps are ordered, but the roles mix the historical and current
+#    profiles. The generator green span keeps unverified_feature_pass satisfied,
+#    so the proof findings are attributable to the role mismatch.
+mk_case mixed_role_triple_fails "$FL_A_PASS" \
+  "conductor|feature_start|feat-a|pass" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass"
+
+# 4. impl + green, red_handback absent (green keeps unverified_feature_pass
 #    satisfied so ONLY teeth-proof/red-first can fire).
 mk_case missing_red_fails "$FL_A_PASS" \
   "implementation-subagent|impl_handback|feat-a|pass" \
@@ -226,6 +260,27 @@ mk_case waiver_malformed_still_fails "$FL_A_WAIVER_BAD" \
 mk_case teeth_proof_waiver_passes "$FL_A_TEETH_WAIVER_OK" \
   "test-subagent|green_handback|feat-a|pass"
 
+# 9. Governed canonical waiver plus duplicate lifecycle spans whose roles mix
+#    the historical and generator profiles. The waiver must suppress profile
+#    enforcement as well as the proof and feature-start obligations.
+mk_case teeth_waiver_mixed_profile_passes "$FL_A_TEETH_WAIVER_OK" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass"
+
+# 10. The deprecated legacy alias receives the same governed-waiver behavior
+#     when the canonical key is absent.
+mk_case legacy_waiver_mixed_profile_passes "$FL_A_WAIVER_OK" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass"
+
 # 9. Malformed teeth_proof_waiver, no triple and no teeth_proof — refused and
 #    treated as no waiver.
 mk_case teeth_proof_waiver_malformed_still_fails "$FL_A_TEETH_WAIVER_BAD" \
@@ -252,13 +307,22 @@ mk_case both_waivers_teeth_wins "$FL_A_BOTH_WAIVERS_OK" \
 #     refused — the legacy waiver does NOT rescue it and the feature is a
 #     VIOLATION.
 mk_case both_waivers_malformed_teeth_shadows_legacy "$FL_A_BOTH_WAIVERS_TRAP" \
-  "test-subagent|green_handback|feat-a|pass"
+  "conductor|feature_start|feat-a|pass" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "test-subagent|red_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|impl_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass" \
+  "generator-subagent|green_handback|feat-a|pass"
 
 # Fixture self-check: every trace line parses (a malformed fixture would make
 # findings unattributable).
-for c in complete_triple_passes missing_red_fails missing_impl_fails \
+for c in generator_triple_passes complete_triple_passes \
+         mixed_role_triple_fails missing_red_fails missing_impl_fails \
          wrong_order_fails wrong_green_role_fails waiver_passes \
          waiver_malformed_still_fails teeth_proof_waiver_passes \
+         teeth_waiver_mixed_profile_passes \
+         legacy_waiver_mixed_profile_passes \
          teeth_proof_waiver_malformed_still_fails teeth_proof_only_passes \
          teeth_proof_malformed_fails both_waivers_teeth_wins \
          both_waivers_malformed_teeth_shadows_legacy; do
@@ -301,7 +365,17 @@ assert_no_feat_b_tooth_flag() {
   assert_absent "$case_name" 'teeth_proof_missing feat-b'
 }
 
-# --- 1. complete_triple_passes -> exit 0, no findings/warnings ----------------
+# --- 1. generator_triple_passes -> exit 0, no findings/warnings ---------------
+rc="$(run_checker "$(trace_path generator_triple_passes)")"
+[ "$rc" = "0" ] \
+  || fail "generator_triple_passes: expected exit 0, got ${rc} (stdout: $(stdout_oneline) stderr: $(stderr_oneline))"
+assert_absent generator_triple_passes 'VIOLATION consistency: role_attribution_gap'
+assert_absent generator_triple_passes 'VIOLATION consistency: teeth_proof_missing'
+assert_absent generator_triple_passes 'WARNING consistency: red_first_ordering_absent'
+assert_no_retired_tokens generator_triple_passes
+assert_no_feat_b_tooth_flag generator_triple_passes
+
+# --- 2. complete_triple_passes -> exit 0, no findings/warnings ----------------
 rc="$(run_checker "$(trace_path complete_triple_passes)")"
 [ "$rc" = "0" ] \
   || fail "complete_triple_passes: expected exit 0, got ${rc} (stdout: $(stdout_oneline) stderr: $(stderr_oneline))"
@@ -310,7 +384,18 @@ assert_absent complete_triple_passes 'WARNING consistency: red_first_ordering_ab
 assert_no_retired_tokens complete_triple_passes
 assert_no_feat_b_tooth_flag complete_triple_passes
 
-# --- 2. missing_red_fails -> teeth_proof_missing + ordering warning -----------
+# --- 3. mixed_role_triple_fails -> role-mismatch proof findings ---------------
+rc="$(run_checker "$(trace_path mixed_role_triple_fails)")"
+[ "$rc" = "1" ] \
+  || fail "mixed_role_triple_fails: expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
+assert_absent mixed_role_triple_fails 'VIOLATION consistency: role_attribution_gap'
+assert_present mixed_role_triple_fails 'VIOLATION consistency: red_first_profile_mismatch feat-a'
+assert_present mixed_role_triple_fails 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_present mixed_role_triple_fails 'WARNING consistency: red_first_ordering_absent feat-a'
+assert_no_retired_tokens mixed_role_triple_fails
+assert_no_feat_b_tooth_flag mixed_role_triple_fails
+
+# --- 4. missing_red_fails -> teeth_proof_missing + ordering warning -----------
 rc="$(run_checker "$(trace_path missing_red_fails)")"
 [ "$rc" = "1" ] \
   || fail "missing_red_fails: expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
@@ -371,6 +456,24 @@ assert_absent teeth_proof_waiver_passes 'VIOLATION consistency: teeth_proof_miss
 assert_absent teeth_proof_waiver_passes 'WARNING consistency: red_first_ordering_absent feat-a'
 assert_no_retired_tokens teeth_proof_waiver_passes
 
+# --- 9. canonical waiver suppresses mixed-profile enforcement ----------------
+rc="$(run_checker "$(trace_path teeth_waiver_mixed_profile_passes)")"
+[ "$rc" = "0" ] \
+  || fail "teeth_waiver_mixed_profile_passes: a governed teeth_proof_waiver must suppress profile enforcement — expected exit 0, got ${rc} (stdout: $(stdout_oneline))"
+assert_absent teeth_waiver_mixed_profile_passes 'VIOLATION consistency: red_first_profile_mismatch feat-a'
+assert_absent teeth_waiver_mixed_profile_passes 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_absent teeth_waiver_mixed_profile_passes 'WARNING consistency: red_first_ordering_absent feat-a'
+assert_no_retired_tokens teeth_waiver_mixed_profile_passes
+
+# --- 10. legacy waiver suppresses mixed-profile enforcement ------------------
+rc="$(run_checker "$(trace_path legacy_waiver_mixed_profile_passes)")"
+[ "$rc" = "0" ] \
+  || fail "legacy_waiver_mixed_profile_passes: a governed red_first_waiver must suppress profile enforcement when the canonical key is absent — expected exit 0, got ${rc} (stdout: $(stdout_oneline))"
+assert_absent legacy_waiver_mixed_profile_passes 'VIOLATION consistency: red_first_profile_mismatch feat-a'
+assert_absent legacy_waiver_mixed_profile_passes 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_absent legacy_waiver_mixed_profile_passes 'WARNING consistency: red_first_ordering_absent feat-a'
+assert_no_retired_tokens legacy_waiver_mixed_profile_passes
+
 # --- 9. teeth_proof_waiver_malformed_still_fails -> missing + warning ---------
 rc="$(run_checker "$(trace_path teeth_proof_waiver_malformed_still_fails)")"
 [ "$rc" = "1" ] \
@@ -409,6 +512,7 @@ rc="$(run_checker "$(trace_path both_waivers_malformed_teeth_shadows_legacy)")"
 [ "$rc" = "1" ] \
   || fail "both_waivers_malformed_teeth_shadows_legacy: a malformed teeth_proof_waiver must shadow (not defer to) a valid legacy red_first_waiver — expected exit 1, got ${rc} (stdout: $(stdout_oneline))"
 assert_present both_waivers_malformed_teeth_shadows_legacy 'VIOLATION consistency: teeth_proof_missing feat-a'
+assert_present both_waivers_malformed_teeth_shadows_legacy 'VIOLATION consistency: red_first_profile_mismatch feat-a'
 assert_no_retired_tokens both_waivers_malformed_teeth_shadows_legacy
 
 # --- Result -------------------------------------------------------------------

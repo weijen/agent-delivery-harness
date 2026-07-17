@@ -21,9 +21,9 @@ An issue run should record:
 
 - Selected issue and feature.
 - Conductor decisions.
-- Test-subagent RED sensor handback.
-- Implementation-subagent production-change handback.
-- Test-subagent GREEN verification handback.
+- Generator-subagent RED sensor handback.
+- Generator-subagent production-change handback.
+- Generator-subagent GREEN verification handback.
 - Review verdict and blocking findings.
 - Local gates and command results.
 - Review-gate approval SHA.
@@ -38,8 +38,9 @@ Check that required lifecycle actions appear in the Action Log.
 
 ### Role Attribution
 
-Check that conductor, tester, implementer, and reviewer actions are
-distinguishable.
+Check that conductor, generator, and reviewer actions are distinguishable.
+Complete historical tester, implementer, tester triples remain valid evidence;
+mixed historical and generator triples do not.
 
 ### State Consistency
 

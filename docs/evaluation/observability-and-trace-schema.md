@@ -39,8 +39,9 @@ local JSON or JSONL trace whose field names follow the convention.
 
 Model the run as a tree of spans:
 
-- **Agent span** — one per subagent invocation (planner, implementer, tester,
-  reviewer) and one root span per issue/conductor run.
+- **Agent span** — one per subagent invocation (planner, generator, reviewer)
+  and one root span per issue/conductor run. Historical traces retain their
+  original implementer and tester role names.
 - **Model span** — one per LLM call, with token usage.
 - **Tool span** — one per tool or command invocation (git, `gh`, shell, file
   edit, web fetch).
@@ -67,7 +68,11 @@ Not every span type carries the same evidentiary weight. There is a deliberate
   authoritative evidence that a feature was driven **red-first**. Because each
   handback names its role, feature, and outcome, the ordered triple is
   self-attributing: the consistency checker can prove a feature failed before
-  it passed straight from these `agent spans`.
+  it passed straight from these `agent spans`. New runs attribute all three
+  handbacks to `generator-subagent`. The checker also accepts the complete
+  historical `test-subagent` → `implementation-subagent` → `test-subagent`
+  profile without rewriting old provenance. A triple that mixes the active
+  and historical profiles is not accepted.
 - **Runtime hook `tool span`s are not yet accepted as fail/pass proof.** The
   per-tool-call `tool spans` contributed by a runtime adapter are valuable for
   trajectory and cost evals, but in v1 they are **not** accepted as red-first

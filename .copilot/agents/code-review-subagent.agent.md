@@ -205,11 +205,12 @@ a **process violation**.
 5. **Check process evidence for each coded feature.** Verify `red_handback` -> `impl_handback` -> `green_handback`
    ordering unless the feature carries a governed `waiver` (waived). Confirm there is no unexplained `red_reentry`,
    deviations are resolved or justified, and repeated-loop indicators were reviewed.
-6. **Check role attribution.** `red_handback` and `green_handback` must be attributed to `test-subagent`;
-   `impl_handback` must be attributed to `implementation-subagent`. Missing instrumentation must be reported as the
+6. **Check role attribution.** Active traces must attribute `red_handback`, `impl_handback`, and `green_handback` to
+   `generator-subagent`. Historical traces may use the complete `test-subagent`, `implementation-subagent`,
+   `test-subagent` profile. Reject a triple that mixes those profiles. Missing instrumentation must be reported as the
    exact phrase `trace evidence unavailable`, never inferred as pass.
-7. **Treat blocking process violations as BLOCKING.** A schema/redaction failure, missing red-first evidence reported as
-   `red_first_evidence_missing`, wrong role reported as `red_first_role_mismatch`, unresolved `deviation`s, and
+7. **Treat blocking process violations as BLOCKING.** A schema/redaction failure, `teeth_proof_missing`,
+   `red_first_ordering_absent` when it accompanies missing proof, mixed-role triple, unresolved `deviation`s, and
    repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even when the code diff is clean.
    - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
      trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
