@@ -34,6 +34,12 @@ Every implemented feature must clear all four blocking gates before scoring. If 
 
 **Verification**: Check that behavioral changes have associated sensors (unit tests, integration tests, script smoke tests). As supporting evidence, verify syntax/lint/import health using language parsers, linters, and import resolvers. Full functional testing is not required at this gate—only that verification hooks exist.
 
+Before the final gate result, `code-review-subagent` performs an independent adversarial test-quality pass. It maps
+criteria to sensors, checks assertion strength, boundaries, negative or mutation cases, and implementation-fitting
+tests, then adds and executes the smallest independent test, fixture, smoke, or validation asset when needed.
+Production remains read-only: the reviewer must not edit production, and ambiguous paths or required production hooks
+route through the conductor. The review records changed tests, commands, and observed pass/fail evidence.
+
 ### 3. Main Workflow Works
 
 **What it checks**: The primary user/system workflow for the selected feature succeeds end to end. For harness infrastructure features, this means lifecycle scripts (e.g., `scripts/init.sh`, `scripts/start-issue.sh`) execute successfully. For application features, this means the main build/run/test commands or user-facing operations complete without critical errors.
@@ -129,6 +135,10 @@ Sum the six dimension scores to produce a total score from 0 to 12, then map to 
 ## Handback Routing
 
 When a dimension scores 0 or 1, include specific findings in the handback. Route based on the root cause:
+
+A failing reviewer-authored adversarial sensor produces `NEEDS_REVISION`. When it exposes a production defect, route
+the failure through the conductor to `generator-subagent`; the reviewer never repairs production. After the generator
+repair, `code-review-subagent` reruns the adversarial sensor before issuing a new adequacy verdict.
 
 ### To generator-subagent for implementation repair
 

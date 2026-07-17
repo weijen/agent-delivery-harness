@@ -114,9 +114,10 @@ The normal path is:
   verification, product-quality blocking gate evidence, teeth proof, and `passes:true` update.
 7. Preserve the generator's ordered `red_handback`, `impl_handback`, and `green_handback` payloads for conductor
   logging.
-8. Run local gates and `code-review-subagent` on the completed diff; the reviewer applies the product-quality
-   scorecard from [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md) during review
-   before closeout.
+8. Run local gates and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
+  [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md), and performs an
+  adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
+  smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
 9. Run `./scripts/review-gate.sh approve` for the current HEAD.
 10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
 11. Merge the PR when checks are green and findings are resolved.
@@ -166,7 +167,7 @@ one.
 | --- | --- |
 | `planning-subagent` | Researches the issue, reuses existing harness patterns first, and writes self-contained verifiable phases when planning is needed. |
 | `generator-subagent` | Delivers one selected `feature_list` item through RED, minimal implementation, GREEN, product-quality blocking evidence, teeth proof, and `passes:true`. |
-| `code-review-subagent` | Reviews spec compliance and quality, applies the product-quality scorecard during review before closeout, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. |
+| `code-review-subagent` | Reviews spec compliance and quality, adds and executes test-only adversarial coverage when needed, applies the product-quality scorecard, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. Production assets remain read-only. |
 | `session-ritual.prompt.md` | A user-invoked prompt for resuming the coding-session ritual on a specific issue. |
 | Skills under `.copilot/skills/` | On-demand review, PR, security, drift, and code-quality sensors used by the conductor and review workflow. |
 
@@ -241,9 +242,11 @@ A progress log that only records **"conductor TDD"** is non-compliant — it hid
 When a handoff step fails, the conductor runs two **grading-driven revision loops** (it owns the loop boundary;
 subagents never call each other). **Loop 1 (generator repair):** a production defect or verification gap routes back
 to `generator-subagent` (never weakening a declared sensor). **Loop 2 (review → generator):** a
-`code-review-subagent` `NEEDS_REVISION` routes each blocking production or verification finding to
-`generator-subagent`, or routes a scope decision to the conductor, then the relevant sensor and the review are
-re-run on the new HEAD. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
+`code-review-subagent` first maps criteria to sensors and may add and execute the smallest independent test, fixture,
+smoke, or validation asset. The reviewer must not edit production; ambiguous paths and required production hooks route
+to the conductor. A newly exposed production defect produces `NEEDS_REVISION` and routes through the conductor to
+`generator-subagent`, then the reviewer reruns the adversarial sensor on the repaired HEAD and reports changed tests,
+commands, and evidence. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
 failure stops and asks the human after two attempts. **Loop 3 (plan correction)** is a lightweight, conductor-owned
 escape hatch on top of these two: when a `Plan first` handback, a wrong-declared-sensor handback, a review scope /
 planning decision, or two failed repairs reveal that the **plan or sensor contract** — not the code — is falsified,

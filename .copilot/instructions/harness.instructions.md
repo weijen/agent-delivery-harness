@@ -112,7 +112,7 @@ similar names by collapsing one into the other.
   - **Generator** (`generator-subagent`) owns the selected feature's complete RED, minimal implementation, and GREEN
     cycle. It writes and runs sensors, edits required production assets, and follows
     [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md). The `generator-subagent` verifies every required product-quality blocking gate before it marks only that feature `passes:true`; it also records `teeth_proof` and the required gate evidence.
-  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md) during review before closeout, and reports substantive review findings or approvals for the issue progress Action Log.
+  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md), and performs an adversarial test-quality pass before its final adequacy verdict. It may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose a missing failure mode, but production assets remain read-only: the reviewer must not edit production. It reports changed tests, commands, observed evidence, and the final verdict for the issue progress Action Log.
 
 #### What counts as one feature (granularity rule)
 
@@ -248,10 +248,17 @@ recorded.
 **Loop 2 — review → generator.** After the feature or closeout diff is reviewed by `code-review-subagent`:
 
 - **APPROVED** → the conductor proceeds to the next lifecycle step.
+- Before approval, the reviewer maps criteria to sensors, assesses assertion strength, boundaries, negative/mutation
+  cases, and implementation-fitting tests, then adds and executes the smallest independent verification asset when
+  needed. Reviewer writes are limited to tests, fixtures, smoke checks, and validation assets; production is
+  read-only, and ambiguous paths or required production hooks stop and route through the conductor.
 - **NEEDS_REVISION** with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) → the conductor
   routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to re-run — to
   `generator-subagent` when production or verification repair is needed. Scope and planning decisions remain with
   the conductor.
+- A new failing adversarial sensor is `NEEDS_REVISION`, not a reviewer production-edit exception. The conductor routes
+  the exposed production defect to `generator-subagent`; after repair, the reviewer reruns that sensor and reports
+  changed test files, commands, and observed pass/fail evidence.
 - The conductor appends an entry whenever a CRITICAL or MAJOR review finding is empirically refuted (for example, by running a
   cannot-run/cannot-parse claim and observing success) to the known-false-positive registry at
   [`../skills/_review-known-false-positives.md`](../skills/_review-known-false-positives.md); the entry carries the
@@ -261,7 +268,8 @@ recorded.
 
 After any fix, the conductor re-runs the relevant deterministic sensor and then re-runs `code-review-subagent` on the
 new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the user or issue plan expands scope, and
-**preserve role boundaries**: `generator-subagent` owns generation while `code-review-subagent` reviews only.
+**preserve role boundaries**: `generator-subagent` owns production generation while `code-review-subagent` may edit
+only dedicated verification assets during independent review.
 **Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
 exists.
