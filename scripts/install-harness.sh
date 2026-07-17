@@ -34,12 +34,19 @@ HARNESS_ASSETS=(
 	.copilot/skills
 	.copilot/prompts
 	.github/workflows/harness-smoke.yml
+	VERSION
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
 	docs/evaluation/product-quality-rubric.md
 	docs/evaluation/README.md
+	docs/evaluation/trace-schema.v1.json
+	docs/evaluation/log-schema.v1.json
+	docs/evaluation/trace-summary.v1.json
+	docs/evaluation/trace-scorecard.v1.json
+	docs/evaluation/observability-and-trace-schema.md
+	docs/runtime-adapters
 )
 
 usage() {
@@ -54,8 +61,9 @@ Usage: install-harness.sh <target-dir> [--write|--update]
 
 Copies the real harness assets verbatim (scripts/, profiles/, tests/scripts,
 tests/meta, .copilot/instructions, .copilot/agents, .copilot/skills,
-.copilot/prompts, the smoke workflow, and the lifecycle docs). Never touches the
-target project's own non-harness files.
+.copilot/prompts, the smoke workflow, lifecycle and runtime contract docs,
+trace and log schemas, runtime-adapter guides and templates, and VERSION
+identity). Never touches the target project's own non-harness files.
 USAGE
 }
 

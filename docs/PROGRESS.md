@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-11 (#291)_
+_Last updated: 2026-07-17 (#294)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-11 (#291)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, implementation, test, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 170 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 171 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,9 @@ _Last updated: 2026-07-11 (#291)_
 ---
 
 ## Delivered (newest first)
+
+### Installed runtime closure (#294): make adopted harnesses self-sufficient
+- **#294 — `install-harness.sh --write` omitted runtime dependencies required by the trace and hook sensors it copied, so a fresh adopter failed immediately and stamped spans as `harness.version: 0.0.0-dev`.** One red-first feature closes the installed-runtime boundary: `HARNESS_ASSETS` now includes `VERSION`, the trace/log/summary/scorecard schemas, the observability contract required by the adapter-doc sensor, and `docs/runtime-adapters/` recursively. The dedicated `tests/meta/test_installed_harness_runtime.sh` installs into an isolated temporary target, verifies every required asset byte-for-byte, parses the schemas and hook examples, checks installer help and onboarding inventory, and runs six curated version/trace/schema/adapter/hook sensors from the installed target. Existing dry-run, write, idempotency, no-clobber, and update behavior remains covered by `test_install_harness.sh`; the optional `--with-hooks` proposal is deferred to a separate issue.
 
 ### Feature-start enforcement (#291): preserve the per-feature selection boundary
 - **#291 — `feature_start` was documented but not enforced, so feature execution could drift directly into RED/implementation without a traceable selection-time boundary.** Three sensor-owned features close the gap: (1) `checker-feature-start-missing` makes `check-trace-consistency.sh` emit `feature_start_missing <fid>` for every unwaived `passes:true` feature without a matching agent `feature_start` span; (2) `gate-blocks-feature-start-missing` promotes that finding through the existing PR evidence gate so approve, check, and create-pr reject it while standalone trace rollout remains warn-only by default; and (3) `contract-and-doctrine-feature-start` freezes the token on the existing gate and documents the shared canonical `teeth_proof_waiver` / deprecated `red_first_waiver` precedence. The dedicated checker and PR-path sensors cover matching/missing/wrong-feature spans, both waiver forms, malformed-canonical shadowing, all three closeout paths, and standalone trace behavior. Full 170-sensor suite + shellcheck (CI glob) + L0 green.

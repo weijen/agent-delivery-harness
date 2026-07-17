@@ -19,7 +19,9 @@ descriptor. There are two common ways to start:
   the real harness assets — `scripts/`, `profiles/`, `tests/scripts` and
   `tests/meta`, `.copilot/instructions/`, `.copilot/agents/`, `.copilot/skills/`,
   `.copilot/prompts/`, `.github/workflows/harness-smoke.yml`, and the lifecycle
-  docs — into a target directory verbatim, touching nothing else:
+  and runtime contract docs. It also copies the trace and log schemas,
+  `docs/runtime-adapters/` guides and templates, and `VERSION` identity into a
+  target directory verbatim, touching nothing else:
 
   ```sh
   ./scripts/install-harness.sh /path/to/project            # dry run — prints what it would copy
