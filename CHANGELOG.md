@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.11.4 (2026-07-17)
+
+### Bug Fixes
+
+- **#294**: Install runtime dependencies
+  ([#295](https://github.com/weijen/agent-delivery-harness/pull/295),
+  [`4c925f9`](https://github.com/weijen/agent-delivery-harness/commit/4c925f9a774a5a568ba30b854caa3b5ea73502ff))
+
+### Chores
+
+- Sync uv.lock to 0.11.2; add tracing/observability journey docs
+  ([`ce852bd`](https://github.com/weijen/agent-delivery-harness/commit/ce852bdf7374f62fe40cc41693a823823ec73835))
+
+- Sync uv.lock to 0.11.3
+  ([`1c18673`](https://github.com/weijen/agent-delivery-harness/commit/1c1867349d9766d8e8faaecb1216c59c6b040653))
+
+
 ## v0.11.3 (2026-07-11)
 
 ### Bug Fixes

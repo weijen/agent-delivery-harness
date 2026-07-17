@@ -1,6 +1,6 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
-version = "0.11.3"
+version = "0.11.4"
 description = "Dormant Python toolchain (ruff/mypy/pytest) for the harness; the trace_tools export package was removed by issue #272 — retained so a future Python component has a ready home."
 readme = "README.md"
 requires-python = ">=3.14"
