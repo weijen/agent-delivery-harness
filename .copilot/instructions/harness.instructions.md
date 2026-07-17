@@ -109,10 +109,9 @@ similar names by collapsing one into the other.
 - For Copilot-assisted issue work, keep the roles separate:
   - **Conductor** chooses the issue, reads the GitHub contract, selects one `passes:false`
     feature, owns commits/PRs, and records substantive conductor actions in the issue progress Action Log.
-  - **Generator** (`implementation-subagent`) implements only that selected feature's production
-    assets, reports substantive implementation actions for the issue progress Action Log, and must not write tests or
-    mark `passes:true`.
-  - **Evaluator** (`test-subagent`) writes/runs the selected feature's sensors, applies the product-quality blocking gate checks in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md), and may mark that feature `passes:true` only after the declared checks and gate evidence pass; it reports substantive verification actions for the issue progress Action Log.
+  - **Generator** (`generator-subagent`) owns the selected feature's complete RED, minimal implementation, and GREEN
+    cycle. It writes and runs sensors, edits required production assets, and follows
+    [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md). The `generator-subagent` verifies every required product-quality blocking gate before it marks only that feature `passes:true`; it also records `teeth_proof` and the required gate evidence.
   - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md) during review before closeout, and reports substantive review findings or approvals for the issue progress Action Log.
 
 #### What counts as one feature (granularity rule)
@@ -146,10 +145,10 @@ change". The conductor **must not**:
 - write the feature's **production implementation** (no production code / production assets changes);
 - flip a feature to `passes:true` or otherwise own verification.
 
-Those acts belong to the `implementation-subagent` (production) and `test-subagent` (sensors + `passes:true`). The
+Those acts belong to `generator-subagent`. The
 conductor's own job is strictly orchestration: select the issue and one `passes:false` feature, prepare context, invoke
 the correct subagent, record handbacks, own commits/pushes/PRs/merge, and stop on blockers. If no subagent is
-available, **stop and report the blocker** — do not silently absorb the implementation or test role.
+available, **stop and report the blocker** — do not silently absorb the generator role.
 
 #### Required per-feature handoff sequence
 
@@ -158,18 +157,18 @@ Action Log):
 
 1. **Conductor selects** one `passes:false` feature and prepares context (changed files, declared sensors), recording
    the selection as a `feature_start` agent span via `scripts/log-handback.sh` (see the agent-span conventions below).
-2. **`test-subagent` creates/validates the RED sensor** — the smallest failing test/sensor that expresses the
-   feature, confirmed to fail for the right reason.
-3. **`implementation-subagent` makes the minimal production change** to satisfy that sensor; it does not touch tests
-   or `passes:true`.
-4. **`test-subagent` verifies GREEN** and updates completion status — it runs the declared `regression_sensor` and
-   any `e2e_sensor`, records product-quality blocking gate evidence, and only then may flip `passes:true`.
+2. **`generator-subagent` creates or validates the RED sensor**: the smallest failing test or sensor that expresses
+  the feature, confirmed to fail for the right reason. It returns a `red_handback` payload.
+3. **The same `generator-subagent` makes the minimal production change** to satisfy that sensor and returns an
+  `impl_handback` payload.
+4. **The same `generator-subagent` verifies GREEN**: it runs the declared `regression_sensor` and any `e2e_sensor`,
+  records product-quality blocking gate evidence and `teeth_proof`, and only then may flip `passes:true`. It returns
+  a `green_handback` payload.
 5. **Conductor commits/pushes** the result and records the handbacks with `scripts/log-handback.sh` per the
    agent-span conventions below.
 
-If a step fails, the conductor routes the handback to the owning subagent (production defect →
-`implementation-subagent`; verification gap → `test-subagent`) and re-runs — it does not patch the code or the test
-itself.
+If a step fails, the conductor routes the handback to `generator-subagent` and re-runs it for the same feature. The
+conductor does not patch production or verification assets itself.
 
 Every `passes:true` feature is **required** to have a matching `feature_start` agent span keyed by its feature id —
 the one recorded at step 1 above. `scripts/check-trace-consistency.sh` reports a missing span as a standalone
@@ -182,7 +181,7 @@ id); on the PR path this finding hard-blocks through the existing red-first / te
 `teeth_proof` is the optional per-feature object that records how the `regression_sensor` was proven able to fail:
 `red_first` means the classic RED run failed before the implementation; `mutation` means the implementation was
 mutated or reverted after GREEN and the sensor observed RED; `negative_fixture` means a committed negative fixture is
-rejected by the sensor. The `test-subagent` records `teeth_proof` at the moment it flips `passes:true`, with the kind
+rejected by the sensor. The `generator-subagent` records `teeth_proof` at the moment it flips `passes:true`, with the kind
 and non-empty evidence. `check-feature-list.sh` reports `teeth_proof_missing` as warn-only today; a follow-up issue
 will promote that coverage check to a hard gate.
 
@@ -196,8 +195,8 @@ the malformed canonical key wins over the alias, it does not fall back.
 
 Every conductor decision and subagent handback is recorded by the conductor running `scripts/log-handback.sh`
 (`<role> <lifecycle_step> <feature_id> <outcome> <summary...>`) from the issue worktree. The conductor is the sole
-emission point — three of the four subagents have no shell — and each subagent ends its handback with the structured
-payload line the conductor feeds in verbatim. One invocation is single-source by construction: it writes the agent
+emission point, and each subagent ends its handback with the structured payload line or lines the conductor feeds in
+verbatim. One invocation is single-source by construction: it writes the agent
 span first, then the derived Action Log line in `progress.md` from the same arguments —
 never hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
 attributing `<role>` to the role that produced the event. The mapping below covers every required handback signal;
@@ -206,8 +205,8 @@ the other six lifecycle steps of the frozen enum — `preflight`, `worktree_crea
 
 - `feature_start` — the conductor selects the next `passes:false` feature (role `conductor`).
 - `plan_handback` — `planning-subagent` returns its plan (or the human gate resolves it).
-- `red_handback` / `green_handback` — `test-subagent` returns the RED sensor or the GREEN verification result.
-- `impl_handback` — `implementation-subagent` returns its production change.
+- `red_handback` / `impl_handback` / `green_handback` — `generator-subagent` returns the selected feature's ordered
+  RED, production implementation, and GREEN results.
 - `review_verdict` — `code-review-subagent` returns its verdict (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
 - `deviation` — stop/report/recover: record the deviation with `scripts/log-handback.sh` (step `deviation`,
   `<feature_id|->`, outcome `blocked`) before continuing recovery; a rejected alternative during a feature is the
@@ -232,27 +231,27 @@ implementation-usefulness grading from the audit skills (issue #13) is a **routi
 it helps decide *where* work goes and *what proof* is needed, but it never downgrades a blocking severity — Critical
 security, data-loss, destructive behaviour, or a missing acceptance criterion still blocks regardless of score.
 
-**Loop 1 — implementation ↔ test.** After `implementation-subagent` returns, the conductor invokes `test-subagent`.
-When the evaluator reports a failure, the conductor routes by defect type:
+**Loop 1 — generator repair.** After `generator-subagent` returns, the conductor records its ordered payloads. When
+the generator reports a failure, the conductor routes by defect type:
 
-- **Production defect** (declared sensor fails on real behaviour) → back to `implementation-subagent` with the same
+- **Production defect** (declared sensor fails on real behaviour) → back to `generator-subagent` with the same
   selected feature, the changed files, the failing commands, and the exact sensor output summary.
-- **Verification gap** (missing/weak/incorrect sensor) → back to `test-subagent` to strengthen the sensor, **without
-  weakening any declared sensor**. If a declared sensor is itself wrong, the evaluator reports the gap and hands back
-  to the conductor rather than silently substituting a weaker check.
+- **Verification gap** (missing/weak/incorrect sensor) → back to `generator-subagent` to strengthen the sensor,
+  **without weakening any declared sensor**. If a declared sensor is itself wrong, the generator reports the gap and
+  hands back to the conductor rather than silently substituting a weaker check.
 - **Low verification clarity** (per the #13 grading) → the conductor pauses or plans the missing sensor rather than
   flipping `passes:true` on weak evidence.
 
 Loop 1 continues until the declared `regression_sensor` and any required `e2e_sensor` pass, or a real blocker is
 recorded.
 
-**Loop 2 — review → implementation.** After the feature or closeout diff is reviewed by `code-review-subagent`:
+**Loop 2 — review → generator.** After the feature or closeout diff is reviewed by `code-review-subagent`:
 
 - **APPROVED** → the conductor proceeds to the next lifecycle step.
 - **NEEDS_REVISION** with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) → the conductor
   routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to re-run — to
-  `implementation-subagent` when a production/code/prompt/config change is needed, or to `test-subagent` when the gap
-  is a missing or weak sensor.
+  `generator-subagent` when production or verification repair is needed. Scope and planning decisions remain with
+  the conductor.
 - The conductor appends an entry whenever a CRITICAL or MAJOR review finding is empirically refuted (for example, by running a
   cannot-run/cannot-parse claim and observing success) to the known-false-positive registry at
   [`../skills/_review-known-false-positives.md`](../skills/_review-known-false-positives.md); the entry carries the
@@ -262,8 +261,8 @@ recorded.
 
 After any fix, the conductor re-runs the relevant deterministic sensor and then re-runs `code-review-subagent` on the
 new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the user or issue plan expands scope, and
-**preserve role boundaries**: `implementation-subagent` does not edit tests, `test-subagent` does not edit production,
-`code-review-subagent` reviews only. **Avoid infinite loops** — repeated failure on the same sensor or finding stops
+**preserve role boundaries**: `generator-subagent` owns generation while `code-review-subagent` reviews only.
+**Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
 exists.
 
@@ -297,8 +296,7 @@ extension, under `.copilot/instructions/<language>.instructions.md` — `.py` �
 applicable language instruction file, always alongside `.copilot/instructions/tdd.instructions.md` and this harness
 contract. For example, when the selected feature touches Python (`.py`):
 
-- to `implementation-subagent`: include/point to `.copilot/instructions/python.instructions.md`;
-- to `test-subagent`: include/point to `.copilot/instructions/python.instructions.md` **and**
+- to `generator-subagent`: include/point to `.copilot/instructions/python.instructions.md` **and**
   `.copilot/instructions/tdd.instructions.md`;
 - to `code-review-subagent`: name `.copilot/instructions/python.instructions.md` and
   `.copilot/instructions/tdd.instructions.md` as review criteria for the Python diff.
@@ -309,8 +307,8 @@ Apply the same `<language>.instructions.md` pattern for `go`, `node`, `java`, an
 inventing language conventions.
 
 When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
-`.copilot/instructions/bash.instructions.md`: include/point to it for the implementation and test work, and name it as
-a review criterion for the shell diff. Likewise, when the feature touches Terraform/Azure surfaces (`*.tf` or
+`.copilot/instructions/bash.instructions.md`: include/point to it for the generator's implementation and test work,
+and name it as a review criterion for the shell diff. Likewise, when the feature touches Terraform/Azure surfaces (`*.tf` or
 `*.bicep`), apply the same pattern with `.copilot/instructions/terraform-azure.instructions.md`.
 
 How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
@@ -380,9 +378,9 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
   any stop/report/recover entry for a harness deviation. Update `.copilot-tracking/issues/<issue>/plan.md` if the
   approach or remaining phases changed.
    - **Distinguish conductor actions from subagent handbacks.** Each Action Log entry must attribute the act to its
-     owner — conductor (selection, context prep, commit/push/PR/merge) versus `test-subagent` (RED/GREEN sensor work,
-     `passes:true`) versus `implementation-subagent` (production change) versus `code-review-subagent` (review
-     verdict). A log that only says **"conductor TDD"** — i.e. the conductor claiming the test+implementation work —
+     owner — conductor (selection, context prep, commit/push/PR/merge) versus `generator-subagent` (RED, production,
+     GREEN, teeth proof, and `passes:true`) versus `code-review-subagent` (review verdict). A log that only says
+     **"conductor TDD"** — i.e. the conductor claiming the test+implementation work —
      is **visibly non-compliant**, because it hides the required subagent handoff and means the non-delegable
      role-separation rule (§3) was skipped.
 4. When the issue's features are all `passes:true`, bring the repo-wide

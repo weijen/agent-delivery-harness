@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression sensor (issue #14; structural per #273): the harness must document
-# conductor-owned, grading-driven revision loops -- Loop 1 (implementation <->
-# test) and Loop 2 (review -> implementation) -- and each subagent's handback/
+# conductor-owned, grading-driven revision loops -- Loop 1 (generator repair)
+# and Loop 2 (review -> generator) -- and each subagent's handback/
 # next-steps guidance must support routing without collapsing role boundaries or
 # treating the usefulness score as a severity override. Structure-level: asserts
 # the guarded section exists (heading anchor) and its closed vocabulary is
@@ -15,8 +15,7 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 h=".copilot/instructions/harness.instructions.md"
-impl=".copilot/agents/implementation-subagent.agent.md"
-test_a=".copilot/agents/test-subagent.agent.md"
+generator=".copilot/agents/generator-subagent.agent.md"
 review=".copilot/agents/code-review-subagent.agent.md"
 
 # 1. Harness docs: the revision-loops section exists + closed vocabulary.
@@ -42,24 +41,17 @@ else
   note "missing $harness_md"
 fi
 
-# 2. implementation-subagent handback exists.
-if [ -f "$impl" ]; then
-  grep -qi 'handback' "$impl" || note "$impl must describe its Handback"
+# 2. generator-subagent handback distinguishes production defects from verification/sensor gaps.
+if [ -f "$generator" ]; then
+  grep -qi 'production' "$generator" || note "$generator handback must call out production defects"
+  grep -Eqi 'verification|sensor' "$generator" || note "$generator handback must distinguish a verification/sensor gap"
 else
-  note "missing $impl"
+  note "missing $generator"
 fi
 
-# 3. test-subagent handback distinguishes production defects from verification/sensor gaps.
-if [ -f "$test_a" ]; then
-  grep -qi 'production' "$test_a" || note "$test_a handback must call out production defects"
-  grep -Eqi 'verification|sensor' "$test_a" || note "$test_a handback must distinguish a verification/sensor gap"
-else
-  note "missing $test_a"
-fi
-
-# 4. code-review-subagent routes findings to impl / test / conductor.
+# 3. code-review-subagent routes findings to generator / conductor.
 if [ -f "$review" ]; then
-  for token in 'implementation-subagent' 'test-subagent' 'conductor'; do
+  for token in 'generator-subagent' 'conductor'; do
     grep -q "$token" "$review" || note "$review must route findings to '$token'"
   done
 else

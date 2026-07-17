@@ -9,11 +9,11 @@
 #
 # (`<lifecycle_step>` is accepted for `<step>`.) The shared spec owns the
 # template, the closed outcome enum pass|fail|blocked, the one-line summary
-# requirement, and the token-count caveat (omit, never fake). Each of the four
+# requirement, and the token-count caveat (omit, never fake). Each active
 # subagent prompt files keeps only ONE line: it points at the shared spec /
 # scripts/log-handback.sh and names its own role-correct lifecycle step(s)
-# (planning → plan_handback; test → red_handback/green_handback; implementation
-# → impl_handback; review → review_verdict). An agent must NOT re-paste the full
+# (planning → plan_handback; generator → red_handback/impl_handback/green_handback;
+# review → review_verdict). An agent must NOT re-paste the full
 # template, so the spec stays single-source.
 #
 # This sensor fails if the shared spec loses any pinned element, or if any
@@ -79,8 +79,7 @@ check_agent() {
 }
 
 check_agent .copilot/agents/planning-subagent.agent.md plan_handback
-check_agent .copilot/agents/test-subagent.agent.md red_handback green_handback
-check_agent .copilot/agents/implementation-subagent.agent.md impl_handback
+check_agent .copilot/agents/generator-subagent.agent.md red_handback impl_handback green_handback
 check_agent .copilot/agents/code-review-subagent.agent.md review_verdict
 
 if [ "$fail" -ne 0 ]; then

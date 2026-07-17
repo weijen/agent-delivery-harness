@@ -38,9 +38,8 @@ review every file the diff touches. Do not invent a scope wider than the diff.
 This subagent applies the **product-quality rubric** defined in `docs/evaluation/product-quality-rubric.md`. The rubric
 structures Verdict 2 (test/sensor adequacy) around **four blocking gates** and Verdict 3 (code quality/maintainability)
 around a **six-dimension scorecard**. Failed blocking gates override scorecard scoring. The rubric distinguishes
-runnable-but-shallow work from production-ready changes and routes product-quality findings to the appropriate role:
-`implementation-subagent` for production/code/prompt/config gaps, `test-subagent` for sensor/verification gaps, or the
-**conductor/human gate** for scope/planning decisions.
+runnable-but-shallow work from production-ready changes and routes production or verification repair to
+`generator-subagent`, through the conductor. Scope and planning decisions remain with the **conductor/human gate**.
 
 **Applicable instruction files are part of the review contract (profile-aware routing).** Treat the `<language>.instructions.md` file(s) matching each changed file — selected from the single-source routing map in `.copilot/instructions/harness.instructions.md`, always with `.copilot/instructions/tdd.instructions.md` — as binding review criteria alongside the acceptance criteria; a diff that violates them (e.g. ignores pathlib, weakens or skips a sensor, abandons RED→GREEN) is a finding. You run in a fresh context, so read the applicable files from the repo when they are not in your prompt.
 
@@ -109,9 +108,8 @@ A passing build is not proof. Judge whether the sensors actually establish the c
 Per the product-quality rubric (`docs/evaluation/product-quality-rubric.md`), a `passes:true` claim must clear **four
 blocking gates** — Spec fidelity, Executable verification, Main workflow works, and No known critical breakage. Read
 the rubric for each gate's definition rather than restating it here. Failure at any gate is
-**BLOCKING** — it overrides a clean code-quality scorecard. When a gate fails, route the finding: to **test-subagent**
-for missing or weak sensors, to **implementation-subagent** for unmet spec or unproven guards, or to the **conductor**
-for scope/planning gaps.
+**BLOCKING** — it overrides a clean code-quality scorecard. When a gate fails, route production or verification
+repair to **generator-subagent** through the conductor, or route scope and planning gaps to the **conductor**.
 
 ### Verdict 3 — Code Quality Scorecard
 
@@ -122,9 +120,8 @@ Failure and edge handling, State and data coherence, Integration depth, Recovera
 Verification adequacy — scored **0/1/2** per dimension, **after** the four blocking gates pass. Sum the scores and
 interpret the total against the rubric's score bands (`docs/evaluation/product-quality-rubric.md`); do not restate the
 bands here. **Failed blocking gates override the scorecard** — a failed blocking gate forces a `FAIL` verdict
-regardless of the dimension scores. Route scorecard findings: to **implementation-subagent** for
-production/code/prompt/config gaps, to **test-subagent** for sensor/verification gaps, or to the **conductor** for
-scope/planning decisions.
+regardless of the dimension scores. Route production or verification scorecard findings to **generator-subagent**
+through the conductor, or route scope and planning decisions to the **conductor**.
 
 #### General Quality Checks
 
@@ -168,8 +165,8 @@ When the issue workflow is active, also judge whether the work respected the har
 1. **Lifecycle order** — were the steps performed in the required sequence (preflight before worktree, review-gate
    approval before push, validation before worktree removal)? A change that reorders or skips a lifecycle step is a
    **BLOCKING** finding.
-2. **Role boundaries** — did each role stay in scope (conductor did not directly author feature tests/production;
-   test-subagent did not edit production; nobody weakened, deleted, or skipped a declared sensor to pass)? A
+2. **Role boundaries** — did each role stay in scope (conductor did not directly author feature tests or production;
+   the generator stayed within one selected feature; nobody weakened, deleted, or skipped a declared sensor to pass)? A
    role-boundary violation is **BLOCKING**.
 3. **Action Log** — are the conductor handbacks, subagent actions, and verdicts recorded so the lifecycle is auditable?
 4. **Trace / Process Evidence** — when a local trace exists, the required trace review section below is part of every
@@ -260,7 +257,8 @@ investigations. Keeping the passes distinct preserves recall.
 **Execute-before-CRITICAL:** For claims that the reviewed change "cannot run", "cannot parse", or "crashes", a
 CRITICAL requires an executed reproduction: record the command run on the reviewed HEAD and its observed output.
 Static reasoning alone can never mint a CRITICAL of this class; because this reviewer is read-only, the reproduction
-duty may be discharged via the conductor/test-subagent loop. Without that record, it must be reported as MAJOR with confidence: low, never CRITICAL.
+duty may be discharged by routing the check through the conductor to `generator-subagent`. Without that record, it
+must be reported as MAJOR with confidence: low, never CRITICAL.
 
 Any BLOCKING, CRITICAL, or MAJOR finding makes the final verdict `NEEDS_REVISION`. Only return `APPROVED` when all four
 verdicts pass: acceptance criteria are satisfied, every `passes:true` claim maps to a sensor that was actually run and
@@ -354,8 +352,8 @@ For full mode:
 **Action Log:** {Paste-ready entry for the conductor's issue progress Action Log, including verdict and required follow-up.}
 
 **Next Steps:** {Approve and continue, or specific revisions needed. For each blocking finding, name the **route**
-(Loop 2): to `implementation-subagent` when a production/code/prompt/config change is needed, to `test-subagent` when
-the gap is a missing or weak sensor, or to the **conductor** when it is a scope/planning decision. Give file/path, the
+(Loop 2): to `generator-subagent` through the conductor when production or verification repair is needed, or to the
+**conductor** when it is a scope or planning decision. Give file/path, the
 problem, the expected fix direction, and the sensor or review to re-run on the new HEAD. You do not call other
 subagents directly — the conductor owns the loop.}
 ```

@@ -130,14 +130,14 @@ Sum the six dimension scores to produce a total score from 0 to 12, then map to 
 
 When a dimension scores 0 or 1, include specific findings in the handback. Route based on the root cause:
 
-### To implementation-subagent
+### To generator-subagent for implementation repair
 
 - Missing required workflow steps (dimension 1)
 - Incomplete integration with existing conventions (dimension 4)
 - Missing verification hooks or sensor boundaries (dimension 6)
 - Any spec fidelity failure (blocking gate 1)
 
-### To test-subagent
+### To generator-subagent for verification repair
 
 - Insufficient verification coverage (dimension 6)
 - Missing regression or e2e sensors for new behavior
@@ -219,7 +219,7 @@ These examples show how to apply the rubric consistently. Each demonstrates scor
 
 **Verdict**: **FAIL** (blocking gate 1: Spec Fidelity)
 
-**Handback to implementation-subagent**:
+**Handback to generator-subagent**:
 - **Finding**: Step 2 missing — `docs/multi-language-profiles.md` not updated to document formatter gate.
 - **Evidence**: `./tests/scripts/test_python_profile.sh formatter` exits 1 with "Expected formatter command in docs/multi-language-profiles.md, not found."
 - **Required Fix**: Add formatter gate description to the Python profile section in `docs/multi-language-profiles.md`, following the existing quality gate documentation pattern.
@@ -262,7 +262,7 @@ These examples show how to apply the rubric consistently. Each demonstrates scor
 - The existing-archive-target edge case is low-severity because the archive directory is intended for cold storage (user rarely re-archives the same issue).
 - The missing rollback for failed moves is a real gap but acceptable for a first iteration (manual recovery is straightforward: move the directory back).
 
-**Handback to implementation-subagent** (recommended but waivable):
+**Handback to generator-subagent** (recommended but waivable):
 - **Findings**:
   1. Dimension 1 (Workflow Completeness): Script does not check if `../<repo>-archive/issue-<N>/` already exists; overwrites silently.
   2. Dimension 5 (Recoverability): No rollback if `mv` fails partway (e.g., disk full, permission error).

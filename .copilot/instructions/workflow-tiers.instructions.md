@@ -47,8 +47,8 @@ Any of: auth, security, telemetry, infra, deployment, teardown; cross-module arc
 with code + config; large refactors (5+ files, behavior across modules); user explicitly asks for plan / phased work /
 strict TDD / subagent review; work spans multiple phases or sessions.
 
-Uses `planning-subagent` and `code-review-subagent`. In repos that provide generator/evaluator agents, the conductor
-may route one selected `feature_list` item through `implementation-subagent` and `test-subagent`; otherwise the main
+Uses `planning-subagent` and `code-review-subagent`. In repos that provide a feature generator agent, the conductor
+may route one selected `feature_list` item through `generator-subagent`; otherwise the main
 agent implements directly. Plan approval pause and final review pause are mandatory unless the repo's issue harness
 defines a stricter per-feature flow.
 
@@ -119,14 +119,15 @@ approval.** Do not proceed until approved.
 
 For each phase in the approved plan:
 
-a. **Implement** — follow the host repo's implementation path. If the repo provides `implementation-subagent`, use it
-  only for the selected feature's production assets; otherwise the conductor implements directly.
+a. **Implement** — follow the host repo's implementation path. If the repo provides `generator-subagent`, use it for
+  the selected feature's complete RED, minimal implementation, GREEN, teeth-proof, and pass-state cycle; otherwise
+  the conductor implements directly.
    - For behavior changes, follow strict TDD: failing test → verify right failure → minimal implementation → passing test.
    - Apply style fixes scoped to touched files using the project's lint/format commands.
    - Run targeted tests during the phase; run the full suite at milestones and at the end.
 
-b. **Verify** — if the repo provides `test-subagent`, use it to write/run the selected feature's sensors and mark
-  `passes:true` only after checks pass. Otherwise run the repo's targeted tests directly.
+b. **Verify** — require the generator to run the selected feature's declared sensors and mark `passes:true` only
+  after checks and product-quality blocking gates pass. Otherwise run the repo's targeted tests directly.
 
 c. **Self-check** — before declaring the phase done, scan the diff: lint clean, tests pass, no debug leftovers, no
   unrelated changes.

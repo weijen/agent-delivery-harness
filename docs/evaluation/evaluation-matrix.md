@@ -78,7 +78,7 @@ The thing being evaluated. Examples:
 - `scripts/start-issue.sh`
 - `scripts/review-gate.sh`
 - `code-review-subagent`
-- `test-subagent`
+- `generator-subagent`
 - `skill:code-review`
 - `skill:create-pr`
 - `feature_list.json schema`
@@ -154,7 +154,7 @@ Use only where deterministic checks are insufficient:
 - Review finding specificity.
 - Plan usefulness.
 - Explanation quality.
-- Whether a tester proposed a meaningful adversarial sensor.
+- Whether a generator produced a meaningful adversarial sensor.
 - Whether a reviewer correctly classified severity.
 
 Rubric graders must return structured JSON, not free-form prose. A rubric grader

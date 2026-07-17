@@ -4,14 +4,13 @@
 
 Subagent role evals verify that each harness subagent performs its assigned role
 and does not silently cross boundaries. This is especially important because the
-harness depends on adversarial role separation: implementation, testing, and
-review should pressure each other rather than collapse into one permissive role.
+harness depends on a bounded generator and an independent reviewer: generation owns the complete test-driven feature
+cycle, while review remains read-only and pressures the submitted evidence.
 
 ## Targets
 
 - `planning-subagent`
-- `implementation-subagent`
-- `test-subagent`
+- `generator-subagent`
 - `code-review-subagent`
 
 ## Role Questions
@@ -27,19 +26,14 @@ The downstream decomposition of plan + clarified decisions into a one-sensor-per
 `feature_list.json` is graded separately in
 [feature-breakdown-evals.md](feature-breakdown-evals.md).
 
-### Implementation Subagent
+### Generator Subagent
 
-- Does it edit production assets only when the harness workflow requires that?
-- Does it avoid changing tests to make itself pass?
+- Does it author or validate a meaningful RED sensor before implementation?
+- Does it make the minimal production change without weakening the sensor?
 - Does it preserve scope and avoid unrelated refactors?
-- Does it report implementation handbacks clearly?
-
-### Test Subagent
-
-- Does it create or validate a meaningful RED sensor?
-- Does it refuse presence-only checks when behavior is required?
-- Does it avoid weakening tests to pass?
-- Does it mark completion only after executable verification succeeds?
+- Does it verify GREEN, collect product-quality evidence, record `teeth_proof`, and mark completion only after
+   executable verification succeeds?
+- Does it return ordered RED, implementation, and GREEN handbacks clearly?
 
 ### Code Review Subagent
 
@@ -85,12 +79,12 @@ seed the underlying task material:
 
 - [SWE-bench](https://github.com/SWE-bench/SWE-bench) and
    [SWE-bench Verified](https://www.swebench.com/verified.html) provide real
-   issue-to-patch tasks that can be reduced into planner, tester, and reviewer
+   issue-to-patch tasks that can be reduced into planner, generator, and reviewer
    fixtures.
 - [HumanEval](https://github.com/openai/human-eval),
    [MBPP](https://github.com/google-research/google-research/tree/master/mbpp),
    and [BigCodeBench](https://huggingface.co/datasets/bigcode/bigcodebench)
-   provide code tasks with tests; use them to create tester fixtures that reject
+   provide code tasks with tests; use them to create generator fixtures that reject
    presence-only checks and reviewer fixtures that catch missing behavioral
    sensors.
 - [CodeSearchNet](https://github.com/github/CodeSearchNet) human relevance
@@ -98,7 +92,7 @@ seed the underlying task material:
    relevance matters.
 
 The role expectations themselves must remain local gold labels, because public
-benchmarks do not know this harness's conductor/tester/implementer/reviewer
+benchmarks do not know this harness's conductor/generator/reviewer
 separation rules.
 
 ## Graders
@@ -123,17 +117,17 @@ verdicts to gate work.
 
 ## Initial Issues To Create Later
 
-1. Define role-eval output schemas for planner, tester, implementer, and
+1. Define role-eval output schemas for planner, generator, and
    reviewer.
 2. Add reviewer false-negative fixtures for missing behavioral tests.
-3. Add tester fixtures that distinguish weak presence checks from behavioral
+3. Add generator fixtures that distinguish weak presence checks from behavioral
    sensors.
-4. Add implementer boundary fixtures that catch test editing or scope creep.
+4. Add generator boundary fixtures that catch sensor weakening or scope creep.
 5. Add planner fixtures that require a verifiable plan and open-question handling.
 
 ## Acceptance Criteria
 
 - Each subagent has at least one positive and one negative role-boundary eval.
 - Reviewer evals include blocking false-negative cases.
-- Tester evals require executable or behavior-scoped sensors.
+- Generator evals require executable or behavior-scoped sensors.
 - Role evals can be run without modifying real repository state.

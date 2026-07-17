@@ -176,8 +176,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
 | **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
 | **Subagent** `planning-subagent` | Tier 3 planning pass; produces `.copilot-tracking/plans/<issue>.md` | Conductor invokes at the start of any Tier 3 issue |
-| **Subagent** `implementation-subagent` | Generator role for one `feature_list` item; edits production assets only | Conductor invokes after selecting one `passes:false` feature |
-| **Subagent** `test-subagent` | Evaluator role for one `feature_list` item; writes/runs sensors and may flip `passes:true` only after verification | Conductor invokes after implementation is ready to verify |
+| **Subagent** `generator-subagent` | Owns RED, minimal implementation, GREEN, product-quality evidence, teeth proof, and pass state for one `feature_list` item | Conductor invokes after selecting one `passes:false` feature |
 | **Subagent** `code-review-subagent` | Tier 3 final review pass (full mode) before PR | Conductor invokes after implementation completes |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
@@ -198,7 +197,7 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 
-Planner, implementer, and tester carry no distinctive skill; their quality bar comes from the
+Planner and generator carry no distinctive skill; their quality bar comes from the
 applicable `<language>.instructions.md` plus `.copilot/instructions/tdd.instructions.md` and this AGENTS.md, not a
 skill. The audit skills
 are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.

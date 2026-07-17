@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression sensor (issue #46; structural per #273): the tester and reviewer
+# Regression sensor (issue #46; structural per #273): the generator and reviewer
 # templates must encode STRICT, contract-guarding blocking criteria. Structure-
 # level: asserts the guarded verdict sections exist (heading anchors) and the
 # closed blocking vocabulary is present; wording is free to change.
@@ -11,22 +11,22 @@ cd "$ROOT"
 fail=0
 note() { echo "✗ $*"; fail=1; }
 
-test_agent=".copilot/agents/test-subagent.agent.md"
+generator=".copilot/agents/generator-subagent.agent.md"
 review=".copilot/agents/code-review-subagent.agent.md"
 
-for f in "$test_agent" "$review"; do
+for f in "$generator" "$review"; do
   [ -f "$f" ] || note "missing $f"
 done
 
-# test-subagent -- blocking vocabulary.
-if [ -f "$test_agent" ]; then
-  grep -qi 'acceptance criteri' "$test_agent" || note "$test_agent must map acceptance criteria to sensors before passes:true"
-  grep -Eqi 'missing sensor coverage' "$test_agent" || note "$test_agent must treat missing sensor coverage as blocking"
-  grep -Eqi 'happy.?path' "$test_agent" || note "$test_agent must treat happy-path-only coverage as blocking"
-  grep -Eqi 'non.?executable|not runnable|non.?runnable' "$test_agent" || note "$test_agent must treat non-executable validation as blocking"
-  grep -q 'BLOCKING' "$test_agent" || note "$test_agent must label these gaps as BLOCKING"
-  grep -Eqi 'waiv(e|ed|er)' "$test_agent" || note "$test_agent must describe the conductor waiver path"
-  grep -q 'Action Log' "$test_agent" || note "$test_agent must require the waiver rationale in the Action Log"
+# generator-subagent -- blocking vocabulary.
+if [ -f "$generator" ]; then
+  grep -qi 'acceptance criteri' "$generator" || note "$generator must map acceptance criteria to sensors before passes:true"
+  grep -Eqi 'missing sensor coverage' "$generator" || note "$generator must treat missing sensor coverage as blocking"
+  grep -Eqi 'happy.?path' "$generator" || note "$generator must treat happy-path-only coverage as blocking"
+  grep -Eqi 'non.?executable|not runnable|non.?runnable' "$generator" || note "$generator must treat non-executable validation as blocking"
+  grep -q 'BLOCKING' "$generator" || note "$generator must label these gaps as BLOCKING"
+  grep -Eqi 'waiv(e|ed|er)' "$generator" || note "$generator must describe the conductor waiver path"
+  grep -q 'Action Log' "$generator" || note "$generator must require the waiver rationale in the Action Log"
 fi
 
 # code-review-subagent -- four-verdict structure (heading anchors) + blocking vocabulary.
@@ -49,4 +49,4 @@ fi
 if [ "$fail" -ne 0 ]; then
   exit 1
 fi
-echo "tester/reviewer blocking-criteria checks passed"
+echo "generator/reviewer blocking-criteria checks passed"
