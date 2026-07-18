@@ -45,21 +45,7 @@ jobs:
 
       - name: Validate customization frontmatter
         shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(.copilot/agents/*.agent.md .copilot/skills/*/SKILL.md)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No Copilot agent or skill files found; skipping frontmatter validation."
-            exit 0
-          fi
-          for file in "${files[@]}"; do
-            awk '
-              NR == 1 && $0 != "---" { exit 1 }
-              NR > 1 && $0 == "---" { found = 1; exit 0 }
-              END { if (!found) exit 1 }
-            ' "$file"
-          done
+        run: bash tests/evals/bin/validate-customization-frontmatter.sh
       - name: Run harness sensor suite
         shell: bash
         run: |

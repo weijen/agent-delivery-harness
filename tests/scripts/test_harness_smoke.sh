@@ -13,19 +13,7 @@ cd "$ROOT"
 bash -n scripts/*.sh tests/evals/bin/*.sh tests/scripts/lib/*.sh
 shellcheck scripts/*.sh profiles/*.profile.sh tests/evals/bin/*.sh tests/scripts/lib/*.sh
 
-shopt -s nullglob
-files=(.copilot/agents/*.agent.md .copilot/skills/*/SKILL.md)
-if [ "${#files[@]}" -eq 0 ]; then
-  echo "No Copilot agent or skill files found; skipping frontmatter validation."
-else
-  for file in "${files[@]}"; do
-    awk '
-      NR == 1 && $0 != "---" { exit 1 }
-      NR > 1 && $0 == "---" { found = 1; exit 0 }
-      END { if (!found) exit 1 }
-    ' "$file"
-  done
-fi
+bash tests/evals/bin/validate-customization-frontmatter.sh
 
 if git grep -n -E 'check-pr\.sh|gh pr checks --watch|required status checks|branch protection gate' -- .github README.md AGENTS.md scripts; then
   echo "old CI/CD watch or branch-protection wording was reintroduced" >&2
