@@ -245,17 +245,23 @@ the generator reports a failure, the conductor routes by defect type:
 Loop 1 continues until the declared `regression_sensor` and any required `e2e_sensor` pass, or a real blocker is
 recorded.
 
-**Loop 2 — review → generator.** After the feature or closeout diff is reviewed by `code-review-subagent`:
+**Loop 2 — end-of-issue review → generator.** Independent review is a **single independent review at issue
+completion**, not a per-feature mid-stream step. **The conductor does not invoke `code-review-subagent` per feature
+mid-stream.** Per-feature verification is **fully owned by `generator-subagent`** — tests, production code, declared
+sensors, product-quality blocking gates, and red-first teeth proof — before it flips that feature `passes:true`. When
+**all** features are `passes:true`, the conductor runs the **one** independent review over the **whole branch diff**
+(`main...HEAD`) in **`full` mode** as the §6 Pre-PR verify gate — that §6 review **is** THE review, and it issues
+**per-feature verdicts**:
 
-- **APPROVED** → the conductor proceeds to the next lifecycle step.
+- **APPROVED** (per feature) → the conductor proceeds to the next lifecycle step.
 - Before approval, the reviewer maps criteria to sensors, assesses assertion strength, boundaries, negative/mutation
   cases, and implementation-fitting tests, then adds and executes the smallest independent verification asset when
   needed. Reviewer writes are limited to tests, fixtures, smoke checks, and validation assets; production is
   read-only, and ambiguous paths or required production hooks stop and route through the conductor.
-- **NEEDS_REVISION** with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) → the conductor
-  routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to re-run — to
-  `generator-subagent` when production or verification repair is needed. Scope and planning decisions remain with
-  the conductor.
+- **NEEDS_REVISION** (per feature) with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) →
+  the conductor routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to
+  re-run — back to `generator-subagent` **for that feature only** when production or verification repair is needed.
+  Scope and planning decisions remain with the conductor.
 - A new failing adversarial sensor is `NEEDS_REVISION`, not a reviewer production-edit exception. The conductor routes
   the exposed production defect to `generator-subagent`; after repair, the reviewer reruns that sensor and reports
   changed test files, commands, and observed pass/fail evidence.
@@ -266,18 +272,19 @@ recorded.
 - **MINOR/Low** → may be deferred only where §6 allows, with rationale and tracking; never silently dropped when a
   concise review mode hides them.
 
-After any fix, the conductor re-runs the relevant deterministic sensor and then re-runs `code-review-subagent` on the
-new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the user or issue plan expands scope, and
-**preserve role boundaries**: `generator-subagent` owns production generation while `code-review-subagent` may edit
-only dedicated verification assets during independent review.
+After any per-feature fix, the conductor re-runs the relevant deterministic sensor and then re-reviews **only that
+feature** on the new HEAD/diff. Keep each per-feature repair scoped to the **same** feature unless the user or issue
+plan expands scope, and **preserve role boundaries**: `generator-subagent` owns production generation while
+`code-review-subagent` may edit only dedicated verification assets during independent review.
 
-**Review profile in Loop 2.** These mid-loop, per-feature repair reviews run in the **`repair` review profile**: the
-reviewer still judges Verdicts 1-4 and the adversarial test-quality pass, but **skips the whole-diff skill battery
-(code-quality checks #6-#11: `find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`,
-`sync-docs`, `public-exposure-audit`)** to keep the repair-loop review context small. That battery is not dropped — it
-is **deferred to the pre-PR review**, which runs the **full battery** over the whole branch diff as part of the Pre-PR
-verify gate (§6). Use `concise` or `full` (not `repair`) for that pre-PR pass so the whole-diff sweep, including the
-`public-exposure-audit` security check, always runs before `gh pr create`.
+**Review profile in Loop 2.** The single end-of-issue review runs in **`full` mode** over the whole branch diff:
+Verdicts 1-4, the adversarial test-quality pass, **and** the whole-diff skill battery (code-quality checks #6-#11:
+`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, `public-exposure-audit`).
+Use `concise` or `full` (not `repair`) for that pre-PR pass so the whole-diff sweep, including the
+`public-exposure-audit` security check, always runs before `gh pr create`. The **only** mid-stream reviews are the
+**post-repair re-reviews** after a `NEEDS_REVISION`: those run in the **`repair` review profile** **scoped to that feature only** and skip the whole-diff skill battery (#6-#11) to keep the repair-loop review context small, because
+that battery already runs in the full pre-PR review. Nothing is permanently skipped — the pre-PR review runs the
+**full battery** over the whole branch diff (§6).
 **Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
 exists. For THIS repo the local rule overrides that generic default: the **3rd review rejection (NEEDS_REVISION) for
