@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v0.16.0 (2026-07-18)
+
+### Documentation
+
+- **#303**: Finalize PROGRESS delivery entry and sensor count
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+### Features
+
+- **#303**: Detect missing per-feature review verdict at approve
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+- **#303**: Generator owns per-feature verification; single end-of-issue review
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+- **#303**: Generator pre-handback self-check checklist
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+- **#303**: Review-gate blocks approve on missing verdict
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+- **#303**: Reviewer contract for single end-of-issue review
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+- **#303**: Single end-of-issue review, per-feature verdicts
+  ([#307](https://github.com/weijen/agent-delivery-harness/pull/307),
+  [`7eece9a`](https://github.com/weijen/agent-delivery-harness/commit/7eece9a2e003e7ebb8133dc5a4045ae21ae93406))
+
+
 ## v0.15.0 (2026-07-18)
 
 ### Documentation
