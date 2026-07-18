@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v0.14.0 (2026-07-18)
+
+### Documentation
+
+- **#300**: Enumerate repair in the code-review-subagent description
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+- **#300**: Record #300 delivery in PROGRESS.md
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+### Features
+
+- **#300**: Add repair review profile that skips the whole-diff skill battery
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+- **#300**: Detect 3+ review rejections per feature in trace consistency
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+- **#300**: Hard-block the review gate on the 3-rejection cap
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+- **#300**: Record injected instruction files per handback
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+- **#300**: Repair-loop context control + 3-rejection stop rule
+  ([#302](https://github.com/weijen/agent-delivery-harness/pull/302),
+  [`09c702c`](https://github.com/weijen/agent-delivery-harness/commit/09c702cb768520eeebeb16ed7654c324ff10fc5f))
+
+
 ## v0.13.0 (2026-07-18)
 
 ### Bug Fixes
