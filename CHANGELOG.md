@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v0.13.0 (2026-07-18)
+
+### Bug Fixes
+
+- **#65**: Handle YAML description forms
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+### Continuous Integration
+
+- **#65**: Share frontmatter validation
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+### Documentation
+
+- **#65**: Record frontmatter lint delivery
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+- **#65**: Record pull request number
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+### Features
+
+- Validate customization frontmatter
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+- **#65**: Validate customization frontmatter
+  ([#301](https://github.com/weijen/agent-delivery-harness/pull/301),
+  [`6c98027`](https://github.com/weijen/agent-delivery-harness/commit/6c98027773a976c253e56dbb3f9c47d28bf90f5b))
+
+
 ## v0.12.0 (2026-07-18)
 
 ### Bug Fixes
