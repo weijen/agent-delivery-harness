@@ -109,7 +109,7 @@ _Last updated: 2026-07-18 (#65)_
 
 ## Delivered (newest first)
 
-### Customization frontmatter lint (#65): delivery complete in PR #298
+### Customization frontmatter lint (#65): delivery complete in PR #301
 
 - **#65 replaces duplicated skill and agent fence checks with one shared,
   dependency-free structural validator.** Skills require a folder-matching
