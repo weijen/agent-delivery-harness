@@ -57,6 +57,26 @@
 #                     (key-presence precedence: a malformed canonical key
 #                     shadows a valid legacy one and does not waive).
 #                         VIOLATION consistency: feature_start_missing <feature_id>
+#   review_verdict_missing
+#                     under issue #303 per-feature review is removed and the
+#                     single independent review runs at issue completion; a
+#                     passes:true feature that never received a review verdict
+#                     is a real gap, but ONLY once the review/approve phase has
+#                     started. The phase is active when EITHER a
+#                     review_gate_approve span is present in the trace
+#                     (harness.lifecycle_step=="review_gate_approve") OR the
+#                     environment variable REVIEW_GATE_APPROVE_PHASE=1 is set.
+#                     When active, every passes:true entry in feature_list.json
+#                     must be backed by an agent span with
+#                     harness.lifecycle_step=="review_verdict" and matching
+#                     harness.feature_id (ANY outcome — an approve/reject verdict
+#                     both count as "the feature was reviewed"); a passing
+#                     feature with no such span is flagged once, echoing the
+#                     feature id like the sibling feature-id findings. When the
+#                     phase is NOT active the rule is SILENT — the normal
+#                     mid-issue state where features legitimately pass before the
+#                     end review, so verdict absence is not yet a gap.
+#                         VIOLATION consistency: review_verdict_missing <feature_id>
 #   review_reject_cap_exceeded
 #                     the detection half of the issue #300 3-rejection stop
 #                     rule: when a single harness.feature_id accumulates
@@ -291,6 +311,8 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
 #   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
 #   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
+#   ::verdict <fid>  review_verdict agent span for <fid> (ANY outcome) — the
+#                    set of features that DID receive a review verdict
 #   ::fullreview <fid>\t<sha>
 #                    review_verdict agent span with review_mode=="full" and a
 #                    string reviewed_sha; <fid> and <sha> are TAB-separated so
@@ -342,6 +364,12 @@ cat > "$STATE_FILTER" <<'JQ'
       end ),
     ( if ($span.span == "agent")
          and ($span["harness.lifecycle_step"] == "review_verdict")
+         and (($span["harness.feature_id"] | type) == "string")
+      then "::verdict \($span["harness.feature_id"])"
+      else empty
+      end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
          and ($span["harness.review_mode"] == "full")
          and (($span["harness.feature_id"] | type) == "string")
          and (($span["harness.reviewed_sha"] | type) == "string")
@@ -385,6 +413,7 @@ fi
 green_ids=$'\n'
 feature_start_ids=$'\n'
 reject_ids=$'\n'
+verdict_ids=$'\n'
 fullreview_pairs=$'\n'
 hb_if_ids=$'\n'
 rv_noif_ids=$'\n'
@@ -400,6 +429,7 @@ while IFS= read -r out_line; do
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
     '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
     '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
+    '::verdict '*) verdict_ids="${verdict_ids}${out_line#'::verdict '}"$'\n' ;;
     '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
     '::hb_if '*)   hb_if_ids="${hb_if_ids}${out_line#'::hb_if '}"$'\n' ;;
     '::rv_noif '*) rv_noif_ids="${rv_noif_ids}${out_line#'::rv_noif '}"$'\n' ;;
@@ -407,6 +437,16 @@ while IFS= read -r out_line; do
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
   esac
 done <<< "$state_out"
+
+# Review/approve phase (issue #303): the review_verdict_missing rule fires only
+# once the single end-of-issue review has started. The phase is active when an
+# approve span is present in the trace (reusing the ::approve token above) OR
+# the activation env var is explicitly set — before that, features legitimately
+# pass with no verdict yet, so the rule stays silent.
+phase_active=0
+if [ -n "$approve_sha" ] || [ "${REVIEW_GATE_APPROVE_PHASE:-}" = "1" ]; then
+  phase_active=1
+fi
 
 # --- State: review_reject_cap_exceeded (issue #300) ---------------------------
 # The DETECTION half of the 3-rejection stop rule: when a single
@@ -637,6 +677,14 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         :  # feature_start span present for this feature_id
       else
         printf 'VIOLATION consistency: feature_start_missing %s\n' "$fid"
+        violations=$((violations + 1))
+      fi
+      # review_verdict_missing (issue #303): once the review/approve phase is
+      # active, a passes:true feature with no review_verdict span (any outcome)
+      # is a real gap. Silent while the phase is inactive (normal mid-issue).
+      if [ "$phase_active" = "1" ] \
+          && [[ "$verdict_ids" != *$'\n'"$fid"$'\n'* ]]; then
+        printf 'VIOLATION consistency: review_verdict_missing %s\n' "$fid"
         violations=$((violations + 1))
       fi
     done <<< "$passing_ids"

@@ -84,6 +84,7 @@ PR: https://github.com/acme/widgets/pull/123
 - [test-subagent] red_handback feat-a pass — feat-a sensor RED first
 - [implementation-subagent] impl_handback feat-a pass — implemented feat-a
 - [test-subagent] green_handback feat-a pass — verified feat-a GREEN
+- [code-review-subagent] review_verdict feat-a pass — approved feat-a at end review
 MD
 }
 
@@ -112,7 +113,7 @@ write_trace() {
       ;;
     *) hard_fail "write_trace: unknown tool kind '${tool_kind}'" ;;
   esac
-  append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:08Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"review_verdict\",\"harness.outcome\":\"pass\"}"
+  append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:08Z\",\"span\":\"agent\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"code-review-subagent\",\"harness.lifecycle_step\":\"review_verdict\",\"harness.feature_id\":\"feat-a\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:09Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"review_gate_approve\",\"harness.review_gate_sha\":\"${APPROVED_SHA}\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:10Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"pr_create\",\"harness.pr_number\":\"123\",\"harness.outcome\":\"pass\"}"
   append_span "$file" "{\"schema_version\":1,\"timestamp\":\"2026-07-09T12:00:11Z\",\"span\":\"lifecycle\",\"harness.issue\":${issue},\"harness.version\":\"abc1234\",\"harness.lifecycle_step\":\"pr_merge\",\"harness.pr_number\":\"123\",\"harness.outcome\":\"pass\"}"
