@@ -74,9 +74,9 @@ boundary must stay labeled as a proxy.
 The first L1 slice should be deliberately narrow and lean on deterministic
 signals:
 
-1. Add SKILL.md frontmatter validation as the first Tier A L1 check; it delivers
-   user-visible value immediately by catching skills that would silently fail to
-   load.
+1. Use the delivered shared customization frontmatter validator as the first
+   Tier A L1 check. It catches malformed skills and agents before merge without
+   adding a YAML dependency or eval-manifest integration.
 2. Add one deterministic `create-pr` artifact eval with a static repo fixture,
    an expected PR body schema, and a deterministic grader.
 3. Add one `code-review` skill trigger dataset with explicit, implicit,

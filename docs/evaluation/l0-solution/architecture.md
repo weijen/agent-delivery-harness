@@ -97,7 +97,8 @@ does not collapse into a single opaque pass/fail.
 
 Tier A is every eval with a deterministic grader. It runs locally and in GitHub
 Actions, and it is part of the CI pipeline: the existing harness-smoke workflow
-already runs the L0 shell sensors and a basic SKILL.md frontmatter check, so the
+already runs the L0 shell sensors and the shared skill/agent structural
+validator at `tests/evals/bin/validate-customization-frontmatter.sh`, so the
 deterministic eval layer is an extension of CI rather than a separate system.
 Tier A blocks PRs.
 

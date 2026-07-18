@@ -66,17 +66,19 @@ Phases: **5–7** deterministic L1 · **8–9** model-driven L1.
 - **Target**: `.copilot/skills/*/SKILL.md` (and `.copilot/agents/*.agent.md`).
 - **Capability**: A skill that would silently fail to load is caught before merge.
 - **Boundary**: `skill-artifact` (frontmatter).
-- **Grader**: deterministic — `name` matches directory and the allowed charset
-  and length, `description` is non-empty and within the length limit, no
-  namespace prefix, referenced relative files exist.
+- **Grader**: deterministic — skill `name` matches its directory and the
+  allowed charset and length, skill and agent `description` values are
+  non-empty and within the length limit, namespace prefixes are rejected for
+  skills, and agent `name` remains optional.
 - **Mode / blocking**: regression / blocking.
-- **Tier / runtime**: A / local + GitHub Actions (replaces the basic `---` fence
-  check already in `harness-smoke.yml`).
-- **Fixtures**: valid skill plus malformed ones (name/dir mismatch, illegal
-  characters, missing description, dangling file reference).
+- **Tier / runtime**: A / local + GitHub Actions through the shared
+  `tests/evals/bin/validate-customization-frontmatter.sh` validator.
+- **Fixtures**: valid skills and agents plus malformed cases for missing or
+  unterminated frontmatter, tab indentation, namespace prefixes, invalid or
+  mismatched skill names, and missing or oversized descriptions.
 - **Dependencies**: Issues 1, 2 (framework foundation).
-- **Acceptance**: all nine current skills pass; each malformed fixture fails with
-  a specific reason. This is the recommended first L1 slice.
+- **Acceptance**: all current skills and agents pass; each malformed fixture
+  fails with a stable reason. This first L1 slice is delivered by issue #65.
 
 ### Issue 6 — Skill description-discriminability proxy
 
