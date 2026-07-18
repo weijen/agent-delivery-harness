@@ -149,63 +149,11 @@ _rc=$?
 set -e
 tap_result "$_rc" "missing-jq finish skips with a warning (not crash)"
 
-# --- Issue #144: start-issue seeds developer-local hook config into fresh worktrees ---
-# start-issue.sh must copy ${ROOT}/.github/hooks/harness-trace.json (a gitignored,
-# developer-local file that never propagates through `git worktree add`) into a NEWLY
-# created worktree when it exists, skip cleanly when it is absent, and never clobber a
-# reused worktree's hook config. ROOT is the main checkout root — here the temp repo.
-
-# (1) Present: the source hook file is copied byte-for-byte into the fresh worktree.
-set +e
-(
-  set -e
-HOOK_SRC="${TMP_DIR}/repo/.github/hooks/harness-trace.json"
-mkdir -p "$(dirname "$HOOK_SRC")"
-printf '{"trace":"seed-present"}\n' > "$HOOK_SRC"
-SKIP_INIT=1 ./scripts/start-issue.sh 126 SLUG=hook-copy >/tmp/start-hook-copy.out 2>&1
-HOOK_DST="${TMP_DIR}/repo-worktrees/issue-126/.github/hooks/harness-trace.json"
-[ -f "$HOOK_DST" ] || fail "hook config was not seeded into the fresh worktree"
-cmp -s "$HOOK_SRC" "$HOOK_DST" || fail "seeded hook config does not byte-match the source"
-)
-_rc=$?
-set -e
-tap_result "$_rc" "hook_seed_copies_when_present: start-issue seeds developer-local hook config into a fresh worktree"
-
-# (2) Absent: no source hook file => skip cleanly (exit 0, worktree created, no hook file).
-set +e
-(
-  set -e
-rm -f "${TMP_DIR}/repo/.github/hooks/harness-trace.json"
-SKIP_INIT=1 ./scripts/start-issue.sh 127 SLUG=hook-absent >/tmp/start-hook-absent.out 2>&1
-WORKTREE_HOOK_ABSENT="${TMP_DIR}/repo-worktrees/issue-127"
-[ -d "$WORKTREE_HOOK_ABSENT" ] || fail "worktree was not created when the hook source is absent"
-if [ -e "${WORKTREE_HOOK_ABSENT}/.github/hooks/harness-trace.json" ]; then
-  fail "hook config appeared in the worktree though no source file exists"
-fi
-)
-_rc=$?
-set -e
-tap_result "$_rc" "hook_seed_skips_when_absent: start-issue skips hook seeding cleanly when no source file exists"
-
-# (3) No-clobber on reuse: seeding happens only on fresh creation. Seed once, then write
-#     DISTINCT worktree-local content, then re-run start-issue for the SAME issue (the
-#     idempotent reuse path). The reuse path must leave the worktree hook file untouched.
-set +e
-(
-  set -e
-HOOK_SRC="${TMP_DIR}/repo/.github/hooks/harness-trace.json"
-mkdir -p "$(dirname "$HOOK_SRC")"
-printf '{"trace":"seed-source"}\n' > "$HOOK_SRC"
-SKIP_INIT=1 ./scripts/start-issue.sh 128 SLUG=hook-noclobber >/tmp/start-hook-noclobber-1.out 2>&1
-HOOK_DST="${TMP_DIR}/repo-worktrees/issue-128/.github/hooks/harness-trace.json"
-mkdir -p "$(dirname "$HOOK_DST")"
-printf '{"trace":"worktree-local-distinct"}\n' > "$HOOK_DST"
-SKIP_INIT=1 ./scripts/start-issue.sh 128 SLUG=hook-noclobber >/tmp/start-hook-noclobber-2.out 2>&1
-grep -q "Worktree already exists" /tmp/start-hook-noclobber-2.out || fail "second run did not hit the reuse path"
-grep -q "worktree-local-distinct" "$HOOK_DST" || fail "reuse path clobbered the worktree-local hook config"
-)
-_rc=$?
-set -e
-tap_result "$_rc" "hook_seed_no_clobber_existing_worktree: reuse path leaves worktree-local hook config untouched"
+# Note (issue #305, feature start-issue-no-hook-seed): the runtime capture layer
+# is retiring, so start-issue.sh no longer seeds the developer-local Copilot
+# trace hook config (.github/hooks/harness-trace.json) into fresh worktrees. The
+# former #144 hook-seeding cases were removed here with that production block;
+# the structural sensor tests/scripts/test_start_issue_no_hook_seed.sh now pins
+# the no-seeding contract.
 
 tap_done
