@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.18.0 (2026-07-18)
+
+### Bug Fixes
+
+- **#305**: Reconcile launch-topology doctrine and retire seeding contract
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+### Documentation
+
+- **#305**: Finalize PROGRESS delivery entry and sensor count
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+### Features
+
+- **#305**: Document the capture kept/retired boundary and Phase-2 gate
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+- **#305**: Mark runtime capture deprecated in adapter docs
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+- **#305**: Rescope dark_run to a semantic-spine completeness check
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+- **#305**: Retire the runtime capture layer (Phase 1), keep the semantic spine
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+- **#305**: Stop seeding the runtime hook config into worktrees
+  ([#309](https://github.com/weijen/agent-delivery-harness/pull/309),
+  [`2e1e0cb`](https://github.com/weijen/agent-delivery-harness/commit/2e1e0cb8a1dd3800eb37df3f0df66578ea3151a1))
+
+
 ## v0.17.0 (2026-07-18)
 
 ### Bug Fixes
