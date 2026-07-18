@@ -68,6 +68,20 @@
 #                     feature-id findings. Report-only here — the review-gate
 #                     hard-block on this finding is a separate feature.
 #                         VIOLATION consistency: review_reject_cap_exceeded <feature_id>
+#   duplicate_full_review
+#                     a WARNING (issue #299): when two OR MORE agent spans with
+#                     harness.lifecycle_step=="review_verdict",
+#                     harness.review_mode=="full", and a string
+#                     harness.reviewed_sha share the SAME (harness.feature_id,
+#                     harness.reviewed_sha) PAIR, flag that pair once. Grouping
+#                     is per (feature_id, reviewed_sha): a different reviewed_sha
+#                     is a legit re-review of a new commit, and a whole-diff
+#                     review under a different (synthetic) feature id at the same
+#                     sha is naturally exempt. Only review_mode=="full" spans
+#                     count. WARN-ONLY — like red_first_ordering_absent it is
+#                     printed but never counted as a violation and never flips
+#                     the exit code; no review-gate wiring here.
+#                         WARNING consistency: duplicate_full_review <feature_id> <reviewed_sha>
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
@@ -262,6 +276,10 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
 #   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
 #   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
+#   ::fullreview <fid>\t<sha>
+#                    review_verdict agent span with review_mode=="full" and a
+#                    string reviewed_sha; <fid> and <sha> are TAB-separated so
+#                    the (feature_id, reviewed_sha) grouping key is unambiguous
 #   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
 #   ::pr <num>       pr_create span's harness.pr_number
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
@@ -303,6 +321,14 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::reject \($span["harness.feature_id"])"
       else empty
       end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "full")
+         and (($span["harness.feature_id"] | type) == "string")
+         and (($span["harness.reviewed_sha"] | type) == "string")
+      then "::fullreview \($span["harness.feature_id"])\u0009\($span["harness.reviewed_sha"])"
+      else empty
+      end ),
     ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
          and (($span["harness.review_gate_sha"] | type) == "string")
       then "::approve \($span["harness.review_gate_sha"])"
@@ -323,6 +349,7 @@ fi
 green_ids=$'\n'
 feature_start_ids=$'\n'
 reject_ids=$'\n'
+fullreview_pairs=$'\n'
 approve_sha=""
 pr_span_number=""
 while IFS= read -r out_line; do
@@ -335,6 +362,7 @@ while IFS= read -r out_line; do
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
     '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
     '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
+    '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
   esac
@@ -358,6 +386,32 @@ if [ "$reject_ids" != $'\n' ]; then
       violations=$((violations + 1))
     fi
   done < <(printf '%s' "$reject_ids" | grep -v '^$' | sort | uniq -c \
+    | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+fi
+
+# --- State: duplicate_full_review (issue #299, WARN-only) ---------------------
+# When two OR MORE agent spans with harness.lifecycle_step=="review_verdict",
+# harness.review_mode=="full", and a string harness.reviewed_sha share the SAME
+# (harness.feature_id, harness.reviewed_sha) PAIR, warn once for that pair.
+# Grouping is per (feature_id, reviewed_sha): a different reviewed_sha is a
+# legit re-review of a new commit, and a whole-diff review under a different
+# feature id at the same sha is naturally exempt. The per-line ::fullreview
+# "fid<TAB>sha" pairs collected above are grouped here in bash (sort|uniq -c is
+# a constant fork budget — no per-line forks). WARN-ONLY: like
+# red_first_ordering_absent this is printed but never counted as a violation and
+# never flips the exit code.
+if [ "$fullreview_pairs" != $'\n' ]; then
+  while IFS= read -r fullreview_line; do
+    [ -n "$fullreview_line" ] || continue
+    fullreview_count="${fullreview_line%% *}"
+    fullreview_pair="${fullreview_line#* }"
+    if [ "$fullreview_count" -ge 2 ]; then
+      fullreview_fid="${fullreview_pair%%$'\t'*}"
+      fullreview_sha="${fullreview_pair#*$'\t'}"
+      printf 'WARNING consistency: duplicate_full_review %s %s\n' \
+        "$fullreview_fid" "$fullreview_sha"
+    fi
+  done < <(printf '%s' "$fullreview_pairs" | grep -v '^$' | sort | uniq -c \
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
 fi
 
