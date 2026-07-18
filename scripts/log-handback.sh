@@ -49,6 +49,17 @@
 # the call still exits 0. Informational only (no consistency gate). The Action
 # Log bullet format is unchanged.
 #
+# Review-verdict provenance (issue #299, feature review-verdict-provenance):
+# on the review_verdict step ONLY, two attributes are attached. (1)
+# TRACE_REVIEW_MODE is forwarded as harness.review_mode against a CLOSED enum
+# {full, concise, repair} — out-of-enum or empty → key omitted with a stderr
+# warning, exit 0 (omit, never fake, mirroring the failure-mode shape; the enum
+# is inline here, distinct from failure_modes). (2) harness.reviewed_sha is
+# AUTO-captured at emit time from `git rev-parse HEAD` (NOT from any env var) and
+# omitted when unresolvable. On every OTHER lifecycle step both attributes are
+# absent even when TRACE_REVIEW_MODE is set in the ambient env. The Action Log
+# bullet format is unchanged.
+#
 # Failure semantics (plan D4, conductor-resolved):
 #   * Bad role/step/outcome or missing args → non-zero exit, nothing written.
 #   * Validate first, THEN span, THEN log line. If the Action Log append
@@ -217,6 +228,33 @@ role-violation'
     IF_ARGS+=("harness.instruction_files=${TRACE_INSTRUCTION_FILES}")
   fi
 
+  # Review-verdict provenance (issue #299): on the review_verdict step ONLY,
+  # forward TRACE_REVIEW_MODE as harness.review_mode (closed enum {full,
+  # concise, repair}; out-of-enum or empty → omit + warn, never fake, mirroring
+  # the failure-mode shape) and AUTO-capture the reviewed HEAD as
+  # harness.reviewed_sha from `git rev-parse HEAD` (NOT any env var). Both attrs
+  # are absent on every other step even when TRACE_REVIEW_MODE is set.
+  RM_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    case "${TRACE_REVIEW_MODE:-}" in
+      full|concise|repair)
+        RM_ARGS+=("harness.review_mode=${TRACE_REVIEW_MODE}")
+        ;;
+      "")
+        : # unset/empty → omit silently (control path, no warning)
+        ;;
+      *)
+        warn "TRACE_REVIEW_MODE '${TRACE_REVIEW_MODE}' is not in the closed review_mode enum {full,concise,repair} — harness.review_mode omitted (omit, never fake)"
+        ;;
+    esac
+    # Auto-capture the reviewed HEAD; under set -e the 2>/dev/null || true keeps
+    # a detached/empty repo from aborting the call, and an empty sha is omitted.
+    reviewed_sha="$(git rev-parse HEAD 2>/dev/null || true)"
+    if [ -n "$reviewed_sha" ]; then
+      RM_ARGS+=("harness.reviewed_sha=${reviewed_sha}")
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -226,7 +264,8 @@ role-violation'
     "harness.summary=${SUMMARY}" \
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
     ${FM_ARGS[@]+"${FM_ARGS[@]}"} \
-    ${IF_ARGS[@]+"${IF_ARGS[@]}"}
+    ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
+    ${RM_ARGS[@]+"${RM_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

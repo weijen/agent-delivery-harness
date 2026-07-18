@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#300)_
+_Last updated: 2026-07-18 (#299)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-18 (#300)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 179 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 182 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,28 @@ _Last updated: 2026-07-18 (#300)_
 ---
 
 ## Delivered (newest first)
+
+### Review provenance + irreversibility-scoped pre-PR gate (#299): delivery complete in PR #304
+
+- **#299 adds the measurement/enforcement layer on top of #300 and removes a
+  structural double-run from the pre-PR gate.** Four features, each red-first
+  with a teeth-proof (three new sensors bring the suite to 182): (1)
+  **review-verdict provenance** — `review_verdict` spans now carry
+  `harness.review_mode` (a `TRACE_REVIEW_MODE` env passthrough, closed enum
+  `full|concise|repair`, omit+warn otherwise) and an auto-captured
+  `harness.reviewed_sha` (`git rev-parse HEAD` at emit time), both scoped to
+  `review_verdict` spans; (2) **duplicate-full-review detection** —
+  `check-trace-consistency.sh` warns (`duplicate_full_review`, warn-only, never
+  wired into `review-gate.sh`) when two `full`-mode reviews share a
+  `(feature_id, reviewed_sha)` pair; (3) **irreversibility-scoped §6 list** — the
+  standalone pre-PR sensor list shrinks to the irreversible-on-push checks
+  (`code-review-subagent (full)`, `security-audit`, `public-exposure-audit`);
+  the five quality skills keep diff-scoped coverage via the full review's
+  embedded checks #6–#11 and whole-repo coverage via the `audit-sweep` cadence
+  (weekly/per release, → scheduled CI when #256 unblocks); (4) **reviewer
+  instruction-files discipline** — a warn when a feature's handbacks carry
+  `harness.instruction_files` but its `review_verdict` span does not, plus the
+  conductor doctrine to set `TRACE_INSTRUCTION_FILES` on reviewer verdicts.
 
 ### Repair-loop context control (#300): delivery complete in PR #302
 

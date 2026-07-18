@@ -68,6 +68,35 @@
 #                     feature-id findings. Report-only here — the review-gate
 #                     hard-block on this finding is a separate feature.
 #                         VIOLATION consistency: review_reject_cap_exceeded <feature_id>
+#   duplicate_full_review
+#                     a WARNING (issue #299): when two OR MORE agent spans with
+#                     harness.lifecycle_step=="review_verdict",
+#                     harness.review_mode=="full", and a string
+#                     harness.reviewed_sha share the SAME (harness.feature_id,
+#                     harness.reviewed_sha) PAIR, flag that pair once. Grouping
+#                     is per (feature_id, reviewed_sha): a different reviewed_sha
+#                     is a legit re-review of a new commit, and a whole-diff
+#                     review under a different (synthetic) feature id at the same
+#                     sha is naturally exempt. Only review_mode=="full" spans
+#                     count. WARN-ONLY — like red_first_ordering_absent it is
+#                     printed but never counted as a violation and never flips
+#                     the exit code; no review-gate wiring here.
+#                         WARNING consistency: duplicate_full_review <feature_id> <reviewed_sha>
+#   reviewer_instruction_files_missing
+#                     a WARNING (issue #299): reviewer provenance mirror. For a
+#                     single harness.feature_id, when at least one HANDBACK span
+#                     (harness.lifecycle_step in
+#                     red_handback|impl_handback|green_handback) carries a
+#                     non-empty string harness.instruction_files but that
+#                     feature's review_verdict span does NOT, flag it once. The
+#                     conductor records the instruction files it feeds the
+#                     generator; it should record the ones it feeds the reviewer
+#                     too. Silent when the review_verdict already carries
+#                     instruction_files, or when no handback carried them
+#                     (nothing to mirror). WARN-ONLY — like duplicate_full_review
+#                     it is printed but never counted as a violation and never
+#                     flips the exit code; no review-gate wiring here.
+#                         WARNING consistency: reviewer_instruction_files_missing <feature_id>
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
@@ -262,6 +291,14 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
 #   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
 #   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
+#   ::fullreview <fid>\t<sha>
+#                    review_verdict agent span with review_mode=="full" and a
+#                    string reviewed_sha; <fid> and <sha> are TAB-separated so
+#                    the (feature_id, reviewed_sha) grouping key is unambiguous
+#   ::hb_if <fid>    red_handback|impl_handback|green_handback agent span for
+#                    <fid> carrying a non-empty string harness.instruction_files
+#   ::rv_noif <fid>  review_verdict agent span for <fid> WITHOUT (absent/empty)
+#                    harness.instruction_files
 #   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
 #   ::pr <num>       pr_create span's harness.pr_number
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
@@ -303,6 +340,31 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::reject \($span["harness.feature_id"])"
       else empty
       end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "full")
+         and (($span["harness.feature_id"] | type) == "string")
+         and (($span["harness.reviewed_sha"] | type) == "string")
+      then "::fullreview \($span["harness.feature_id"])\u0009\($span["harness.reviewed_sha"])"
+      else empty
+      end ),
+    ( if ($span.span == "agent")
+         and ((["red_handback", "impl_handback", "green_handback"]
+               | index($span["harness.lifecycle_step"])) != null)
+         and (($span["harness.instruction_files"] | type) == "string")
+         and ($span["harness.instruction_files"] != "")
+         and (($span["harness.feature_id"] | type) == "string")
+      then "::hb_if \($span["harness.feature_id"])"
+      else empty
+      end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and (($span["harness.feature_id"] | type) == "string")
+         and (($span["harness.instruction_files"] | type) != "string"
+              or $span["harness.instruction_files"] == "")
+      then "::rv_noif \($span["harness.feature_id"])"
+      else empty
+      end ),
     ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
          and (($span["harness.review_gate_sha"] | type) == "string")
       then "::approve \($span["harness.review_gate_sha"])"
@@ -323,6 +385,9 @@ fi
 green_ids=$'\n'
 feature_start_ids=$'\n'
 reject_ids=$'\n'
+fullreview_pairs=$'\n'
+hb_if_ids=$'\n'
+rv_noif_ids=$'\n'
 approve_sha=""
 pr_span_number=""
 while IFS= read -r out_line; do
@@ -335,6 +400,9 @@ while IFS= read -r out_line; do
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
     '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
     '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
+    '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
+    '::hb_if '*)   hb_if_ids="${hb_if_ids}${out_line#'::hb_if '}"$'\n' ;;
+    '::rv_noif '*) rv_noif_ids="${rv_noif_ids}${out_line#'::rv_noif '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
   esac
@@ -359,6 +427,55 @@ if [ "$reject_ids" != $'\n' ]; then
     fi
   done < <(printf '%s' "$reject_ids" | grep -v '^$' | sort | uniq -c \
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+fi
+
+# --- State: duplicate_full_review (issue #299, WARN-only) ---------------------
+# When two OR MORE agent spans with harness.lifecycle_step=="review_verdict",
+# harness.review_mode=="full", and a string harness.reviewed_sha share the SAME
+# (harness.feature_id, harness.reviewed_sha) PAIR, warn once for that pair.
+# Grouping is per (feature_id, reviewed_sha): a different reviewed_sha is a
+# legit re-review of a new commit, and a whole-diff review under a different
+# feature id at the same sha is naturally exempt. The per-line ::fullreview
+# "fid<TAB>sha" pairs collected above are grouped here in bash (sort|uniq -c is
+# a constant fork budget — no per-line forks). WARN-ONLY: like
+# red_first_ordering_absent this is printed but never counted as a violation and
+# never flips the exit code.
+if [ "$fullreview_pairs" != $'\n' ]; then
+  while IFS= read -r fullreview_line; do
+    [ -n "$fullreview_line" ] || continue
+    fullreview_count="${fullreview_line%% *}"
+    fullreview_pair="${fullreview_line#* }"
+    if [ "$fullreview_count" -ge 2 ]; then
+      fullreview_fid="${fullreview_pair%%$'\t'*}"
+      fullreview_sha="${fullreview_pair#*$'\t'}"
+      printf 'WARNING consistency: duplicate_full_review %s %s\n' \
+        "$fullreview_fid" "$fullreview_sha"
+    fi
+  done < <(printf '%s' "$fullreview_pairs" | grep -v '^$' | sort | uniq -c \
+    | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+fi
+
+# --- State: reviewer_instruction_files_missing (issue #299, WARN-only) --------
+# Reviewer provenance mirror: for a single harness.feature_id, when at least one
+# HANDBACK span (harness.lifecycle_step in
+# red_handback|impl_handback|green_handback) carried a non-empty string
+# harness.instruction_files but that feature's review_verdict span did NOT,
+# warn once for that feature id. The intent is that if the conductor recorded
+# the instruction files fed to the generator, it should record the instruction
+# files fed to the reviewer too. A feature whose review_verdict already carries
+# instruction_files is silent, and a feature where NO handback carried them is
+# silent (nothing to mirror). The per-line ::hb_if / ::rv_noif fids collected
+# above are intersected here in bash (sort -u is a constant fork budget — no
+# per-line forks). WARN-ONLY: like duplicate_full_review this is printed but
+# never counted as a violation and never flips the exit code.
+if [ "$hb_if_ids" != $'\n' ]; then
+  while IFS= read -r hbif_fid; do
+    [ -n "$hbif_fid" ] || continue
+    if [[ "$rv_noif_ids" == *$'\n'"$hbif_fid"$'\n'* ]]; then
+      printf 'WARNING consistency: reviewer_instruction_files_missing %s\n' \
+        "$hbif_fid"
+    fi
+  done < <(printf '%s' "$hb_if_ids" | grep -v '^$' | sort -u)
 fi
 
 # --- Second trace pass: red-first evidence per feature (issue #144) ------------

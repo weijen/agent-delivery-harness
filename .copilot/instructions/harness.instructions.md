@@ -335,6 +335,11 @@ How to pass them: either paste the file contents into the subagent prompt, or gi
 instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
 `<language>.instructions.md` files, so this is a belt-and-suspenders contract: the conductor supplies them and the
 subagent loads them.
+
+When the conductor logs the reviewer's `review_verdict` with `scripts/log-handback.sh`, it sets
+`TRACE_INSTRUCTION_FILES` to the instruction files it fed the reviewer — the same passthrough already used for the
+generator handbacks — so `harness.instruction_files` is captured on the `review_verdict` span and reviewer provenance
+is recorded alongside the generator's.
 - **Never edit, weaken, or delete a test/feature/sensor to make things pass.** Initializer or
   planning work may define feature `steps`, `regression_sensor`, and `e2e_sensor` fields up
   front; coding sessions must not weaken those fields. During implementation, edit
@@ -441,16 +446,19 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
   - Docs-only era: `shellcheck scripts/*.sh`.
    - Code era: `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` ·
      `uv run pytest` (with coverage).
-4. Run the inferential sensor set over the branch diff (**this is the authoritative list** —
-   everywhere else that mentions "the verify-gate sensors" means exactly these):
+4. Run the standalone inferential sensor set over the branch diff (**this is the authoritative
+   list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
+   scoped by **irreversibility**: only the three checks whose findings become irreversible the
+   moment the branch is pushed / the PR is opened run standalone here:
    - `code-review-subagent` (full)
    - `security-audit`
-   - `find-duplicates`
-   - `find-over-design`
-   - `find-brute-force`
-   - `dead-code-detection`
-   - `sync-docs`
    - `public-exposure-audit`
+
+   The five diff-scoped quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
+   `dead-code-detection`, `sync-docs`) are **not** repeated as standalone sensors here: their
+   diff-scoped coverage already ships at zero extra cost inside the `full`-mode review's embedded
+   checks #6-#11 (unchanged), and their whole-repo coverage is owned by the periodic `audit-sweep`
+   (`scripts/audit-sweep.sh`).
 5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
@@ -533,11 +541,15 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 Agents replicate existing patterns, including bad ones — drift is inevitable. Pay debt down in
 small increments, not painful bursts.
 
-- The inferential drift sensors do **not** run on a vague "per milestone" cadence — they are
-  part of the **Pre-PR verify gate (§6) on every PR** (`find-duplicates`, `find-over-design`,
-  `find-brute-force`, `dead-code-detection`, `sync-docs` are in that one authoritative set),
-  and their findings follow the same severity→action loop-back table. GC is enforced per
-  issue, not deferred to entropy.
+- The inferential drift sensors do **not** run on a vague "per milestone" cadence. The five drift
+  skills (`find-duplicates`, `find-over-design`, `find-brute-force`, `dead-code-detection`,
+  `sync-docs`) run **diff-scoped inside the `full`-mode review on every PR** (the embedded
+  code-quality checks #6-#11 of the Pre-PR verify gate, §6) **and** whole-repo on the audit-sweep
+  cadence below — they are **not** standalone §6 sensors. Their findings follow the same
+  severity→action loop-back table. GC is enforced per issue, not deferred to entropy.
+- Run the whole-repo `scripts/audit-sweep.sh` (the audit-sweep driver, issue #258) on a periodic
+  cadence — **weekly or per release** — to sweep drift across the whole tree, not just the branch
+  diff. This is promoted to scheduled CI when **#256** unblocks.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
 - Keep `docs/` honest against the code: if a doc no longer reflects behaviour, fix it (or file
