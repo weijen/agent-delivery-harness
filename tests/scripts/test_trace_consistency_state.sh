@@ -152,6 +152,7 @@ JSON
 {"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"red_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"feat-a","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:02.5Z","span":"agent","harness.issue":77,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"feat-a","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-04T12:00:03Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"${APPROVED_SHA}"}
 {"schema_version":1,"timestamp":"2026-07-04T12:00:04Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"pr_create","harness.outcome":"pass","harness.pr_number":"123"}
 TRACE
@@ -171,6 +172,7 @@ TRACE
     printf -- '- [test-subagent] red_handback feat-a pass — feat-a sensor RED first\n'
     printf -- '- [implementation-subagent] impl_handback feat-a pass — implemented feat-a\n'
     printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
+    printf -- '- [code-review-subagent] review_verdict feat-a pass — approved feat-a at end review\n'
   } > "${dir}/issues/issue-77/progress.md"
 }
 
@@ -320,6 +322,7 @@ mk_state_case s8 false "$APPROVED_SHA" absent
   printf -- '- [test-subagent] red_handback feat-a pass — feat-a sensor RED first\n'
   printf -- '- [implementation-subagent] impl_handback feat-a pass — implemented feat-a\n'
   printf -- '- [test-subagent] green_handback feat-a pass — verified feat-a GREEN\n'
+  printf -- '- [code-review-subagent] review_verdict feat-a pass — approved feat-a at end review\n'
 } > "${TMP_DIR}/s8/.copilot-tracking/issues/issue-77/progress.md"
 rc="$(run_checker "$(trace_path s8)")"
 [ "$rc" = "0" ] \

@@ -363,6 +363,7 @@ add_span "$ID4" 83 conductor feature_start feat-a pass
 add_span "$ID4" 83 test-subagent red_handback feat-a pass
 add_span "$ID4" 83 implementation-subagent impl_handback feat-a pass
 add_span "$ID4" 83 test-subagent green_handback feat-a pass
+add_span "$ID4" 83 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT4" "issue-83 feature-start allow leg"
 rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
@@ -391,6 +392,7 @@ C5="${TMP_DIR}/c84"; make_fixture "$C5" 84
 WT5="${C5}-worktrees/issue-84"; ID5="${C5}/.copilot-tracking/issues/issue-84"
 set_fl "$ID5" "$FL_CANON_WAIVER"
 add_span "$ID5" 84 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass
+add_span "$ID5" 84 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT5" "issue-84 canonical waiver approve leg"
 rc="$(run_in "$WT5" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
@@ -409,6 +411,7 @@ C6="${TMP_DIR}/c85"; make_fixture "$C6" 85
 WT6="${C6}-worktrees/issue-85"; ID6="${C6}/.copilot-tracking/issues/issue-85"
 set_fl "$ID6" "$FL_LEGACY_WAIVER"
 add_span "$ID6" 85 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass
+add_span "$ID6" 85 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT6" "issue-85 legacy waiver approve leg"
 rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
