@@ -121,6 +121,21 @@ grep -qiE 'Phase[ -]?2' "${FLAT}" \
   || fail "Phase-2 gate must defer capture-code deletion to Phase 2 (a separate issue)"
 
 # ==============================================================================
+# 5. Launch-topology reconciliation OWNED here (issue #305 F4 review repair).
+#    The other launch-topology docs (AGENTS.md, harness.instructions.md §2,
+#    observability-journey.md §坑六) defer to THIS section, so the boundary
+#    section must be the authoritative statement that a non-root launch only
+#    ever cost RETIRED runtime capture — the kept semantic spine is emitted by
+#    the harness scripts regardless of cwd, so it is no longer a "dark run".
+# ==============================================================================
+grep -qiF 'launch topology' "${FLAT}" \
+  || fail "boundary section must own the launch-topology reconciliation (name 'launch topology')"
+grep -qiF 'regardless of cwd' "${FLAT}" \
+  || fail "boundary section must state the semantic spine is emitted regardless of cwd"
+grep -qiE 'no longer a .{0,24}dark run|not a dark run' "${FLAT}" \
+  || fail "boundary section must state a non-root launch is no longer a dark run of anything kept"
+
+# ==============================================================================
 # Verdict.
 # ==============================================================================
 if [ "${fails}" -ne 0 ]; then

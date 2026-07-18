@@ -194,6 +194,19 @@ tree until **one native-records-only L4 review on foundry** is produced with
 **nothing found missing**. Only when that native-records-only L4 run confirms no
 lost signal is the capture code deleted, in **Phase 2** (a separate issue).
 
+**Launch topology is no longer a dark-run risk.** This section is the
+authoritative resolution of the old launch-topology warning; AGENTS.md, the
+harness session ritual, and the observability-journey narrative defer to it.
+The Copilot CLI trace hook under `.github/hooks/` only ever fired when a session
+launched from a trusted repository root, and all it did was reconstruct the
+**retired** runtime `tool span`s — launching from `$HOME` or any untrusted cwd
+skipped nothing kept. The kept **semantic spine** (handback + lifecycle spans)
+is emitted by the harness scripts themselves **regardless of cwd**, and its
+completeness is now guarded by the rescoped `spine_incomplete` check rather than
+by the presence of a runtime span. So a non-root launch is **no longer a dark
+run** of anything kept; at worst it forgoes deprecated runtime capture, and
+starting from the repository root remains only a harmless convention.
+
 ## Mandatory Common Fields
 
 Every span line, regardless of span type, carries the mandatory common fields

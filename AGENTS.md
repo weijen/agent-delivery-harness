@@ -95,14 +95,17 @@ without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — 
 
 ## Start every session here
 
-> **Launch topology:** Start the Copilot CLI conductor session from the repository root — the
-> trusted folder that contains `.github/hooks/` — not from `$HOME` or any directory outside the
-> repo. The CLI loads workspace hooks from the session cwd; if the conductor launches from an
-> untrusted cwd, it silently skips `.github/hooks/harness-trace.json`, the trace hook never fires,
-> and the session becomes a dark run with zero runtime tool spans captured (the #227/#228/#238
-> 392-span loss). On new machines, first ensure the repository root is listed under
-> `trustedFolders` in `~/.copilot/config.json`; Copilot CLI only loads workspace hooks from trusted
-> folders.
+> **Launch topology (optional, historical):** Starting the Copilot CLI conductor session from the
+> repository root — the trusted folder that contains `.github/hooks/` — used to matter because the
+> CLI loads workspace hooks from the session cwd, and a launch from `$HOME` or another untrusted cwd
+> silently skipped `.github/hooks/harness-trace.json`. That hook only ever reconstructed runtime
+> `tool span`s, which issue #305 **retired**. The kept semantic spine the harness emits about itself
+> is written regardless of launch cwd, so a non-root launch no longer loses any kept signal — see
+> **The Capture Retirement Boundary** in
+> [docs/evaluation/observability-and-trace-schema.md](docs/evaluation/observability-and-trace-schema.md),
+> which owns this reconciliation. Listing the repository root under `trustedFolders` in
+> `~/.copilot/config.json` and launching from it remains a harmless convention, no longer a
+> requirement to avoid a lost run.
 
 This repo has a `harness-smoke.yml` GitHub Actions workflow that sets up `uv` and
 syncs the Python environment, runs the Python profile gates (`ruff format
