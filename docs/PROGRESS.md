@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#306)_
+_Last updated: 2026-07-18 (#305)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-18 (#306)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 190 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 192 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,34 @@ _Last updated: 2026-07-18 (#306)_
 ---
 
 ## Delivered (newest first)
+
+### Retire the runtime capture layer (Phase 1), keep the semantic spine (#305): delivery complete in PR #309
+
+- **#305 retires the runtime capture layer that produced zero usable yield** (systemic
+  dark runs under multi-issue concurrency, no token data ever) while keeping the
+  **semantic spine** — the spans the harness scripts emit about themselves
+  (`log-handback.sh` agent spans, lifecycle spans, the Action Log) and every check
+  built on them (reject cap #302, provenance/dedup #304). Native Copilot records
+  (the `copilot-log-review` skill, #306) are the replacement analysis path. Phase-2
+  deletion of the capture code is out of scope, gated on one native-records-only L4
+  on foundry with nothing missing. Four features, each red-first with a teeth-proof
+  (net +2 sensors to 192): (1) **`dark_run` rescoped** — with capture retired, "no
+  runtime tool spans" is normal, so `check-trace-consistency.sh` now emits
+  `spine_incomplete` (a complete issue window missing the handback spine) instead of
+  the runtime-span `dark_run`; #299/#300 traces pass; (2) **no hook seeding** —
+  `start-issue.sh` no longer copies the `harness-trace.json` hook config into
+  worktrees and drops the obsolete dark-run launch warning (the retired
+  `local-hook-seeding` contract clause is removed too); (3) **capture deprecated**
+  — the adapter doc + capability matrix mark tool/skill-span capture,
+  interval/marker/binding attribution, token passthrough, and the OTel Path O join
+  deprecated, naming `copilot-log-review` as the replacement; (4) **boundary
+  documented** — `observability-and-trace-schema.md` authoritatively draws the kept
+  (spine) vs retired (capture) line and states the Phase-2 gate. The end-of-issue
+  review caught a sync-docs contradiction (the launch-topology/dark-run doctrine in
+  `AGENTS.md`/`harness.instructions.md`/`observability-journey.md` still framed a
+  non-root launch as a harmful dark run); the repair loop reconciled all of them.
+  This is the first issue whose own delivery ran under the rescoped `spine_incomplete`
+  check rather than the retired `dark_run`.
 
 ### copilot-log-review skill — workflow review from Copilot native records (#306): delivery complete in PR #308
 
