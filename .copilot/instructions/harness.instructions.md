@@ -280,7 +280,11 @@ verify gate (§6). Use `concise` or `full` (not `repair`) for that pre-PR pass s
 `public-exposure-audit` security check, always runs before `gh pr create`.
 **Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
-exists.
+exists. For THIS repo the local rule overrides that generic default: the **3rd review rejection (NEEDS_REVISION) for
+the same feature stops the whole issue and hands back to the human** — no further repair attempts on that feature. It
+is enforced deterministically by `review-gate.sh`, which hard-blocks by default on the `review_reject_cap_exceeded`
+consistency finding (three or more `review_verdict`/`fail` spans for one feature), so approve and check both refuse
+until a human takes over.
 
 **Loop 3 — plan correction (conductor-owned, lightweight).** Loop 1 and Loop 2 stay the default path; Loop 3 fires
 **only when a plan assumption or the sensor contract is falsified**, not on ordinary defects. Triggers: a `Plan first`

@@ -474,6 +474,63 @@ red_first_evidence_gate() {
   return 0
 }
 
+# review_reject_cap_gate — hard-block the PR path on the review-rejection cap
+# (issue #300, feature review-reject-cap-gate).
+#
+# The enforcement half of the user-approved 3-rejection stop rule. Like
+# red_first_evidence_gate (and unlike the warn-only trace_gate), this gate
+# BLOCKS BY DEFAULT — independent of REQUIRE_TRACE_CONSISTENCY. It runs
+# check-trace-consistency.sh for the current issue and fails ONLY when the
+# detection half reports:
+#   VIOLATION consistency: review_reject_cap_exceeded <fid>
+# i.e. a single feature accumulated three or more review_verdict/fail agent
+# spans. When that fires, the whole issue must STOP and hand back to the
+# human — no further repair attempts on that feature.
+#
+# Degrades gracefully — print a neutral note and return 0, never break the
+# gate — when the issue number cannot be resolved (a checkout that predates
+# the trace tooling), the checker is not executable, or the checker hits an
+# environment error (exit 2: no trace yet). Emits no span of its own.
+review_reject_cap_gate() {
+  local issue_num=""
+
+  issue_num="$(resolve_issue_number || true)"
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ reject-cap gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+
+  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+    yellow "⚠ reject-cap gate skipped: check-trace-consistency.sh not found or not executable"
+    return 0
+  fi
+
+  # Capture stdout+stderr and the exit code without letting set -e abort on the
+  # checker's non-zero exit (exit 1 means findings, exit 2 means it could not
+  # run). Only exit 2 degrades to a skip; findings are inspected below.
+  local out="" rc=0
+  out="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    yellow "⚠ reject-cap gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
+    return 0
+  fi
+
+  # Block on the review-rejection-cap violation only — never on warnings or any
+  # other finding (those stay warn-only via trace_gate).
+  local findings=""
+  findings="$(printf '%s\n' "$out" \
+    | grep -E '^VIOLATION consistency: review_reject_cap_exceeded' || true)"
+  if [ -n "$findings" ]; then
+    red "✗ reject-cap gate: a feature hit the review-rejection cap (3rd NEEDS_REVISION)."
+    printf '%s\n' "$findings"
+    echo "  The 3rd review rejection for a feature STOPS the whole issue and hands"
+    echo "  back to the human — do not attempt further repair on that feature."
+    return 1
+  fi
+
+  return 0
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_dir="${repo_root}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
@@ -490,6 +547,14 @@ case "$command" in
     # never leaves an approved-head marker behind.
     if ! red_first_evidence_gate; then
       red "✗ approve refused: missing red-first evidence (see above) — not recording approval."
+      exit 1
+    fi
+    # Review-rejection cap gate (issue #300): refuse to record approval when a
+    # feature hit the 3-rejection stop rule. Blocks by default (independent of
+    # REQUIRE_TRACE_CONSISTENCY) and runs BEFORE the marker is written, so a
+    # blocked approve never leaves an approved-head marker behind.
+    if ! review_reject_cap_gate; then
+      red "✗ approve refused: a feature hit the review-rejection cap (see above) — not recording approval."
       exit 1
     fi
     mkdir -p "$marker_dir"
@@ -533,6 +598,11 @@ case "$command" in
     # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
     TRACE_STAGE="red_first_evidence"
     red_first_evidence_gate || exit 1
+    # Review-rejection cap gate (issue #300): hard-block by default when a
+    # feature hit the 3-rejection stop rule, independent of the warn-only trace
+    # gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
+    TRACE_STAGE="review_reject_cap"
+    review_reject_cap_gate || exit 1
     ;;
   status-doc)
     TRACE_CMD="status-doc"
