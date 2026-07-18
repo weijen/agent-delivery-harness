@@ -28,9 +28,42 @@ validate_file() {
   esac
 
   reason="$(awk -v kind="$kind" -v expected_name="$expected_name" -v tab="$(printf '\t')" '
+    function strip_inline_comment(value, i, character, next_character, in_single, in_double, escaped) {
+      for (i = 1; i <= length(value); i++) {
+        character = substr(value, i, 1)
+        next_character = substr(value, i + 1, 1)
+        if (in_double) {
+          if (escaped) {
+            escaped = 0
+          } else if (character == "\\") {
+            escaped = 1
+          } else if (character == "\"") {
+            in_double = 0
+          }
+          continue
+        }
+        if (in_single) {
+          if (character == "\047" && next_character == "\047") {
+            i++
+          } else if (character == "\047") {
+            in_single = 0
+          }
+          continue
+        }
+        if (character == "\"") {
+          in_double = 1
+        } else if (character == "\047") {
+          in_single = 1
+        } else if (character == "#" && (i == 1 || substr(value, i - 1, 1) ~ /[[:space:]]/)) {
+          return substr(value, 1, i - 1)
+        }
+      }
+      return value
+    }
     function scalar_value(line, key, value, first, last) {
       value = line
       sub("^" key ":[[:space:]]*", "", value)
+      value = strip_inline_comment(value)
       sub(/[[:space:]]+$/, "", value)
       if (length(value) >= 2) {
         first = substr(value, 1, 1)
@@ -44,6 +77,7 @@ validate_file() {
     function is_block_scalar(line, key, value) {
       value = line
       sub("^" key ":[[:space:]]*", "", value)
+      value = strip_inline_comment(value)
       sub(/[[:space:]]+$/, "", value)
       return value ~ /^[|>]([+-][1-9]?|[1-9][+-]?)?$/
     }

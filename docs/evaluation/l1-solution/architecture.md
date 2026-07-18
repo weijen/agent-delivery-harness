@@ -62,8 +62,10 @@ GitHub Actions, blocking, no Azure). Tier A L1 scope:
 - Artifact schema checks for skills that produce files.
 
 These extend the existing CI pipeline that already runs the L0 shell sensors and
-a basic SKILL.md frontmatter check. They block PRs once the skill is marked mature
-in the manifest.
+the shared skill/agent structural validator at
+`tests/evals/bin/validate-customization-frontmatter.sh`. Frontmatter validation
+blocks directly in CI; other L1 evals follow their specified maturity and
+promotion rules.
 
 ## Tier B Boundary — Azure (model-driven, report-only)
 
@@ -94,8 +96,9 @@ Two boundaries Azure does not move:
 
 ## Failure Handling
 
-- Deterministic L1 checks (frontmatter, schema) block once the skill is marked
-  mature in the manifest.
+- Frontmatter validation blocks directly in local smoke and GitHub Actions.
+  Manifest-backed deterministic schema checks block only after their specified
+  maturity and promotion criteria are met.
 - Tier B (model-driven) failures are report-only and never block a PR; they move
   trend lines, not merge gates.
 - L1c behavior failures stay report-only until judge calibration exists.

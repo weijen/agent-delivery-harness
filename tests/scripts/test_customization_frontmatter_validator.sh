@@ -88,13 +88,33 @@ make_agent "quoted-indicator" \
   '---' \
   'description: "|"' \
   '---'
+make_agent "quoted-commented-indicator" \
+  '---' \
+  'description: "| # retained"' \
+  '---'
+make_agent "double-quoted-hash" \
+  '---' \
+  'description: "value # retained"' \
+  '---'
+make_agent "single-quoted-hash" \
+  '---' \
+  "description: 'value # retained'" \
+  '---'
+make_agent "plain-trailing-comment" \
+  '---' \
+  'description: value # ignored comment' \
+  '---'
 
 assert_valid "explicit valid skills and agent name variants" \
   "${TMP_DIR}/skills/a/SKILL.md" \
   "${TMP_DIR}/skills/${max_name}/SKILL.md" \
   "${TMP_DIR}/agents/unnamed.agent.md" \
   "${TMP_DIR}/agents/unconstrained-name.agent.md" \
-  "${TMP_DIR}/agents/quoted-indicator.agent.md"
+  "${TMP_DIR}/agents/quoted-indicator.agent.md" \
+  "${TMP_DIR}/agents/quoted-commented-indicator.agent.md" \
+  "${TMP_DIR}/agents/double-quoted-hash.agent.md" \
+  "${TMP_DIR}/agents/single-quoted-hash.agent.md" \
+  "${TMP_DIR}/agents/plain-trailing-comment.agent.md"
 
 make_skill "missing-frontmatter" \
   '# Missing both fences and required fields'
@@ -142,6 +162,14 @@ make_agent "missing-description" \
   'name: optional-agent-name' \
   'description: ""' \
   '---'
+make_agent "comment-only-description" \
+  '---' \
+  'description: # no value' \
+  '---'
+make_agent "quoted-empty-comment-description" \
+  '---' \
+  'description: "" # empty value' \
+  '---'
 make_agent "description-too-long" \
   '---' \
   "description: ${long_description}" \
@@ -181,10 +209,28 @@ for block_scalar_variant in "${block_scalar_variants[@]}"; do
     "${TMP_DIR}/skills/${variant_name}/SKILL.md" "missing_description"
 done
 
+commented_block_scalar_variants=('| # multiline' '> # multiline' '|- # multiline' '>2 # multiline')
+for block_scalar_variant in "${commented_block_scalar_variants[@]}"; do
+  variant_number=$((variant_number + 1))
+  variant_name="block-scalar-variant-${variant_number}"
+  make_skill "$variant_name" \
+    '---' \
+    "name: ${variant_name}" \
+    "description: ${block_scalar_variant}" \
+    '  Unsupported multiline content' \
+    '---'
+  assert_invalid "description commented block scalar variant ${block_scalar_variant}" \
+    "${TMP_DIR}/skills/${variant_name}/SKILL.md" "missing_description"
+done
+
 assert_invalid "description is limited to 1024 characters" \
   "${TMP_DIR}/skills/description-too-long/SKILL.md" "description_too_long"
 assert_invalid "agent description is required and nonempty" \
   "${TMP_DIR}/agents/missing-description.agent.md" "missing_description"
+assert_invalid "inline comment is not a description value" \
+  "${TMP_DIR}/agents/comment-only-description.agent.md" "missing_description"
+assert_invalid "quoted empty description remains empty before an inline comment" \
+  "${TMP_DIR}/agents/quoted-empty-comment-description.agent.md" "missing_description"
 assert_invalid "agent description is limited to 1024 characters" \
   "${TMP_DIR}/agents/description-too-long.agent.md" "description_too_long"
 

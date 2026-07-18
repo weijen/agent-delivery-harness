@@ -37,12 +37,12 @@ _Last updated: 2026-07-18 (#65)_
 - **Language profiles:** Python and Node.js shipped under `profiles/`; Go,
   Java, and Ruby are generator-supported via `scaffold-language.sh`.
 - **Skills:** 9 under `.copilot/skills/` (code-review, create-pr, the
-  five audit skills, security-audit, sync-docs, public-exposure-audit). The
+  four audit skills, security-audit, sync-docs, public-exposure-audit). The
   obsolete `general` skill was removed in #177 (its fallback role moved to the
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 177 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 176 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
