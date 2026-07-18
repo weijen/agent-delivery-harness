@@ -46,7 +46,7 @@ assert_pattern() {
 	local text="$1"
 	local pattern="$2"
 	local message="$3"
-	printf '%s\n' "$text" | grep -Eiq "$pattern" || note "$message"
+	grep -Eiq "$pattern" <<< "$text" || note "$message"
 }
 
 if [ ! -f "$reviewer" ]; then
