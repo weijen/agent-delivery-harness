@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#303)_
+_Last updated: 2026-07-18 (#306)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-18 (#303)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 187 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 190 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,29 @@ _Last updated: 2026-07-18 (#303)_
 ---
 
 ## Delivered (newest first)
+
+### copilot-log-review skill — workflow review from Copilot native records (#306): delivery complete in PR #308
+
+- **#306 packages the workflow-review analysis (issue-65 cost surveys, live
+  health checks) as a repeatable, report-only skill.** `copilot-log-review`
+  reviews an issue run, a day's work, or an L4-style batch directly from GitHub
+  Copilot's native records (transcripts, hooks log), joining offline against the
+  harness lifecycle spans — no live capture, no hooks, no new span emission.
+  Three features, each red-first with a teeth-proof (three new sensors bring the
+  suite to 190): (1) **registration** — the `.copilot/skills/copilot-log-review/`
+  skill skeleton with valid frontmatter, added to the `audit-sweep` `NON_AUDIT`
+  list (it reads local session transcripts absent in scheduled CI, so it runs
+  on-demand / per L4, not in the weekly code-audit sweep) with the
+  `test_audit_sweep.sh` exclusion kept consistent; (2) **Quantify recipes** — jq
+  recipes for session inventory and tool/time decomposition that pair
+  `tool.execution_start`/`complete` by `toolCallId` (never `sort_by(.type)`,
+  which inverts durations) and skip orphaned/incomplete calls, validated
+  executable against a committed synthetic fixture; (3) **Locate/Qualify/Report**
+  — workspace-hash resolution, `reasoningText` sampling, and a report following
+  `_audit-conventions.md` under `logs/audit/`, with a report-only + privacy rule
+  (never commit raw transcript excerpts) and macOS-verified paths. The
+  end-of-issue review caught a MAJOR (recipes crashed on an orphaned tool call);
+  the repair loop guarded both recipes and extended the fixture to cover it.
 
 ### Generator owns per-feature verification; single end-of-issue review (#303): delivery complete in PR #307
 
