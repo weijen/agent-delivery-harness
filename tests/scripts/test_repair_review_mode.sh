@@ -54,6 +54,8 @@ assert_agent_contract() {
     || fail "${label} repair mode must state the public-exposure-audit sweep is deferred to pre-PR"
   grep -qiE 'Review mode:.{0,60}repair' "$path" \
     || fail "${label} must add repair to the enumerated review-mode list (Review mode: full/concise/repair)"
+  grep -qE '^description:.*repair' "$path" \
+    || fail "${label} frontmatter description must enumerate the repair mode (not only full/concise)"
 }
 
 assert_harness_contract() {
