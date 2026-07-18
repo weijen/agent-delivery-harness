@@ -70,19 +70,29 @@ Span (first→last timestamp), turn and tool counts, and the busiest tools:
 Pair each `tool.execution_start` with its matching `tool.execution_complete` **by `toolCallId`**
 — never by ordering the two lines. Grouping on `toolCallId` is what keeps the start and complete
 of the *same* call together even when calls interleave or a complete line precedes a later call's
-start in file order. The duration is `complete_ts − start_ts`, which is always `>= 0`:
+start in file order. The duration is `complete_ts − start_ts`, which is always `>= 0`. Real
+transcripts routinely end mid-tool-call (a cancel, a crash, or a live capture), leaving an
+**orphaned** `tool.execution_start` with no matching `tool.execution_complete`. The `select(...)`
+guard **skips** any group missing either side (or missing a string `timestamp`) so one incomplete
+call never aborts the whole recipe:
 
 ```jq
 [ .[] | select(.type == "tool.execution_start" or .type == "tool.execution_complete") ]
 | group_by(.toolCallId)
-| map({
-    toolCallId: .[0].toolCallId,
-    name: ([ .[] | select(.type == "tool.execution_start") ][0].name),
-    duration_s: (
-      ([ .[] | select(.type == "tool.execution_complete") ][0].timestamp | fromdateiso8601)
-      - ([ .[] | select(.type == "tool.execution_start") ][0].timestamp | fromdateiso8601)
+| map(
+    select(
+      (any(.[]; .type == "tool.execution_start"    and (.timestamp | type) == "string"))
+      and (any(.[]; .type == "tool.execution_complete" and (.timestamp | type) == "string"))
     )
-  })
+    | {
+        toolCallId: .[0].toolCallId,
+        name: ([ .[] | select(.type == "tool.execution_start") ][0].name),
+        duration_s: (
+          ([ .[] | select(.type == "tool.execution_complete") ][0].timestamp | fromdateiso8601)
+          - ([ .[] | select(.type == "tool.execution_start") ][0].timestamp | fromdateiso8601)
+        )
+      }
+  )
 ```
 
 > **Do not pair with `sort_by(.type)`.** Within a `toolCallId` group, `sort_by(.type)` orders
@@ -105,17 +115,26 @@ def category(n):
   else "other" end;
 [ .[] | select(.type == "tool.execution_start" or .type == "tool.execution_complete") ]
 | group_by(.toolCallId)
-| map({
-    category: category([ .[] | select(.type == "tool.execution_start") ][0].name),
-    duration_s: (
-      ([ .[] | select(.type == "tool.execution_complete") ][0].timestamp | fromdateiso8601)
-      - ([ .[] | select(.type == "tool.execution_start") ][0].timestamp | fromdateiso8601)
+| map(
+    select(
+      (any(.[]; .type == "tool.execution_start"    and (.timestamp | type) == "string"))
+      and (any(.[]; .type == "tool.execution_complete" and (.timestamp | type) == "string"))
     )
-  })
+    | {
+        category: category([ .[] | select(.type == "tool.execution_start") ][0].name),
+        duration_s: (
+          ([ .[] | select(.type == "tool.execution_complete") ][0].timestamp | fromdateiso8601)
+          - ([ .[] | select(.type == "tool.execution_start") ][0].timestamp | fromdateiso8601)
+        )
+      }
+  )
 | group_by(.category)
 | map({ category: .[0].category, total_s: (map(.duration_s) | add) })
 | sort_by(.total_s) | reverse
 ```
+
+Both roll-ups share the same orphaned-call guard: a `tool.execution_start` with no matching
+`tool.execution_complete` is skipped, so a transcript captured mid-call still decomposes cleanly.
 
 ## Locate
 

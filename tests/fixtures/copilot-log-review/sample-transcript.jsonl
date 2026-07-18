@@ -11,5 +11,6 @@
 {"type":"tool.execution_start","timestamp":"2024-05-01T10:00:28Z","toolCallId":"call_4","name":"run_in_terminal"}
 {"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:33Z","toolCallId":"call_4","name":"run_in_terminal"}
 {"type":"tool.execution_start","timestamp":"2024-05-01T10:00:34Z","toolCallId":"call_5","name":"vscode_askQuestions"}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:36Z","toolCallId":"call_6_orphan","name":"read_file"}
 {"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:42Z","toolCallId":"call_5","name":"vscode_askQuestions"}
 {"type":"assistant.turn_end","timestamp":"2024-05-01T10:00:42Z"}
