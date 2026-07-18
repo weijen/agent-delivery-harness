@@ -1,0 +1,15 @@
+{"type":"session.start","timestamp":"2024-05-01T10:00:00Z","sessionId":"sess-sample-001","workspace":"agent-delivery-harness"}
+{"type":"user.message","timestamp":"2024-05-01T10:00:05Z","text":"Review the sample fixture workflow."}
+{"type":"assistant.turn_start","timestamp":"2024-05-01T10:00:06Z"}
+{"type":"assistant.message","timestamp":"2024-05-01T10:00:07Z","reasoningText":"Plan: read a file, search, delegate a subagent, run a terminal check, then ask a question.","text":"Working through the steps."}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:08Z","toolCallId":"call_1","name":"read_file"}
+{"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:10Z","toolCallId":"call_1","name":"read_file"}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:11Z","toolCallId":"call_2","name":"grep_search"}
+{"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:14Z","toolCallId":"call_2","name":"grep_search"}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:15Z","toolCallId":"call_3","name":"runSubagent"}
+{"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:27Z","toolCallId":"call_3","name":"runSubagent"}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:28Z","toolCallId":"call_4","name":"run_in_terminal"}
+{"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:33Z","toolCallId":"call_4","name":"run_in_terminal"}
+{"type":"tool.execution_start","timestamp":"2024-05-01T10:00:34Z","toolCallId":"call_5","name":"vscode_askQuestions"}
+{"type":"tool.execution_complete","timestamp":"2024-05-01T10:00:42Z","toolCallId":"call_5","name":"vscode_askQuestions"}
+{"type":"assistant.turn_end","timestamp":"2024-05-01T10:00:42Z"}
