@@ -335,6 +335,11 @@ How to pass them: either paste the file contents into the subagent prompt, or gi
 instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
 `<language>.instructions.md` files, so this is a belt-and-suspenders contract: the conductor supplies them and the
 subagent loads them.
+
+When the conductor logs the reviewer's `review_verdict` with `scripts/log-handback.sh`, it sets
+`TRACE_INSTRUCTION_FILES` to the instruction files it fed the reviewer — the same passthrough already used for the
+generator handbacks — so `harness.instruction_files` is captured on the `review_verdict` span and reviewer provenance
+is recorded alongside the generator's.
 - **Never edit, weaken, or delete a test/feature/sensor to make things pass.** Initializer or
   planning work may define feature `steps`, `regression_sensor`, and `e2e_sensor` fields up
   front; coding sessions must not weaken those fields. During implementation, edit
