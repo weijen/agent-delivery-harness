@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#299)_
+_Last updated: 2026-07-18 (#303)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-18 (#299)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 182 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 187 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,35 @@ _Last updated: 2026-07-18 (#299)_
 ---
 
 ## Delivered (newest first)
+
+### Generator owns per-feature verification; single end-of-issue review (#303): delivery complete in PR #307
+
+- **#303 moves independent code review from per-feature to one review at issue
+  completion, with the generator owning per-feature verification.** This changes
+  review *timing*, not review *independence* (the Haleon L4 evidence supports the
+  independent adversarial eye, which is preserved). Five features, each red-first
+  with a teeth-proof (five new sensors bring the suite to 187): (1) **Loop 2
+  doctrine** — `harness.instructions.md` §3 no longer invokes
+  `code-review-subagent` per feature; the one independent review runs at issue
+  completion over the whole branch diff in `full` mode issuing **per-feature
+  verdicts**, a `NEEDS_REVISION` routes back to the generator per feature, and the
+  post-repair re-review runs in `repair` mode scoped to that feature; the
+  3-rejection cap and red-first evidence rules are unchanged; (2) **generator
+  self-check** — `generator-subagent.agent.md` gains a pre-handback self-check
+  delivery checklist absorbing the product-quality rubric general checks #1–#5
+  (correctness, readability, tests, error handling, security), framed as
+  self-verification and distinct from the four blocking gates; (3) **reviewer
+  contract** — `code-review-subagent.agent.md` (and one `AGENTS.md` row) now
+  describe reviewing the completed issue diff once with per-feature verdicts and
+  repair-mode re-review, boundary and skill battery preserved; (4)
+  **verdict-missing detection** — `check-trace-consistency.sh` emits
+  `review_verdict_missing <fid>` when the review/approve phase is active (a
+  `review_gate_approve` span present or `REVIEW_GATE_APPROVE_PHASE=1`) and a
+  `passes:true` feature has no `review_verdict` span, silent mid-issue; (5)
+  **verdict-missing gate** — `review-gate.sh` adds `review_verdict_gate` that
+  hard-blocks `approve` (before the marker) and `check` on that finding. This
+  issue's own delivery run dogfoods the new model: one end-of-issue review issued
+  five per-feature verdicts before approval.
 
 ### Review provenance + irreversibility-scoped pre-PR gate (#299): delivery complete in PR #304
 
