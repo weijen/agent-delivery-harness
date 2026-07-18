@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.12.0 (2026-07-18)
+
+### Bug Fixes
+
+- **#296**: Avoid meta-test SIGPIPE
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+### Documentation
+
+- **#296**: Close generator delivery
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+### Features
+
+- Unify per-feature generator workflow
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+- **#296**: Add adversarial review tests
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+- **#296**: Instrument generator experiment
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+- **#296**: Merge generator roles
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+- **#296**: Support generator traces
+  ([#297](https://github.com/weijen/agent-delivery-harness/pull/297),
+  [`7274d51`](https://github.com/weijen/agent-delivery-harness/commit/7274d51cea4eae5292eabe03e715b025efd06fc7))
+
+
 ## v0.11.4 (2026-07-17)
 
 ### Bug Fixes
