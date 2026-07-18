@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.15.0 (2026-07-18)
+
+### Documentation
+
+- **#299**: Finalize PROGRESS delivery entry and sensor count
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+### Features
+
+- **#299**: Record review mode and reviewed sha on review_verdict spans
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+- **#299**: Review provenance, full-review dedup, and irreversibility-based pre-PR sensor list
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+- **#299**: Scope the pre-PR standalone sensor list by irreversibility
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+- **#299**: Warn on duplicate full-mode reviews of the same sha
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+- **#299**: Warn when a review verdict drops instruction-file provenance
+  ([#304](https://github.com/weijen/agent-delivery-harness/pull/304),
+  [`a51e126`](https://github.com/weijen/agent-delivery-harness/commit/a51e12616276a0269e2a135e9677179a4bd9dc5e))
+
+
 ## v0.14.0 (2026-07-18)
 
 ### Documentation
