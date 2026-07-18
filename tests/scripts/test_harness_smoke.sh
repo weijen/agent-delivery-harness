@@ -128,8 +128,10 @@ require_text ".copilot/instructions/harness.instructions.md" 'override.*personal
 require_text ".copilot/instructions/harness.instructions.md" 'override.*generic coding-agent behavior|generic coding-agent behavior.*override' \
   "generic coding-agent override wording"
 
-require_text ".copilot/prompts/session-ritual.prompt.md" 'Conductor.*implementation-subagent.*test-subagent.*code-review-subagent' \
-  "role separation wording in the prompt path"
+require_text ".copilot/prompts/session-ritual.prompt.md" 'Conductor.*generator-subagent' \
+  "conductor/generator role separation wording in the prompt path"
+require_text ".copilot/prompts/session-ritual.prompt.md" 'code-review-subagent.*review' \
+  "independent reviewer role wording in the prompt path"
 
 require_text ".copilot/instructions/harness.instructions.md" 'deviat(e|es|ed|ion).*stop.*report.*recover|stop.*report.*recover.*deviat(e|es|ed|ion)' \
   "harness deviation stop/report/recover wording"

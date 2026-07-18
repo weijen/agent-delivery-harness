@@ -9,7 +9,7 @@
 #     (a header row with a "Depth" column) and the file stays within the
 #     ~150-line budget (guard at 175).
 #   - "you do not call other subagents directly" is stated at most once across
-#     the review and test agents (routing lives once; harness owns the loop).
+#     the review and generator agents (routing lives once; harness owns the loop).
 #   - "blocking findings first" is not restated across the review agent.
 set -euo pipefail
 
@@ -20,10 +20,10 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 review=".copilot/agents/code-review-subagent.agent.md"
-test_a=".copilot/agents/test-subagent.agent.md"
+generator=".copilot/agents/generator-subagent.agent.md"
 planner=".copilot/agents/planning-subagent.agent.md"
 
-for f in "$review" "$test_a" "$planner"; do
+for f in "$review" "$generator" "$planner"; do
 	[ -f "$f" ] || note "missing $f"
 done
 
@@ -54,7 +54,7 @@ count_phrase() {
 	tr '\n' ' ' < "$1" | { grep -o 'call other subagents directly' || true; } | wc -l | tr -d ' '
 }
 total=0
-for f in "$review" "$test_a"; do
+for f in "$review" "$generator"; do
 	[ -f "$f" ] && total=$((total + $(count_phrase "$f")))
 done
 if [ "$total" -gt 1 ]; then

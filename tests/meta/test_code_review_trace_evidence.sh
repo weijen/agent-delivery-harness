@@ -77,8 +77,8 @@ assert_section 'implementation-subagent' "$review Trace / Process Evidence secti
 assert_section 'trace evidence unavailable' "$review Trace / Process Evidence section must use the phrase trace evidence unavailable"
 
 # 8. Blocking process violations and review finding terms.
-assert_section 'red_first_evidence_missing' "$review Trace / Process Evidence section must name red_first_evidence_missing"
-assert_section 'red_first_role_mismatch' "$review Trace / Process Evidence section must name red_first_role_mismatch"
+assert_section 'teeth_proof_missing' "$review Trace / Process Evidence section must name teeth_proof_missing"
+assert_section 'red_first_profile_mismatch' "$review Trace / Process Evidence section must name red_first_profile_mismatch"
 assert_section 'deviation' "$review Trace / Process Evidence section must surface deviations as review findings"
 assert_section 'loop' "$review Trace / Process Evidence section must surface loop findings"
 assert_section 'BLOCKING' "$review Trace / Process Evidence section must mark process violations BLOCKING"

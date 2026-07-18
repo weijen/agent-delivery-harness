@@ -83,9 +83,8 @@ flowchart TD
   PL --> HG[Conductor relays Open Questions: human-input gate]
   HG --> D[Conductor authors feature_list.json]
   D --> E[Select one passes:false feature]
-  E --> F[implementation-subagent edits production assets]
-  F --> G[test-subagent writes and runs sensors]
-  G --> H{Feature sensors pass?}
+  E --> F[generator-subagent: RED then implementation then GREEN]
+  F --> H{Feature sensors and quality gates pass?}
   H -- no --> F
   H -- yes --> I[Mark feature passes:true]
   I --> J{All issue features pass?}
@@ -111,12 +110,14 @@ The normal path is:
    `e2e_sensor`); the `planning-subagent` never authors it. See
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
-6. Use `implementation-subagent` for production assets only.
-7. Use `test-subagent` for tests, smoke checks, sensor execution, and product-quality blocking gate evidence from
-   [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md) before marking `passes:true`.
-8. Run local gates and `code-review-subagent` on the completed diff; the reviewer applies the product-quality
-   scorecard from [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md) during review
-   before closeout.
+6. Use `generator-subagent` for the selected feature's RED sensor, minimal production implementation, GREEN
+  verification, product-quality blocking gate evidence, teeth proof, and `passes:true` update.
+7. Preserve the generator's ordered `red_handback`, `impl_handback`, and `green_handback` payloads for conductor
+  logging.
+8. Run local gates and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
+  [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md), and performs an
+  adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
+  smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
 9. Run `./scripts/review-gate.sh approve` for the current HEAD.
 10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
 11. Merge the PR when checks are green and findings are resolved.
@@ -165,9 +166,8 @@ one.
 | Asset | Responsibility |
 | --- | --- |
 | `planning-subagent` | Researches the issue, reuses existing harness patterns first, and writes self-contained verifiable phases when planning is needed. |
-| `implementation-subagent` | Implements one selected `feature_list` item by editing production assets only. It does not write tests or mark `passes:true`. |
-| `test-subagent` | Writes or updates verification assets for one selected feature, runs declared sensors, and applies product-quality blocking gate checks before marking `passes:true`. |
-| `code-review-subagent` | Reviews spec compliance and quality, applies the product-quality scorecard during review before closeout, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. |
+| `generator-subagent` | Delivers one selected `feature_list` item through RED, minimal implementation, GREEN, product-quality blocking evidence, teeth proof, and `passes:true`. |
+| `code-review-subagent` | Reviews spec compliance and quality, adds and executes test-only adversarial coverage when needed, applies the product-quality scorecard, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. Production assets remain read-only. |
 | `session-ritual.prompt.md` | A user-invoked prompt for resuming the coding-session ritual on a specific issue. |
 | Skills under `.copilot/skills/` | On-demand review, PR, security, drift, and code-quality sensors used by the conductor and review workflow. |
 
@@ -176,8 +176,8 @@ committing, pushing, opening PRs, and merging.
 
 #### Unregistered-named-subagent fallback
 
-The repo defines each role as an agent file — for example `.copilot/agents/test-subagent.agent.md` or
-`.copilot/agents/implementation-subagent.agent.md`. Some runtimes register those agents by `agentName` and can invoke
+The repo defines each role as an agent file, for example `.copilot/agents/generator-subagent.agent.md`. Some runtimes
+register those agents by `agentName` and can invoke
 them directly; others do not. When the current runner does **not** register the named subagent (the `agentName` is
 `not registered`), the conductor uses this **fallback**: invoke a blank or current subagent and paste the full **role
 contract** from that `.agent.md` file into the prompt, then record the handback under the intended role exactly as if
@@ -200,7 +200,7 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 
-Planner, implementer, and tester carry no distinctive skill; their quality bar comes from the
+Planner and generator carry no distinctive skill; their quality bar comes from the
 applicable `<language>.instructions.md` plus `tdd.instructions.md`, not a skill. The audit skills are concentrated in
 `code-review-subagent` so one fresh-context pass owns whole-diff quality.
 
@@ -230,20 +230,23 @@ production implementation, and must not flip `passes:true`. That feature work is
 it belongs to the subagents. The required per-feature handoff is:
 
 1. **conductor selects** one `passes:false` feature and prepares context;
-2. **`test-subagent` creates/validates the RED sensor** (a failing test/sensor that expresses the feature);
-3. **`implementation-subagent` makes the minimal production change** to satisfy it;
-4. **`test-subagent` verifies GREEN** and updates completion status (`passes:true`);
+2. **`generator-subagent` creates or validates the RED sensor**, confirming the expected failure;
+3. **the same `generator-subagent` makes the minimal production change** to satisfy it;
+4. **the same `generator-subagent` verifies GREEN**, records product-quality evidence and teeth proof, and updates
+  completion status (`passes:true`);
 5. **conductor commits/pushes** and records the handbacks.
 
 A progress log that only records **"conductor TDD"** is non-compliant — it hides this handoff. See
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md) for the enforceable rule.
 
 When a handoff step fails, the conductor runs two **grading-driven revision loops** (it owns the loop boundary;
-subagents never call each other). **Loop 1 (implementation ↔ test):** a production defect routes back to
-`implementation-subagent`, a verification/sensor gap routes back to `test-subagent` (never weakening a declared
-sensor). **Loop 2 (review → implementation):** a `code-review-subagent` `NEEDS_REVISION` routes each blocking finding
-to `implementation-subagent`, `test-subagent`, or a conductor decision, then the relevant sensor and the review are
-re-run on the new HEAD. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
+subagents never call each other). **Loop 1 (generator repair):** a production defect or verification gap routes back
+to `generator-subagent` (never weakening a declared sensor). **Loop 2 (review → generator):** a
+`code-review-subagent` first maps criteria to sensors and may add and execute the smallest independent test, fixture,
+smoke, or validation asset. The reviewer must not edit production; ambiguous paths and required production hooks route
+to the conductor. A newly exposed production defect produces `NEEDS_REVISION` and routes through the conductor to
+`generator-subagent`, then the reviewer reruns the adversarial sensor on the repaired HEAD and reports changed tests,
+commands, and evidence. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
 failure stops and asks the human after two attempts. **Loop 3 (plan correction)** is a lightweight, conductor-owned
 escape hatch on top of these two: when a `Plan first` handback, a wrong-declared-sensor handback, a review scope /
 planning decision, or two failed repairs reveal that the **plan or sensor contract** — not the code — is falsified,
@@ -252,7 +255,7 @@ the conductor records the blocker in the Action Log, pauses feature work, update
 files). Loop 1 and Loop 2 remain the default; Loop 3 fires only when a plan assumption is wrong. Full protocol in
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
-Conductor, implementation-subagent, test-subagent, and code-review-subagent actions must be visible in the issue
+Conductor, generator-subagent, and code-review-subagent actions must be visible in the issue
 progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
 for logging when they are not authorized to edit local issue progress directly.
 

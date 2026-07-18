@@ -34,6 +34,12 @@ Every implemented feature must clear all four blocking gates before scoring. If 
 
 **Verification**: Check that behavioral changes have associated sensors (unit tests, integration tests, script smoke tests). As supporting evidence, verify syntax/lint/import health using language parsers, linters, and import resolvers. Full functional testing is not required at this gate—only that verification hooks exist.
 
+Before the final gate result, `code-review-subagent` performs an independent adversarial test-quality pass. It maps
+criteria to sensors, checks assertion strength, boundaries, negative or mutation cases, and implementation-fitting
+tests, then adds and executes the smallest independent test, fixture, smoke, or validation asset when needed.
+Production remains read-only: the reviewer must not edit production, and ambiguous paths or required production hooks
+route through the conductor. The review records changed tests, commands, and observed pass/fail evidence.
+
 ### 3. Main Workflow Works
 
 **What it checks**: The primary user/system workflow for the selected feature succeeds end to end. For harness infrastructure features, this means lifecycle scripts (e.g., `scripts/init.sh`, `scripts/start-issue.sh`) execute successfully. For application features, this means the main build/run/test commands or user-facing operations complete without critical errors.
@@ -130,14 +136,18 @@ Sum the six dimension scores to produce a total score from 0 to 12, then map to 
 
 When a dimension scores 0 or 1, include specific findings in the handback. Route based on the root cause:
 
-### To implementation-subagent
+A failing reviewer-authored adversarial sensor produces `NEEDS_REVISION`. When it exposes a production defect, route
+the failure through the conductor to `generator-subagent`; the reviewer never repairs production. After the generator
+repair, `code-review-subagent` reruns the adversarial sensor before issuing a new adequacy verdict.
+
+### To generator-subagent for implementation repair
 
 - Missing required workflow steps (dimension 1)
 - Incomplete integration with existing conventions (dimension 4)
 - Missing verification hooks or sensor boundaries (dimension 6)
 - Any spec fidelity failure (blocking gate 1)
 
-### To test-subagent
+### To generator-subagent for verification repair
 
 - Insufficient verification coverage (dimension 6)
 - Missing regression or e2e sensors for new behavior
@@ -219,7 +229,7 @@ These examples show how to apply the rubric consistently. Each demonstrates scor
 
 **Verdict**: **FAIL** (blocking gate 1: Spec Fidelity)
 
-**Handback to implementation-subagent**:
+**Handback to generator-subagent**:
 - **Finding**: Step 2 missing — `docs/multi-language-profiles.md` not updated to document formatter gate.
 - **Evidence**: `./tests/scripts/test_python_profile.sh formatter` exits 1 with "Expected formatter command in docs/multi-language-profiles.md, not found."
 - **Required Fix**: Add formatter gate description to the Python profile section in `docs/multi-language-profiles.md`, following the existing quality gate documentation pattern.
@@ -262,7 +272,7 @@ These examples show how to apply the rubric consistently. Each demonstrates scor
 - The existing-archive-target edge case is low-severity because the archive directory is intended for cold storage (user rarely re-archives the same issue).
 - The missing rollback for failed moves is a real gap but acceptable for a first iteration (manual recovery is straightforward: move the directory back).
 
-**Handback to implementation-subagent** (recommended but waivable):
+**Handback to generator-subagent** (recommended but waivable):
 - **Findings**:
   1. Dimension 1 (Workflow Completeness): Script does not check if `../<repo>-archive/issue-<N>/` already exists; overwrites silently.
   2. Dimension 5 (Recoverability): No rollback if `mv` fails partway (e.g., disk full, permission error).

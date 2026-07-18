@@ -15,8 +15,8 @@
 #   PINNED CLI / ENV CONVENTIONS (spec for the implementer):
 #
 #   - Roles (closed enum, D1):
-#       conductor | planning-subagent | implementation-subagent |
-#       test-subagent | code-review-subagent
+#       conductor | planning-subagent | generator-subagent |
+#       implementation-subagent | test-subagent | code-review-subagent
 #   - Lifecycle steps (closed subset of the #92 enum, D2):
 #       plan_handback | feature_start | red_handback | impl_handback |
 #       green_handback | review_verdict | deviation
@@ -249,7 +249,7 @@ run_hb() { # run_hb <worktree> <out-file> <args...>  (stdout+stderr combined)
 SUMMARY1="RED sensor authored; fails for the right reason"
 prog_before="$(line_count "$PROG_A")"
 run_hb "$WTA" "${TMP_DIR}/a1.out" \
-  test-subagent red_handback log-handback-helper pass \
+  generator-subagent red_handback log-handback-helper pass \
   "RED sensor authored;" "fails for the right reason" \
   || { cat "${TMP_DIR}/a1.out"; fail "happy-path handback call must exit 0"; }
 [ -f "$TRACE_A" ] \
@@ -257,7 +257,7 @@ run_hb "$WTA" "${TMP_DIR}/a1.out" \
 [ "$(line_count "$TRACE_A")" = "1" ] \
   || fail "happy path: expected exactly 1 agent span, got $(line_count "$TRACE_A")"
 a1="$(nth_line "$TRACE_A" 1)"
-check_agent_span "happy path" "$a1" test-subagent red_handback log-handback-helper pass "$SUMMARY1" 13
+check_agent_span "happy path" "$a1" generator-subagent red_handback log-handback-helper pass "$SUMMARY1" 13
 printf '%s\n' "$a1" | jq -e '
     (has("gen_ai.usage.input_tokens") | not)
     and (has("gen_ai.usage.output_tokens") | not)
@@ -272,7 +272,7 @@ printf '%s\n' "$a1" | jq -e '
 # in the pinned D3 format, carrying the SAME summary as the span.
 [ "$(line_count "$PROG_A")" = "$((prog_before + 1))" ] \
   || fail "happy path: exactly one line must be appended to the worktree progress.md (before=${prog_before}, after=$(line_count "$PROG_A"))"
-BULLET1="- [test-subagent] red_handback log-handback-helper pass — ${SUMMARY1}"
+BULLET1="- [generator-subagent] red_handback log-handback-helper pass — ${SUMMARY1}"
 expect_bullet "happy path" "$PROG_A" "$BULLET1"
 
 # Single-source agreement: the summary string ON THE SPAN appears verbatim in

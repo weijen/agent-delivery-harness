@@ -98,7 +98,7 @@ MD
 
 (cd "$WT" && ./scripts/log-handback.sh conductor feature_start demo-feature pass "selected demo-feature") \
   >/dev/null 2>&1 || fail "fixture: helper call 1 (feature_start) failed"
-(cd "$WT" && ./scripts/log-handback.sh test-subagent red_handback demo-feature pass "RED sensor authored") \
+(cd "$WT" && ./scripts/log-handback.sh generator-subagent red_handback demo-feature pass "RED sensor authored") \
   >/dev/null 2>&1 || fail "fixture: helper call 2 (red_handback) failed"
 
 TRACE="${MAIN}/.copilot-tracking/issues/issue-33/trace.jsonl"
@@ -122,10 +122,10 @@ findings="$(detect "$TRACE" "$PROG")"
 # ============================================================================
 CASE2="${TMP_DIR}/case2-progress.md"
 cp "$PROG" "$CASE2"
-printf -- '- [test-subagent] green_handback demo-feature pass — hand-written claim, no span emitted\n' >> "$CASE2"
+printf -- '- [generator-subagent] green_handback demo-feature pass — hand-written claim, no span emitted\n' >> "$CASE2"
 findings="$(detect "$TRACE" "$CASE2")"
 printf '%s\n' "$findings" \
-  | grep -qF 'log-without-span: [test-subagent] green_handback demo-feature pass' \
+  | grep -qF 'log-without-span: [generator-subagent] green_handback demo-feature pass' \
   || fail "a hand-authored Action Log handback with no agent span must be flagged log-without-span (got: ${findings:-<none>})"
 printf '%s\n' "$findings" | grep -q 'span-without-log' \
   && fail "case 2 must not misreport span-without-log findings: ${findings}"
@@ -137,7 +137,7 @@ CASE3="${TMP_DIR}/case3-progress.md"
 grep -v 'red_handback' "$PROG" > "$CASE3"
 findings="$(detect "$TRACE" "$CASE3")"
 printf '%s\n' "$findings" \
-  | grep -qF 'span-without-log: [test-subagent] red_handback demo-feature pass' \
+  | grep -qF 'span-without-log: [generator-subagent] red_handback demo-feature pass' \
   || fail "an agent span with no matching Action Log line must be flagged span-without-log (got: ${findings:-<none>})"
 printf '%s\n' "$findings" | grep -q 'log-without-span' \
   && fail "case 3 must not misreport log-without-span findings: ${findings}"

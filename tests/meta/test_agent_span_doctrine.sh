@@ -32,6 +32,8 @@ if [ -f "$instructions" ]; then
 	for token in plan_handback feature_start red_handback impl_handback green_handback review_verdict deviation; do
 		grep -q "$token" "$instructions" || note "$instructions must document the '$token' agent-span convention"
 	done
+	grep -q 'generator-subagent' "$instructions" \
+		|| note "$instructions must attribute active RED/implementation/GREEN spans to generator-subagent"
 	# Single-source rule + token-usage honesty + token fields.
 	grep -q 'single-source' "$instructions" || note "$instructions must state the single-source rule"
 	grep -qi 'never estimate' "$instructions" || note "$instructions must state the token-usage omit-never-fake rule"

@@ -124,10 +124,10 @@ jq -e --argjson want "$expected_structural_numeric" \
   '(.structural_numeric_keys // [] | sort) == $want' "$CONTRACT" >/dev/null \
   || fail "contract .structural_numeric_keys must be exactly harness.issue and schema_version (issue #173)"
 
-expected_roles='["code-review-subagent","conductor","implementation-subagent","planning-subagent","test-subagent"]'
+expected_roles='["code-review-subagent","conductor","generator-subagent","implementation-subagent","planning-subagent","test-subagent"]'
 jq -e --argjson want "$expected_roles" \
   '(.roles // [] | sort) == $want' "$CONTRACT" >/dev/null \
-  || fail "contract .roles must be exactly the 5 closed log-handback/consistency roles (issue #173)"
+  || fail "contract .roles must be exactly the 6 active and historical log-handback/consistency roles (issue #173, #296)"
 
 # All authority arrays must be non-empty arrays of strings.
 for arr in numeric_keys numeric_key_prefixes structural_numeric_keys roles; do
@@ -176,8 +176,11 @@ must_reject() {
   fi
 }
 
-# Accept: one valid sample span per frozen span type.
-must_accept "agent" \
+# Accept: one valid sample span per frozen span type. Agent samples cover the
+# active generator role and a retained historical role.
+must_accept "generator agent" \
+  '{"schema_version":1,"timestamp":"2026-07-04T11:59:59Z","span":"agent","harness.issue":92,"harness.version":"0f3c1a2","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"generator-subagent"}'
+must_accept "historical implementation agent" \
   '{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"agent","harness.issue":92,"harness.version":"0f3c1a2","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent"}'
 must_accept "model" \
   '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"model","harness.issue":92,"harness.version":"0f3c1a2","gen_ai.request.model":"example-model","gen_ai.usage.input_tokens":18000,"gen_ai.usage.output_tokens":4000}'

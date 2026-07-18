@@ -70,10 +70,11 @@ handback？有沒有 deviation？有沒有重複失敗的 loop？
 
 接著我們遇到另一個問題：光有 lifecycle span 還不夠。
 
-我們的工作流要求 TDD。也就是每個 feature 應該先有 test-subagent 的 red
-handback，再有 implementation-subagent 的 impl handback，最後才有
-test-subagent 的 green handback。這件事如果只寫在 Action Log 裡，人看
-得到，但機器不一定好判斷。
+我們的工作流要求 TDD。也就是每個 feature 應該由 generator-subagent 依序
+留下 red、impl、green handback。歷史 trace 裡原有的 test-subagent、
+implementation-subagent、test-subagent 三段式角色仍然照原樣保留並可驗證，
+但新舊角色混用的 triple 不算完整證據。這件事如果只寫在 Action Log 裡，
+人看得到，但機器不一定好判斷。
 
 所以我們把 handback 也寫成 agent span。這樣 trace consistency checker 就能
 檢查順序對不對、角色對不對、feature id 對不對。

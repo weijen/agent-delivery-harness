@@ -21,8 +21,7 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 plan=".copilot/agents/planning-subagent.agent.md"
-impl=".copilot/agents/implementation-subagent.agent.md"
-test_agent=".copilot/agents/test-subagent.agent.md"
+generator=".copilot/agents/generator-subagent.agent.md"
 review=".copilot/agents/code-review-subagent.agent.md"
 harness=".copilot/instructions/harness.instructions.md"
 
@@ -30,7 +29,7 @@ generic='<language>.instructions.md'
 py="python.instructions.md"
 tdd="tdd.instructions.md"
 
-for f in "$plan" "$impl" "$test_agent" "$review" "$harness"; do
+for f in "$plan" "$generator" "$review" "$harness"; do
   [ -f "$f" ] || note "missing $f"
 done
 
@@ -50,7 +49,7 @@ if [ -f "$harness" ]; then
 fi
 
 # --- Each agent REFERENCES the single source; it must not re-encode the map -----
-for f in "$plan" "$impl" "$test_agent" "$review"; do
+for f in "$plan" "$generator" "$review"; do
   [ -f "$f" ] || continue
   grep -qi 'profile-aware' "$f" || note "$f must frame instruction loading as profile-aware routing"
   grep -qF 'harness.instructions.md' "$f" ||
@@ -62,7 +61,7 @@ for f in "$plan" "$impl" "$test_agent" "$review"; do
 done
 
 # --- TDD stays binding on the editing/testing/review references -----------------
-for f in "$impl" "$test_agent" "$review"; do
+for f in "$generator" "$review"; do
   [ -f "$f" ] || continue
   grep -qF "$tdd" "$f" || note "$f must keep $tdd binding in its routing reference"
 done

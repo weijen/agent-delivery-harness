@@ -27,7 +27,7 @@ if [ -f "$instructions" ]; then
 		|| note "$instructions must keep the per-feature handoff sequence section"
 	grep -Eq '^#+ .*What counts as one feature' "$instructions" \
 		|| note "$instructions must keep the feature-granularity section"
-	for token in 'non-delegable' 'test-subagent' 'implementation-subagent' 'RED' 'GREEN' 'regression_sensor' 'split' 'merge' 'conductor TDD'; do
+	for token in 'non-delegable' 'generator-subagent' 'RED' 'GREEN' 'regression_sensor' 'split' 'merge' 'conductor TDD'; do
 		grep -q "$token" "$instructions" || note "$instructions role/granularity vocabulary must include '$token'"
 	done
 	grep -Eqi 'exactly one[^.]*regression_sensor' "$instructions" \
@@ -44,7 +44,7 @@ if [ -f "$harness_doc" ]; then
 		|| note "$harness_doc must keep the plan->clarify->feature_list breakdown-flow section"
 	grep -Eq '^#+ .*What counts as one feature' "$harness_doc" \
 		|| note "$harness_doc must keep the feature-granularity section"
-	for token in 'test-subagent' 'implementation-subagent' 'human-input gate' 'regression_sensor'; do
+	for token in 'generator-subagent' 'human-input gate' 'regression_sensor'; do
 		grep -q "$token" "$harness_doc" || note "$harness_doc handoff/breakdown vocabulary must include '$token'"
 	done
 else

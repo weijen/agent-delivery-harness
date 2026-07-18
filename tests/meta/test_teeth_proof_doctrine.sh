@@ -2,8 +2,8 @@
 # Regression sensor: teeth_proof doctrine for executable feature evidence.
 #
 # The harness doctrine must define the closed teeth_proof kind-set, bind
-# recording to the evaluator's passes:true flip, and echo the same contract in
-# the test-subagent agent contract and lifecycle docs. This sensor fails while
+# recording to the generator's passes:true flip, and echo the same contract in
+# the generator-subagent agent contract and lifecycle docs. This sensor fails while
 # the doctrine is unwritten and prevents future drift once it is added.
 set -euo pipefail
 
@@ -14,12 +14,12 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 instructions=".copilot/instructions/harness.instructions.md"
-test_agent=".copilot/agents/test-subagent.agent.md"
+generator=".copilot/agents/generator-subagent.agent.md"
 harness_doc="docs/HARNESS.md"
 agents_doc="AGENTS.md"
 
 [ -f "$instructions" ] || note "missing $instructions"
-[ -f "$test_agent" ] || note "missing $test_agent"
+[ -f "$generator" ] || note "missing $generator"
 [ -f "$harness_doc" ] || note "missing $harness_doc"
 
 if [ -f "$instructions" ]; then
@@ -30,14 +30,14 @@ if [ -f "$instructions" ]; then
 		fi
 	done
 
-	# 2. §3 owns the per-feature TEST-SUBAGENT/evaluator handoff doctrine, so
+	# 2. §3 owns the per-feature generator handoff doctrine, so
 	#    teeth_proof recording must be stated there, not only elsewhere.
 	sec3="$(sed -n '/^## 3\./,/^## 4\./p' "$instructions")"
 	if ! printf '%s\n' "$sec3" | grep -q 'teeth_proof'; then
-		note "$instructions §3 must state that the TEST-SUBAGENT records teeth_proof"
+		note "$instructions §3 must state that the generator-subagent records teeth_proof"
 	fi
-	if ! printf '%s\n' "$sec3" | grep -Eqi 'teeth_proof[^.]{0,240}test-subagent|test-subagent[^.]{0,240}teeth_proof'; then
-		note "$instructions §3 must bind teeth_proof recording to test-subagent/evaluator work"
+	if ! printf '%s\n' "$sec3" | grep -Eqi 'teeth_proof[^.]{0,240}generator-subagent|generator-subagent[^.]{0,240}teeth_proof'; then
+		note "$instructions §3 must bind teeth_proof recording to generator-subagent work"
 	fi
 
 	# 3. Recording teeth_proof is part of the evidence for the passes:true flip.
@@ -46,18 +46,18 @@ if [ -f "$instructions" ]; then
 	fi
 fi
 
-if [ -f "$test_agent" ]; then
-	# 4. The evaluator contract must name the field and all closed kind values.
+if [ -f "$generator" ]; then
+	# 4. The generator contract must name the field and all closed kind values.
 	for token in teeth_proof red_first mutation negative_fixture; do
-		if ! grep -q "$token" "$test_agent"; then
-			note "$test_agent must document the teeth_proof contract token '$token'"
+		if ! grep -q "$token" "$generator"; then
+			note "$generator must document the teeth_proof contract token '$token'"
 		fi
 	done
-	if ! grep -q 'passes:true' "$test_agent"; then
-		note "$test_agent must mention passes:true alongside teeth_proof recording"
+	if ! grep -q 'passes:true' "$generator"; then
+		note "$generator must mention passes:true alongside teeth_proof recording"
 	fi
-	if ! grep -Eqi 'teeth_proof[^.]{0,240}passes:true|passes:true[^.]{0,240}teeth_proof' "$test_agent"; then
-		note "$test_agent must instruct recording teeth_proof alongside the passes:true flip"
+	if ! grep -Eqi 'teeth_proof[^.]{0,240}passes:true|passes:true[^.]{0,240}teeth_proof' "$generator"; then
+		note "$generator must instruct recording teeth_proof alongside the passes:true flip"
 	fi
 fi
 

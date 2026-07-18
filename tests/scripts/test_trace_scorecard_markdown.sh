@@ -255,6 +255,20 @@ else
   note "mixed bucket visibly labeled in the table"
 fi
 
+# All fixtures predate the optional #296 summary projections. The experiment
+# table must render every unavailable experiment value as n/a.
+grep -Fq '| vA | n/a | n/a | n/a | n/a | n/a | n/a | n/a |' "$OUT_MD" \
+  || fail "experiment table must render old-summary vA with n/a samples, distributions, coverage, and rates"
+jq -e '
+  (.by_version[] | select(.harness_version == "vA")) as $a
+  | $a.feature_delivery.samples == null
+  and $a.feature_delivery.median_seconds == null
+  and $a.feature_delivery.coverage == null
+  and $a.review_fail.rate == null
+  and $a.blocked_green.rate == null
+' "$SCORECARD" >/dev/null 2>&1 \
+  || fail "experiment markdown fixture must agree with scorecard JSON null semantics"
+
 # --- 4. Missing + skipped sections when non-empty --------------------------------
 if grep -Eiq 'missing' "$OUT_MD" && grep -q 'issue-12' "$OUT_MD" \
   && grep -q 'trace-report.sh' "$OUT_MD"; then

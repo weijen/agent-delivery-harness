@@ -97,13 +97,11 @@ test_doc() {
   grep -Eq '11[–-]12.*STRONG_PASS|STRONG_PASS.*11[–-]12|11[–-]12.*STRONG PASS|STRONG PASS.*11[–-]12' "$doc" ||
     "$note_fn" "$doc must map score 11-12 to STRONG_PASS"
 
-  # Handback routing to the three roles.
+  # Handback routing to the generator and conductor/human gate.
   grep -Eqi 'handback routing|routing handback' "$doc" ||
     "$note_fn" "$doc must document handback routing"
-  grep -Eqi 'implementation-subagent' "$doc" ||
-    "$note_fn" "$doc handback routing must mention implementation-subagent"
-  grep -Eqi 'test-subagent' "$doc" ||
-    "$note_fn" "$doc handback routing must mention test-subagent"
+  grep -Eqi 'generator-subagent' "$doc" ||
+    "$note_fn" "$doc handback routing must mention generator-subagent"
   grep -Eqi 'conductor.*human|human.*gate' "$doc" ||
     "$note_fn" "$doc handback routing must mention conductor/human gate"
 
@@ -158,7 +156,7 @@ test_examples() {
   fi
 
   # Examples include routeable handbacks.
-  if ! grep -Eqi 'handback.*implementation|handback.*test|handback.*conductor' "$doc"; then
+  if ! grep -Eqi 'handback.*generator|handback.*conductor' "$doc"; then
     "$note_fn" "$doc examples must include routeable handbacks"
   fi
 
@@ -170,10 +168,10 @@ test_examples() {
   return "$fail"
 }
 
-test_subagent() {
+test_generator_subagent() {
   local fail=0
   local note_fn="$1"
-  local agent=".copilot/agents/test-subagent.agent.md"
+  local agent=".copilot/agents/generator-subagent.agent.md"
 
   [ -f "$agent" ] || { "$note_fn" "missing $agent"; return 1; }
 
@@ -297,12 +295,9 @@ test_code_review_subagent() {
     "$note_fn" "$agent must state that a failed blocking gate forces a FAIL verdict"
   fi
 
-  # Routes product-quality findings to implementation-subagent, test-subagent, or conductor/human gate.
-  if ! grep -Eqi 'implementation-subagent' "$agent"; then
-    "$note_fn" "$agent must route findings to implementation-subagent"
-  fi
-  if ! grep -Eqi 'test-subagent' "$agent"; then
-    "$note_fn" "$agent must route findings to test-subagent"
+  # Routes product-quality findings to generator-subagent or conductor/human gate.
+  if ! grep -Eqi 'generator-subagent' "$agent"; then
+    "$note_fn" "$agent must preserve generator-subagent ownership"
   fi
   if ! grep -Eqi 'conductor.*human|human.*gate|conductor.*gate' "$agent"; then
     "$note_fn" "$agent must route findings to conductor/human gate"
@@ -328,18 +323,18 @@ test_lifecycle_docs() {
       "$note_fn" "$doc must reference docs/evaluation/product-quality-rubric.md or the product-quality rubric"
     fi
 
-    # Blocking gates belong to evaluator/test-subagent lifecycle responsibilities before passes:true.
+    # Blocking gates belong to generator lifecycle responsibilities before passes:true.
     if ! grep -Eqi 'blocking gate' "$doc"; then
       "$note_fn" "$doc must mention product-quality blocking gates in the lifecycle"
     fi
-    if ! grep -Eqi 'test-subagent|Evaluator' "$doc"; then
-      "$note_fn" "$doc must preserve test-subagent/evaluator lifecycle responsibility"
+    if ! grep -Eqi 'generator-subagent|Generator' "$doc"; then
+      "$note_fn" "$doc must preserve generator-subagent lifecycle responsibility"
     fi
     if ! grep -Eqi 'passes:true' "$doc"; then
       "$note_fn" "$doc must preserve the passes:true lifecycle marker"
     fi
-    if ! grep -Eqi '(test-subagent|Evaluator).*(blocking gate|product[- ]quality|rubric).*(passes:true|before.*pass|mark.*pass)|(blocking gate|product[- ]quality|rubric).*(test-subagent|Evaluator).*(passes:true|before.*pass|mark.*pass)' "$doc"; then
-      "$note_fn" "$doc must make blocking-gate verification a test-subagent/evaluator responsibility before passes:true"
+    if ! grep -Eqi '(generator-subagent|Generator).*(blocking gate|product[- ]quality|rubric).*(passes:true|before.*pass|mark.*pass)|(blocking gate|product[- ]quality|rubric).*(generator-subagent|Generator).*(passes:true|before.*pass|mark.*pass)' "$doc"; then
+      "$note_fn" "$doc must make blocking-gate verification a generator-subagent responsibility before passes:true"
     fi
 
     # The scorecard belongs to review/reviewer responsibilities before closeout.
@@ -360,8 +355,8 @@ test_lifecycle_docs() {
     if ! grep -Eqi 'conductor' "$doc"; then
       "$note_fn" "$doc must preserve conductor role text"
     fi
-    if ! grep -Eqi 'implementation-subagent' "$doc"; then
-      "$note_fn" "$doc must preserve implementation-subagent role text"
+    if ! grep -Eqi 'generator-subagent' "$doc"; then
+      "$note_fn" "$doc must preserve generator-subagent role text"
     fi
     if ! grep -Eqi 'conductor.*(owns|drives|routes|selects|commits|pushes)|conductor.*must not|must not.*conductor|conductor-owned' "$doc"; then
       "$note_fn" "$doc must keep conductor-owned routing and role boundaries explicit"
@@ -383,7 +378,7 @@ test_name_drift() {
   local note_fn="$1"
   local doc="docs/evaluation/product-quality-rubric.md"
   local review_agent=".copilot/agents/code-review-subagent.agent.md"
-  local test_agent=".copilot/agents/test-subagent.agent.md"
+  local generator=".copilot/agents/generator-subagent.agent.md"
 
   [ -f "$doc" ] || { "$note_fn" "missing $doc"; return 1; }
 
@@ -415,8 +410,8 @@ test_name_drift() {
   for name in "${gates[@]}"; do
     grep -qiF "$name" "$review_agent" ||
       "$note_fn" "$review_agent must reference canonical gate name '$name' (drift from $doc)"
-    grep -qiF "$name" "$test_agent" ||
-      "$note_fn" "$test_agent must reference canonical gate name '$name' (drift from $doc)"
+    grep -qiF "$name" "$generator" ||
+      "$note_fn" "$generator must reference canonical gate name '$name' (drift from $doc)"
   done
   for name in "${dims[@]}"; do
     grep -qiF "$name" "$review_agent" ||
@@ -476,12 +471,12 @@ case "$subcommand" in
     [ "$fail" -eq 0 ] || exit 1
     echo "✓ product-quality rubric examples checks pass"
     ;;
-  test-subagent)
+  generator-subagent)
     fail=0
     note() { echo "✗ $*"; fail=1; }
-    test_subagent note
+    test_generator_subagent note
     [ "$fail" -eq 0 ] || exit 1
-    echo "✓ product-quality rubric test-subagent checks pass"
+    echo "✓ product-quality rubric generator-subagent checks pass"
     ;;
   code-review-subagent)
     fail=0
@@ -516,7 +511,7 @@ case "$subcommand" in
     note() { echo "✗ $*"; fail=1; }
     test_doc note
     test_examples note
-    test_subagent note
+    test_generator_subagent note
     test_code_review_subagent note
     test_lifecycle_docs note
     test_evaluation_readme note
@@ -526,7 +521,7 @@ case "$subcommand" in
     ;;
   *)
     echo "unknown subcommand: $subcommand" >&2
-    echo "usage: $0 {doc|examples|test-subagent|code-review-subagent|lifecycle-docs|evaluation-readme|drift|all}" >&2
+    echo "usage: $0 {doc|examples|generator-subagent|code-review-subagent|lifecycle-docs|evaluation-readme|drift|all}" >&2
     exit 1
     ;;
 esac
