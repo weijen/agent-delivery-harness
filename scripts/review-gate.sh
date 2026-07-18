@@ -531,6 +531,70 @@ review_reject_cap_gate() {
   return 0
 }
 
+# review_verdict_gate — hard-block the PR path when a passes:true feature lacks
+# a per-feature review verdict (issue #303, feature verdict-missing-gate).
+#
+# The enforcement half of the single end-of-issue review contract. Like
+# red_first_evidence_gate and review_reject_cap_gate (and unlike the warn-only
+# trace_gate), this gate BLOCKS BY DEFAULT — independent of
+# REQUIRE_TRACE_CONSISTENCY. It runs check-trace-consistency.sh for the current
+# issue WITH REVIEW_GATE_APPROVE_PHASE=1 exported for that one invocation, so
+# the review/approve phase is active at approve time even though the
+# review_gate_approve span is not written until AFTER this gate passes. It fails
+# ONLY when the detection half reports:
+#   VIOLATION consistency: review_verdict_missing <fid>
+# i.e. a passes:true feature has no review_verdict span. The single
+# end-of-issue review must issue a verdict for EVERY passes:true feature before
+# approval is recorded.
+#
+# Degrades gracefully — print a neutral note and return 0, never break the
+# gate — when the issue number cannot be resolved (a checkout that predates
+# the trace tooling), the checker is not executable, or the checker hits an
+# environment error (exit 2: no trace yet). Emits no span of its own.
+review_verdict_gate() {
+  local issue_num=""
+
+  issue_num="$(resolve_issue_number || true)"
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ verdict gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+
+  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+    yellow "⚠ verdict gate skipped: check-trace-consistency.sh not found or not executable"
+    return 0
+  fi
+
+  # Capture stdout+stderr and the exit code without letting set -e abort on the
+  # checker's non-zero exit (exit 1 means findings, exit 2 means it could not
+  # run). Only exit 2 degrades to a skip; findings are inspected below. The
+  # review/approve phase is FORCED ACTIVE for this one invocation
+  # (REVIEW_GATE_APPROVE_PHASE=1) because at approve time the
+  # review_gate_approve span is not written until after this gate passes.
+  local out="" rc=0
+  out="$(REVIEW_GATE_APPROVE_PHASE=1 "${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    yellow "⚠ verdict gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
+    return 0
+  fi
+
+  # Block on the review-verdict-missing violation only — never on warnings or
+  # any other finding (those stay warn-only via trace_gate).
+  local findings=""
+  findings="$(printf '%s\n' "$out" \
+    | grep -E '^VIOLATION consistency: review_verdict_missing' || true)"
+  if [ -n "$findings" ]; then
+    red "✗ verdict gate: completed feature(s) lack a per-feature review verdict."
+    printf '%s\n' "$findings"
+    echo "  The single end-of-issue review must issue a review_verdict for EVERY"
+    echo "  passes:true feature before approve — record the missing per-feature"
+    echo "  verdict(s) named above, then re-run approve."
+    return 1
+  fi
+
+  return 0
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_dir="${repo_root}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
@@ -555,6 +619,14 @@ case "$command" in
     # blocked approve never leaves an approved-head marker behind.
     if ! review_reject_cap_gate; then
       red "✗ approve refused: a feature hit the review-rejection cap (see above) — not recording approval."
+      exit 1
+    fi
+    # Review-verdict gate (issue #303): refuse to record approval when a
+    # passes:true feature lacks a per-feature review verdict. Blocks by default
+    # (independent of REQUIRE_TRACE_CONSISTENCY) and runs BEFORE the marker is
+    # written, so a blocked approve never leaves an approved-head marker behind.
+    if ! review_verdict_gate; then
+      red "✗ approve refused: a completed feature lacks a per-feature review verdict (see above) — not recording approval."
       exit 1
     fi
     mkdir -p "$marker_dir"
@@ -603,6 +675,11 @@ case "$command" in
     # gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
     TRACE_STAGE="review_reject_cap"
     review_reject_cap_gate || exit 1
+    # Review-verdict gate (issue #303): hard-block by default when a passes:true
+    # feature lacks a per-feature review verdict, independent of the warn-only
+    # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
+    TRACE_STAGE="review_verdict"
+    review_verdict_gate || exit 1
     ;;
   status-doc)
     TRACE_CMD="status-doc"

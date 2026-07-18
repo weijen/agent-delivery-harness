@@ -313,6 +313,7 @@ C4="${TMP_DIR}/c73"; make_fixture "$C4" 73
 WT4="${C4}-worktrees/issue-73"; ID4="${C4}/.copilot-tracking/issues/issue-73"
 set_fl "$ID4" "$FL_WAIVER"
 add_span "$ID4" 73 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass
+add_span "$ID4" 73 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT4" "issue-73 waiver approve leg"
 rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
@@ -332,6 +333,7 @@ WT5="${C5}-worktrees/issue-74"; ID5="${C5}/.copilot-tracking/issues/issue-74"
 set_fl "$ID5" "$FL_TEETH"
 add_span "$ID5" 74 conductor feature_start feat-a pass  # issue #291 evidence
 add_span "$ID5" 74 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass; no ordered triple
+add_span "$ID5" 74 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT5" "issue-74 teeth-proof approve leg"
 rc="$(run_in "$WT5" "$OUT" -- ./scripts/check-trace-consistency.sh 74)"
 [ "$rc" = "0" ] \
@@ -360,6 +362,7 @@ add_span "$ID6" 75 conductor feature_start feat-a pass
 add_span "$ID6" 75 test-subagent red_handback feat-a pass
 add_span "$ID6" 75 implementation-subagent impl_handback feat-a pass
 add_span "$ID6" 75 test-subagent green_handback feat-a pass
+add_span "$ID6" 75 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 commit_docs "$WT6" "issue-75 triple approve leg"
 rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
@@ -381,6 +384,7 @@ add_span "$ID7" 76 conductor feature_start feat-a pass
 add_span "$ID7" 76 test-subagent red_handback feat-a pass
 add_span "$ID7" 76 implementation-subagent impl_handback feat-a pass
 add_span "$ID7" 76 test-subagent green_handback feat-a pass
+add_span "$ID7" 76 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
 # An unrelated consistency finding: a SECOND hand-written feature_start
 # bullet with no matching span of its own (the real feature_start span
 # above already satisfies feature_start_missing, so this extra bullet
