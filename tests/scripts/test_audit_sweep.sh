@@ -56,7 +56,7 @@ RUN_PATH="${BIN}:${PATH}"
 # the script emits, the leg-A comparison fails (drift caught both ways).
 mapfile -t EXPECTED < <(
   find "${SKILLS_DIR}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
-    | grep -vxE 'code-review|create-pr|public-exposure-audit' \
+    | grep -vxE 'code-review|create-pr|public-exposure-audit|copilot-log-review' \
     | sort
 )
 

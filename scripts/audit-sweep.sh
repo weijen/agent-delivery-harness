@@ -27,7 +27,8 @@
 set -euo pipefail
 
 # Non-audit skills that live under .copilot/skills/ but are not part of the sweep.
-NON_AUDIT=("code-review" "create-pr" "public-exposure-audit")
+# copilot-log-review reads local session transcripts absent in scheduled CI; on-demand / L4 use.
+NON_AUDIT=("code-review" "create-pr" "public-exposure-audit" "copilot-log-review")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
