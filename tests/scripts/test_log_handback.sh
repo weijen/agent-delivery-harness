@@ -209,7 +209,7 @@ BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rm cp mv cat sed awk tr cut grep printf head tail sort jq date od wc cksum
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_INPUT_TOKENS TRACE_OUTPUT_TOKENS \
-  TRACE_FAILURE_MODE TRACE_INSTRUCTION_FILES 2>/dev/null || true
+  TRACE_FAILURE_MODE TRACE_INSTRUCTION_FILES TRACE_REVIEW_MODE 2>/dev/null || true
 
 # --- Fixture: MAIN repo + linked issue worktrees ---------------------------------
 MAIN="${TMP_DIR}/main-repo"
@@ -664,5 +664,83 @@ run_hb_if "$WTA" "${TMP_DIR}/g3.out" "" \
 g3="$(nth_line "$TRACE_A" 14)"
 printf '%s\n' "$g3" | jq -e 'has("harness.instruction_files") | not' >/dev/null \
   || fail "empty TRACE_INSTRUCTION_FILES must OMIT harness.instruction_files (never fake, never emit empty): ${g3}"
+
+# ============================================================================
+# 13. TRACE_REVIEW_MODE + auto-captured reviewed_sha (issue #299, feature
+#     review-verdict-provenance). BOTH attrs are scoped to the review_verdict
+#     step ONLY:
+#       TRACE_REVIEW_MODE  → harness.review_mode  (JSON string, CLOSED enum
+#                            {full, concise, repair}; out-of-enum / empty →
+#                            key OMITTED + stderr warning, exit 0 — omit,
+#                            never fake, mirroring the failure-mode shape).
+#       harness.reviewed_sha → AUTO-captured at emit time from `git rev-parse
+#                            HEAD` (NOT any env var); omitted when unresolvable.
+#     On EVERY non-review_verdict step both attrs are ABSENT even when
+#     TRACE_REVIEW_MODE is set in the ambient env (guarded on the step).
+# ============================================================================
+run_hb_rm() { # like run_hb but with TRACE_REVIEW_MODE exported
+  local wt="$1" out="$2" mode="$3"; shift 3
+  (cd "$wt" && TRACE_REVIEW_MODE="$mode" PATH="$BIN" ./scripts/log-handback.sh "$@") > "$out" 2>&1
+}
+# The worktree's current HEAD — what the helper must auto-capture.
+WT_HEAD="$(git -C "$WTA" rev-parse HEAD)"
+[ -n "$WT_HEAD" ] || fail "fixture bug: could not resolve the worktree HEAD to compare reviewed_sha against"
+
+# 13a. review_verdict + TRACE_REVIEW_MODE=full → span carries
+#      harness.review_mode="full" AND harness.reviewed_sha=<worktree HEAD>.
+run_hb_rm "$WTA" "${TMP_DIR}/h1.out" full \
+  code-review-subagent review_verdict review-verdict-provenance pass "APPROVE: sensor bites, product-quality met" \
+  || { cat "${TMP_DIR}/h1.out"; fail "review_verdict handback with TRACE_REVIEW_MODE=full must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "15" ] \
+  || fail "review-mode call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+h1="$(nth_line "$TRACE_A" 15)"
+check_agent_span "review-mode full" "$h1" code-review-subagent review_verdict \
+  review-verdict-provenance pass "APPROVE: sensor bites, product-quality met" 13
+printf '%s\n' "$h1" | jq -e --arg sha "$WT_HEAD" '
+    (.["harness.review_mode"] == "full")
+    and (.["harness.reviewed_sha"] == $sha)
+  ' >/dev/null \
+  || fail "review_verdict + TRACE_REVIEW_MODE=full must carry harness.review_mode=\"full\" AND auto-captured harness.reviewed_sha=\"${WT_HEAD}\": ${h1}"
+
+# 13b. review_verdict + TRACE_REVIEW_MODE UNSET → harness.review_mode ABSENT,
+#      but harness.reviewed_sha STILL present (auto-captured, not env-driven).
+run_hb "$WTA" "${TMP_DIR}/h2.out" \
+  code-review-subagent review_verdict review-verdict-provenance fail "NEEDS_REVISION: missing negative fixture" \
+  || { cat "${TMP_DIR}/h2.out"; fail "review_verdict handback without TRACE_REVIEW_MODE must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "16" ] \
+  || fail "no-review-mode call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+h2="$(nth_line "$TRACE_A" 16)"
+printf '%s\n' "$h2" | jq -e --arg sha "$WT_HEAD" '
+    (has("harness.review_mode") | not)
+    and (.["harness.reviewed_sha"] == $sha)
+  ' >/dev/null \
+  || fail "review_verdict without TRACE_REVIEW_MODE must OMIT harness.review_mode but STILL carry auto-captured harness.reviewed_sha=\"${WT_HEAD}\": ${h2}"
+
+# 13c. review_verdict + TRACE_REVIEW_MODE=bogus → harness.review_mode OMITTED
+#      + stderr warning, exit 0 (out-of-enum → omit, never fake).
+run_hb_rm "$WTA" "${TMP_DIR}/h3.out" bogus \
+  code-review-subagent review_verdict review-verdict-provenance pass "review carrying a bogus mode" \
+  || { cat "${TMP_DIR}/h3.out"; fail "out-of-enum TRACE_REVIEW_MODE=bogus must NOT fail the call (omit, never fake)"; }
+[ "$(line_count "$TRACE_A")" = "17" ] \
+  || fail "bogus-review-mode call must still append exactly one span (got $(line_count "$TRACE_A") lines)"
+h3="$(nth_line "$TRACE_A" 17)"
+printf '%s\n' "$h3" | jq -e 'has("harness.review_mode") | not' >/dev/null \
+  || fail "out-of-enum TRACE_REVIEW_MODE=bogus must OMIT harness.review_mode (never fake, never forward): ${h3}"
+grep -qiE 'review[_ -]mode' "${TMP_DIR}/h3.out" \
+  || { cat "${TMP_DIR}/h3.out"; fail "out-of-enum TRACE_REVIEW_MODE must warn on stderr naming the review mode (silent omit forbidden)"; }
+
+# 13d. NON-review_verdict step + TRACE_REVIEW_MODE=full → BOTH attrs ABSENT
+#      (scoped to review_verdict only, even when the ambient env is set).
+run_hb_rm "$WTA" "${TMP_DIR}/h4.out" full \
+  generator-subagent impl_handback review-verdict-provenance pass "impl on a non-review step" \
+  || { cat "${TMP_DIR}/h4.out"; fail "impl_handback with TRACE_REVIEW_MODE=full must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "18" ] \
+  || fail "non-review step call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+h4="$(nth_line "$TRACE_A" 18)"
+printf '%s\n' "$h4" | jq -e '
+    (has("harness.review_mode") | not)
+    and (has("harness.reviewed_sha") | not)
+  ' >/dev/null \
+  || fail "non-review_verdict step must OMIT BOTH harness.review_mode and harness.reviewed_sha even when TRACE_REVIEW_MODE is set (scoped to review_verdict): ${h4}"
 
 printf 'log-handback single-source handback contract honored\n'
