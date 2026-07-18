@@ -130,6 +130,19 @@
 #                     (…/pull/<N>) AND the trace carries a pr_create span
 #                     with harness.pr_number, the numbers must agree.
 #                         VIOLATION consistency: pr_mismatch
+#   spine_incomplete  runtime capture is retired (issue #305): "no runtime tool
+#                     spans" is now the NORMAL state, so this rule no longer
+#                     inspects tool spans. On a COMPLETE issue window
+#                     (worktree_create + finish lifecycle spans) it requires the
+#                     SEMANTIC SPINE to be present — at least one handback agent
+#                     span (harness.lifecycle_step in
+#                     red_handback|impl_handback|green_handback) or a conductor
+#                     feature_start agent span. An empty spine on a complete
+#                     window is the real gap the retired dark_run guard
+#                     protected. Incomplete windows NOTE-skip; the
+#                     TRACE_ALLOW_DARK_RUN=1 env (name kept for compatibility)
+#                     now governs this spine check and skips the block.
+#                         VIOLATION consistency: spine_incomplete <issue>
 #
 # Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
 # a PR reference, the relevant spans) skip their rules with a NOTE — never
@@ -728,13 +741,22 @@ else
   printf 'NOTE: pr_mismatch check skipped (no PR reference in progress.md)\n'
 fi
 
-# --- State: dark_run (completed issue window with no runtime tools) ------------
+# --- State: spine_incomplete (complete window missing the semantic spine) ------
+# Runtime capture is retired (issue #305): "no runtime tool spans" is now the
+# NORMAL state, so this rule no longer inspects tool spans. On a COMPLETE issue
+# window (worktree_create + finish lifecycle spans) it requires the SEMANTIC
+# SPINE to be present — at least one handback agent span
+# (harness.lifecycle_step in red_handback|impl_handback|green_handback) or a
+# conductor feature_start agent span. An empty spine on a complete window is the
+# real gap the old dark_run guard protected. TRACE_ALLOW_DARK_RUN=1 (env name
+# kept for compatibility with sibling tests) now governs THIS spine check and
+# skips the block.
 if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
-  printf 'NOTE: dark_run check skipped (TRACE_ALLOW_DARK_RUN=1)\n'
+  printf 'NOTE: spine_incomplete check skipped (TRACE_ALLOW_DARK_RUN=1)\n'
 else
-  dark_run_facts="$(jq -nRr '
+  spine_facts="$(jq -nRr '
     reduce inputs as $line
-      ({worktree_create: false, finish: false, runtime_tools: 0, issue: ""};
+      ({worktree_create: false, finish: false, spine_spans: 0, issue: ""};
        [ $line | fromjson? | objects ][0] as $span
        | if $span == null then .
          else
@@ -744,22 +766,24 @@ else
            | .finish = (.finish or
              ($span.span == "lifecycle" and
               $span["harness.lifecycle_step"] == "finish"))
-           | .runtime_tools +=
-             (if $span.span == "tool" and
-                 (($span["harness.session_id"] | type) == "string")
+           | .spine_spans +=
+             (if $span.span == "agent" and
+                 (["red_handback", "impl_handback", "green_handback",
+                   "feature_start"]
+                  | index($span["harness.lifecycle_step"])) != null
               then 1 else 0 end)
            | .issue =
              (if .issue == "" and (($span["harness.issue"] | type) == "number")
               then ($span["harness.issue"] | tostring) else .issue end)
          end)
-    | [.worktree_create, .finish, .runtime_tools, .issue] | @tsv
+    | [.worktree_create, .finish, .spine_spans, .issue] | @tsv
   ' < "$TRACE_FILE")"
-  IFS=$'\t' read -r dark_has_worktree_create dark_has_finish \
-    dark_runtime_tool_count dark_issue <<< "$dark_run_facts"
-  if [ "$dark_has_worktree_create" != "true" ] || [ "$dark_has_finish" != "true" ]; then
-    printf 'NOTE: dark_run check skipped (issue window not complete — needs worktree_create and finish)\n'
-  elif [ "$dark_runtime_tool_count" = "0" ]; then
-    printf 'VIOLATION consistency: dark_run %s\n' "${dark_issue:-unknown}"
+  IFS=$'\t' read -r spine_has_worktree_create spine_has_finish \
+    spine_span_count spine_issue <<< "$spine_facts"
+  if [ "$spine_has_worktree_create" != "true" ] || [ "$spine_has_finish" != "true" ]; then
+    printf 'NOTE: spine_incomplete check skipped (issue window not complete — needs worktree_create and finish)\n'
+  elif [ "$spine_span_count" = "0" ]; then
+    printf 'VIOLATION consistency: spine_incomplete %s\n' "${spine_issue:-unknown}"
     violations=$((violations + 1))
   fi
 fi

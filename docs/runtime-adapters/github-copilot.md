@@ -10,6 +10,26 @@ The Claude Code adapter
 ([claude-code.md](claude-code.md)) remains the labeled **reference example**
 of the adapter pattern this one follows.
 
+## Deprecation notice (issue #305)
+
+> **Deprecated (issue #305).** The **runtime capture path** — the per-tool-call
+> and skill-span capture, the interval/marker/binding attribution that routes
+> those spans to an issue, the token passthrough, and the OTel **Path O** join —
+> is deprecated. It stays documented and present here through Phase 1 (deletion
+> is the separate Phase 2), but it is no longer the analysis path. Why it is
+> retired: under multi-issue concurrency the capture layer produced **systemic
+> dark runs**, it yielded **no token** on the surfaces that mattered, and native
+> Copilot session records are **richer** than anything the hooks could
+> reconstruct. The **replacement analysis path** is the
+> [`copilot-log-review`](../../.copilot/skills/copilot-log-review/SKILL.md)
+> skill, which reads those native records directly.
+>
+> The **semantic spine is kept** and is **not deprecated**: the harness-emitted
+> `lifecycle` spans, the handback `agent` spans from `scripts/log-handback.sh`,
+> the Action Log, and every check built on them survive unchanged. Only the
+> runtime-reconstructed capture layer is being retired; the spine that the
+> harness scripts emit themselves is the durable record of record.
+
 ## The zero-setup layer (no adapter installed)
 
 Under Copilot the harness already records most of the run out of the box —
@@ -28,18 +48,27 @@ simply lacks those spans; nothing else changes, and nothing is faked.
 
 ## Capability matrix
 
-| Span layer | Zero setup | Hooks adapter (CLI) | Hooks adapter (VS Code, Preview) | Cloud coding agent |
-| --- | --- | --- | --- | --- |
-| `lifecycle` spans | yes | yes | yes | yes (in-sandbox) |
-| handback `agent` spans | yes | yes | yes | yes |
-| per-tool-call `tool` spans | no | **yes** (v1.0.69: payload is event-less, inferred from shape; failure from a top-level `error` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) |
-| `harness.duration_ms` on tool spans | no | **no** — no Copilot payload documents a correlation id, so duration is omitted (omit, never fake) | no — omitted | no — omitted |
-| runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`; `subagentStart` opens the subagent turn) | yes (`Stop`/`SubagentStop`) | yes |
-| subagent tool/skill capture (`harness.subagent`) | no | **yes** — a `toolu_`-prefixed sessionId marks a subagent tool call; best-effort OTel Path O upgrades `harness.subagent` from `true` to the agent name | partial — stamp only (no VS Code toolu_ signal verified) | no |
-| `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | best-effort — same `events.jsonl` mechanism as the CLI, unverified inside the sandbox; degrades to omission |
+The **Status (#305)** column records the Phase-1 kept/deprecated split: the
+runtime-only capture rows are marked `Deprecated (#305)`, while the semantic-spine
+rows the harness emits itself stay `Kept`.
+
+| Span layer | Zero setup | Hooks adapter (CLI) | Hooks adapter (VS Code, Preview) | Cloud coding agent | Status (#305) |
+| --- | --- | --- | --- | --- | --- |
+| `lifecycle` spans | yes | yes | yes | yes (in-sandbox) | Kept (semantic spine) |
+| handback `agent` spans | yes | yes | yes | yes | Kept (semantic spine) |
+| per-tool-call `tool` spans | no | **yes** (v1.0.69: payload is event-less, inferred from shape; failure from a top-level `error` → `harness.outcome=fail`) | **yes** (`PostToolUse`; failure signal unavailable) | yes in-sandbox (trace is ephemeral unless exported) | Deprecated (#305) |
+| `harness.duration_ms` on tool spans | no | **no** — no Copilot payload documents a correlation id, so duration is omitted (omit, never fake) | no — omitted | no — omitted | Deprecated (#305) |
+| runtime-turn `agent` spans | no | yes (`agentStop`/`subagentStop`; `subagentStart` opens the subagent turn) | yes (`Stop`/`SubagentStop`) | yes | Deprecated (#305) |
+| subagent tool/skill capture (`harness.subagent`) | no | **yes** — a `toolu_`-prefixed sessionId marks a subagent tool call; best-effort OTel Path O upgrades `harness.subagent` from `true` to the agent name | partial — stamp only (no VS Code toolu_ signal verified) | no | Deprecated (#305) |
+| `model` spans (model id + token counts) | no | best-effort from `events.jsonl` (see caveat) | **no** — no verified VS Code token source exists in v1 (honest gap) | best-effort — same `events.jsonl` mechanism as the CLI, unverified inside the sandbox; degrades to omission | Deprecated (#305) |
 
 The gaps in this table are deliberate, not defects: where Copilot exposes no
-honest signal, the adapter omits the key entirely — *omit, never fake*.
+honest signal, the adapter omits the key entirely — *omit, never fake*. The
+`Deprecated (#305)` rows are the retired **runtime capture path**; per the
+[deprecation notice](#deprecation-notice-issue-305) the
+[`copilot-log-review`](../../.copilot/skills/copilot-log-review/SKILL.md) skill
+is the **replacement analysis path** and the `Kept` rows are the semantic spine
+that is **not deprecated**.
 
 ## Install (copy/merge — never overwrite)
 
@@ -128,6 +157,13 @@ is never treated as an error. Seeding only ever fills a gap: it copies the
 local hook into a new worktree and never clobbers a hook that already exists.
 
 ## Interval (session_id + time) attribution
+
+**Deprecated (issue #305).** The interval/marker/binding attribution below is
+part of the retired runtime capture path — it exists to route captured `tool`/
+`skill` spans to an issue, and those spans are no longer the analysis path. It is
+documented here for Phase 1 continuity; the
+[`copilot-log-review`](../../.copilot/skills/copilot-log-review/SKILL.md) skill
+is the replacement, and native records carry their own issue context.
 
 VS Code agent hooks do fire, but the hook payload's `cwd` is always the **main
 checkout** (on `main`), never the per-issue worktree. So the git-based
@@ -258,6 +294,11 @@ Outside a harness issue run it is a silent no-op and creates no artifacts.
 
 ## Token usage: the events.jsonl caveat
 
+**Deprecated (issue #305).** The token passthrough described here is part of the
+retired runtime capture path; native Copilot session records already carry token
+accounting, so the harness no longer reconstructs `model` spans from the internal
+`events.jsonl` for analysis.
+
 On the **CLI** surface, `agentStop` triggers a best-effort read of
 `~/.copilot/session-state/<sessionId>/events.jsonl`, whose metrics events
 carry per-model token buckets. When the latest metrics event carries a model
@@ -275,6 +316,12 @@ and does not read `events.jsonl` at all — an honest gap, stated rather than
 papered over.
 
 ## Subagent tool/skill capture (`harness.subagent`)
+
+**Deprecated (issue #305).** The subagent tool/skill capture and its best-effort
+OTel **Path O** join are part of the retired runtime capture path. They stay
+documented for Phase 1, but native records — read via the
+[`copilot-log-review`](../../.copilot/skills/copilot-log-review/SKILL.md) skill —
+are the replacement analysis path for subagent work.
 
 When the conductor spawns a subagent (the `task`/subagent tool), the tool
 calls made **inside** that subagent arrive on their own hook invocations whose

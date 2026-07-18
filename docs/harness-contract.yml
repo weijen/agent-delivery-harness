@@ -108,9 +108,6 @@ lifecycle:
   - id: closeout-worktree-cleanup
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
-  - id: local-hook-seeding
-    owner: scripts/start-issue.sh
-    present: harness-trace\.json
   - id: interval-attribution
     owner: scripts/copilot-trace-hook.sh
     present: hook__resolve_issue_by_interval

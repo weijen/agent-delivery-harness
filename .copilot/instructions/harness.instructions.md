@@ -46,14 +46,17 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
 ## 2. Start-of-session ritual (always)
 
 1. **Get into the right worktree.**
-   - **Launch topology:** start the Copilot CLI conductor session from the repository root — the
-     trusted folder that contains `.github/hooks/` — not from `$HOME` or any directory outside the
-     repo. The CLI loads workspace hooks from the session cwd; a session launched from an
-     untrusted cwd silently skips `.github/hooks/harness-trace.json`, so the trace hook never fires
-     and the whole session is a dark run with zero runtime tool spans captured (the #227/#228/#238
-     392-span loss). On a new machine, make the repository root a trusted folder by listing it
-     under `trustedFolders` in `~/.copilot/config.json`; Copilot CLI only loads workspace hooks
-     from trusted folders.
+   - **Launch topology (optional, historical):** starting the Copilot CLI conductor session from
+     the repository root — the trusted folder that contains `.github/hooks/` — used to matter
+     because the CLI loads workspace hooks from the session cwd, and a launch from `$HOME` or
+     another untrusted cwd silently skipped `.github/hooks/harness-trace.json`. That hook only ever
+     reconstructed runtime `tool span`s, which issue #305 **retired**; the kept semantic spine the
+     harness emits about itself is written regardless of launch cwd, so a non-root launch no longer
+     loses any kept signal. See **The Capture Retirement Boundary** in
+     [../../docs/evaluation/observability-and-trace-schema.md](../../docs/evaluation/observability-and-trace-schema.md),
+     which owns this reconciliation. Listing the repository root under `trustedFolders` in
+     `~/.copilot/config.json` and launching from it remains a harmless convention, not a
+     requirement to avoid a lost run.
    - **Starting an issue:** run `./scripts/start-issue.sh <N>` from the **main checkout**. It runs
      `./scripts/init.sh` and, only on a green environment, creates branch
     `feature/issue-NN-<slug>` and an isolated worktree at
