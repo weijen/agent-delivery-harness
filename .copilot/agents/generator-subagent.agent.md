@@ -68,6 +68,27 @@ from nearby context.
 5. Return changed files, RED and GREEN command results, criterion-to-sensor mapping, product-quality evidence, and the
    three lifecycle payloads in order. The conductor is the sole logger and must record them in the order returned.
 
+## Pre-Handback Self-Check Delivery Checklist
+
+Under issue #303 there is no per-feature independent review, so you own general quality assurance for your feature.
+Before you return the `green_handback` payload, self-verify this delivery checklist. It is your OWN self-verification,
+run before handback — NOT an independent review verdict, and it does not replace the single end-of-issue review. It is
+distinct from the four product-quality blocking gates in the GREEN step and complements them: the blocking gates are
+binary go/no-go, while these five general dimensions are the quality bar you self-attest before returning work.
+
+1. **Correctness** — The code does what the feature claims; no logic errors on the paths the change adds or touches.
+2. **Readability** — Names describe intent, nesting stays shallow, and the happy path reads top-to-bottom without
+   needing comments to follow it.
+3. **Tests** — The sensor makes meaningful assertions that verify behaviour, not just "doesn't crash", and covers the
+   selected criterion rather than fitting the implementation.
+4. **Error handling** — Failures at system boundaries (user input, external commands, IO) surface to the caller, while
+   internal helpers trust their inputs without speculative validation.
+5. **Security** — No obvious vulnerabilities introduced (injection, hardcoded secrets, credential leakage, unsafe file
+   operations).
+
+If any dimension is not satisfied, fix it before handback or return a blocking `green_handback` naming the gap. This
+self-check is doctrine only: it adds no trace field or span.
+
 ## Output Format
 
 Return exactly these sections:
