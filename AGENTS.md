@@ -177,7 +177,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
 | **Subagent** `planning-subagent` | Tier 3 planning pass; produces `.copilot-tracking/plans/<issue>.md` | Conductor invokes at the start of any Tier 3 issue |
 | **Subagent** `generator-subagent` | Owns RED, minimal implementation, GREEN, product-quality evidence, teeth proof, and pass state for one `feature_list` item | Conductor invokes after selecting one `passes:false` feature |
-| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | Conductor invokes after implementation completes |
+| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | Conductor invokes once, at issue completion, issuing per-feature verdicts |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
 
