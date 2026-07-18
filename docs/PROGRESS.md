@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#65)_
+_Last updated: 2026-07-18 (#300)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-18 (#65)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 176 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 179 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,23 @@ _Last updated: 2026-07-18 (#65)_
 ---
 
 ## Delivered (newest first)
+
+### Repair-loop context control (#300): delivery complete in PR #302
+
+- **#300 shrinks each repair-loop round and hard-stops runaway review loops.**
+  Building on the log survey behind #298/#299, it delivers the compliance +
+  observability gap the owner scoped: (1) `log-handback.sh` records which
+  instruction files the conductor injected into each handback via a new
+  `TRACE_INSTRUCTION_FILES` passthrough (`harness.instruction_files` span,
+  omit-never-fake, export-excluded); (2) a distinct `repair` review profile for
+  the `code-review-subagent` that skips the whole-diff skill battery (#6–#11,
+  including `public-exposure-audit`) mid-loop and defers it to the pre-PR `full`
+  review; and (3) a deterministic, per-feature review-rejection cap —
+  `check-trace-consistency.sh` flags `review_reject_cap_exceeded` at the 3rd
+  `review_verdict`/`fail` for a feature, and `review-gate.sh` hard-blocks by
+  default (approve + check) so the issue stops and hands back to the human,
+  documented in the Loop 2 doctrine. Four features, each red-first with a
+  teeth-proof; three new sensors bring the suite to 179.
 
 ### Customization frontmatter lint (#65): delivery complete in PR #301
 
