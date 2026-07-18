@@ -39,6 +39,16 @@
 # convention is prose in docs/evaluation/failure-mode-taxonomy.md, not a
 # gate here. The Action Log bullet format is unchanged.
 #
+# Instruction-files passthrough (issue #300, feature instruction-files-span —
+# mirrors the token/failure-mode passthrough): TRACE_INSTRUCTION_FILES is
+# forwarded VERBATIM as harness.instruction_files (JSON string) whenever it is
+# set and non-empty — a space/comma-separated list of the instruction files the
+# conductor injected into a handback prompt. Unlike failure-mode there is NO
+# closed enum: any non-empty value is accepted as-is and redacted by trace-lib
+# like every other attribute. Unset or empty → key absent (omit, never fake);
+# the call still exits 0. Informational only (no consistency gate). The Action
+# Log bullet format is unchanged.
+#
 # Failure semantics (plan D4, conductor-resolved):
 #   * Bad role/step/outcome or missing args → non-zero exit, nothing written.
 #   * Validate first, THEN span, THEN log line. If the Action Log append
@@ -196,6 +206,17 @@ role-violation'
     fi
   fi
 
+  # Instruction-files passthrough (issue #300): forward TRACE_INSTRUCTION_FILES
+  # VERBATIM as harness.instruction_files whenever it is set and non-empty (a
+  # space/comma-separated list of instruction-file paths). Unlike the failure
+  # mode there is NO closed enum to validate against — any non-empty string is
+  # forwarded as-is and redacted by trace-lib like every other attribute. Unset
+  # or empty → the key is absent (omit, never fake); the call still exits 0.
+  IF_ARGS=()
+  if [ -n "${TRACE_INSTRUCTION_FILES:-}" ]; then
+    IF_ARGS+=("harness.instruction_files=${TRACE_INSTRUCTION_FILES}")
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -204,7 +225,8 @@ role-violation'
     "harness.outcome=${OUTCOME}" \
     "harness.summary=${SUMMARY}" \
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
-    ${FM_ARGS[@]+"${FM_ARGS[@]}"}
+    ${FM_ARGS[@]+"${FM_ARGS[@]}"} \
+    ${IF_ARGS[@]+"${IF_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
