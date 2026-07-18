@@ -148,6 +148,52 @@ of papered over. The harness is not competing with a direct-API agent on
 telemetry completeness; it records the process layer that such an agent has no
 vocabulary for, and it marks the runtime-internal gaps as gaps.
 
+## The Capture Retirement Boundary
+
+Issue #305 draws one authoritative line through the trace layer and retires
+everything on the far side of it. The rule of thumb is deliberately simple:
+**spans the harness emits about itself are KEPT; spans reconstructed from the
+runtime are RETIRED.** The two prior sections describe *why* the runtime signals
+are hard to reach; this section records the *decision* about them.
+
+**Kept — the semantic spine.** These are the spans the harness scripts write
+about their own execution, plus every deterministic check built on them. The
+semantic spine is process-layer truth the harness owns directly, so it is
+**not deprecated**:
+
+- The role-attributed handback `agent span`s written through
+  `scripts/log-handback.sh` (`red_handback` → `impl_handback` →
+  `green_handback`).
+- The lifecycle spans (`worktree_create`, review-gate approval, PR creation,
+  finish) and the human-readable Action Log they mirror.
+- The review-gate state and the deterministic checks that read the spine: the
+  3-rejection cap (#302), review-verdict provenance / dedup / discipline (#304),
+  red-first evidence, feature-start, and the rescoped `spine_incomplete`
+  completeness check introduced by this issue.
+
+**Retired — runtime capture.** These are the spans reconstructed from the
+runtime rather than emitted by the harness about itself:
+
+- Tool / skill-span capture — the per-tool-call `tool span`s and subagent
+  tool/skill capture.
+- Interval / marker / binding attribution.
+- Token passthrough — the best-effort `events.jsonl` `gen_ai.usage.*` read.
+- The OTel Path O join, and the runtime hook seeding that fed all of the above.
+
+Under multi-issue concurrency these capture paths went systemically dark and
+yielded no token, while native Copilot records are richer; runtime
+reconstruction is therefore retired in favour of native-record analysis. The
+replacement analysis path is the
+[copilot-log-review](../../.copilot/skills/copilot-log-review/SKILL.md) skill,
+and the deprecated capture path is marked in the adapter doc,
+[runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md).
+
+**Phase-2 deletion gate.** Phase 1 (this issue) only marks the capture code
+**deprecated-but-present**; it is not deleted. The capture code stays in the
+tree until **one native-records-only L4 review on foundry** is produced with
+**nothing found missing**. Only when that native-records-only L4 run confirms no
+lost signal is the capture code deleted, in **Phase 2** (a separate issue).
+
 ## Mandatory Common Fields
 
 Every span line, regardless of span type, carries the mandatory common fields
