@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-17 (#296)_
+_Last updated: 2026-07-18 (#65)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-17 (#296)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 174 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 177 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -79,10 +79,10 @@ _Last updated: 2026-07-17 (#296)_
   #62 (local runner + scorecard + fail-closed redaction gate), and #64 (L0
   manifests + blocking CI gate) are all **delivered** (see below). L0 evals now
   run through the runner and block PRs in CI.
-- **L1 evaluation workstream (open issues #65–#69):** SKILL.md frontmatter lint
-  (#65), skill description-discriminability
-  proxy (#66), artifact schema evals (#67), code-review trigger dataset (#68),
-  Azure Tier B runner + config/secret contract (#69). See
+- **L1 evaluation workstream (open issues #66–#69):** skill
+  description-discriminability proxy (#66), artifact schema evals (#67),
+  code-review trigger dataset (#68), Azure Tier B runner + config/secret
+  contract (#69). See
   [docs/evaluation/l1-solution/](evaluation/l1-solution/).
 - **Deep-tracing remote-monitoring phase — #113 DELIVERED (see below):** the
   workbook + retention/PII spec + the two #112 carry-over hardenings landed.
@@ -108,6 +108,19 @@ _Last updated: 2026-07-17 (#296)_
 ---
 
 ## Delivered (newest first)
+
+### Customization frontmatter lint (#65): delivery complete in PR #298
+
+- **#65 replaces duplicated skill and agent fence checks with one shared,
+  dependency-free structural validator.** Skills require a folder-matching
+  lowercase alphanumeric-or-hyphen name of 1–64 characters and a nonempty
+  description of at most 1,024 characters. Agents retain their distinct
+  contract: `name` is optional, while frontmatter fences, tab-free indentation,
+  and the description limits remain enforced. Stable diagnostics cover all
+  approved failure reasons, including unsupported block-scalar descriptions,
+  with generated fixture coverage for boundaries and precedence. Local smoke
+  and GitHub Actions now invoke the same validator entrypoint, and a dedicated
+  wiring sensor prevents either consumer from restoring the obsolete parser.
 
 ### Generator-role workflow and experiment instrumentation (#296): delivery complete
 - **#296 completes all four workflow and instrumentation features.** The active
