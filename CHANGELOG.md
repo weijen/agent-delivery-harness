@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v0.17.0 (2026-07-18)
+
+### Bug Fixes
+
+- **#306**: Guard Quantify recipes against orphaned tool calls
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+### Documentation
+
+- **#306**: Finalize PROGRESS delivery entry and sensor count
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+### Features
+
+- **#306**: Add Locate/Qualify/Report stages and privacy rules
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+- **#306**: Add Quantify jq recipes with fixture validation
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+- **#306**: Copilot-log-review skill — workflow review from Copilot native records
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+- **#306**: Register copilot-log-review skill (non-audit)
+  ([#308](https://github.com/weijen/agent-delivery-harness/pull/308),
+  [`3aecf38`](https://github.com/weijen/agent-delivery-harness/commit/3aecf380374c6a3f4f37317a9a6892f9f08d2b9f))
+
+
 ## v0.16.0 (2026-07-18)
 
 ### Documentation
