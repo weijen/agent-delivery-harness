@@ -52,6 +52,17 @@
 #     docs/evaluation/failure-mode-taxonomy.md; enforcement stays soft
 #     (open-world optional field, no step gate). The Action Log bullet
 #     format (D3) is UNCHANGED by the failure mode.
+#   - Instruction-files passthrough (issue #300, feature
+#     instruction-files-span, convention PINNED HERE — mirrors the token /
+#     failure-mode passthrough):
+#       TRACE_INSTRUCTION_FILES → harness.instruction_files (JSON string)
+#     Forwarded VERBATIM whenever it is set and non-empty (a space/comma-
+#     separated list of instruction-file paths). Unlike the failure mode
+#     there is NO closed enum — any non-empty string is accepted as-is and
+#     redacted by trace-lib like every other attribute. Unset or empty →
+#     the key is ABSENT (omit, never fake; empty is not an error — the call
+#     still exits 0). Attaches on ANY lifecycle step; the Action Log bullet
+#     format (D3) is UNCHANGED.
 #   - Failure semantics (conductor-resolved: hard-fail on the Action Log):
 #       * Validation failures (bad role/step/outcome, missing args) →
 #         non-zero exit, NO span written, NO log line written.
@@ -198,7 +209,7 @@ BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rm cp mv cat sed awk tr cut grep printf head tail sort jq date od wc cksum
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_INPUT_TOKENS TRACE_OUTPUT_TOKENS \
-  TRACE_FAILURE_MODE 2>/dev/null || true
+  TRACE_FAILURE_MODE TRACE_INSTRUCTION_FILES 2>/dev/null || true
 
 # --- Fixture: MAIN repo + linked issue worktrees ---------------------------------
 MAIN="${TMP_DIR}/main-repo"
@@ -605,5 +616,53 @@ contract_modes_sorted="$(jq -r '(.failure_modes // [])[]' "$CONTRACT" | sort)"
 fallback_sorted="$(printf '%s\n' "$fallback_list" | sort)"
 [ "$fallback_sorted" = "$contract_modes_sorted" ] \
   || fail "mirrored fallback enum in scripts/log-handback.sh differs from the contract's failure_modes — fallback==contract is pinned (fallback: $(printf '%s' "$fallback_list" | tr '\n' ','); contract: $(printf '%s' "$contract_modes_sorted" | tr '\n' ','))"
+
+# ============================================================================
+# 12. TRACE_INSTRUCTION_FILES passthrough (issue #300, feature
+#     instruction-files-span). Mirrors the token / failure-mode passthrough
+#     (see the pinned convention in the header): any non-empty value →
+#     harness.instruction_files lands VERBATIM as a JSON string on the span
+#     (no enum, no validation — it is a space/comma-separated list of
+#     instruction-file paths); unset or empty → the key is ABSENT (omit,
+#     never fake). Attaches on ANY step; the Action Log bullet is unchanged.
+# ============================================================================
+run_hb_if() { # like run_hb but with TRACE_INSTRUCTION_FILES exported
+  local wt="$1" out="$2" files="$3"; shift 3
+  (cd "$wt" && TRACE_INSTRUCTION_FILES="$files" PATH="$BIN" ./scripts/log-handback.sh "$@") > "$out" 2>&1
+}
+IF_FILES=".copilot/instructions/bash.instructions.md .copilot/instructions/tdd.instructions.md"
+
+# 12a. Non-empty value → span carries harness.instruction_files verbatim.
+run_hb_if "$WTA" "${TMP_DIR}/g1.out" "$IF_FILES" \
+  generator-subagent red_handback instruction-files-span pass "RED sensor authored under two instruction files" \
+  || { cat "${TMP_DIR}/g1.out"; fail "handback with TRACE_INSTRUCTION_FILES set must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "12" ] \
+  || fail "instruction-files call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+g1="$(nth_line "$TRACE_A" 12)"
+check_agent_span "instruction-files" "$g1" generator-subagent red_handback \
+  instruction-files-span pass "RED sensor authored under two instruction files" 13
+printf '%s\n' "$g1" | jq -e --arg files "$IF_FILES" \
+  '.["harness.instruction_files"] == $files' >/dev/null \
+  || fail "TRACE_INSTRUCTION_FILES must land VERBATIM as harness.instruction_files (JSON string): ${g1}"
+
+# 12b. Env unset → key ABSENT (omit, never fake — control for 12a).
+run_hb "$WTA" "${TMP_DIR}/g2.out" \
+  generator-subagent green_handback instruction-files-span pass "green without an instruction-files env" \
+  || { cat "${TMP_DIR}/g2.out"; fail "handback without TRACE_INSTRUCTION_FILES must exit 0"; }
+[ "$(line_count "$TRACE_A")" = "13" ] \
+  || fail "no-instruction-files call must append exactly one span (got $(line_count "$TRACE_A") lines)"
+g2="$(nth_line "$TRACE_A" 13)"
+printf '%s\n' "$g2" | jq -e 'has("harness.instruction_files") | not' >/dev/null \
+  || fail "TRACE_INSTRUCTION_FILES unset → harness.instruction_files must be ABSENT: ${g2}"
+
+# 12c. Empty value → key ABSENT (empty is not forwarded — omit, never fake).
+run_hb_if "$WTA" "${TMP_DIR}/g3.out" "" \
+  generator-subagent impl_handback instruction-files-span pass "empty instruction-files env is omitted" \
+  || { cat "${TMP_DIR}/g3.out"; fail "empty TRACE_INSTRUCTION_FILES must not fail the call (omit, never fake)"; }
+[ "$(line_count "$TRACE_A")" = "14" ] \
+  || fail "empty-instruction-files call must still append exactly one span (got $(line_count "$TRACE_A") lines)"
+g3="$(nth_line "$TRACE_A" 14)"
+printf '%s\n' "$g3" | jq -e 'has("harness.instruction_files") | not' >/dev/null \
+  || fail "empty TRACE_INSTRUCTION_FILES must OMIT harness.instruction_files (never fake, never emit empty): ${g3}"
 
 printf 'log-handback single-source handback contract honored\n'

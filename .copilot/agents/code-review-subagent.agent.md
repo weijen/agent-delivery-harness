@@ -1,6 +1,6 @@
 ---
 name: code-review-subagent
-description: 'Review implementation for spec compliance and code quality with full or concise output'
+description: 'Review implementation for spec compliance and code quality with full, concise, or repair output'
 tools: [read, edit, search, execute]
 ---
 You are a CODE REVIEW SUBAGENT called by the conductor after an implementation phase or feature completes. Your job
@@ -21,7 +21,7 @@ From the conductor:
 - Tests that were expected to be written
 - The actual files modified/created (if different from expected)
 - Any conductor-approved scope change or intentional deviation
-- Review mode: `full` or `concise`
+- Review mode: `full`, `concise`, or `repair`
 
 Return any substantive review action or verdict that the conductor should record in the issue progress Action Log.
 End every review handback (the `Action Log` field of your output) with the structured payload line defined in
@@ -293,7 +293,8 @@ quality/security/documentation finding remains.
 
 ## Review Modes
 
-Both modes use the same finding pass. They differ only in what gets reported.
+All three modes use the same finding pass. `concise` and `full` differ only in what gets reported; `repair`
+additionally narrows the code-quality battery that runs.
 
 ### `concise`
 
@@ -306,6 +307,24 @@ explain approval.
 
 Use for higher-risk reviews unless the conductor explicitly asks for concise mode. Full spec-compliance table, then
 CRITICAL, MAJOR, and useful MINOR findings (with confidence). Include strengths only when they add useful context.
+
+### `repair`
+
+Use for the Loop-2 per-feature repair reviews (mid-loop, after a `NEEDS_REVISION` route back to `generator-subagent`),
+where the whole-diff skill battery is the dominant cost driver of the review context. In `repair` mode you still run
+**Verdicts 1-4** (spec compliance, test/sensor adequacy, the code-quality GENERAL checks #1-#5, and lifecycle/role
+boundary) **and the adversarial test-quality pass** — spec fidelity, sensor adequacy, targeted regression, and
+lifecycle discipline are judged exactly as in `full`/`concise`.
+
+What `repair` mode **SKIPS** is the whole-diff skill battery — the numbered code-quality checks **#6-#11**
+(`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, and
+`public-exposure-audit`). Those checks are **DEFERRED to the pre-PR review**, not permanently skipped: the pre-PR review
+(run in `full` or `concise`) runs the full battery #6-#11 over the whole branch diff. In particular, the
+security/exposure sweep (`public-exposure-audit`, check #11) is **deferred to pre-PR** in this mode — mid-loop safety
+relies on branch isolation plus that guaranteed pre-PR sweep, so nothing ships unaudited.
+
+`full` and `concise` (used at pre-PR and for standalone reviews) keep running the full skill battery #6-#11 as
+described above; only `repair` narrows it.
 
 ## Output Format
 

@@ -270,9 +270,21 @@ After any fix, the conductor re-runs the relevant deterministic sensor and then 
 new HEAD/diff. Keep each loop scoped to the **same** selected feature unless the user or issue plan expands scope, and
 **preserve role boundaries**: `generator-subagent` owns production generation while `code-review-subagent` may edit
 only dedicated verification assets during independent review.
+
+**Review profile in Loop 2.** These mid-loop, per-feature repair reviews run in the **`repair` review profile**: the
+reviewer still judges Verdicts 1-4 and the adversarial test-quality pass, but **skips the whole-diff skill battery
+(code-quality checks #6-#11: `find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`,
+`sync-docs`, `public-exposure-audit`)** to keep the repair-loop review context small. That battery is not dropped — it
+is **deferred to the pre-PR review**, which runs the **full battery** over the whole branch diff as part of the Pre-PR
+verify gate (§6). Use `concise` or `full` (not `repair`) for that pre-PR pass so the whole-diff sweep, including the
+`public-exposure-audit` security check, always runs before `gh pr create`.
 **Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
-exists.
+exists. For THIS repo the local rule overrides that generic default: the **3rd review rejection (NEEDS_REVISION) for
+the same feature stops the whole issue and hands back to the human** — no further repair attempts on that feature. It
+is enforced deterministically by `review-gate.sh`, which hard-blocks by default on the `review_reject_cap_exceeded`
+consistency finding (three or more `review_verdict`/`fail` spans for one feature), so approve and check both refuse
+until a human takes over.
 
 **Loop 3 — plan correction (conductor-owned, lightweight).** Loop 1 and Loop 2 stay the default path; Loop 3 fires
 **only when a plan assumption or the sensor contract is falsified**, not on ordinary defects. Triggers: a `Plan first`

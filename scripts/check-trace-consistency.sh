@@ -57,6 +57,17 @@
 #                     (key-presence precedence: a malformed canonical key
 #                     shadows a valid legacy one and does not waive).
 #                         VIOLATION consistency: feature_start_missing <feature_id>
+#   review_reject_cap_exceeded
+#                     the detection half of the issue #300 3-rejection stop
+#                     rule: when a single harness.feature_id accumulates
+#                     THREE OR MORE agent spans with
+#                     harness.lifecycle_step=="review_verdict" and
+#                     harness.outcome=="fail", flag it once. Count is PER
+#                     feature_id (fewer than 3 rejections for a feature → no
+#                     finding); the feature id is echoed, like the sibling
+#                     feature-id findings. Report-only here — the review-gate
+#                     hard-block on this finding is a separate feature.
+#                         VIOLATION consistency: review_reject_cap_exceeded <feature_id>
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
@@ -250,6 +261,7 @@ done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
 #                    value is outside the closed log-handback role enum
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
 #   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
+#   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
 #   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
 #   ::pr <num>       pr_create span's harness.pr_number
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
@@ -284,6 +296,13 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::fstart \($span["harness.feature_id"])"
       else empty
       end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+         and (($span["harness.feature_id"] | type) == "string")
+      then "::reject \($span["harness.feature_id"])"
+      else empty
+      end ),
     ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
          and (($span["harness.review_gate_sha"] | type) == "string")
       then "::approve \($span["harness.review_gate_sha"])"
@@ -303,6 +322,7 @@ fi
 
 green_ids=$'\n'
 feature_start_ids=$'\n'
+reject_ids=$'\n'
 approve_sha=""
 pr_span_number=""
 while IFS= read -r out_line; do
@@ -314,10 +334,32 @@ while IFS= read -r out_line; do
       ;;
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
     '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
+    '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
   esac
 done <<< "$state_out"
+
+# --- State: review_reject_cap_exceeded (issue #300) ---------------------------
+# The DETECTION half of the 3-rejection stop rule: when a single
+# harness.feature_id accumulates >=3 agent spans with
+# harness.lifecycle_step=="review_verdict" and harness.outcome=="fail", flag
+# it once. The count is PER feature_id. The per-line ::reject fids collected
+# above are counted here in bash (sort|uniq -c is a constant fork budget — no
+# per-line forks); the feature id is echoed, consistent with the sibling
+# feature-id findings.
+if [ "$reject_ids" != $'\n' ]; then
+  while IFS= read -r reject_line; do
+    [ -n "$reject_line" ] || continue
+    reject_count="${reject_line%% *}"
+    reject_fid="${reject_line#* }"
+    if [ "$reject_count" -ge 3 ]; then
+      printf 'VIOLATION consistency: review_reject_cap_exceeded %s\n' "$reject_fid"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$reject_ids" | grep -v '^$' | sort | uniq -c \
+    | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+fi
 
 # --- Second trace pass: red-first evidence per feature (issue #144) ------------
 # A completed (passes:true) coded feature must show one complete role-correct,
