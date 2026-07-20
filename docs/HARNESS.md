@@ -294,8 +294,9 @@ prevents worktree removal from destroying the only finalized record.
 
 At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
 (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from
-the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span (first→last span
-elapsed), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
+the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span as both
+first→last elapsed time and active time (the sum of chronologically adjacent gaps up to and including 30 minutes;
+gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
 teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
 measured renders `n/a` and is never fabricated as `0` — in particular token rows read `n/a` unless a runtime adapter
 reported `gen_ai.usage.*` on model spans, and model runs without token data are counted honestly in the coverage
@@ -357,7 +358,8 @@ numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, 
 `harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,
 `harness.economics.deviations`,
 `harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
-`harness.economics.wall_clock_ms`), typed via the `harness.economics.` numeric-key prefix. It obeys the same
+`harness.economics.wall_clock_ms` / `harness.economics.active_ms` elapsed/active time), typed via the
+`harness.economics.` numeric-key prefix. It obeys the same
 omit-never-fake rule as the block: the token-usage keys are **absent** (never `0`) when no model span carried usage,
 so a `n/a` token row and an omitted token key are the same honest signal — see **#163** for the Copilot-side token
 capture that makes those keys present. Likewise, `review_rounds` is absent when review identity coverage is

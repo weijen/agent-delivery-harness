@@ -62,7 +62,7 @@ JSON
 # CASE A — full trace, partial token coverage, review/deviation counts, and features.
 out="$(run_compute "$TRACE_FULL" "$FEATURE_LIST")"
 assert_line "CASE A heading" "$out" "## Delivery economics (auto-stamped, trace-derived)"
-assert_line "CASE A wall-clock" "$out" "- Wall-clock span: 2026-07-08T09:14:00Z → 2026-07-09T16:02:00Z (elapsed 30.8h)"
+assert_line "CASE A wall-clock" "$out" "- Wall-clock span: 2026-07-08T09:14:00Z → 2026-07-09T16:02:00Z (elapsed 30.8h / active 0.0h; gaps >30min excluded)"
 assert_line "CASE A tokens" "$out" "- Tokens: in 350 / out 110 (coverage: 2/3 runs)"
 assert_line "CASE A review rounds" "$out" "- Review rounds: 2 (1 fail → 1 pass)"
 assert_line "CASE A deviations" "$out" "- Deviations logged: 2"

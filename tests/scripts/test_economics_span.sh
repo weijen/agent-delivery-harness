@@ -180,6 +180,8 @@ if assert_single_economics_span "$TRACE_WITH" "with-tokens"; then
     || fail "with-tokens: teeth_proof must be numeric 2"
   jq_span "$span" '."harness.economics.wall_clock_ms" > 0 and (."harness.economics.wall_clock_ms"|type) == "number"' \
     || fail "with-tokens: wall_clock_ms must be a positive number"
+  jq_span "$span" '."harness.economics.active_ms" == 5000 and (."harness.economics.active_ms"|type) == "number"' \
+    || fail "with-tokens: active_ms must be the numeric sum of adjacent qualifying gaps"
 
   if ! (cd "$F_WITH" && env PATH="$BIN" ./scripts/validate-trace.sh "$ISSUE_WITH") \
       > "${TMP_DIR}/validate-with.out" 2>&1; then

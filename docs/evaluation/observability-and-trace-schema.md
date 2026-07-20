@@ -431,6 +431,12 @@ labeled: per-stage summed span durations (script-measured work) and
 first-to-last timestamp elapsed (whole-run wall clock, including agent
 thinking time between spans) — never blended. Every number is computed from
 spans on disk; absent data stays absent (null, never a fabricated zero).
+The closeout `finish-issue.economics` span additionally publishes
+`harness.economics.wall_clock_ms` and `harness.economics.active_ms` as the
+machine-readable elapsed/active pair. Active time sorts valid timestamps and
+sums adjacent gaps up to and including 30 minutes; every larger gap contributes
+zero. Invalid or insufficient timestamps omit both fields, while a genuinely
+measured zero active time remains numeric `0`.
 Reporting never gates: exit codes are `0` whenever a report is produced and
 `2` on usage or environment errors; validation remains the validator's job —
 unparseable lines are skipped and counted, with a pointer to

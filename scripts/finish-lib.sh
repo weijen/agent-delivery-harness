@@ -378,6 +378,53 @@ economics_review_event_summary() {
   ' < "$trace_file" 2>/dev/null || true
 }
 
+# Shared elapsed/active-time aggregation keeps the Markdown and machine outputs
+# on one calculation. Adjacent gaps over 30 minutes are excluded in full.
+economics_time_summary() {
+  local trace_file="${1:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ] || return 0
+
+  jq -nRr '
+    def ts_secs:
+      ([capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]+))?Z$")] | first // null) as $match
+      | if $match == null then
+          null
+        else
+          try (
+            (($match.base + "Z") | fromdateiso8601)
+            + (if ($match.fraction // "") == ""
+               then 0
+               else ("0." + $match.fraction | tonumber)
+               end)
+          ) catch null
+        end;
+
+    [inputs | fromjson? | objects | .timestamp? | strings] as $timestamps
+    | if ($timestamps | length) < 2 then
+        empty
+      else
+        [$timestamps[] | {text: ., seconds: ts_secs}] as $parsed
+        | if any($parsed[]; .seconds == null) then
+            empty
+          else
+            ($parsed | sort_by(.seconds)) as $ordered
+            | (reduce range(1; $ordered | length) as $i
+                (0;
+                 ($ordered[$i].seconds - $ordered[$i - 1].seconds) as $gap
+                 | if $gap <= 1800 then . + $gap else . end)) as $active
+            | {
+                first: $ordered[0].text,
+                last: $ordered[-1].text,
+                elapsed_ms: ((($ordered[-1].seconds - $ordered[0].seconds) * 1000) | round),
+                active_ms: (($active * 1000) | round)
+              }
+          end
+      end
+  ' < "$trace_file" 2>/dev/null || true
+}
+
 # Pure trace/feature-list economics renderer (issue #267). This is a PURE
 # function of its two explicit file arguments: callers resolve paths before
 # invoking it. Metric honesty follows the trace-report omit-never-fake /
@@ -386,7 +433,7 @@ economics_review_event_summary() {
 compute_delivery_economics() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
-  local trace_lines feature_line review_summary
+  local trace_lines feature_line review_summary time_summary
 
   printf '## Delivery economics (auto-stamped, trace-derived)\n'
 
@@ -401,37 +448,25 @@ compute_delivery_economics() {
   fi
 
   review_summary="$(economics_review_event_summary "$trace_file")"
+  time_summary="$(economics_time_summary "$trace_file")"
   trace_lines="$(
     if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-      jq -nRr --argjson review "$review_summary" '
-        # Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are
-        # normalized before parsing, matching scripts/trace-report.sh.
-        def ts_secs:
-          sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+      jq -nRr --argjson review "$review_summary" --argjson time "${time_summary:-null}" '
         def one_decimal:
           (. * 10 | round) as $tenths
           | ($tenths / 10 | tostring) as $s
           | if ($s | contains(".")) then $s else "\($s).0" end;
 
         [inputs | fromjson? | objects] as $spans
-        | [$spans[] | .timestamp? | strings] as $ts
         | [$spans[] | select(.span == "model")] as $model_spans
         | [$model_spans[]
            | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
                     or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
         | [
-            (if ($ts | length) < 2 then
+            (if $time == null then
                "- Wall-clock span: n/a"
              else
-               ($ts | min) as $first
-               | ($ts | max) as $last
-               | ($first | ts_secs) as $first_secs
-               | ($last | ts_secs) as $last_secs
-               | if $first_secs == null or $last_secs == null then
-                   "- Wall-clock span: n/a"
-                 else
-                   "- Wall-clock span: \($first) → \($last) (elapsed \(($last_secs - $first_secs) / 3600 | one_decimal)h)"
-                 end
+               "- Wall-clock span: \($time.first) → \($time.last) (elapsed \($time.elapsed_ms / 3600000 | one_decimal)h / active \($time.active_ms / 3600000 | one_decimal)h; gaps >30min excluded)"
              end),
             (if ($tok_models | length) == 0 then
                "- Tokens: n/a (no run carried token data)"
@@ -683,27 +718,23 @@ economics_numeric_aggregates() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
   local review_summary=""
+  local time_summary=""
 
   command -v jq >/dev/null 2>&1 || return 0
   review_summary="$(economics_review_event_summary "$trace_file")"
+  time_summary="$(economics_time_summary "$trace_file")"
 
   if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-    jq -nRr --argjson review "$review_summary" '
-      def ts_secs:
-        sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+    jq -nRr --argjson review "$review_summary" --argjson time "${time_summary:-null}" '
       [inputs | fromjson? | objects] as $spans
-      | [$spans[] | .timestamp? | strings] as $ts
       | [$spans[] | select(.span == "model")] as $model_spans
       | [$model_spans[]
          | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
                   or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
       | (
-          if ($ts | length) >= 2 then
-            ($ts | min | ts_secs) as $a
-            | ($ts | max | ts_secs) as $b
-            | if $a != null and $b != null and ($b - $a) > 0 then
-                "harness.economics.wall_clock_ms=\((($b - $a) * 1000) | round)"
-              else empty end
+          if $time != null then
+            "harness.economics.wall_clock_ms=\($time.elapsed_ms)",
+            "harness.economics.active_ms=\($time.active_ms)"
           else empty end
         ),
         (
