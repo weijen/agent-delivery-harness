@@ -40,7 +40,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
-TMP_DIR="$(mktemp -d)"
+TMP_DIR="${ROOT}/.copilot-test-tmp/test-trace-finish-issue.$$"
+mkdir -p "$TMP_DIR"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() {
@@ -142,10 +143,12 @@ SH
 }
 
 BIN="${TMP_DIR}/bin"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc
+link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep \
+  printf jq date od wc find mktemp mv cp awk sort comm chmod
 write_fake_gh "${BIN}/gh"
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+export ABANDONED=1
 
 COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}'
 INCOMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":false}]}'

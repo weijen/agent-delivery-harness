@@ -9,6 +9,7 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   finish_closeout_cruft_gate     — exact scaffold strip + strict residual gate (#320)
 #   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
@@ -87,6 +88,109 @@ finish_log_completeness_gate() {
     fi
   else
     yellow "⚠ log-completeness gate skipped: scripts/review-gate.sh not found"
+  fi
+  return 0
+}
+
+# --- Closeout scaffold cleanup (issue #320, strip-closeout-cruft) -----------
+# Remove only the two exact snippets emitted by start-issue. The rewrite lands
+# through a same-directory atomic rename; any inability to prove or complete
+# that rewrite blocks destructive closeout.
+finish__strip_scaffold_cruft() {
+  local progress_file="$1" progress_dir="" tmp_file="" bullet="" guidance=""
+  local line="" buffered="" expected_line="" matched=false i=0
+  local -a expected=() consumed=()
+
+  [ -f "$progress_file" ] && [ ! -L "$progress_file" ] || return 1
+  [ -r "$progress_file" ] && [ -w "$progress_file" ] || return 1
+  progress_dir="${progress_file%/*}"
+  [ -w "$progress_dir" ] || return 1
+  declare -F progress_scaffold_placeholder_bullet >/dev/null 2>&1 || return 1
+  declare -F progress_scaffold_guidance >/dev/null 2>&1 || return 1
+  bullet="$(progress_scaffold_placeholder_bullet)"
+  guidance="$(progress_scaffold_guidance)"
+  while IFS= read -r expected_line || [ -n "$expected_line" ]; do
+    expected+=("$expected_line")
+  done <<< "$guidance"
+
+  command -v mktemp >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 \
+    || return 1
+  tmp_file="$(mktemp "${progress_dir}/.progress-cruft.XXXXXX" 2>/dev/null)" \
+    || return 1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$bullet" ]; then
+      continue
+    fi
+    if [ "${#expected[@]}" -gt 0 ] && [ "$line" = "${expected[0]}" ]; then
+      consumed=("$line")
+      matched=true
+      for ((i = 1; i < ${#expected[@]}; i++)); do
+        if IFS= read -r buffered; then
+          consumed+=("$buffered")
+          if [ "$buffered" != "${expected[$i]}" ]; then
+            matched=false
+          fi
+        else
+          matched=false
+          break
+        fi
+      done
+      if [ "$matched" = "true" ] && [ "${#consumed[@]}" -eq "${#expected[@]}" ]; then
+        continue
+      fi
+      printf '%s\n' "${consumed[@]}"
+      continue
+    fi
+    printf '%s\n' "$line"
+  done < "$progress_file" > "$tmp_file" 2>/dev/null || {
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  }
+
+  if ! mv -f -- "$tmp_file" "$progress_file" 2>/dev/null; then
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  fi
+  return 0
+}
+
+finish_closeout_cruft_gate() {
+  local issue="${ISSUE_NUM:-}" issue_pad="" main_root="" main_issue_dir=""
+  local progress_file="" signature="" finding_count=0
+  if ! [[ "$issue" =~ ^[0-9]+$ ]]; then
+    red "✗ closeout cruft cleanup blocked: issue number is unavailable."
+    return 1
+  fi
+  issue_pad="$(printf '%02d' "$issue")"
+  main_root="$(finish__resolve_main_root)"
+  main_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad")"
+  progress_file="${main_issue_dir}/progress.md"
+  if [ -z "$main_issue_dir" ] || ! finish__strip_scaffold_cruft "$progress_file"; then
+    red "✗ closeout cruft cleanup blocked: progress.md could not be sanitized atomically."
+    return 1
+  fi
+
+  if ! declare -F progress_placeholder_signatures >/dev/null 2>&1; then
+    red "✗ closeout placeholder check blocked: placeholder vocabulary is unavailable."
+    return 1
+  fi
+  while IFS= read -r signature; do
+    if grep -Fq -- "$signature" "$progress_file"; then
+      finding_count=$((finding_count + 1))
+      grep -nF -- "$signature" "$progress_file" || true
+    fi
+  done < <(progress_placeholder_signatures)
+  if [ "$finding_count" -gt 0 ]; then
+    red "✗ closeout log-completeness blocked: unfilled placeholders remain."
+    return 1
+  fi
+
+  # Preserve existing gate output and telemetry when a complete installation
+  # provides review-gate.sh. The local shared-vocabulary scan is authoritative.
+  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+    REQUIRE_LOG_COMPLETE=1 "${SCRIPT_DIR}/review-gate.sh" log-completeness \
+      || return 1
   fi
   return 0
 }
@@ -187,25 +291,26 @@ finish__atomic_conclusion() {
 }
 
 finish_progress_finalize() {
-  local issue="${ISSUE_NUM:-}" issue_pad="" worktree_dir="${WORKTREE_DIR:-}"
-  local main_root="" trace_file="" progress_file="" result="" verdict=""
+  local issue="${ISSUE_NUM:-}" issue_pad=""
+  local main_root="" main_issue_dir="" trace_file="" progress_file="" result="" verdict=""
   local conclusion="" final_rc=0
 
-  if ! [[ "$issue" =~ ^[0-9]+$ ]] || [ -z "$worktree_dir" ]; then
-    red "✗ progress conclusion blocked: issue or worktree path is unavailable."
+  if ! [[ "$issue" =~ ^[0-9]+$ ]]; then
+    red "✗ progress conclusion blocked: issue number is unavailable."
     return 1
   fi
   issue_pad="$(printf '%02d' "$issue")"
-  if ! finish__progress_path_safe "$worktree_dir" "$issue_pad"; then
-    red "✗ progress conclusion blocked: progress path is missing or unsafe."
-    return 1
-  fi
-  progress_file="${worktree_dir}/.copilot-tracking/issues/issue-${issue_pad}/progress.md"
   main_root="$(finish__resolve_main_root)"
   [ -n "$main_root" ] || {
     red "✗ progress conclusion blocked: could not resolve the main checkout."
     return 1
   }
+  main_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad")"
+  [ -n "$main_issue_dir" ] || {
+    red "✗ progress conclusion blocked: progress path is missing or unsafe."
+    return 1
+  }
+  progress_file="${main_issue_dir}/progress.md"
   trace_file="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
   verdict="$(finish__review_verdict "$trace_file")"
 

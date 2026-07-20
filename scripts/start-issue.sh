@@ -222,14 +222,9 @@ Status: not started.
 
 ## Action Log
 
-- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._
+$(progress_scaffold_placeholder_bullet)
 
-The **conductor authors** \`feature_list.json\` — but only *after* the
-\`planning-subagent\` plan is approved and the human-input gate has resolved
-every Open Question. The planning-subagent never writes this breakdown. Once it
-is populated (each feature carrying its \`regression_sensor\`/\`e2e_sensor\`),
-work one \`passes:false\` item at a time (see harness §3 and docs/HARNESS.md
-step 4).
+$(progress_scaffold_guidance)
 MD
   green "✓ Scaffolded ${TRACKING_DIR#"$WORKTREE_DIR"/} (feature_list.json, progress.md)"
 else

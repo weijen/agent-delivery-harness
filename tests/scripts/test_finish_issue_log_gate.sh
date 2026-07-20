@@ -5,10 +5,10 @@
 # Contract under test:
 #
 #   finish-issue.sh must run a finish_log_completeness_gate before
-#   git worktree remove, mirroring finish_trace_gate placement. The gate delegates
-#   to review-gate.sh log-completeness. Placeholder findings are warn-only by
-#   default, but REQUIRE_LOG_COMPLETE=1 must turn them into a hard refusal while
-#   the issue worktree is still intact.
+#   git worktree remove. The gate delegates to review-gate.sh log-completeness.
+#   Ordinary review-gate use is warn-only by default, but destructive finish
+#   must always turn residual placeholders into a hard refusal while the issue
+#   worktree is still intact.
 #
 # Fixture style mirrors test_trace_finish_issue.sh: each case creates a throwaway
 # main checkout, copies the harness entrypoints, initializes a real issue
@@ -88,8 +88,7 @@ make_finish_fixture() {
 write_clean_progress() {
   local main="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${main}/.copilot-tracking/issues/issue-${pad}"
-  cat > "${main}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
+  cat > "${main}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
 # Issue ${issue} progress
 
 Status: complete.
@@ -103,8 +102,7 @@ MD
 write_placeholder_progress() {
   local main="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${main}/.copilot-tracking/issues/issue-${pad}"
-  cat > "${main}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
+  cat > "${main}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
 # Issue ${issue} progress
 
 Status: in progress.
@@ -149,19 +147,19 @@ if [ "$rc" -eq 0 ]; then
 fi
 assert_intact "placeholder_require_blocks" "${R3}-worktrees/issue-82"
 
-# 2. placeholder_warn_default: placeholders are warn-only by default; finish
-# proceeds, but the operator must see the log-completeness findings.
+# 2. placeholder_default_blocks: ordinary review-gate use remains warn-only,
+# but destructive finish always promotes residual placeholders to a hard gate.
 R2="${TMP_DIR}/r81"
 make_finish_fixture "$R2" 81
 write_placeholder_progress "$R2" 81
 rc=0
 out="$(cd "$R2" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 81 SLUG=fixture 2>&1)" || rc=$?
-[ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "placeholder_warn_default: warn-only mode must exit 0"; }
+[ "$rc" -ne 0 ] || { printf '%s\n' "$out"; fail "placeholder_default_blocks: finish must reject placeholders"; }
 printf '%s\n' "$out" | grep -q "log-completeness" \
-  || { printf '%s\n' "$out"; fail "placeholder_warn_default: output must mention log-completeness"; }
+  || { printf '%s\n' "$out"; fail "placeholder_default_blocks: output must mention log-completeness"; }
 printf '%s\n' "$out" | grep -q "Recorded on completion below" \
-  || { printf '%s\n' "$out"; fail "placeholder_warn_default: output must include placeholder finding text"; }
-assert_removed "placeholder_warn_default" "${R2}-worktrees/issue-81"
+  || { printf '%s\n' "$out"; fail "placeholder_default_blocks: output must include placeholder finding text"; }
+assert_intact "placeholder_default_blocks" "${R2}-worktrees/issue-81"
 
 # 4. clean_require_ok: REQUIRE_LOG_COMPLETE=1 does not block a clean log.
 R4="${TMP_DIR}/r83"

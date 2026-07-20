@@ -18,6 +18,32 @@
 
 set -euo pipefail
 
+# Exact start-issue progress.md scaffold cruft. These renderers are shared with
+# closeout so generated text and safely removable text cannot drift.
+progress_scaffold_placeholder_bullet() {
+  printf '%s\n' \
+    '- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._'
+}
+
+progress_scaffold_guidance() {
+  cat <<'GUIDANCE'
+The **conductor authors** `feature_list.json` — but only *after* the
+`planning-subagent` plan is approved and the human-input gate has resolved
+every Open Question. The planning-subagent never writes this breakdown. Once it
+is populated (each feature carrying its `regression_sensor`/`e2e_sensor`),
+work one `passes:false` item at a time (see harness §3 and docs/HARNESS.md
+step 4).
+GUIDANCE
+}
+
+# Shared vocabulary for review-time warnings and finish-time hard failures.
+progress_placeholder_signatures() {
+  printf '%s\n' \
+    'Recorded on completion below' \
+    'TBD' \
+    'TODO(fill'
+}
+
 # Absolute path of the main checkout's working tree (the one holding .git/),
 # even when called from inside a linked worktree.
 issue_main_root() {

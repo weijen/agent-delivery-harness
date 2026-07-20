@@ -61,6 +61,10 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
+  finish_closeout_cruft_gate() {
+    red "✗ closeout cruft cleanup blocked: scripts/finish-lib.sh is unavailable."
+    return 1
+  }
   finish_progress_finalize() {
     red "✗ progress conclusion blocked: scripts/finish-lib.sh is unavailable."
     return 1
@@ -79,7 +83,7 @@ PROGRESS_MIGRATED=false
 # P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
 # survives teardown only because trace-lib pins the trace file to the MAIN
 # checkout root (plan D1). TRACE_STAGE names the last stage reached
-# (completion_check|trace_gate|log_completeness_gate|progress_migrate|
+# (completion_check|trace_gate|progress_migrate|closeout_cruft_gate|
 # progress_finalize|economics_stamp|worktree_remove|state_hygiene|
 # branch_delete|done), surfaced
 # as harness.stage by the attr callback; refusals before arming emit nothing.
@@ -158,30 +162,31 @@ if ! finish_trace_gate; then
   exit 1
 fi
 
-# Log-completeness gate (issue #266) — same pre-teardown placement as the trace
-# gate: under REQUIRE_LOG_COMPLETE=1 a placeholder-laden progress.md refuses the
-# finish while the worktree is still intact. Returns 1 to block.
-TRACE_STAGE="log_completeness_gate"
-if ! finish_log_completeness_gate; then
-  exit 1
-fi
-
-# Finalize the worktree record before migration. This is a hard pre-teardown
-# gate: merged requires authoritative GitHub evidence for this exact branch;
-# ABANDONED=1 is the only alternative.
-TRACE_STAGE="progress_finalize"
-if ! finish_progress_finalize; then
-  echo "  The worktree is left intact."
-  exit 1
-fi
-
 # Progress.md migration (issue #290) runs before the economics stamp. The
 # helper remains independently warn-only, but closeout now requires this run's
-# atomic migration to land before teardown.
+# atomic migration to land before sanitization, conclusion, and teardown.
 TRACE_STAGE="progress_migrate"
 best_effort_progress_migrate
 if [ "${PROGRESS_MIGRATED}" != "true" ]; then
   red "✗ progress migration blocked the finish; the durable conclusion was not copied safely."
+  echo "  The worktree is left intact."
+  exit 1
+fi
+
+# Strip only the exact start-issue scaffold snippets from the migrated durable
+# record, then apply the shared placeholder vocabulary as an unconditional hard
+# closeout gate. Ordinary review-gate CLI behavior remains warn-only.
+TRACE_STAGE="closeout_cruft_gate"
+if ! finish_closeout_cruft_gate; then
+  echo "  The worktree is left intact."
+  exit 1
+fi
+
+# Finalize the migrated durable record after sanitization. This is a hard
+# pre-teardown gate: merged requires authoritative GitHub evidence for this
+# exact branch; ABANDONED=1 is the only alternative.
+TRACE_STAGE="progress_finalize"
+if ! finish_progress_finalize; then
   echo "  The worktree is left intact."
   exit 1
 fi

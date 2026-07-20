@@ -400,11 +400,14 @@ before `worktree remove`, leaving the worktree intact.
 
 The log-completeness gate (`review-gate.sh log-completeness`) scans the per-issue Action Log `progress.md` for known
 placeholder signatures that should be filled before closeout: `Recorded on completion below`, `TBD`, and
-`TODO(fill`. It is WARN-ONLY by default in both `review-gate.sh check` and `finish-issue.sh`; setting
-`REQUIRE_LOG_COMPLETE=1` promotes findings to a hard block, so `check` exits non-zero and `finish-issue.sh` refuses
-teardown with the worktree intact. `LOG_COMPLETENESS_PATHS` may replace the default scan target with a
-whitespace-separated list of `NN` path templates. Each resolved run emits a `review-gate.log-completeness` trace span
-with numeric `harness.finding_count`.
+`TODO(fill`. Ordinary `review-gate.sh check` and `review-gate.sh log-completeness` use remains WARN-ONLY by default;
+setting `REQUIRE_LOG_COMPLETE=1` promotes findings to a hard block. Destructive `finish-issue.sh` is stricter:
+after atomically migrating `progress.md`, it atomically removes only the exact placeholder bullet and guidance
+paragraph emitted by `start-issue.sh`, then always applies the shared log-completeness gate in blocking mode before
+writing the terminal conclusion or removing the worktree. Any residual signature therefore leaves the worktree
+intact and the durable record without a conclusion. `LOG_COMPLETENESS_PATHS` may replace the default scan target
+with a whitespace-separated list of `NN` path templates. Each resolved run emits a
+`review-gate.log-completeness` trace span with numeric `harness.finding_count`.
 
 ### Sensor teeth-proof obligation
 
