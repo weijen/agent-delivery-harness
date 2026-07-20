@@ -13,6 +13,7 @@
 
 # Python-generated files (added when code lands)
 __pycache__/
+/scripts/trace_tools/
 *.py[oc]
 build/
 dist/

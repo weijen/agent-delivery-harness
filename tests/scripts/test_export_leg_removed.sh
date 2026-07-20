@@ -19,15 +19,20 @@ cd "$REPO_ROOT"
 fail=0
 note() { printf 'FAIL: %s\n' "$1"; fail=1; }
 
-# 1. The doomed scripts are gone.
+# 1. The retired trace_tools path has an explicit root-anchored ignore rule.
+if ! grep -Fxq '/scripts/trace_tools/' .gitignore; then
+  note ".gitignore must contain the root-anchored /scripts/trace_tools/ rule"
+fi
+
+# 2. The doomed scripts are gone.
 for s in trace-export.sh log-export.sh gen-export-env.sh sanitize-trace.sh trace-reconstruct.sh; do
   [ -e "scripts/$s" ] && note "scripts/$s must be deleted (dead export/reconstruct leg)"
 done
 
-# 2. The trace_tools Python export package is gone (nothing kept imports it).
+# 3. The trace_tools Python export package is gone (nothing kept imports it).
 [ -e "scripts/trace_tools" ] && note "scripts/trace_tools/ must be deleted (Python export pilot, no kept importer)"
 
-# 3. No call sites survive in the kept lifecycle scripts.
+# 4. No call sites survive in the kept lifecycle scripts.
 for pair in \
   "scripts/finish-lib.sh:best_effort_trace_export" \
   "scripts/finish-lib.sh:best_effort_log_export" \
@@ -44,7 +49,7 @@ if grep -q 'log-export\.sh' scripts/create-pr.sh; then
   note "scripts/create-pr.sh still invokes the deleted log-export.sh"
 fi
 
-# 4. The cloud-export env vars are gone from the committed template, but the
+# 5. The cloud-export env vars are gone from the committed template, but the
 #    local Copilot OTel file sink stays (it feeds the kept trace hook).
 for v in TRACE_EXPORT_OTLP TRACE_EXPORT_OTLP_HTTP LOG_EXPORT_OTLP LOG_EXPORT_OTLP_HTTP \
          CREATE_PR_LOG_EXPORT APPLICATIONINSIGHTS_CONNECTION_STRING; do

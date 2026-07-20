@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-18 (#305)_
+_Last updated: 2026-07-20 (#316)_
 
 ---
 
@@ -108,6 +108,14 @@ _Last updated: 2026-07-18 (#305)_
 ---
 
 ## Delivered (newest first)
+
+### Prevent retired trace-tools debris from recurring (#316): delivery complete
+
+- **#316 removes the ignored bytecode debris and makes the retirement durable.**
+  The export-leg deletion sensor now requires an explicit root-anchored
+  `/scripts/trace_tools/` ignore rule in addition to proving the directory and
+  its live importers are absent. This prevents generated artifacts from
+  resurrecting the retired package as trackable repository content.
 
 ### Retire the runtime capture layer (Phase 1), keep the semantic spine (#305): delivery complete in PR #309
 
