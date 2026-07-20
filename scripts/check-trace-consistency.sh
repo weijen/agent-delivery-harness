@@ -615,6 +615,12 @@ if [ "$failattr_lines" != $'\n' ]; then
     elif [ "$fa_act_val" = "__EMPTY__" ]; then
       # Historical: no actionable field — backward-compatible, countable.
       countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+    else
+      # actionable_invalid: value is not in the closed enum {true, false}
+      # and is not absent (legacy). The emitter prevents new invalid values;
+      # this catches malformed persisted trace data.
+      printf 'VIOLATION consistency: actionable_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
     fi
   done < <(printf '%s' "$failattr_lines" | grep -v '^$')
 fi
