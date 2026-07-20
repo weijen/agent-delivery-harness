@@ -434,6 +434,19 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.finding_baseline_state"] // "") | if . == "" then "__EMPTY__" else . end) as $bs
         | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)"
       else empty
+      end ),
+    # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
+    # Emit per-line signals for ALL review_verdict spans (pass or fail) with
+    # harness.review_mode=="repair". The repair_scope and feature_id are
+    # validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "repair")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.repair_scope"] // "") | if . == "" then "__EMPTY__" else . end) as $rs
+        | "::repairscope \($n)\t\($fid)\t\($rs)"
+      else empty
       end )
   end
 JQ
@@ -452,6 +465,7 @@ rv_noif_ids=$'\n'
 approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
+repairscope_lines=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
     '::gap '*)
@@ -469,6 +483,7 @@ while IFS= read -r out_line; do
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
+    '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
   esac
 done <<< "$state_out"
 
@@ -575,6 +590,78 @@ fi
 phase_active=0
 if [ -n "$approve_sha" ] || [ "${REVIEW_GATE_APPROVE_PHASE:-}" = "1" ]; then
   phase_active=1
+fi
+
+# --- State: repair-verdict scope (issue #318, feature repair-verdict-scope) ---
+# Every review_verdict span with harness.review_mode=="repair" MUST carry a
+# non-empty, valid harness.repair_scope. Canonical format: comma-separated list
+# of feature-id tokens matching [A-Za-z0-9._-]+, no whitespace, no empty tokens,
+# no duplicate tokens. The span's harness.feature_id MUST be an exact token
+# member of repair_scope — no substring matching. Full/concise verdicts are
+# exempt (repair-mode-only).
+#
+#   repair_scope_missing — repair verdict missing or empty repair_scope:
+#       VIOLATION consistency: repair_scope_missing line <N>
+#   repair_scope_invalid — repair_scope fails canonical format validation:
+#       VIOLATION consistency: repair_scope_invalid line <N>
+#   repair_scope_mismatch — feature_id is not an exact member of repair_scope:
+#       VIOLATION consistency: repair_scope_mismatch line <N>
+if [ "$repairscope_lines" != $'\n' ]; then
+  while IFS= read -r rs_line; do
+    [ -n "$rs_line" ] || continue
+    IFS=$'\t' read -r rs_n rs_fid rs_scope <<< "$rs_line"
+    # repair_scope_missing: absent or empty
+    if [ "$rs_scope" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: repair_scope_missing line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_invalid: canonical format check
+    # Rule 0 (anchored whole-string grammar, checked BEFORE splitting):
+    #   full string must match ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
+    #   This catches boundary commas (leading "," or trailing ",") that bash's
+    #   IFS=',' read -ra silently discards as empty trailing fields, which
+    #   would otherwise allow "feat-a," to pass the per-token loop.
+    # Rule 1: every token matches [A-Za-z0-9._-]+ (no whitespace, no empty)
+    # Rule 2: no duplicate tokens
+    scope_invalid=0
+    scope_tokens=()
+    if ! [[ "$rs_scope" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+      scope_invalid=1
+    else
+      IFS=',' read -ra scope_tokens <<< "$rs_scope"
+      seen_tokens=$'\n'
+      for tok in "${scope_tokens[@]}"; do
+        if ! [[ "$tok" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          scope_invalid=1
+          break
+        fi
+        # Check for duplicates via newline-delimited seen list
+        if [[ "$seen_tokens" == *$'\n'"$tok"$'\n'* ]]; then
+          scope_invalid=1
+          break
+        fi
+        seen_tokens="${seen_tokens}${tok}"$'\n'
+      done
+    fi
+    if [ "$scope_invalid" = "1" ]; then
+      printf 'VIOLATION consistency: repair_scope_invalid line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_mismatch: feature_id must be an exact token member
+    scope_match=0
+    for tok in "${scope_tokens[@]}"; do
+      if [ "$tok" = "$rs_fid" ]; then
+        scope_match=1
+        break
+      fi
+    done
+    if [ "$scope_match" = "0" ]; then
+      printf 'VIOLATION consistency: repair_scope_mismatch line %s\n' "$rs_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
 fi
 
 # --- State: review_reject_cap_exceeded (issue #300) ---------------------------

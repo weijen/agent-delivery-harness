@@ -81,8 +81,8 @@ full_review_span() {
 # A review_verdict span with an EXPLICIT non-full review_mode.
 repair_review_span() {
   local ts="$1" fid="$2" sha="$3"
-  printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":299,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.reviewed_sha":"%s","harness.review_mode":"repair","harness.outcome":"pass"}\n' \
-    "$ts" "$fid" "$sha"
+  printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":299,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.reviewed_sha":"%s","harness.review_mode":"repair","harness.outcome":"pass","harness.repair_scope":"%s"}\n' \
+    "$ts" "$fid" "$sha" "$fid"
 }
 # A review_verdict span with reviewed_sha but NO review_mode field at all.
 nomode_review_span() {

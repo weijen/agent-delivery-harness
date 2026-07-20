@@ -164,7 +164,7 @@ pass C3 "valid fail verdict with fingerprint + baseline_state accepted"
 
 # ---------- C4: resolved PASS verdict with fingerprint → accepted ------------
 cat > "$TRACE_C" <<'JSONL'
-{"span":"agent","harness.lifecycle_step":"review_verdict","harness.outcome":"pass","harness.feature_id":"f1","harness.review_mode":"repair","harness.reviewed_sha":"sha-b","harness.finding_fingerprint":"sha256:abc","harness.finding_baseline_state":"resolved","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent"}
+{"span":"agent","harness.lifecycle_step":"review_verdict","harness.outcome":"pass","harness.feature_id":"f1","harness.review_mode":"repair","harness.reviewed_sha":"sha-b","harness.finding_fingerprint":"sha256:abc","harness.finding_baseline_state":"resolved","harness.repair_scope":"f1","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent"}
 JSONL
 # Also add a matching Action Log line so span_without_log doesn't fire
 cat > "${TRACE_C_DIR}/progress.md" <<'MD'

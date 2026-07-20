@@ -354,6 +354,45 @@ other'
     esac
   fi
 
+  # Repair-scope passthrough (issue #318, feature repair-verdict-scope): on the
+  # review_verdict step ONLY and ONLY when TRACE_REVIEW_MODE is "repair",
+  # forward TRACE_REPAIR_SCOPE as harness.repair_scope after validating
+  # canonical format: comma-separated list of [A-Za-z0-9._-]+ tokens, no
+  # whitespace, no empty tokens, no duplicate tokens. Invalid values → omit +
+  # warn (omit, never fake). Absent on non-review_verdict steps, on
+  # non-repair review modes, and when the env var is unset/empty.
+  RS_ARGS=()
+  if [ "$STEP" = "review_verdict" ] && [ "${TRACE_REVIEW_MODE:-}" = "repair" ]; then
+    if [ -n "${TRACE_REPAIR_SCOPE:-}" ]; then
+      # Anchored whole-string grammar check BEFORE splitting: catches boundary
+      # commas (leading "," or trailing ",") that bash's IFS=',' read -ra
+      # silently discards as empty trailing fields, letting "feat-a," pass
+      # the per-token loop. Must match ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$.
+      rs_valid=0
+      if [[ "${TRACE_REPAIR_SCOPE}" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+        rs_valid=1
+        IFS=',' read -ra rs_tokens <<< "${TRACE_REPAIR_SCOPE}"
+        rs_seen=$'\n'
+        for rs_tok in "${rs_tokens[@]}"; do
+          if ! [[ "$rs_tok" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            rs_valid=0
+            break
+          fi
+          if [[ "$rs_seen" == *$'\n'"$rs_tok"$'\n'* ]]; then
+            rs_valid=0
+            break
+          fi
+          rs_seen="${rs_seen}${rs_tok}"$'\n'
+        done
+      fi
+      if [ "$rs_valid" = "1" ]; then
+        RS_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
+      else
+        warn "TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' is not valid canonical format (comma-separated [A-Za-z0-9._-]+ tokens, no whitespace/empty/duplicates) — harness.repair_scope omitted (omit, never fake)"
+      fi
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -368,7 +407,8 @@ other'
     ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
     ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
     ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
-    ${BS_ARGS[@]+"${BS_ARGS[@]}"}
+    ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
+    ${RS_ARGS[@]+"${RS_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

@@ -68,6 +68,18 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    - `resolved` — prior finding is no longer present (emit as a PASS verdict with the same
      fingerprint)
    **Required** on finding-level verdict spans that carry a `TRACE_FINDING_FINGERPRINT`.
+7. **`TRACE_REPAIR_SCOPE`** — a comma-separated list of feature-id tokens declaring the revised
+   feature set for this repair review. **Required** on every `repair`-mode `review_verdict` call
+   (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
+   commas, no whitespace, no empty tokens, no duplicates. The feature_id positional arg to
+   `log-handback.sh` **must** be an exact member of repair_scope. Absent on `full`/`concise`
+   modes. Invalid values are omitted with a warning (omit, never fake).
+
+   **Out-of-scope findings in repair mode:** if you discover a NEW regression or finding outside
+   the revised feature set during a repair review, do NOT silently expand the repair_scope. Instead,
+   emit it as a separate finding/review event attributed to the affected feature's own feature_id.
+   Route it to the conductor as a separate `NEEDS_REVISION` for routing to the affected feature's
+   generator. The current repair verdict scope remains unchanged.
 
 Verdict routing (pass/fail disposition) is **separate** from failure classification: a finding's
 `failure_class` describes *what kind of problem it is*, while `outcome=fail` means it blocks
@@ -359,6 +371,11 @@ where the whole-diff skill battery is the dominant cost driver of the review con
 **Verdicts 1-4** (spec compliance, test/sensor adequacy, the code-quality GENERAL checks #1-#5, and lifecycle/role
 boundary) **and the adversarial test-quality pass** — spec fidelity, sensor adequacy, targeted regression, and
 lifecycle discipline are judged exactly as in `full`/`concise`.
+
+**Repair scope pinning:** every `repair`-mode verdict (APPROVED or NEEDS_REVISION) **must** set
+`TRACE_REPAIR_SCOPE` to the comma-separated list of feature-id tokens under repair (provided by the conductor).
+The verdict's `harness.feature_id` must be an exact member of that scope. If you discover a new finding outside the
+revised feature set, emit it as a separate finding for its own feature — do not expand or flip the repair scope.
 
 What `repair` mode **SKIPS** is the whole-diff skill battery — the numbered code-quality checks **#6-#11**
 (`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, and
