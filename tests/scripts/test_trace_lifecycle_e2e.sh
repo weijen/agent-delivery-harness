@@ -84,7 +84,9 @@ link_tools() {
 }
 
 # Fake gh spanning the whole lifecycle: pr view resolves 123 only after
-# pr create ran (GH_STATE); checks are one green line; merge succeeds.
+# pr create ran (GH_STATE); checks are one green line; merge succeeds;
+# pr list returns the merged PR record so finish_progress_finalize can
+# confirm the merge evidence.
 write_fake_gh() {
   cat > "$1" <<'SH'
 #!/usr/bin/env bash
@@ -104,6 +106,14 @@ case "$1 ${2:-}" in
     exit 0
     ;;
   "pr merge") exit 0 ;;
+  "pr list")
+    if [ -f "${GH_STATE:?}" ]; then
+      printf '[{"headRefName":"feature/issue-42-e2e","state":"MERGED","mergedAt":"2024-01-01T00:00:00Z","number":123}]\n'
+    else
+      printf '[]\n'
+    fi
+    exit 0
+    ;;
 esac
 exit 1
 SH
@@ -111,7 +121,9 @@ SH
 }
 
 BIN="${TMP_DIR}/bin"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc
+link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
+  grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
+  uname true false
 write_fake_gh "${BIN}/gh"
 export GH_STATE="${TMP_DIR}/gh.state"
 export GH_LOG="${TMP_DIR}/gh.log"
@@ -123,7 +135,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE SKIP_INIT FORCE
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts" "${R}/docs"
 for s in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
-         create-pr.sh merge-pr.sh finish-issue.sh trace-lib.sh; do
+         create-pr.sh merge-pr.sh finish-issue.sh finish-lib.sh trace-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${R}/scripts/"
 done
 cat > "${R}/scripts/init.sh" <<'SH'

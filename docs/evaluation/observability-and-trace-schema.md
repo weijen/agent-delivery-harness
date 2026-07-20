@@ -398,6 +398,13 @@ views of the same run. The Action Log stays the primary human artifact; the trac
 is the machine-readable projection that evals parse. Where practical, generate
 the trace and the Action Log from the same events so they cannot disagree.
 
+Closeout also separates an in-flight `Status:` from its terminal
+`Conclusion:`. `finish-issue.sh` writes the conclusion before teardown using
+authoritative merged-PR evidence (or explicit abandonment) and the latest
+`review_verdict` span. Accordingly, `check-trace-consistency.sh` reports
+`finished_with_inflight_status` when a trace containing a successful `finish`
+lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
+
 ## Validating A Trace
 
 `scripts/validate-trace.sh` (issue #97) is the standalone, report-only
@@ -424,6 +431,12 @@ labeled: per-stage summed span durations (script-measured work) and
 first-to-last timestamp elapsed (whole-run wall clock, including agent
 thinking time between spans) — never blended. Every number is computed from
 spans on disk; absent data stays absent (null, never a fabricated zero).
+The closeout `finish-issue.economics` span additionally publishes
+`harness.economics.wall_clock_ms` and `harness.economics.active_ms` as the
+machine-readable elapsed/active pair. Active time sorts valid timestamps and
+sums adjacent gaps up to and including 30 minutes; every larger gap contributes
+zero. Invalid or insufficient timestamps omit both fields, while a genuinely
+measured zero active time remains numeric `0`.
 Reporting never gates: exit codes are `0` whenever a report is produced and
 `2` on usage or environment errors; validation remains the validator's job —
 unparseable lines are skipped and counted, with a pointer to

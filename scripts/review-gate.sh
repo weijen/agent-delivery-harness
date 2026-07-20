@@ -13,6 +13,10 @@ green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${SCRIPT_DIR}/issue-lib.sh" ]; then
+  # shellcheck source=scripts/issue-lib.sh
+  source "${SCRIPT_DIR}/issue-lib.sh"
+fi
 
 # --- Tracing (issue #94, plan D5) --------------------------------------------
 # Guarded source: a missing trace-lib.sh must never break the gate. The script
@@ -336,12 +340,16 @@ log_completeness_gate() {
     log_path_templates=(".copilot-tracking/issues/issue-NN/progress.md")
   fi
 
-  # Extensible signature list for placeholders that must be filled in issue logs.
-  local -a placeholder_signatures=(
-    "Recorded on completion below"
-    "TBD"
-    "TODO(fill"
-  )
+  # issue-lib.sh is the normal single source shared with destructive closeout;
+  # retain the legacy list only for partial installations that lack the lib.
+  local -a placeholder_signatures=()
+  if declare -F progress_placeholder_signatures >/dev/null 2>&1; then
+    while IFS= read -r signature; do
+      placeholder_signatures+=("$signature")
+    done < <(progress_placeholder_signatures)
+  else
+    placeholder_signatures=("Recorded on completion below" "TBD" "TODO(fill")
+  fi
   local -a placeholder_findings=()
   local signature match finding existing duplicate
   local template progress_rel progress_path

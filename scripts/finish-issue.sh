@@ -6,7 +6,8 @@
 #   ./scripts/finish-issue.sh ISSUE=1
 #   ./scripts/finish-issue.sh ISSUE=1 SLUG=custom-slug   # if the slug can't be derived
 #
-# Removes <repo>-worktrees/issue-NN and prunes worktree metadata. By default it
+# Finalizes the durable progress record, removes <repo>-worktrees/issue-NN, and
+# prunes worktree metadata. By default it
 # REFUSES when the worktree has uncommitted changes (override with FORCE=1) and
 # leaves the local branch in place (delete it with DELETE_BRANCH=1).
 #
@@ -60,8 +61,11 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
-  best_effort_progress_migrate() { PROGRESS_MIGRATED=false; return 0; }
-  best_effort_economics_stamp() { return 0; }
+  finish_closeout_orchestrate() {
+    red "✗ closeout orchestration blocked: scripts/finish-lib.sh is unavailable."
+    echo "  The worktree is left intact."
+    return 1
+  }
   best_effort_state_hygiene() { return 0; }
 fi
 # Set unconditionally (even when finish-lib.sh sourced successfully) so both
@@ -74,8 +78,9 @@ PROGRESS_MIGRATED=false
 # P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
 # survives teardown only because trace-lib pins the trace file to the MAIN
 # checkout root (plan D1). TRACE_STAGE names the last stage reached
-# (completion_check|trace_gate|log_completeness_gate|progress_migrate|
-# economics_stamp|worktree_remove|state_hygiene|branch_delete|done), surfaced
+# (completion_check|trace_gate|progress_migrate|closeout_cruft_gate|
+# progress_finalize|economics_stamp|worktree_remove|state_hygiene|
+# branch_delete|done), surfaced
 # as harness.stage by the attr callback; refusals before arming emit nothing.
 TRACE_STAGE=""
 WORKTREE_REMOVED=false
@@ -152,32 +157,11 @@ if ! finish_trace_gate; then
   exit 1
 fi
 
-# Log-completeness gate (issue #266) — same pre-teardown placement as the trace
-# gate: under REQUIRE_LOG_COMPLETE=1 a placeholder-laden progress.md refuses the
-# finish while the worktree is still intact. Returns 1 to block.
-TRACE_STAGE="log_completeness_gate"
-if ! finish_log_completeness_gate; then
+# Ordered closeout pipeline: migrate → scrub → conclude → economics stamp.
+# Ordering, failure semantics, and TRACE_STAGE updates live in finish-lib.sh
+# so this script stays a thin teardown orchestrator.
+if ! finish_closeout_orchestrate; then
   exit 1
-fi
-
-# Best-effort progress.md migration (issue #290) — run BEFORE the economics
-# stamp so the migrated worktree Action Log is what gets stamped, not a hollow
-# main-root stub. Advisory: it must never change finish-issue's exit code.
-TRACE_STAGE="progress_migrate"
-best_effort_progress_migrate
-
-# Best-effort delivery economics stamp (issue #267) — run before teardown so it
-# can use the worktree-local feature list. This is advisory and must never
-# change finish-issue's exit code. Only stamp when THIS run's migration above
-# actually landed the worktree's progress.md at main root (issue #290, M10):
-# stamping a stale pre-existing main-root progress.md — e.g. left over from a
-# prior finish, when this run's migration was skipped or failed atomically —
-# would falsely present it as reflecting this run's delivery.
-TRACE_STAGE="economics_stamp"
-if [ "${PROGRESS_MIGRATED}" = "true" ]; then
-  best_effort_economics_stamp
-else
-  yellow "⚠ economics stamp skipped: progress.md migration did not land this run"
 fi
 
 TRACE_STAGE="worktree_remove"

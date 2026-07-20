@@ -102,7 +102,7 @@ JSON
   cat > "${dir}/progress.md" <<MD
 # Issue ${issue} progress
 
-Status: closing out.
+Conclusion: merged; review verdict: approved.
 
 PR: https://github.com/acme/widgets/pull/123
 
@@ -134,7 +134,7 @@ JSON
   cat > "${dir}/progress.md" <<MD
 # Issue ${issue} progress
 
-Status: capture retired; no semantic spine emitted.
+Conclusion: abandoned; review verdict: n-a.
 
 ## Action Log
 MD

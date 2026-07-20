@@ -279,7 +279,7 @@ rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.
 F2="${TMP_DIR}/f81"
 make_gate_fixture "$F2" 81
 dirty_gate_fixture "$F2" 81
-rc="$(run_in "$F2" "$OUT" -- ./scripts/finish-issue.sh 81 SLUG=fixture)"
+rc="$(run_in "$F2" "$OUT" ABANDONED=1 -- ./scripts/finish-issue.sh 81 SLUG=fixture)"
 [ "$rc" = "0" ] \
   || fail "finish, default: warn-only — finish-issue.sh must still exit 0 with trace findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'log_without_span' "$OUT" \

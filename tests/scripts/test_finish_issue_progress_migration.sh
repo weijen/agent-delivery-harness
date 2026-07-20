@@ -181,6 +181,7 @@ fail() {
 }
 
 mkdir -p "$TMP_DIR"
+export ABANDONED=1
 
 assert_marker_count() {
   local file="$1" marker="$2" expected="$3" actual
@@ -572,7 +573,7 @@ assert_hollow_main_root_replaced() {
 
 # ============================================================================
 # M5 — Deterministic migration failure (destination path occupied by a
-# directory, NOT a chmod/permission trick) warns but never blocks teardown
+# directory, NOT a chmod/permission trick) blocks before teardown.
 # ============================================================================
 assert_migration_failure_never_blocks_teardown() {
   local main="$1" issue="$2" wt main_progress rc out
@@ -587,10 +588,10 @@ assert_migration_failure_never_blocks_teardown() {
 
   rc=0
   out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] \
-    || { printf '%s\n' "$out"; fail "finish-issue.sh must still exit 0 when the main-root progress.md path is a directory (deterministic migration failure is warn-only)"; }
-  [ ! -d "$wt" ] \
-    || fail "worktree must still be removed even when migration fails deterministically"
+  [ "$rc" -ne 0 ] \
+    || { printf '%s\n' "$out"; fail "finish-issue.sh must block when the durable migration destination is a directory"; }
+  [ -d "$wt" ] \
+    || fail "worktree must remain intact when migration fails deterministically"
   # The destination path was a directory, so a naive `cp src dst` would
   # silently "succeed" by copying INTO the directory (dst/progress.md)
   # rather than genuinely writing dst itself — that is still a migration
@@ -822,11 +823,11 @@ assert_full_finish_never_stamps_through_symlinked_destination() {
 
   rc=0
   out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] \
-    || { printf '%s\n' "$out"; fail "finish-issue.sh must exit 0 (warn-never-fail) end to end when the main-root progress.md path is a symlink to an external target"; }
+  [ "$rc" -ne 0 ] \
+    || { printf '%s\n' "$out"; fail "finish-issue.sh must block on a symlinked durable progress destination"; }
 
-  [ ! -d "$wt" ] \
-    || fail "the worktree must still be removed even when the destination is a rejected symlink"
+  [ -d "$wt" ] \
+    || fail "the worktree must remain intact when the destination is a rejected symlink"
 
   [ -L "$main_progress" ] \
     || fail "the destination symlink at ${main_progress} must remain a symlink after a full finish-issue.sh run (migrate + stamp) — found it replaced"
@@ -845,8 +846,8 @@ assert_full_finish_never_stamps_through_symlinked_destination() {
 
   printf '%s\n' "$out" | grep -Eiq 'progress migrate (skip|fail)|⚠ progress migrate' \
     || { printf '%s\n' "$out"; fail "finish-issue.sh output must warn about the progress-migration symlink rejection even during a full finish run"; }
-  printf '%s\n' "$out" | grep -Eiq 'economics stamp skip.*migration did not land' \
-    || { printf '%s\n' "$out"; fail "finish-issue.sh output must warn that the economics stamp was skipped because migration did not land this run — the full pipeline correctly skips economics stamping ENTIRELY after a rejected symlink destination (issue #290 M10 full-pipeline gating on PROGRESS_MIGRATED), rather than requiring economics_stamp_into to be invoked a second time against the same rejected path (that guard is proven directly, decoupled from this orchestration, by the M11 leg)"; }
+  printf '%s\n' "$out" | grep -Fq 'progress migration blocked the finish' \
+    || { printf '%s\n' "$out"; fail "finish-issue.sh must report that failed durable migration blocked closeout"; }
 }
 
 # ============================================================================
@@ -889,11 +890,11 @@ assert_symlinked_tracking_parent_does_not_escape() {
 
   rc=0
   out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] \
-    || { printf '%s\n' "$out"; fail "finish-issue.sh must exit 0 (warn-never-fail) when the main-root tracking issue directory itself is a symlink to an external target"; }
+  [ "$rc" -ne 0 ] \
+    || { printf '%s\n' "$out"; fail "finish-issue.sh must block when the durable tracking directory is a symlink"; }
 
-  [ ! -d "$wt" ] \
-    || fail "the worktree must still be removed even when the tracking issue directory is a rejected symlinked parent"
+  [ -d "$wt" ] \
+    || fail "the worktree must remain intact when the tracking issue directory is a rejected symlinked parent"
 
   [ -L "$main_issue_dir" ] \
     || fail "the symlinked tracking issue directory ${main_issue_dir} must be left EXACTLY as-is on rejection — found it replaced"
@@ -956,11 +957,11 @@ assert_full_finish_migrate_failure_never_stamps_stale_destination() {
 
   rc=0
   out="$(cd "$main" && PATH="$bin_cpfail" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] \
-    || { printf '%s\n' "$out"; fail "finish-issue.sh must exit 0 (warn-never-fail) end to end when the underlying cp command fails during migration"; }
+  [ "$rc" -ne 0 ] \
+    || { printf '%s\n' "$out"; fail "finish-issue.sh must block when the durable migration copy fails"; }
 
-  [ ! -d "$wt" ] \
-    || fail "the worktree must still be removed even when migration hit a genuine cp failure"
+  [ -d "$wt" ] \
+    || fail "the worktree must remain intact when migration hits a genuine cp failure"
 
   cmp -s "$snapshot" "$main_progress" \
     || { diff -u "$snapshot" "$main_progress" 2>/dev/null || true; fail "a stale pre-existing main-root progress.md must be left BYTE-IDENTICAL after a full finish-issue.sh run when the underlying cp fails during migration — best_effort_progress_migrate's atomic temp-copy correctly protects it from the failing cp, but best_effort_economics_stamp must not then stamp the delivery-economics block onto that same unmigrated stale survivor"; }

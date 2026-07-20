@@ -9,18 +9,21 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   finish_closeout_cruft_gate     — exact scaffold strip + strict residual gate (#320)
+#   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp (#320)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
 #   * SCRIPT_DIR, ISSUE_NUM are module-level in finish-issue.sh.
 #   * red/green/yellow colour helpers and trace__main_root (from trace-lib.sh)
 #     are defined before these run.
-#   * finish-issue.sh owns TRACE_STAGE progression and the `exit 1` decision;
-#     finish_trace_gate only RETURNS 0 (proceed) / 1 (block) so the caller keeps
-#     the single exit path and byte-identical messages.
+#   * finish_closeout_orchestrate sets TRACE_STAGE (a finish-issue.sh global)
+#     on each pipeline step transition and returns 0/1 so the caller keeps the
+#     single `exit 1` path. Individual gates return 0/1 by the same convention.
 # The three best_effort_* helpers ALWAYS return 0: a missing/failing optional
 # step must never change finish-issue's exit code or block teardown. They read
 # the MAIN-checkout trace file (which survives worktree removal), so
@@ -90,6 +93,339 @@ finish_log_completeness_gate() {
   return 0
 }
 
+# --- Closeout scaffold cleanup (issue #320, strip-closeout-cruft) -----------
+# Remove only the two exact snippets emitted by start-issue. The rewrite lands
+# through a same-directory atomic rename; any inability to prove or complete
+# that rewrite blocks destructive closeout.
+finish__strip_scaffold_cruft() {
+  local progress_file="$1" progress_dir="" tmp_file="" bullet="" guidance=""
+  local line="" buffered="" expected_line="" matched=false i=0
+  local -a expected=() consumed=()
+
+  [ -f "$progress_file" ] && [ ! -L "$progress_file" ] || return 1
+  [ -r "$progress_file" ] && [ -w "$progress_file" ] || return 1
+  progress_dir="${progress_file%/*}"
+  [ -w "$progress_dir" ] || return 1
+  declare -F progress_scaffold_placeholder_bullet >/dev/null 2>&1 || return 1
+  declare -F progress_scaffold_guidance >/dev/null 2>&1 || return 1
+  bullet="$(progress_scaffold_placeholder_bullet)"
+  guidance="$(progress_scaffold_guidance)"
+  while IFS= read -r expected_line || [ -n "$expected_line" ]; do
+    expected+=("$expected_line")
+  done <<< "$guidance"
+
+  command -v mktemp >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 \
+    || return 1
+  tmp_file="$(mktemp "${progress_dir}/.progress-cruft.XXXXXX" 2>/dev/null)" \
+    || return 1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$bullet" ]; then
+      continue
+    fi
+    if [ "${#expected[@]}" -gt 0 ] && [ "$line" = "${expected[0]}" ]; then
+      consumed=("$line")
+      matched=true
+      for ((i = 1; i < ${#expected[@]}; i++)); do
+        if IFS= read -r buffered; then
+          consumed+=("$buffered")
+          if [ "$buffered" != "${expected[$i]}" ]; then
+            matched=false
+          fi
+        else
+          matched=false
+          break
+        fi
+      done
+      if [ "$matched" = "true" ] && [ "${#consumed[@]}" -eq "${#expected[@]}" ]; then
+        continue
+      fi
+      printf '%s\n' "${consumed[@]}"
+      continue
+    fi
+    printf '%s\n' "$line"
+  done < "$progress_file" > "$tmp_file" 2>/dev/null || {
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  }
+
+  if ! mv -f -- "$tmp_file" "$progress_file" 2>/dev/null; then
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  fi
+  return 0
+}
+
+finish_closeout_cruft_gate() {
+  local issue="${ISSUE_NUM:-}" issue_pad="" main_root="" main_issue_dir=""
+  local progress_file="" signature="" finding_count=0
+  if ! [[ "$issue" =~ ^[0-9]+$ ]]; then
+    red "✗ closeout cruft cleanup blocked: issue number is unavailable."
+    return 1
+  fi
+  issue_pad="$(printf '%02d' "$issue")"
+  main_root="$(finish__resolve_main_root)"
+  main_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad")"
+  progress_file="${main_issue_dir}/progress.md"
+  if [ -z "$main_issue_dir" ] || ! finish__strip_scaffold_cruft "$progress_file"; then
+    red "✗ closeout cruft cleanup blocked: progress.md could not be sanitized atomically."
+    return 1
+  fi
+
+  if ! declare -F progress_placeholder_signatures >/dev/null 2>&1; then
+    red "✗ closeout placeholder check blocked: placeholder vocabulary is unavailable."
+    return 1
+  fi
+  while IFS= read -r signature; do
+    if grep -Fq -- "$signature" "$progress_file"; then
+      finding_count=$((finding_count + 1))
+      grep -nF -- "$signature" "$progress_file" || true
+    fi
+  done < <(progress_placeholder_signatures)
+  if [ "$finding_count" -gt 0 ]; then
+    red "✗ closeout log-completeness blocked: unfilled placeholders remain."
+    return 1
+  fi
+
+  # Preserve existing gate output and telemetry when a complete installation
+  # provides review-gate.sh. The local shared-vocabulary scan is authoritative.
+  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+    REQUIRE_LOG_COMPLETE=1 "${SCRIPT_DIR}/review-gate.sh" log-completeness \
+      || return 1
+  fi
+  return 0
+}
+
+# --- Terminal progress conclusion (issue #320, write-once-conclusion) --------
+# Closeout is destructive, so the durable human record must be finalized before
+# worktree removal. The review verdict comes only from the latest review_verdict
+# span in the append-only trace; absence stays n-a. A merged conclusion requires
+# GitHub's merged PR record for the exact issue branch. ABANDONED=1 is the only
+# alternative. Existing identical conclusions are idempotent and any different
+# conclusion is write-once.
+finish__review_verdict() {
+  local trace_file="$1" outcome=""
+  if [ -f "$trace_file" ] && command -v jq >/dev/null 2>&1; then
+    outcome="$(jq -Rsr '
+      [split("\n")[] | fromjson? | objects
+       | select(.span == "agent"
+                and .["harness.lifecycle_step"] == "review_verdict")]
+      | if length == 0 then "" else last["harness.outcome"] // "" end
+    ' "$trace_file" 2>/dev/null || true)"
+  fi
+  case "$outcome" in
+    pass) printf 'APPROVED' ;;
+    fail) printf 'NEEDS_REVISION' ;;
+    *)    printf 'n-a' ;;
+  esac
+}
+
+finish__merged_pr_exists() {
+  local branch="$1" pr_json=""
+  command -v gh >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  pr_json="$(gh pr list --head "$branch" --state merged \
+    --json headRefName,state,mergedAt,number --limit 100 2>/dev/null)" \
+    || return 1
+  jq -e --arg branch "$branch" '
+    any(.[]; .headRefName == $branch
+             and .state == "MERGED"
+             and (.mergedAt | type) == "string"
+             and .mergedAt != "")
+  ' <<< "$pr_json" >/dev/null 2>&1
+}
+
+finish__progress_path_safe() {
+  local worktree_dir="$1" issue_pad="$2"
+  local component="$worktree_dir"
+  local suffix=""
+  for suffix in .copilot-tracking .copilot-tracking/issues \
+    ".copilot-tracking/issues/issue-${issue_pad}"; do
+    component="${worktree_dir}/${suffix}"
+    [ -d "$component" ] && [ ! -L "$component" ] || return 1
+  done
+  return 0
+}
+
+finish__atomic_conclusion() {
+  local progress_file="$1" conclusion="$2"
+  local progress_dir="" existing="" status_count=0 tmp_file="" line=""
+  local replaced=false
+
+  [ -f "$progress_file" ] && [ ! -L "$progress_file" ] || return 1
+  [ -r "$progress_file" ] && [ -w "$progress_file" ] || return 1
+  progress_dir="${progress_file%/*}"
+  [ -w "$progress_dir" ] || return 1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      Conclusion:*) [ -n "$existing" ] || existing="$line" ;;
+      Status:*) status_count=$((status_count + 1)) ;;
+    esac
+  done < "$progress_file"
+  if [ -n "$existing" ]; then
+    [ "$existing" = "$conclusion" ] || return 2
+    return 0
+  fi
+
+  [ "$status_count" -ge 1 ] || return 1
+  command -v mktemp >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 \
+    || return 1
+  tmp_file="$(mktemp "${progress_dir}/.progress-conclusion.XXXXXX" 2>/dev/null)" \
+    || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$replaced" = "false" ] && [[ "$line" == Status:* ]]; then
+      printf '%s\n' "$conclusion"
+      replaced=true
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$progress_file" > "$tmp_file" 2>/dev/null || {
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  }
+  if ! mv -f -- "$tmp_file" "$progress_file" 2>/dev/null; then
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  fi
+  return 0
+}
+
+finish_progress_finalize() {
+  local issue="${ISSUE_NUM:-}" issue_pad=""
+  local main_root="" main_issue_dir="" trace_file="" progress_file="" result="" verdict=""
+  local conclusion="" final_rc=0
+
+  if ! [[ "$issue" =~ ^[0-9]+$ ]]; then
+    red "✗ progress conclusion blocked: issue number is unavailable."
+    return 1
+  fi
+  issue_pad="$(printf '%02d' "$issue")"
+  main_root="$(finish__resolve_main_root)"
+  [ -n "$main_root" ] || {
+    red "✗ progress conclusion blocked: could not resolve the main checkout."
+    return 1
+  }
+  main_issue_dir="$(finish__safe_tracking_dir "$main_root" "$issue_pad")"
+  [ -n "$main_issue_dir" ] || {
+    red "✗ progress conclusion blocked: progress path is missing or unsafe."
+    return 1
+  }
+  progress_file="${main_issue_dir}/progress.md"
+  trace_file="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
+  verdict="$(finish__review_verdict "$trace_file")"
+
+  if [ "${ABANDONED:-0}" = "1" ]; then
+    result="abandoned"
+  elif finish__merged_pr_exists "${BRANCH:-}"; then
+    result="merged"
+  else
+    red "✗ progress conclusion blocked: no authoritative merged PR found for branch ${BRANCH:-<unknown>}."
+    echo "  Merge the issue branch first, or use ABANDONED=1 for an explicit abandonment."
+    return 1
+  fi
+  conclusion="Conclusion: ${result}; review verdict: ${verdict}."
+
+  finish__atomic_conclusion "$progress_file" "$conclusion" || final_rc=$?
+  case "$final_rc" in
+    0) return 0 ;;
+    2)
+      red "✗ progress conclusion blocked: a different Conclusion already exists."
+      ;;
+    *)
+      red "✗ progress conclusion blocked: progress.md is missing, unsafe, or unwritable."
+      ;;
+  esac
+  return 1
+}
+
+# Temporary logical review-event aggregation (issue #320). Issue #318 will
+# replace this key with harness.review_event_id; keeping the key in one helper
+# lets that migration change the identity rule without coupling either output.
+economics_review_event_summary() {
+  local trace_file="${1:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+  if [ -z "$trace_file" ] || [ ! -s "$trace_file" ] || [ ! -r "$trace_file" ]; then
+    printf '%s\n' '{"total":0,"covered":0,"complete":true,"rounds":0,"failed":0,"passed":0}'
+    return 0
+  fi
+
+  jq -nRr '
+    def review_event_key:
+      .["harness.reviewed_sha"] as $sha
+      | .["harness.review_mode"] as $mode
+      | if (($sha | type) == "string" and ($sha | length) > 0
+            and ($mode | type) == "string"
+            and ($mode == "full" or $mode == "concise" or $mode == "repair"))
+        then [$sha, $mode]
+        else null
+        end;
+
+    [inputs | fromjson? | objects
+     | select(.["harness.lifecycle_step"] == "review_verdict")] as $verdicts
+    | [$verdicts[] | {key: review_event_key, outcome: .["harness.outcome"]}] as $keyed
+    | [$keyed[] | select(.key != null)] as $identified
+    | ($identified | group_by(.key)
+       | map({outcome: (if any(.[]; .outcome == "fail") then "fail" else "pass" end)})) as $events
+    | {
+        total: ($verdicts | length),
+        covered: ($identified | length),
+        complete: (($verdicts | length) == ($identified | length)),
+        rounds: ($events | length),
+        failed: ([$events[] | select(.outcome == "fail")] | length),
+        passed: ([$events[] | select(.outcome == "pass")] | length)
+      }
+  ' < "$trace_file" 2>/dev/null || true
+}
+
+# Shared elapsed/active-time aggregation keeps the Markdown and machine outputs
+# on one calculation. Adjacent gaps over 30 minutes are excluded in full.
+economics_time_summary() {
+  local trace_file="${1:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ] || return 0
+
+  jq -nRr '
+    def ts_secs:
+      ([capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]+))?Z$")] | first // null) as $match
+      | if $match == null then
+          null
+        else
+          try (
+            (($match.base + "Z") | fromdateiso8601)
+            + (if ($match.fraction // "") == ""
+               then 0
+               else ("0." + $match.fraction | tonumber)
+               end)
+          ) catch null
+        end;
+
+    [inputs | fromjson? | objects | .timestamp? | strings] as $timestamps
+    | if ($timestamps | length) < 2 then
+        empty
+      else
+        [$timestamps[] | {text: ., seconds: ts_secs}] as $parsed
+        | if any($parsed[]; .seconds == null) then
+            empty
+          else
+            ($parsed | sort_by(.seconds)) as $ordered
+            | (reduce range(1; $ordered | length) as $i
+                (0;
+                 ($ordered[$i].seconds - $ordered[$i - 1].seconds) as $gap
+                 | if $gap <= 1800 then . + $gap else . end)) as $active
+            | {
+                first: $ordered[0].text,
+                last: $ordered[-1].text,
+                elapsed_ms: ((($ordered[-1].seconds - $ordered[0].seconds) * 1000) | round),
+                active_ms: (($active * 1000) | round)
+              }
+          end
+      end
+  ' < "$trace_file" 2>/dev/null || true
+}
+
 # Pure trace/feature-list economics renderer (issue #267). This is a PURE
 # function of its two explicit file arguments: callers resolve paths before
 # invoking it. Metric honesty follows the trace-report omit-never-fake /
@@ -98,7 +434,7 @@ finish_log_completeness_gate() {
 compute_delivery_economics() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
-  local trace_lines feature_line
+  local trace_lines feature_line review_summary time_summary
 
   printf '## Delivery economics (auto-stamped, trace-derived)\n'
 
@@ -112,48 +448,38 @@ compute_delivery_economics() {
     return 0
   fi
 
+  review_summary="$(economics_review_event_summary "$trace_file")"
+  time_summary="$(economics_time_summary "$trace_file")"
   trace_lines="$(
     if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-      jq -nRr '
-        # Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are
-        # normalized before parsing, matching scripts/trace-report.sh.
-        def ts_secs:
-          sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+      jq -nRr --argjson review "$review_summary" --argjson time "${time_summary:-null}" '
         def one_decimal:
           (. * 10 | round) as $tenths
           | ($tenths / 10 | tostring) as $s
           | if ($s | contains(".")) then $s else "\($s).0" end;
 
         [inputs | fromjson? | objects] as $spans
-        | [$spans[] | .timestamp? | strings] as $ts
         | [$spans[] | select(.span == "model")] as $model_spans
         | [$model_spans[]
            | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
                     or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
-        | [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
         | [
-            (if ($ts | length) < 2 then
+            (if $time == null then
                "- Wall-clock span: n/a"
              else
-               ($ts | min) as $first
-               | ($ts | max) as $last
-               | ($first | ts_secs) as $first_secs
-               | ($last | ts_secs) as $last_secs
-               | if $first_secs == null or $last_secs == null then
-                   "- Wall-clock span: n/a"
-                 else
-                   "- Wall-clock span: \($first) → \($last) (elapsed \(($last_secs - $first_secs) / 3600 | one_decimal)h)"
-                 end
+               "- Wall-clock span: \($time.first) → \($time.last) (elapsed \($time.elapsed_ms / 3600000 | one_decimal)h / active \($time.active_ms / 3600000 | one_decimal)h; gaps >30min excluded)"
              end),
             (if ($tok_models | length) == 0 then
                "- Tokens: n/a (no run carried token data)"
              else
                "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
              end),
-            (if ($reviews | length) == 0 then
+            (if $review.total == 0 then
                "- Review rounds: 0"
+             elif ($review.complete | not) then
+               "- Review rounds: n/a (event identity coverage: \($review.covered)/\($review.total) verdict spans; missing/invalid reviewed_sha or review_mode)"
              else
-               "- Review rounds: \($reviews | length) (\([$reviews[] | select(.["harness.outcome"] == "fail")] | length) fail → \([$reviews[] | select(.["harness.outcome"] == "pass")] | length) pass)"
+               "- Review rounds: \($review.rounds) (\($review.failed) fail → \($review.passed) pass)"
              end),
             "- Deviations logged: \([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
           ]
@@ -392,26 +718,24 @@ economics_stamp_into() {
 economics_numeric_aggregates() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
+  local review_summary=""
+  local time_summary=""
 
   command -v jq >/dev/null 2>&1 || return 0
+  review_summary="$(economics_review_event_summary "$trace_file")"
+  time_summary="$(economics_time_summary "$trace_file")"
 
   if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-    jq -nRr '
-      def ts_secs:
-        sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
+    jq -nRr --argjson review "$review_summary" --argjson time "${time_summary:-null}" '
       [inputs | fromjson? | objects] as $spans
-      | [$spans[] | .timestamp? | strings] as $ts
       | [$spans[] | select(.span == "model")] as $model_spans
       | [$model_spans[]
          | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
                   or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
       | (
-          if ($ts | length) >= 2 then
-            ($ts | min | ts_secs) as $a
-            | ($ts | max | ts_secs) as $b
-            | if $a != null and $b != null and ($b - $a) > 0 then
-                "harness.economics.wall_clock_ms=\((($b - $a) * 1000) | round)"
-              else empty end
+          if $time != null then
+            "harness.economics.wall_clock_ms=\($time.elapsed_ms)",
+            "harness.economics.active_ms=\($time.active_ms)"
           else empty end
         ),
         (
@@ -426,7 +750,17 @@ economics_numeric_aggregates() {
             "harness.economics.token_runs_total=\($model_spans | length)"
           else empty end
         ),
-        "harness.economics.review_rounds=\([$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] | length)",
+        (
+          if $review.total == 0 or $review.complete then
+            "harness.economics.review_rounds=\($review.rounds)"
+          else empty end
+        ),
+        (
+          if $review.total > 0 then
+            "harness.economics.review_identity_covered=\($review.covered)",
+            "harness.economics.review_identity_total=\($review.total)"
+          else empty end
+        ),
         "harness.economics.deviations=\([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
     ' < "$trace_file" 2>/dev/null || true
   fi
@@ -676,6 +1010,43 @@ best_effort_economics_stamp() {
   fi
 
   return 0
+}
+
+# Ordered closeout pipeline (issue #320, strip-closeout-cruft). Orchestrates
+# the four pre-teardown record-finalization steps so finish-issue.sh stays a
+# thin teardown orchestrator. Sets TRACE_STAGE (a finish-issue.sh global) on
+# each transition and returns 0 on success / 1 on first failure. The caller
+# does `exit 1` on a non-zero return.
+finish_closeout_orchestrate() {
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="progress_migrate"
+  best_effort_progress_migrate
+  if [ "${PROGRESS_MIGRATED}" != "true" ]; then
+    red "✗ progress migration blocked the finish; the durable conclusion was not copied safely."
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="closeout_cruft_gate"
+  if ! finish_closeout_cruft_gate; then
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="progress_finalize"
+  if ! finish_progress_finalize; then
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # Best-effort economics stamp (issue #267): advisory, never blocks teardown.
+  # Only reached here when migration succeeded (PROGRESS_MIGRATED=true), so
+  # the stamp reflects THIS run's migrated record — not a stale prior copy.
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="economics_stamp"
+  best_effort_economics_stamp
 }
 
 # Best-effort closeout state hygiene (issue #175). Sweeps the issue's orphaned

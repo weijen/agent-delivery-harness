@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
+TMP_DIR="${ROOT}/.copilot-test-tmp/test-issue-scaffold.$$"
+mkdir -p "$TMP_DIR"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # shellcheck source=/dev/null
@@ -52,7 +53,7 @@ printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial"
 
-SKIP_INIT=1 ./scripts/start-issue.sh 123 SLUG=scaffold-test >/tmp/start-issue.out
+SKIP_INIT=1 ./scripts/start-issue.sh 123 SLUG=scaffold-test >"${TMP_DIR}/start-issue.out"
 WORKTREE="${TMP_DIR}/repo-worktrees/issue-123"
 FEATURE_LIST="${WORKTREE}/.copilot-tracking/issues/issue-123/feature_list.json"
 
@@ -72,10 +73,10 @@ set +e
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":"fixture","e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST" >"${FEATURE_LIST}.tmp"
 mv "${FEATURE_LIST}.tmp" "$FEATURE_LIST"
 
-if REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >/tmp/finish-hard.out 2>&1; then
+if REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >"${TMP_DIR}/finish-hard.out" 2>&1; then
   fail "finish hard gate passed with incomplete features"
 fi
-grep -q "incomplete feature_list items" /tmp/finish-hard.out || fail "finish hard gate did not report incomplete features"
+grep -q "incomplete feature_list items" "${TMP_DIR}/finish-hard.out" || fail "finish hard gate did not report incomplete features"
 )
 _rc=$?
 set -e
@@ -86,7 +87,7 @@ set +e
   set -e
 jq '.features[0].passes = true | .features[0].verification = "verified: closeout smoke green"' "$FEATURE_LIST" >"${FEATURE_LIST}.tmp"
 mv "${FEATURE_LIST}.tmp" "$FEATURE_LIST"
-REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >/tmp/finish-pass.out
+ABANDONED=1 REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 123 SLUG=scaffold-test >"${TMP_DIR}/finish-pass.out"
 )
 _rc=$?
 set -e
@@ -102,17 +103,17 @@ tap_result "$_rc" "finish hard gate passes once every feature is complete"
 set +e
 (
   set -e
-SKIP_INIT=1 ./scripts/start-issue.sh 124 SLUG=warn-test >/tmp/start-warn.out
+SKIP_INIT=1 ./scripts/start-issue.sh 124 SLUG=warn-test >"${TMP_DIR}/start-warn.out"
 WORKTREE_WARN="${TMP_DIR}/repo-worktrees/issue-124"
 FEATURE_LIST_WARN="${WORKTREE_WARN}/.copilot-tracking/issues/issue-124/feature_list.json"
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_WARN" >"${FEATURE_LIST_WARN}.tmp"
 mv "${FEATURE_LIST_WARN}.tmp" "$FEATURE_LIST_WARN"
-if ! ./scripts/finish-issue.sh 124 SLUG=warn-test >/tmp/finish-warn.out 2>&1; then
-  cat /tmp/finish-warn.out >&2
+if ! ABANDONED=1 ./scripts/finish-issue.sh 124 SLUG=warn-test >"${TMP_DIR}/finish-warn.out" 2>&1; then
+  cat "${TMP_DIR}/finish-warn.out" >&2
   fail "default-mode finish crashed on incomplete features (expected a warning + exit 0)"
 fi
-grep -q "incomplete feature_list items remain" /tmp/finish-warn.out || fail "default-mode finish did not emit the incomplete-features warning"
-if grep -qi "command not found" /tmp/finish-warn.out; then
+grep -q "incomplete feature_list items remain" "${TMP_DIR}/finish-warn.out" || fail "default-mode finish did not emit the incomplete-features warning"
+if grep -qi "command not found" "${TMP_DIR}/finish-warn.out"; then
   fail "default-mode finish hit an undefined helper (yellow-path regression)"
 fi
 )
@@ -125,23 +126,24 @@ tap_result "$_rc" "default-mode finish warns (not crash) on incomplete features"
 set +e
 (
   set -e
-SKIP_INIT=1 ./scripts/start-issue.sh 125 SLUG=nojq-test >/tmp/start-nojq.out
+SKIP_INIT=1 ./scripts/start-issue.sh 125 SLUG=nojq-test >"${TMP_DIR}/start-nojq.out"
 WORKTREE_NOJQ="${TMP_DIR}/repo-worktrees/issue-125"
 FEATURE_LIST_NOJQ="${WORKTREE_NOJQ}/.copilot-tracking/issues/issue-125/feature_list.json"
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_NOJQ" >"${FEATURE_LIST_NOJQ}.tmp"
 mv "${FEATURE_LIST_NOJQ}.tmp" "$FEATURE_LIST_NOJQ"
 NOJQ_BIN="${TMP_DIR}/nojq-bin"
 mkdir -p "$NOJQ_BIN"
-for tool in git env bash sh dirname basename mkdir rm cat sed tr cut grep; do
+for tool in git env bash sh dirname basename mkdir rm cat sed tr cut grep \
+  printf mktemp mv cp awk find sort comm chmod date od wc; do
   tool_path="$(command -v "$tool" || true)"
   [ -n "$tool_path" ] && ln -sf "$tool_path" "${NOJQ_BIN}/${tool}"
 done
-if ! PATH="$NOJQ_BIN" ./scripts/finish-issue.sh 125 SLUG=nojq-test >/tmp/finish-nojq.out 2>&1; then
-  cat /tmp/finish-nojq.out >&2
+if ! PATH="$NOJQ_BIN" ABANDONED=1 ./scripts/finish-issue.sh 125 SLUG=nojq-test >"${TMP_DIR}/finish-nojq.out" 2>&1; then
+  cat "${TMP_DIR}/finish-nojq.out" >&2
   fail "missing-jq finish crashed (expected a skip warning + exit 0)"
 fi
-grep -q "jq not installed" /tmp/finish-nojq.out || fail "missing-jq finish did not emit the jq-skip warning"
-if grep -qi "command not found" /tmp/finish-nojq.out; then
+grep -q "jq not installed" "${TMP_DIR}/finish-nojq.out" || fail "missing-jq finish did not emit the jq-skip warning"
+if grep -qi "command not found" "${TMP_DIR}/finish-nojq.out"; then
   fail "missing-jq finish hit an undefined helper (yellow-path regression)"
 fi
 )

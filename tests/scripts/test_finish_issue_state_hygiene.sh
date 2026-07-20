@@ -57,13 +57,14 @@ FAKE_GH
 
 BIN="${TMP_DIR}/bin"
 mkdir -p "$TMP_DIR"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc find
+link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc find mktemp mv cp
 write_fake_gh "${BIN}/gh"
 
 # Never let the harness runner's own environment leak into the fixture.
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE FORCE DELETE_BRANCH \
   REQUIRE_TRACE_CONSISTENCY TRACE_EXPORT_OTLP APPLICATIONINSIGHTS_CONNECTION_STRING \
   COPILOT_TRANSCRIPTS_DIR 2>/dev/null || true
+export ABANDONED=1
 
 COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}'
 

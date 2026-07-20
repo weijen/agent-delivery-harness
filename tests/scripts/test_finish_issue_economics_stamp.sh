@@ -126,8 +126,8 @@ write_trace_fixture() {
   cat > "${trace_dir}/trace.jsonl" <<'JSONL'
 {"timestamp":"2026-07-10T10:00:00Z","span":"model","gen_ai.usage.input_tokens":120,"gen_ai.usage.output_tokens":30}
 {"timestamp":"2026-07-10T10:30:00Z","span":"model","gen_ai.usage.input_tokens":80,"gen_ai.usage.output_tokens":20}
-{"timestamp":"2026-07-10T10:40:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.outcome":"fail"}
-{"timestamp":"2026-07-10T10:50:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.outcome":"pass"}
+{"timestamp":"2026-07-10T10:40:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"fail"}
+{"timestamp":"2026-07-10T10:50:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-b","harness.review_mode":"full","harness.outcome":"pass"}
 {"timestamp":"2026-07-10T11:00:00Z","span":"lifecycle","harness.lifecycle_step":"deviation","harness.outcome":"warn"}
 JSONL
 }
@@ -212,6 +212,7 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep 
   mktemp mv
 write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+export ABANDONED=1
 assert_behavioral_finish_stamps_before_remove "${TMP_DIR}/r86" 86
 
 printf 'finish-issue delivery economics stamp contract honored\n'

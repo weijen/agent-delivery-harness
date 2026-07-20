@@ -130,6 +130,10 @@
 #                     (…/pull/<N>) AND the trace carries a pr_create span
 #                     with harness.pr_number, the numbers must agree.
 #                         VIOLATION consistency: pr_mismatch
+#   finished_with_inflight_status
+#                     a trace containing a successful finish lifecycle span
+#                     must not have a surviving top-level Status line.
+#                         VIOLATION consistency: finished_with_inflight_status
 #   spine_incomplete  runtime capture is retired (issue #305): "no runtime tool
 #                     spans" is now the NORMAL state, so this rule no longer
 #                     inspects tool spans. On a COMPLETE issue window
@@ -739,6 +743,18 @@ if [[ "$progress_content" =~ .*/pull/([0-9]+) ]]; then
   fi
 else
   printf 'NOTE: pr_mismatch check skipped (no PR reference in progress.md)\n'
+fi
+
+# --- State: finished_with_inflight_status ------------------------------------
+if jq -e -R '
+    fromjson? | objects
+    | select(.span == "lifecycle"
+             and .["harness.lifecycle_step"] == "finish"
+             and .["harness.outcome"] == "pass")
+  ' "$TRACE_FILE" >/dev/null 2>&1 \
+    && grep -q '^Status:' "$PROGRESS_FILE"; then
+  printf 'VIOLATION consistency: finished_with_inflight_status\n'
+  violations=$((violations + 1))
 fi
 
 # --- State: spine_incomplete (complete window missing the semantic spine) ------

@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-20 (#315)_
+_Last updated: 2026-07-20 (#320)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-20 (#315)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 192 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 196 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -108,6 +108,17 @@ _Last updated: 2026-07-20 (#315)_
 ---
 
 ## Delivered (newest first)
+
+### Finalize closeout records and honest delivery economics (#320): delivery complete
+
+- **#320 makes `finish-issue.sh` leave a terminal, auditable record before
+  teardown.** Closeout now writes a conflict-safe merged or explicitly abandoned
+  conclusion with the observed review verdict, strips exact scaffold cruft, and
+  hard-blocks unresolved placeholders. Delivery economics count logical review
+  events rather than per-feature verdict spans and report both elapsed and active
+  time, excluding complete gaps over 30 minutes. Four independent red-first
+  sensors cover conclusion survival, cruft handling, review-event aggregation,
+  and active-time boundaries, bringing the shell sensor suite to 196.
 
 ### Bound init-gate sensor runtime to fixtures (#315): delivery complete
 

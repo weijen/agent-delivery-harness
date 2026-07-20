@@ -275,26 +275,42 @@ for logging when they are not authorized to edit local issue progress directly.
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
 While an issue is open, the **worktree** copy of `progress.md` is authoritative: `scripts/log-handback.sh` writes
-each Action Log line there (see Trace emission below). `./scripts/finish-issue.sh` migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
+each Action Log line there (see Trace emission below). Before migration,
+`./scripts/finish-issue.sh` atomically replaces its first in-flight `Status:`
+line with a write-once `Conclusion:` containing `merged` or `abandoned` and the
+latest trace-derived review verdict (`APPROVED`, `NEEDS_REVISION`, or `n-a`).
+A merged conclusion requires a merged GitHub PR whose head is the exact issue
+branch; abandonment requires explicit `ABANDONED=1`. An identical conclusion is
+idempotent, while a conflicting conclusion is never overwritten.
+
+`./scripts/finish-issue.sh` then migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
 Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
 into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
 deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
-available for the post-hoc `check-trace-consistency.sh` audit. Like the other `best_effort_*` closeout helpers, the
-migration is best-effort and idempotent — while the worktree/source `progress.md` still exists, re-running
-`finish-issue.sh` safely replaces the main-root file with the same content, without corrupting or duplicating it;
-once teardown has removed the worktree, a rerun has no source to copy from, so it warns or skips migration and
-leaves the already-migrated main-root record intact — and a missing or failed migration never blocks teardown.
+available for the post-hoc `check-trace-consistency.sh` audit. The copy helper
+is failure-atomic and independently warn-only, but closeout treats a missing,
+unsafe, unwritable, or failed migration as a hard pre-teardown block. This
+prevents worktree removal from destroying the only finalized record.
 
 At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
 (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from
-the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span (first→last span
-elapsed), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
+the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span as both
+first→last elapsed time and active time (the sum of chronologically adjacent gaps up to and including 30 minutes;
+gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
 teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
 measured renders `n/a` and is never fabricated as `0` — in particular token rows read `n/a` unless a runtime adapter
 reported `gen_ai.usage.*` on model spans, and model runs without token data are counted honestly in the coverage
 denominator rather than invented as zero-token runs. Acquiring those Copilot-side token counts (so the token rows can
 read a real number instead of `n/a` in the GitHub Copilot runtime) is the deep-trace work tracked in **#163**; until
 it lands, `n/a` token rows are the honest state, not a defect.
+
+A review round is a distinct logical review event, not a per-feature `review_verdict` span. Until **#318** adds
+`harness.review_event_id`, the isolated temporary event key is
+`(harness.reviewed_sha, harness.review_mode)`: all verdicts with that key form one event, and one failing child makes
+the event fail. If any verdict lacks a non-empty SHA or valid review mode, the Markdown count is `n/a` with identity
+coverage and the numeric count is omitted with matching coverage fields; no verdict spans remains a measured `0`.
+Issue #318 will replace only this temporary key with `review_event_id` and must add a decoupling sensor proving the
+economics aggregation no longer depends on `reviewed_sha` or `review_mode`.
 
 `./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
@@ -338,13 +354,17 @@ contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluatio
 At closeout `./scripts/finish-issue.sh` also appends exactly one `finish-issue.economics` **tool span** — the durable
 machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
 numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
-`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`, `harness.economics.deviations`,
+`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
+`harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,
+`harness.economics.deviations`,
 `harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
-`harness.economics.wall_clock_ms`), typed via the `harness.economics.` numeric-key prefix. It obeys the same
+`harness.economics.wall_clock_ms` / `harness.economics.active_ms` elapsed/active time), typed via the
+`harness.economics.` numeric-key prefix. It obeys the same
 omit-never-fake rule as the block: the token-usage keys are **absent** (never `0`) when no model span carried usage,
 so a `n/a` token row and an omitted token key are the same honest signal — see **#163** for the Copilot-side token
-capture that makes those keys present. The span is advisory: like all tracing it warns-and-continues and never blocks
-teardown.
+capture that makes those keys present. Likewise, `review_rounds` is absent when review identity coverage is
+incomplete, while the two coverage keys explain why. The span is advisory: like all tracing it
+warns-and-continues and never blocks teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the
@@ -393,11 +413,14 @@ before `worktree remove`, leaving the worktree intact.
 
 The log-completeness gate (`review-gate.sh log-completeness`) scans the per-issue Action Log `progress.md` for known
 placeholder signatures that should be filled before closeout: `Recorded on completion below`, `TBD`, and
-`TODO(fill`. It is WARN-ONLY by default in both `review-gate.sh check` and `finish-issue.sh`; setting
-`REQUIRE_LOG_COMPLETE=1` promotes findings to a hard block, so `check` exits non-zero and `finish-issue.sh` refuses
-teardown with the worktree intact. `LOG_COMPLETENESS_PATHS` may replace the default scan target with a
-whitespace-separated list of `NN` path templates. Each resolved run emits a `review-gate.log-completeness` trace span
-with numeric `harness.finding_count`.
+`TODO(fill`. Ordinary `review-gate.sh check` and `review-gate.sh log-completeness` use remains WARN-ONLY by default;
+setting `REQUIRE_LOG_COMPLETE=1` promotes findings to a hard block. Destructive `finish-issue.sh` is stricter:
+after atomically migrating `progress.md`, it atomically removes only the exact placeholder bullet and guidance
+paragraph emitted by `start-issue.sh`, then always applies the shared log-completeness gate in blocking mode before
+writing the terminal conclusion or removing the worktree. Any residual signature therefore leaves the worktree
+intact and the durable record without a conclusion. `LOG_COMPLETENESS_PATHS` may replace the default scan target
+with a whitespace-separated list of `NN` path templates. Each resolved run emits a
+`review-gate.log-completeness` trace span with numeric `harness.finding_count`.
 
 ### Sensor teeth-proof obligation
 
