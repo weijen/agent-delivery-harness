@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-20 (#316)_
+_Last updated: 2026-07-20 (#315)_
 
 ---
 
@@ -108,6 +108,14 @@ _Last updated: 2026-07-20 (#316)_
 ---
 
 ## Delivered (newest first)
+
+### Bound init-gate sensor runtime to fixtures (#315): delivery complete
+
+- **#315 removes adopter-size work from `test_init_gates.sh`.** The real-root
+  smoke now uses controlled tools and the existing fail-closed preflight path
+  to assert surface detection without executing project gates. Python, Node,
+  and Terraform gate routing runs against a tiny fixture with explicit command
+  evidence, while docs-only and failed-gate coverage remain intact.
 
 ### Prevent retired trace-tools debris from recurring (#316): delivery complete
 
