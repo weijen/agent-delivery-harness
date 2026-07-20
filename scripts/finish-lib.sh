@@ -9,6 +9,7 @@
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
 #   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
+#   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
@@ -88,6 +89,148 @@ finish_log_completeness_gate() {
     yellow "⚠ log-completeness gate skipped: scripts/review-gate.sh not found"
   fi
   return 0
+}
+
+# --- Terminal progress conclusion (issue #320, write-once-conclusion) --------
+# Closeout is destructive, so the durable human record must be finalized before
+# worktree removal. The review verdict comes only from the latest review_verdict
+# span in the append-only trace; absence stays n-a. A merged conclusion requires
+# GitHub's merged PR record for the exact issue branch. ABANDONED=1 is the only
+# alternative. Existing identical conclusions are idempotent and any different
+# conclusion is write-once.
+finish__review_verdict() {
+  local trace_file="$1" outcome=""
+  if [ -f "$trace_file" ] && command -v jq >/dev/null 2>&1; then
+    outcome="$(jq -Rsr '
+      [split("\n")[] | fromjson? | objects
+       | select(.span == "agent"
+                and .["harness.lifecycle_step"] == "review_verdict")]
+      | if length == 0 then "" else last["harness.outcome"] // "" end
+    ' "$trace_file" 2>/dev/null || true)"
+  fi
+  case "$outcome" in
+    pass) printf 'APPROVED' ;;
+    fail) printf 'NEEDS_REVISION' ;;
+    *)    printf 'n-a' ;;
+  esac
+}
+
+finish__merged_pr_exists() {
+  local branch="$1" pr_json=""
+  command -v gh >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  pr_json="$(gh pr list --head "$branch" --state merged \
+    --json headRefName,state,mergedAt,number --limit 100 2>/dev/null)" \
+    || return 1
+  jq -e --arg branch "$branch" '
+    any(.[]; .headRefName == $branch
+             and .state == "MERGED"
+             and (.mergedAt | type) == "string"
+             and .mergedAt != "")
+  ' <<< "$pr_json" >/dev/null 2>&1
+}
+
+finish__progress_path_safe() {
+  local worktree_dir="$1" issue_pad="$2"
+  local component="$worktree_dir"
+  local suffix=""
+  for suffix in .copilot-tracking .copilot-tracking/issues \
+    ".copilot-tracking/issues/issue-${issue_pad}"; do
+    component="${worktree_dir}/${suffix}"
+    [ -d "$component" ] && [ ! -L "$component" ] || return 1
+  done
+  return 0
+}
+
+finish__atomic_conclusion() {
+  local progress_file="$1" conclusion="$2"
+  local progress_dir="" existing="" status_count=0 tmp_file="" line=""
+  local replaced=false
+
+  [ -f "$progress_file" ] && [ ! -L "$progress_file" ] || return 1
+  [ -r "$progress_file" ] && [ -w "$progress_file" ] || return 1
+  progress_dir="${progress_file%/*}"
+  [ -w "$progress_dir" ] || return 1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      Conclusion:*) [ -n "$existing" ] || existing="$line" ;;
+      Status:*) status_count=$((status_count + 1)) ;;
+    esac
+  done < "$progress_file"
+  if [ -n "$existing" ]; then
+    [ "$existing" = "$conclusion" ] || return 2
+    return 0
+  fi
+
+  [ "$status_count" -ge 1 ] || return 1
+  command -v mktemp >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 \
+    || return 1
+  tmp_file="$(mktemp "${progress_dir}/.progress-conclusion.XXXXXX" 2>/dev/null)" \
+    || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$replaced" = "false" ] && [[ "$line" == Status:* ]]; then
+      printf '%s\n' "$conclusion"
+      replaced=true
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$progress_file" > "$tmp_file" 2>/dev/null || {
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  }
+  if ! mv -f -- "$tmp_file" "$progress_file" 2>/dev/null; then
+    rm -f -- "$tmp_file" 2>/dev/null || true
+    return 1
+  fi
+  return 0
+}
+
+finish_progress_finalize() {
+  local issue="${ISSUE_NUM:-}" issue_pad="" worktree_dir="${WORKTREE_DIR:-}"
+  local main_root="" trace_file="" progress_file="" result="" verdict=""
+  local conclusion="" final_rc=0
+
+  if ! [[ "$issue" =~ ^[0-9]+$ ]] || [ -z "$worktree_dir" ]; then
+    red "✗ progress conclusion blocked: issue or worktree path is unavailable."
+    return 1
+  fi
+  issue_pad="$(printf '%02d' "$issue")"
+  if ! finish__progress_path_safe "$worktree_dir" "$issue_pad"; then
+    red "✗ progress conclusion blocked: progress path is missing or unsafe."
+    return 1
+  fi
+  progress_file="${worktree_dir}/.copilot-tracking/issues/issue-${issue_pad}/progress.md"
+  main_root="$(finish__resolve_main_root)"
+  [ -n "$main_root" ] || {
+    red "✗ progress conclusion blocked: could not resolve the main checkout."
+    return 1
+  }
+  trace_file="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
+  verdict="$(finish__review_verdict "$trace_file")"
+
+  if [ "${ABANDONED:-0}" = "1" ]; then
+    result="abandoned"
+  elif finish__merged_pr_exists "${BRANCH:-}"; then
+    result="merged"
+  else
+    red "✗ progress conclusion blocked: no authoritative merged PR found for branch ${BRANCH:-<unknown>}."
+    echo "  Merge the issue branch first, or use ABANDONED=1 for an explicit abandonment."
+    return 1
+  fi
+  conclusion="Conclusion: ${result}; review verdict: ${verdict}."
+
+  finish__atomic_conclusion "$progress_file" "$conclusion" || final_rc=$?
+  case "$final_rc" in
+    0) return 0 ;;
+    2)
+      red "✗ progress conclusion blocked: a different Conclusion already exists."
+      ;;
+    *)
+      red "✗ progress conclusion blocked: progress.md is missing, unsafe, or unwritable."
+      ;;
+  esac
+  return 1
 }
 
 # Pure trace/feature-list economics renderer (issue #267). This is a PURE

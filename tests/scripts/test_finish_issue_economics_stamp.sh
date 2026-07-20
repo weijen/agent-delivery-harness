@@ -212,6 +212,7 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep 
   mktemp mv
 write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+export ABANDONED=1
 assert_behavioral_finish_stamps_before_remove "${TMP_DIR}/r86" 86
 
 printf 'finish-issue delivery economics stamp contract honored\n'

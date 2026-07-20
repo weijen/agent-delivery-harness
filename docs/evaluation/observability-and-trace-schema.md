@@ -398,6 +398,13 @@ views of the same run. The Action Log stays the primary human artifact; the trac
 is the machine-readable projection that evals parse. Where practical, generate
 the trace and the Action Log from the same events so they cannot disagree.
 
+Closeout also separates an in-flight `Status:` from its terminal
+`Conclusion:`. `finish-issue.sh` writes the conclusion before teardown using
+authoritative merged-PR evidence (or explicit abandonment) and the latest
+`review_verdict` span. Accordingly, `check-trace-consistency.sh` reports
+`finished_with_inflight_status` when a trace containing a successful `finish`
+lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
+
 ## Validating A Trace
 
 `scripts/validate-trace.sh` (issue #97) is the standalone, report-only

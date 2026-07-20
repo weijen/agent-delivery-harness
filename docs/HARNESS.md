@@ -275,15 +275,22 @@ for logging when they are not authorized to edit local issue progress directly.
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
 While an issue is open, the **worktree** copy of `progress.md` is authoritative: `scripts/log-handback.sh` writes
-each Action Log line there (see Trace emission below). `./scripts/finish-issue.sh` migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
+each Action Log line there (see Trace emission below). Before migration,
+`./scripts/finish-issue.sh` atomically replaces its first in-flight `Status:`
+line with a write-once `Conclusion:` containing `merged` or `abandoned` and the
+latest trace-derived review verdict (`APPROVED`, `NEEDS_REVISION`, or `n-a`).
+A merged conclusion requires a merged GitHub PR whose head is the exact issue
+branch; abandonment requires explicit `ABANDONED=1`. An identical conclusion is
+idempotent, while a conflicting conclusion is never overwritten.
+
+`./scripts/finish-issue.sh` then migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
 Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
 into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
 deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
-available for the post-hoc `check-trace-consistency.sh` audit. Like the other `best_effort_*` closeout helpers, the
-migration is best-effort and idempotent — while the worktree/source `progress.md` still exists, re-running
-`finish-issue.sh` safely replaces the main-root file with the same content, without corrupting or duplicating it;
-once teardown has removed the worktree, a rerun has no source to copy from, so it warns or skips migration and
-leaves the already-migrated main-root record intact — and a missing or failed migration never blocks teardown.
+available for the post-hoc `check-trace-consistency.sh` audit. The copy helper
+is failure-atomic and independently warn-only, but closeout treats a missing,
+unsafe, unwritable, or failed migration as a hard pre-teardown block. This
+prevents worktree removal from destroying the only finalized record.
 
 At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
 (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from

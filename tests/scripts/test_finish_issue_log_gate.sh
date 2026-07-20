@@ -50,10 +50,11 @@ SH
 }
 
 BIN="${TMP_DIR}/bin"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc chmod cp
+link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc chmod cp mktemp mv
 write_fake_gh "${BIN}/gh"
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+export ABANDONED=1
 
 COMPLETE_LIST='{"features":[{"id":"finish-issue-log-gate-wiring","title":"finish issue log gate wiring","steps":[],"passes":true,"verification":"done"}]}'
 

@@ -43,7 +43,7 @@ link_tools() {
 }
 
 BIN="${TMP_DIR}/bin"
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc touch
+link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc touch mktemp mv cp
 # Fake gh: finish-issue.sh only needs it absent-of-error for non-PR paths.
 cat > "${BIN}/gh" <<'SH'
 #!/usr/bin/env bash
@@ -52,6 +52,7 @@ SH
 chmod +x "${BIN}/gh"
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+export ABANDONED=1
 
 COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}'
 
