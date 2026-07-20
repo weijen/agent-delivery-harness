@@ -126,8 +126,8 @@ write_trace_fixture() {
   cat > "${trace_dir}/trace.jsonl" <<'JSONL'
 {"timestamp":"2026-07-10T10:00:00Z","span":"model","gen_ai.usage.input_tokens":120,"gen_ai.usage.output_tokens":30}
 {"timestamp":"2026-07-10T10:30:00Z","span":"model","gen_ai.usage.input_tokens":80,"gen_ai.usage.output_tokens":20}
-{"timestamp":"2026-07-10T10:40:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.outcome":"fail"}
-{"timestamp":"2026-07-10T10:50:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.outcome":"pass"}
+{"timestamp":"2026-07-10T10:40:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"fail"}
+{"timestamp":"2026-07-10T10:50:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-b","harness.review_mode":"full","harness.outcome":"pass"}
 {"timestamp":"2026-07-10T11:00:00Z","span":"lifecycle","harness.lifecycle_step":"deviation","harness.outcome":"warn"}
 JSONL
 }

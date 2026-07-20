@@ -338,6 +338,46 @@ finish_progress_finalize() {
   return 1
 }
 
+# Temporary logical review-event aggregation (issue #320). Issue #318 will
+# replace this key with harness.review_event_id; keeping the key in one helper
+# lets that migration change the identity rule without coupling either output.
+economics_review_event_summary() {
+  local trace_file="${1:-}"
+
+  command -v jq >/dev/null 2>&1 || return 0
+  if [ -z "$trace_file" ] || [ ! -s "$trace_file" ] || [ ! -r "$trace_file" ]; then
+    printf '%s\n' '{"total":0,"covered":0,"complete":true,"rounds":0,"failed":0,"passed":0}'
+    return 0
+  fi
+
+  jq -nRr '
+    def review_event_key:
+      .["harness.reviewed_sha"] as $sha
+      | .["harness.review_mode"] as $mode
+      | if (($sha | type) == "string" and ($sha | length) > 0
+            and ($mode | type) == "string"
+            and ($mode == "full" or $mode == "concise" or $mode == "repair"))
+        then [$sha, $mode]
+        else null
+        end;
+
+    [inputs | fromjson? | objects
+     | select(.["harness.lifecycle_step"] == "review_verdict")] as $verdicts
+    | [$verdicts[] | {key: review_event_key, outcome: .["harness.outcome"]}] as $keyed
+    | [$keyed[] | select(.key != null)] as $identified
+    | ($identified | group_by(.key)
+       | map({outcome: (if any(.[]; .outcome == "fail") then "fail" else "pass" end)})) as $events
+    | {
+        total: ($verdicts | length),
+        covered: ($identified | length),
+        complete: (($verdicts | length) == ($identified | length)),
+        rounds: ($events | length),
+        failed: ([$events[] | select(.outcome == "fail")] | length),
+        passed: ([$events[] | select(.outcome == "pass")] | length)
+      }
+  ' < "$trace_file" 2>/dev/null || true
+}
+
 # Pure trace/feature-list economics renderer (issue #267). This is a PURE
 # function of its two explicit file arguments: callers resolve paths before
 # invoking it. Metric honesty follows the trace-report omit-never-fake /
@@ -346,7 +386,7 @@ finish_progress_finalize() {
 compute_delivery_economics() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
-  local trace_lines feature_line
+  local trace_lines feature_line review_summary
 
   printf '## Delivery economics (auto-stamped, trace-derived)\n'
 
@@ -360,9 +400,10 @@ compute_delivery_economics() {
     return 0
   fi
 
+  review_summary="$(economics_review_event_summary "$trace_file")"
   trace_lines="$(
     if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-      jq -nRr '
+      jq -nRr --argjson review "$review_summary" '
         # Fractional-second ISO timestamps (e.g. ...T10:00:00.123Z) are
         # normalized before parsing, matching scripts/trace-report.sh.
         def ts_secs:
@@ -378,7 +419,6 @@ compute_delivery_economics() {
         | [$model_spans[]
            | select(((.["gen_ai.usage.input_tokens"]? | type) == "number")
                     or ((.["gen_ai.usage.output_tokens"]? | type) == "number"))] as $tok_models
-        | [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
         | [
             (if ($ts | length) < 2 then
                "- Wall-clock span: n/a"
@@ -398,10 +438,12 @@ compute_delivery_economics() {
              else
                "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
              end),
-            (if ($reviews | length) == 0 then
+            (if $review.total == 0 then
                "- Review rounds: 0"
+             elif ($review.complete | not) then
+               "- Review rounds: n/a (event identity coverage: \($review.covered)/\($review.total) verdict spans; missing/invalid reviewed_sha or review_mode)"
              else
-               "- Review rounds: \($reviews | length) (\([$reviews[] | select(.["harness.outcome"] == "fail")] | length) fail → \([$reviews[] | select(.["harness.outcome"] == "pass")] | length) pass)"
+               "- Review rounds: \($review.rounds) (\($review.failed) fail → \($review.passed) pass)"
              end),
             "- Deviations logged: \([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
           ]
@@ -640,11 +682,13 @@ economics_stamp_into() {
 economics_numeric_aggregates() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
+  local review_summary=""
 
   command -v jq >/dev/null 2>&1 || return 0
+  review_summary="$(economics_review_event_summary "$trace_file")"
 
   if [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ]; then
-    jq -nRr '
+    jq -nRr --argjson review "$review_summary" '
       def ts_secs:
         sub("\\.[0-9]+Z$"; "Z") | (try fromdateiso8601 catch null);
       [inputs | fromjson? | objects] as $spans
@@ -674,7 +718,17 @@ economics_numeric_aggregates() {
             "harness.economics.token_runs_total=\($model_spans | length)"
           else empty end
         ),
-        "harness.economics.review_rounds=\([$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] | length)",
+        (
+          if $review.total == 0 or $review.complete then
+            "harness.economics.review_rounds=\($review.rounds)"
+          else empty end
+        ),
+        (
+          if $review.total > 0 then
+            "harness.economics.review_identity_covered=\($review.covered)",
+            "harness.economics.review_identity_total=\($review.total)"
+          else empty end
+        ),
         "harness.economics.deviations=\([$spans[] | select(.["harness.lifecycle_step"] == "deviation")] | length)"
     ' < "$trace_file" 2>/dev/null || true
   fi

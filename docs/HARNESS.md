@@ -303,6 +303,14 @@ denominator rather than invented as zero-token runs. Acquiring those Copilot-sid
 read a real number instead of `n/a` in the GitHub Copilot runtime) is the deep-trace work tracked in **#163**; until
 it lands, `n/a` token rows are the honest state, not a defect.
 
+A review round is a distinct logical review event, not a per-feature `review_verdict` span. Until **#318** adds
+`harness.review_event_id`, the isolated temporary event key is
+`(harness.reviewed_sha, harness.review_mode)`: all verdicts with that key form one event, and one failing child makes
+the event fail. If any verdict lacks a non-empty SHA or valid review mode, the Markdown count is `n/a` with identity
+coverage and the numeric count is omitted with matching coverage fields; no verdict spans remains a measured `0`.
+Issue #318 will replace only this temporary key with `review_event_id` and must add a decoupling sensor proving the
+economics aggregation no longer depends on `reviewed_sha` or `review_mode`.
+
 `./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
 and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
@@ -345,13 +353,16 @@ contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluatio
 At closeout `./scripts/finish-issue.sh` also appends exactly one `finish-issue.economics` **tool span** — the durable
 machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
 numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
-`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`, `harness.economics.deviations`,
+`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
+`harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,
+`harness.economics.deviations`,
 `harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
 `harness.economics.wall_clock_ms`), typed via the `harness.economics.` numeric-key prefix. It obeys the same
 omit-never-fake rule as the block: the token-usage keys are **absent** (never `0`) when no model span carried usage,
 so a `n/a` token row and an omitted token key are the same honest signal — see **#163** for the Copilot-side token
-capture that makes those keys present. The span is advisory: like all tracing it warns-and-continues and never blocks
-teardown.
+capture that makes those keys present. Likewise, `review_rounds` is absent when review identity coverage is
+incomplete, while the two coverage keys explain why. The span is advisory: like all tracing it
+warns-and-continues and never blocks teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the

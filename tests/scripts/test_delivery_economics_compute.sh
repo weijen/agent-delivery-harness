@@ -46,11 +46,11 @@ assert_not_contains() {
 TRACE_FULL="${TMP_DIR}/trace-full.jsonl"
 cat > "$TRACE_FULL" <<'JSONL'
 {"schema_version":1,"timestamp":"2026-07-08T09:14:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x","gen_ai.usage.input_tokens":100,"gen_ai.usage.output_tokens":40}
-{"schema_version":1,"timestamp":"2026-07-08T10:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.outcome":"fail"}
+{"schema_version":1,"timestamp":"2026-07-08T10:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"fail"}
 {"schema_version":1,"timestamp":"2026-07-08T11:00:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x","gen_ai.usage.input_tokens":250,"gen_ai.usage.output_tokens":70}
 {"schema_version":1,"timestamp":"2026-07-08T12:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"implementation-subagent","harness.lifecycle_step":"deviation","harness.feature_id":"f1","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-08T13:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"deviation","harness.feature_id":"f1","harness.outcome":"pass"}
-{"schema_version":1,"timestamp":"2026-07-08T14:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-08T14:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.reviewed_sha":"sha-b","harness.review_mode":"full","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-09T16:02:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x"}
 JSONL
 
@@ -71,7 +71,7 @@ assert_line "CASE A features" "$out" "- Features: 3/4 passes:true; teeth-proof c
 TRACE_NO_TOKENS="${TMP_DIR}/trace-no-tokens.jsonl"
 cat > "$TRACE_NO_TOKENS" <<'JSONL'
 {"schema_version":1,"timestamp":"2026-07-08T09:14:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x"}
-{"schema_version":1,"timestamp":"2026-07-08T10:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-08T10:00:00Z","span":"agent","harness.issue":267,"harness.version":"0.7.0","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"-","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-08T11:00:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x"}
 JSONL
 

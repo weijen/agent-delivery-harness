@@ -95,7 +95,7 @@ plant_with_tokens_trace() {
 {"schema_version":1,"timestamp":"2026-07-10T10:00:00Z","span":"model","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"model-a","gen_ai.request.model":"fixture-model","gen_ai.usage.input_tokens":10,"gen_ai.usage.output_tokens":20}
 {"schema_version":1,"timestamp":"2026-07-10T10:00:02Z","span":"model","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"model-b","gen_ai.request.model":"fixture-model","gen_ai.usage.input_tokens":5,"gen_ai.usage.output_tokens":7}
 {"schema_version":1,"timestamp":"2026-07-10T10:00:03Z","span":"model","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"model-c","gen_ai.request.model":"fixture-model"}
-{"schema_version":1,"timestamp":"2026-07-10T10:00:04Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"review-a","harness.lifecycle_step":"review_verdict","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-10T10:00:04Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"review-a","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-10T10:00:05Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"deviation-a","harness.lifecycle_step":"deviation","harness.failure_mode":"weak-sensor"}
 JSONL
 }
@@ -103,7 +103,7 @@ JSONL
 plant_no_tokens_trace() {
   local trace_file="$1" issue="$2"
   cat > "$trace_file" <<JSONL
-{"schema_version":1,"timestamp":"2026-07-10T11:00:00Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"review-b","harness.lifecycle_step":"review_verdict","harness.outcome":"pass"}
+{"schema_version":1,"timestamp":"2026-07-10T11:00:00Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"review-b","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-b","harness.review_mode":"full","harness.outcome":"pass"}
 {"schema_version":1,"timestamp":"2026-07-10T11:00:01Z","span":"lifecycle","harness.issue":${issue},"harness.version":"0.0.0-test","span_id":"deviation-b","harness.lifecycle_step":"deviation","harness.failure_mode":"weak-sensor"}
 JSONL
 }
@@ -168,6 +168,8 @@ if assert_single_economics_span "$TRACE_WITH" "with-tokens"; then
     || fail "with-tokens: token_runs_total must be numeric 3"
   jq_span "$span" '."harness.economics.review_rounds" == 1 and (."harness.economics.review_rounds"|type) == "number"' \
     || fail "with-tokens: review_rounds must be numeric 1"
+  jq_span "$span" '."harness.economics.review_identity_covered" == 1 and ."harness.economics.review_identity_total" == 1' \
+    || fail "with-tokens: review identity coverage must be numeric 1/1"
   jq_span "$span" '."harness.economics.deviations" == 1 and (."harness.economics.deviations"|type) == "number"' \
     || fail "with-tokens: deviations must be numeric 1"
   jq_span "$span" '."harness.economics.features_total" == 4 and (."harness.economics.features_total"|type) == "number"' \
@@ -203,6 +205,8 @@ if assert_single_economics_span "$TRACE_NO" "no-tokens"; then
     || fail "no-tokens: output token total must be absent when no model span carried usage"
   jq_span "$span" '."harness.economics.review_rounds" == 1 and (."harness.economics.review_rounds"|type) == "number"' \
     || fail "no-tokens: review_rounds must still be numeric 1"
+  jq_span "$span" '."harness.economics.review_identity_covered" == 1 and ."harness.economics.review_identity_total" == 1' \
+    || fail "no-tokens: review identity coverage must still be numeric 1/1"
   jq_span "$span" '."harness.economics.deviations" == 1 and (."harness.economics.deviations"|type) == "number"' \
     || fail "no-tokens: deviations must still be numeric 1"
   jq_span "$span" '."harness.economics.features_total" == 4 and (."harness.economics.features_total"|type) == "number"' \
