@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.18.1 (2026-07-20)
+
+### Bug Fixes
+
+- **#316**: Prevent trace-tools debris
+  ([#321](https://github.com/weijen/agent-delivery-harness/pull/321),
+  [`81f0819`](https://github.com/weijen/agent-delivery-harness/commit/81f0819a6604618e0f3acbbf21453c16c49f5539))
+
+
 ## v0.18.0 (2026-07-18)
 
 ### Bug Fixes
