@@ -2,38 +2,70 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUT="$(mktemp)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -f "${OUT}"; rm -rf "${TMP_DIR}"' EXIT
+TMP_DIR="$(mktemp -d "${ROOT}/.test-init-gates.XXXXXX")"
+OUT="${TMP_DIR}/out"
+trap 'rm -rf "${TMP_DIR}"' EXIT
 
 cd "$ROOT"
 
-# The real-root invocation fakes an authenticated gh (init.sh hard-fails on gh
-# auth) plus terraform, to keep the test hermetic in CI and on machines without
-# an active gh/az login or a terraform install. uv/az are soft in init.sh.
-# Since issue #115 the repo root legitimately carries a Terraform surface
-# (infra/terraform/*.tf), so init.sh must detect it — the repo is no longer
-# docs-only. The docs-only path keeps coverage via a fixture repo below.
+# The real-root invocation deliberately fails GitHub auth before gate execution.
+# This keeps the smoke check bounded while still exercising init.sh's real
+# surface detection and fail-closed "skip gates" path.
 DOCSBIN="${TMP_DIR}/docsbin"
 mkdir -p "$DOCSBIN"
 cat > "${DOCSBIN}/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
-	auth) exit 0 ;;
+	auth) [ "${GH_AUTH_OK:-0}" = "1" ] ;;
 	api) printf 'fixture-user\n' ;;
 esac
 SH
+cat > "${DOCSBIN}/az" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
 cat > "${DOCSBIN}/terraform" <<'SH'
 #!/usr/bin/env bash
+touch "${GATE_SENTINEL}"
 case "$1" in
 	fmt|validate) exit 0 ;;
 esac
 exit 0
 SH
+cat > "${DOCSBIN}/uv" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" != "sync --all-groups" ]; then
+	touch "${GATE_SENTINEL}"
+fi
+exit 0
+SH
+cat > "${DOCSBIN}/pnpm" <<'SH'
+#!/usr/bin/env bash
+touch "${GATE_SENTINEL}"
+exit 0
+SH
+cat > "${DOCSBIN}/node" <<'SH'
+#!/usr/bin/env bash
+touch "${GATE_SENTINEL}"
+exit 0
+SH
 chmod +x "${DOCSBIN}"/*
-PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
+if GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	GATE_SENTINEL="${TMP_DIR}/real-root-gate-ran" PATH="${DOCSBIN}:${PATH}" \
+	./scripts/init.sh >"$OUT" 2>&1; then
+	cat "$OUT"
+	echo "real-root smoke must use the fail-closed preflight path"
+	exit 1
+fi
+
+if [ -e "${TMP_DIR}/real-root-gate-ran" ]; then
+	echo "real-root smoke must not execute quality gates"
+	exit 1
+fi
 
 grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
+grep -q "skipping gates until earlier preflight failures are fixed" "$OUT" || { cat "$OUT"; exit 1; }
 if grep -q "docs-only project" "$OUT"; then
 	echo "init.sh must not report docs-only on a root with a Terraform surface"
 	cat "$OUT"
@@ -49,7 +81,8 @@ cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
 	git init -q -b main
 	git config commit.gpgsign false
 	printf '# docs-only fixture\n' > README.md
-	PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
+	GH_AUTH_OK=1 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+		PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
 )
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
@@ -80,6 +113,7 @@ fi
 SH
 cat > "${TMP_DIR}/fakebin/uv" <<'SH'
 #!/usr/bin/env bash
+printf 'uv %s\n' "$*" >> "${GATE_LOG}"
 case "$1 $2" in
 	"sync --all-groups") exit 0 ;;
 	"run ruff") exit 0 ;;
@@ -90,7 +124,7 @@ exit 0
 SH
 cat > "${TMP_DIR}/fakebin/pnpm" <<'SH'
 #!/usr/bin/env bash
-# Fake pnpm: every `pnpm run <script>` and `pnpm test` succeeds.
+printf 'pnpm %s\n' "$*" >> "${GATE_LOG}"
 exit 0
 SH
 cat > "${TMP_DIR}/fakebin/node" <<'SH'
@@ -99,6 +133,7 @@ exit 0
 SH
 cat > "${TMP_DIR}/fakebin/terraform" <<'SH'
 #!/usr/bin/env bash
+printf 'terraform %s\n' "$*" >> "${GATE_LOG}"
 case "$1" in
 	fmt|validate) exit 0 ;;
 esac
@@ -113,8 +148,11 @@ printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
 printf '{"scripts":{"format":"true","lint":"true","test":"true"}}\n' > package.json
 printf 'lockfileVersion: "9.0"\n' > pnpm-lock.yaml
 printf '# fixture\n' > main.tf
+mkdir -p tests
+printf 'def test_fixture():\n    assert True\n' > tests/test_fixture.py
 
-PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
+GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	GATE_LOG="${TMP_DIR}/gate.log" PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
 
 grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Node surface detected (package.json, pnpm)" "$OUT" || { cat "$OUT"; exit 1; }
@@ -122,6 +160,9 @@ grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "uv environment synced" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "node tests passing" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "terraform fmt clean" "$OUT" || { cat "$OUT"; exit 1; }
+grep -qF "uv run pytest -q" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"; exit 1; }
+grep -qF "pnpm run test" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"; exit 1; }
+grep -qF "terraform fmt -check -recursive" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"; exit 1; }
 
 # --- Failed-gate reporting ---------------------------------------------------
 # A failing quality gate must be REPORTED and turn the run into a hard failure
@@ -154,7 +195,8 @@ git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
 printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
 
-if PATH="${FAILBIN}:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
+if GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	PATH="${FAILBIN}:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "init.sh must hard-fail when a quality gate fails"
 	exit 1
