@@ -14,15 +14,16 @@
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp (#320)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
 #   * SCRIPT_DIR, ISSUE_NUM are module-level in finish-issue.sh.
 #   * red/green/yellow colour helpers and trace__main_root (from trace-lib.sh)
 #     are defined before these run.
-#   * finish-issue.sh owns TRACE_STAGE progression and the `exit 1` decision;
-#     finish_trace_gate only RETURNS 0 (proceed) / 1 (block) so the caller keeps
-#     the single exit path and byte-identical messages.
+#   * finish_closeout_orchestrate sets TRACE_STAGE (a finish-issue.sh global)
+#     on each pipeline step transition and returns 0/1 so the caller keeps the
+#     single `exit 1` path. Individual gates return 0/1 by the same convention.
 # The three best_effort_* helpers ALWAYS return 0: a missing/failing optional
 # step must never change finish-issue's exit code or block teardown. They read
 # the MAIN-checkout trace file (which survives worktree removal), so
@@ -1009,6 +1010,43 @@ best_effort_economics_stamp() {
   fi
 
   return 0
+}
+
+# Ordered closeout pipeline (issue #320, strip-closeout-cruft). Orchestrates
+# the four pre-teardown record-finalization steps so finish-issue.sh stays a
+# thin teardown orchestrator. Sets TRACE_STAGE (a finish-issue.sh global) on
+# each transition and returns 0 on success / 1 on first failure. The caller
+# does `exit 1` on a non-zero return.
+finish_closeout_orchestrate() {
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="progress_migrate"
+  best_effort_progress_migrate
+  if [ "${PROGRESS_MIGRATED}" != "true" ]; then
+    red "✗ progress migration blocked the finish; the durable conclusion was not copied safely."
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="closeout_cruft_gate"
+  if ! finish_closeout_cruft_gate; then
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="progress_finalize"
+  if ! finish_progress_finalize; then
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  # Best-effort economics stamp (issue #267): advisory, never blocks teardown.
+  # Only reached here when migration succeeded (PROGRESS_MIGRATED=true), so
+  # the stamp reflects THIS run's migrated record — not a stale prior copy.
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="economics_stamp"
+  best_effort_economics_stamp
 }
 
 # Best-effort closeout state hygiene (issue #175). Sweeps the issue's orphaned

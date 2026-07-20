@@ -61,16 +61,11 @@ if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_log_completeness_gate() { return 0; }
-  finish_closeout_cruft_gate() {
-    red "✗ closeout cruft cleanup blocked: scripts/finish-lib.sh is unavailable."
+  finish_closeout_orchestrate() {
+    red "✗ closeout orchestration blocked: scripts/finish-lib.sh is unavailable."
+    echo "  The worktree is left intact."
     return 1
   }
-  finish_progress_finalize() {
-    red "✗ progress conclusion blocked: scripts/finish-lib.sh is unavailable."
-    return 1
-  }
-  best_effort_progress_migrate() { PROGRESS_MIGRATED=false; return 0; }
-  best_effort_economics_stamp() { return 0; }
   best_effort_state_hygiene() { return 0; }
 fi
 # Set unconditionally (even when finish-lib.sh sourced successfully) so both
@@ -162,44 +157,12 @@ if ! finish_trace_gate; then
   exit 1
 fi
 
-# Progress.md migration (issue #290) runs before the economics stamp. The
-# helper remains independently warn-only, but closeout now requires this run's
-# atomic migration to land before sanitization, conclusion, and teardown.
-TRACE_STAGE="progress_migrate"
-best_effort_progress_migrate
-if [ "${PROGRESS_MIGRATED}" != "true" ]; then
-  red "✗ progress migration blocked the finish; the durable conclusion was not copied safely."
-  echo "  The worktree is left intact."
+# Ordered closeout pipeline: migrate → scrub → conclude → economics stamp.
+# Ordering, failure semantics, and TRACE_STAGE updates live in finish-lib.sh
+# so this script stays a thin teardown orchestrator.
+if ! finish_closeout_orchestrate; then
   exit 1
 fi
-
-# Strip only the exact start-issue scaffold snippets from the migrated durable
-# record, then apply the shared placeholder vocabulary as an unconditional hard
-# closeout gate. Ordinary review-gate CLI behavior remains warn-only.
-TRACE_STAGE="closeout_cruft_gate"
-if ! finish_closeout_cruft_gate; then
-  echo "  The worktree is left intact."
-  exit 1
-fi
-
-# Finalize the migrated durable record after sanitization. This is a hard
-# pre-teardown gate: merged requires authoritative GitHub evidence for this
-# exact branch; ABANDONED=1 is the only alternative.
-TRACE_STAGE="progress_finalize"
-if ! finish_progress_finalize; then
-  echo "  The worktree is left intact."
-  exit 1
-fi
-
-# Best-effort delivery economics stamp (issue #267) — run before teardown so it
-# can use the worktree-local feature list. This is advisory and must never
-# change finish-issue's exit code. Only stamp when THIS run's migration above
-# actually landed the worktree's progress.md at main root (issue #290, M10):
-# stamping a stale pre-existing main-root progress.md — e.g. left over from a
-# prior finish, when this run's migration was skipped or failed atomically —
-# would falsely present it as reflecting this run's delivery.
-TRACE_STAGE="economics_stamp"
-best_effort_economics_stamp
 
 TRACE_STAGE="worktree_remove"
 if [ ! -e "$WORKTREE_DIR" ]; then
