@@ -419,6 +419,20 @@ cat > "$STATE_FILTER" <<'JQ'
          and ($span["harness.pr_number"] != null)
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
+      end ),
+    # --- Fail-verdict attribution signals (issue #318) ---
+    # Emit per-line signals for review_verdict/fail spans carrying attribution
+    # and failure_class fields. Validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.failure_class"] // "") | if . == "" then "__EMPTY__" else . end) as $fc
+        | (($span["harness.failure_class_detail"] // "") | if . == "" then "__EMPTY__" else . end) as $fcd
+        | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $fp
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)"
+      else empty
       end )
   end
 JQ
@@ -436,6 +450,7 @@ hb_if_ids=$'\n'
 rv_noif_ids=$'\n'
 approve_sha=""
 pr_span_number=""
+failattr_lines=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
     '::gap '*)
@@ -452,8 +467,73 @@ while IFS= read -r out_line; do
     '::rv_noif '*) rv_noif_ids="${rv_noif_ids}${out_line#'::rv_noif '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
+    '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
   esac
 done <<< "$state_out"
+
+# --- State: fail-verdict attribution (issue #318) -----------------------------
+# Closed failure_class enum — mirrored from the contract (single-source). Read
+# from the contract with jq when available; otherwise use the frozen fallback.
+# >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_CLASSES_ENUM="spec-violation
+validation-bypass
+missing-coverage
+regression
+role-boundary
+knowledge-gap
+complexity
+known-flaky
+polling
+other"
+# <<< trace-schema:failure_classes
+SCHEMA_CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_classes="$(jq -r '(.failure_classes // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_classes" ]; then
+    FAILURE_CLASSES_ENUM="$schema_classes"
+  fi
+fi
+
+failure_class_valid() {
+  local cls="$1"
+  while IFS= read -r fc_entry; do
+    [ "$fc_entry" = "$cls" ] && return 0
+  done <<< "$FAILURE_CLASSES_ENUM"
+  return 1
+}
+
+# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>
+if [ "$failattr_lines" != $'\n' ]; then
+  while IFS= read -r fa_line; do
+    [ -n "$fa_line" ] || continue
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp <<< "$fa_line"
+    # review_fail_unattributed: fail verdict must carry non-empty feature_id
+    # (excluding "-" placeholder) or the literal "unmapped"
+    if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
+      printf 'VIOLATION consistency: review_fail_unattributed line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fid" = "unmapped" ]; then
+      # unmapped_without_fingerprint: unmapped requires a traceability label
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: unmapped_without_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+    # failure_class_missing: fail verdict must carry failure_class
+    if [ "$fa_fc" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif ! failure_class_valid "$fa_fc"; then
+      # failure_class_invalid: not in closed enum
+      printf 'VIOLATION consistency: failure_class_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fc" = "other" ] && [ "$fa_fcd" = "__EMPTY__" ]; then
+      # failure_class_other_no_detail: "other" requires non-empty detail
+      printf 'VIOLATION consistency: failure_class_other_no_detail line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$failattr_lines" | grep -v '^$')
+fi
 
 # Review/approve phase (issue #303): the review_verdict_missing rule fires only
 # once the single end-of-issue review has started. The phase is active when an

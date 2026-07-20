@@ -34,6 +34,34 @@ End every review handback (the `Action Log` field of your output) with the struc
 `scripts/log-handback.sh`: role `code-review-subagent`, step `review_verdict` (`APPROVED` → `pass`,
 `NEEDS_REVISION` → `fail`).
 
+### FAIL Verdict Attribution Requirements (issue #318)
+
+Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following environment variables before calling
+`scripts/log-handback.sh`, so the resulting trace span carries machine-readable attribution:
+
+1. **`TRACE_FAILURE_CLASS`** — one of the closed `failure_classes` enum:
+   - `spec-violation` — implementation does not satisfy the acceptance criterion
+   - `validation-bypass` — a validation, guard, or constraint can be circumvented
+   - `missing-coverage` — sensor/test does not prove the criterion or a required failure mode
+   - `regression` — change breaks existing, previously-passing behavior
+   - `role-boundary` — lifecycle step, role boundary, or harness contract violated
+   - `knowledge-gap` — failure caused by missing knowledge about toolchain, environment, or API (research route; #317)
+   - `complexity` — failure caused by scope or design complexity requiring decomposition (decompose route; #317)
+   - `known-flaky` — failure is a known flaky/intermittent test or CI environment issue (exemption class; #317)
+   - `polling` — failure is a legitimately-repetitive polling/watch loop pattern (exemption class; #317)
+   - `other` — none of the above; **requires** non-empty `TRACE_FAILURE_CLASS_DETAIL`
+2. **`TRACE_FAILURE_CLASS_DETAIL`** — free-text detail, **required** when `TRACE_FAILURE_CLASS=other`
+   (e.g. `"jq 1.6 vs 1.7 syntax incompatibility"`). Optional for other classes.
+3. **`harness.feature_id`** (the positional arg to `log-handback.sh`) — the reviewed feature's id
+   from `feature_list.json`. When a finding cannot be mapped to any feature, use the literal value
+   `unmapped` and set **`TRACE_FINDING_FINGERPRINT`** as the stable traceability label.
+4. **`TRACE_FINDING_FINGERPRINT`** — a stable per-finding identity string. **Required** when
+   `feature_id` is `unmapped`. Recommended on all FAIL verdicts for cross-review deduplication.
+
+Verdict routing (pass/fail disposition) is **separate** from failure classification: a finding's
+`failure_class` describes *what kind of problem it is*, while `outcome=fail` means it blocks
+approval. Do not conflate the two.
+
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
 

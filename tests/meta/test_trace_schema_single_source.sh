@@ -44,6 +44,7 @@ AUTH_PREFIX="$(auth_set numeric_key_prefixes)"
 AUTH_STRUCT="$(auth_set structural_numeric_keys)"
 AUTH_ROLES="$(auth_set roles)"
 AUTH_SPANS="$(auth_set span_types)"
+AUTH_FAILURE_CLASSES="$(auth_set failure_classes)"
 
 [ -n "$AUTH_NUMERIC" ] \
   || fail "authority .numeric_keys is missing/empty in $CONTRACT — add the numeric-key map to the contract (issue #173)"
@@ -55,6 +56,8 @@ AUTH_SPANS="$(auth_set span_types)"
   || fail "authority .roles is missing/empty in $CONTRACT — add the role enum to the contract (issue #173)"
 [ -n "$AUTH_SPANS" ] \
   || fail "authority .span_types is missing/empty in $CONTRACT"
+[ -n "$AUTH_FAILURE_CLASSES" ] \
+  || fail "authority .failure_classes is missing/empty in $CONTRACT — add the failure_classes enum (issue #318)"
 for role in generator-subagent implementation-subagent test-subagent; do
   printf '%s\n' "$AUTH_ROLES" | grep -qxF "$role" \
     || fail "authority .roles must retain active generator and historical implementation/test roles (missing ${role})"
@@ -62,6 +65,12 @@ done
 for step in red_handback impl_handback green_handback; do
   jq -e --arg step "$step" '.lifecycle_steps | index($step) != null' "$CONTRACT" >/dev/null \
     || fail "authority .lifecycle_steps must retain the stable '${step}' name"
+done
+# Retention guard for failure_classes cross-issue dependencies (issue #318):
+# validation-bypass (#298), knowledge-gap/complexity/known-flaky/polling (#317).
+for fc_slug in validation-bypass knowledge-gap complexity known-flaky polling spec-violation other; do
+  printf '%s\n' "$AUTH_FAILURE_CLASSES" | grep -qxF "$fc_slug" \
+    || fail "authority .failure_classes must retain cross-issue slug '${fc_slug}' (issue #318 cross-issue key model)"
 done
 
 # validate-trace.sh types both the trace-lib numeric keys and the structural
@@ -142,4 +151,16 @@ diff_or_fail "check-trace-consistency.sh \$roles" "$AUTH_ROLES" "$cc_roles"
 lh_roles="$(region roles "$LOG_HANDBACK" | tokens "$ROLE_RE")"
 diff_or_fail "log-handback.sh role enum" "$AUTH_ROLES" "$lh_roles"
 
-printf 'trace-schema single-source contract honored (numeric_keys, prefixes, roles, span_types)\n'
+# --- 5. check-trace-consistency.sh failure_classes frozen fallback -----------
+# Slugs one per line inside the >>> trace-schema:failure_classes ... <<< region.
+FC_SLUG_RE='[a-z][a-z-]+'
+cc_failure_classes="$(region failure_classes "$CONSISTENCY" | grep -oE "$FC_SLUG_RE" | LC_ALL=C sort -u)"
+diff_or_fail "check-trace-consistency.sh failure_classes frozen fallback" "$AUTH_FAILURE_CLASSES" "$cc_failure_classes"
+
+# --- 6. log-handback.sh failure_classes frozen fallback (comment-listed) -----
+# Slugs are listed as `# slug` comment lines inside the sentinel region so
+# the extractor doesn't pick up shell variable names.
+lh_failure_classes="$(region failure_classes "$LOG_HANDBACK" | grep -oE "$FC_SLUG_RE" | LC_ALL=C sort -u)"
+diff_or_fail "log-handback.sh failure_classes frozen fallback" "$AUTH_FAILURE_CLASSES" "$lh_failure_classes"
+
+printf 'trace-schema single-source contract honored (numeric_keys, prefixes, roles, span_types, failure_classes)\n'

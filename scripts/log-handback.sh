@@ -255,6 +255,74 @@ role-violation'
     fi
   fi
 
+  # Failure-class passthrough (issue #318): on the review_verdict step ONLY,
+  # forward TRACE_FAILURE_CLASS as harness.failure_class (closed enum from
+  # docs/evaluation/trace-schema.v1.json .failure_classes; out-of-enum or empty
+  # → omit + warn, never fake, mirroring the failure-mode shape). Also forward
+  # TRACE_FAILURE_CLASS_DETAIL as harness.failure_class_detail (free-text,
+  # non-empty → forward, empty → omit). Both absent on non-review_verdict steps.
+  FC_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    # Validate TRACE_FAILURE_CLASS against the contract's closed enum.
+    failure_class_valid() {
+      local cls="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+      local fc_list="" fc_entry
+      if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
+        fc_list="$(jq -r '(.failure_classes // [])[]' "$contract" 2>/dev/null || true)"
+      fi
+      if [ -z "$fc_list" ]; then
+        # Frozen v1 fallback. Slug list is the drift-guarded authority copy.
+        # >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+        # spec-violation
+        # validation-bypass
+        # missing-coverage
+        # regression
+        # role-boundary
+        # knowledge-gap
+        # complexity
+        # known-flaky
+        # polling
+        # other
+        # <<< trace-schema:failure_classes
+        fc_list='spec-violation
+validation-bypass
+missing-coverage
+regression
+role-boundary
+knowledge-gap
+complexity
+known-flaky
+polling
+other'
+      fi
+      while IFS= read -r fc_entry; do
+        [ "$fc_entry" = "$cls" ] && return 0
+      done <<< "$fc_list"
+      return 1
+    }
+    if [ -n "${TRACE_FAILURE_CLASS:-}" ]; then
+      if failure_class_valid "${TRACE_FAILURE_CLASS}"; then
+        FC_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
+      else
+        warn "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — harness.failure_class omitted (omit, never fake)"
+      fi
+    fi
+    if [ -n "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
+      FC_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
+    fi
+  fi
+
+  # Finding-fingerprint passthrough (issue #318): on the review_verdict step
+  # ONLY, forward TRACE_FINDING_FINGERPRINT as harness.finding_fingerprint
+  # (free-text stable identity; non-empty → forward, empty → omit; omit-never-
+  # fake). Absent on non-review_verdict steps.
+  FP_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    if [ -n "${TRACE_FINDING_FINGERPRINT:-}" ]; then
+      FP_ARGS+=("harness.finding_fingerprint=${TRACE_FINDING_FINGERPRINT}")
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -265,7 +333,9 @@ role-violation'
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
     ${FM_ARGS[@]+"${FM_ARGS[@]}"} \
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
-    ${RM_ARGS[@]+"${RM_ARGS[@]}"}
+    ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
+    ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
+    ${FP_ARGS[@]+"${FP_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
