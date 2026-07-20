@@ -76,7 +76,7 @@ cat > "$MISSING" <<'JSONL'
 JSONL
 markdown="$(run_markdown "${ROOT}/scripts/finish-lib.sh" "$MISSING")"
 numeric="$(run_numeric "${ROOT}/scripts/finish-lib.sh" "$MISSING")"
-grep -Fx -- '- Review rounds: n/a (event identity coverage: 1/3 verdict spans; missing/invalid reviewed_sha or review_mode)' <<< "$markdown" >/dev/null \
+grep -Fx -- '- Review rounds: n/a (event identity coverage: 1/3 verdict spans; some spans lack unambiguous event identity)' <<< "$markdown" >/dev/null \
   || fail "incomplete review identity must render n/a with coverage"
 if grep -Fq -- 'harness.economics.review_rounds=' <<< "$numeric"; then
   fail "numeric review_rounds must be omitted when any event identity is missing"
@@ -93,11 +93,13 @@ grep -Fx -- '- Review rounds: 0' <<< "$(run_markdown "${ROOT}/scripts/finish-lib
 grep -Fx -- 'harness.economics.review_rounds=0' <<< "$(run_numeric "${ROOT}/scripts/finish-lib.sh" "$NONE")" >/dev/null \
   || fail "numeric economics must report zero when there are no review verdict spans"
 
-# Mutation proof: dropping review_mode from the temporary key must collapse the
-# full and repair reviews at sha-b, and this sensor must reject that result.
+# Mutation proof: dropping review_mode from the legacy coordinate must collapse
+# the full and repair reviews at sha-b, and this sensor must reject that result.
+# The legacy key now uses a coord string "\($sha)\t\($mode)"; stripping the mode
+# portion collapses distinct modes to the same key.
 MUTATED="${SCRATCH}/finish-lib-mutated.sh"
-# shellcheck disable=SC2016 # jq variable names are the literal mutation target.
-sed 's/\[$sha, $mode\]/[$sha]/' "${ROOT}/scripts/finish-lib.sh" > "$MUTATED"
+# shellcheck disable=SC2016 # $mode is the literal jq variable name being mutated.
+sed 's/\\t\\($mode)//' "${ROOT}/scripts/finish-lib.sh" > "$MUTATED"
 if cmp -s "${ROOT}/scripts/finish-lib.sh" "$MUTATED"; then
   fail "mutation setup did not alter the review-event key"
 fi

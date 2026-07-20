@@ -431,7 +431,8 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.failure_class"] // "") | if . == "" then "__EMPTY__" else . end) as $fc
         | (($span["harness.failure_class_detail"] // "") | if . == "" then "__EMPTY__" else . end) as $fcd
         | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $fp
-        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)"
+        | (($span["harness.finding_baseline_state"] // "") | if . == "" then "__EMPTY__" else . end) as $bs
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)"
       else empty
       end )
   end
@@ -502,11 +503,11 @@ failure_class_valid() {
   return 1
 }
 
-# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>
+# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>
 if [ "$failattr_lines" != $'\n' ]; then
   while IFS= read -r fa_line; do
     [ -n "$fa_line" ] || continue
-    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp <<< "$fa_line"
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs <<< "$fa_line"
     # review_fail_unattributed: fail verdict must carry non-empty feature_id
     # (excluding "-" placeholder) or the literal "unmapped"
     if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
@@ -531,6 +532,37 @@ if [ "$failattr_lines" != $'\n' ]; then
       # failure_class_other_no_detail: "other" requires non-empty detail
       printf 'VIOLATION consistency: failure_class_other_no_detail line %s\n' "$fa_n"
       violations=$((violations + 1))
+    fi
+    # finding_fingerprint / finding_baseline_state validation (issue #318,
+    # feature finding-identity):
+    # Every review_verdict/fail span MUST carry both a non-empty
+    # harness.finding_fingerprint AND a valid harness.finding_baseline_state.
+    # Each field is validated independently so a span missing both produces
+    # two distinct violations.  The unmapped_without_fingerprint rule above
+    # names the degraded-state contract specifically for unmapped findings;
+    # the rules here are universal across all fail verdicts.
+    if [ "$fa_fp" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+    if [ "${fa_bs:-}" = "__EMPTY__" ] || [ -z "${fa_bs:-}" ]; then
+      printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    else
+      # finding_baseline_state_invalid: not in closed enum {new,unchanged,updated,resolved}
+      case "$fa_bs" in
+        new|unchanged|updated|resolved) ;;
+        *)
+          printf 'VIOLATION consistency: finding_baseline_state_invalid line %s\n' "$fa_n"
+          violations=$((violations + 1))
+          ;;
+      esac
+      # finding_baseline_missing_fingerprint: baseline_state present but
+      # fingerprint absent (cross-field coherence, kept for clarity)
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: finding_baseline_missing_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
     fi
   done < <(printf '%s' "$failattr_lines" | grep -v '^$')
 fi

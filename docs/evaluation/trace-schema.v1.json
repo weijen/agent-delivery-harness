@@ -84,8 +84,8 @@
     "harness.finding_count": "number (integer); count of unfilled Action Log placeholder findings reported by the log-completeness gate. Typed as a JSON number.",
     "harness.economics.wall_clock_ms": "number (integer milliseconds); first-to-last span wall-clock elapsed for the issue, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted (never 0) when fewer than two timestamped spans exist.",
     "harness.economics.active_ms": "number (integer milliseconds); sum of chronologically adjacent timestamp gaps up to and including 1800000 milliseconds, on the finish-issue.economics span (issue #320). Gaps over 30 minutes contribute zero in full. Omitted when timestamps are invalid or fewer than two valid timestamps exist; a genuinely measured zero is numeric 0.",
-    "harness.economics.review_rounds": "number (integer); count of distinct logical review events in the issue trace, on the finish-issue.economics span. Until issue #318 adds harness.review_event_id, events are keyed by (harness.reviewed_sha, harness.review_mode); all child verdicts sharing that key are one event, failed when any child fails. Omitted when any review_verdict lacks valid event identity; 0 when there are no review_verdict spans. Numeric via the harness.economics. prefix.",
-    "harness.economics.review_identity_covered": "number (integer); review_verdict spans carrying the complete temporary (harness.reviewed_sha, harness.review_mode) event identity, on the finish-issue.economics span. Emitted with review_identity_total when at least one verdict span exists, including when incomplete coverage causes review_rounds to be omitted. Numeric via the harness.economics. prefix.",
+    "harness.economics.review_rounds": "number (integer); count of distinct logical review events in the issue trace, on the finish-issue.economics span. Events are keyed by harness.review_event_id when present; historical spans without an explicit ID fall back to (harness.reviewed_sha, harness.review_mode) only when those coordinates are not shared with any explicit-ID span. When exactly one explicit event ID covers a legacy span's coordinates, the legacy span bridges to that event (unambiguous bridge, no double-count). When multiple explicit IDs share the same coordinates, legacy spans at those coordinates are uncovered (ambiguous, no guess). Omitted when any review_verdict lacks valid or unambiguous event identity; 0 when there are no review_verdict spans. Numeric via the harness.economics. prefix.",
+    "harness.economics.review_identity_covered": "number (integer); review_verdict spans carrying a valid and unambiguous event identity (harness.review_event_id, an unambiguous legacy-to-explicit bridge, or a pure legacy harness.reviewed_sha + harness.review_mode fallback with no competing explicit IDs), on the finish-issue.economics span. Emitted with review_identity_total when at least one verdict span exists. Numeric via the harness.economics. prefix.",
     "harness.economics.review_identity_total": "number (integer); total review_verdict spans used as the denominator for review event-identity coverage, on the finish-issue.economics span. Emitted when at least one verdict span exists. Numeric via the harness.economics. prefix.",
     "harness.economics.deviations": "number (integer); count of deviation spans in the issue trace, on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix.",
     "harness.economics.token_runs": "number (integer); count of model spans that carried token usage (coverage numerator), on the finish-issue.economics span (issue #267). Numeric via the harness.economics. prefix. Omitted when the trace has no model spans.",
@@ -115,7 +115,9 @@
     "harness.branch_deleted": "string; whether the issue branch was deleted at teardown (finish-issue), 'true' | 'false'.",
     "harness.failure_class": "string; one of the closed failure_classes enum, attached to review_verdict/fail spans to classify the finding category (distinct from harness.failure_mode which classifies session-level deviations). When value is \"other\", harness.failure_class_detail is required.",
     "harness.failure_class_detail": "string; free-text detail required when harness.failure_class is \"other\"; provides specificity for the catch-all class (e.g. \"jq 1.6 vs 1.7 syntax incompatibility\").",
-    "harness.finding_fingerprint": "string; stable per-finding identity label on review_verdict/fail spans. Required when harness.feature_id is \"unmapped\" (serves as the traceability label for degraded attribution). Format is implementation-defined (e.g. sha256:... or a human-readable slug)."
+    "harness.finding_fingerprint": "string; stable per-finding identity label on review_verdict/fail spans. Required on every review_verdict/fail span (consistency rule finding_fingerprint_missing); additionally required for unmapped findings as the traceability label for degraded attribution (unmapped_without_fingerprint). Format is implementation-defined (e.g. sha256:... or a human-readable slug).",
+    "harness.review_event_id": "string; groups all verdict/finding spans belonging to one logical review event. Required for new reviews; historical spans without this field fall back to (harness.reviewed_sha, harness.review_mode) for economics aggregation, bridging unambiguously to the explicit event when exactly one explicit ID shares the same coordinates. Free-text identity (e.g. a UUID or human-readable slug). Attached ONLY on the review_verdict step.",
+    "harness.finding_baseline_state": "string; one of the closed finding_baseline_states enum {new, unchanged, updated, resolved}. Tracks per-finding state across review events using SARIF-style baseline semantics. Required on every review_verdict/fail span (consistency rule finding_baseline_state_missing); must also carry a harness.finding_fingerprint when present (finding_baseline_missing_fingerprint). new = first appearance; unchanged = same as prior event; updated = finding changed; resolved = prior finding no longer present (emitted as a PASS verdict with the same fingerprint)."
   },
   "trace_file": {
     "path": ".copilot-tracking/issues/issue-NN/trace.jsonl",
@@ -140,5 +142,11 @@
     "known-flaky",
     "polling",
     "other"
+  ],
+  "finding_baseline_states": [
+    "new",
+    "unchanged",
+    "updated",
+    "resolved"
   ]
 }

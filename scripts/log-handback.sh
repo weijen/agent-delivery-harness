@@ -323,6 +323,37 @@ other'
     fi
   fi
 
+  # Review-event-ID passthrough (issue #318, feature finding-identity): on the
+  # review_verdict step ONLY, forward TRACE_REVIEW_EVENT_ID as
+  # harness.review_event_id (free-text event grouping identity; non-empty →
+  # forward, empty → omit; omit-never-fake). Absent on non-review_verdict steps.
+  EID_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    if [ -n "${TRACE_REVIEW_EVENT_ID:-}" ]; then
+      EID_ARGS+=("harness.review_event_id=${TRACE_REVIEW_EVENT_ID}")
+    fi
+  fi
+
+  # Finding-baseline-state passthrough (issue #318, feature finding-identity):
+  # on the review_verdict step ONLY, forward TRACE_FINDING_BASELINE_STATE as
+  # harness.finding_baseline_state against a CLOSED enum {new, unchanged,
+  # updated, resolved}; out-of-enum or empty → omit + warn (never fake,
+  # mirroring the failure-mode shape). Absent on non-review_verdict steps.
+  BS_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    case "${TRACE_FINDING_BASELINE_STATE:-}" in
+      new|unchanged|updated|resolved)
+        BS_ARGS+=("harness.finding_baseline_state=${TRACE_FINDING_BASELINE_STATE}")
+        ;;
+      "")
+        : # unset/empty → omit silently
+        ;;
+      *)
+        warn "TRACE_FINDING_BASELINE_STATE '${TRACE_FINDING_BASELINE_STATE}' is not in the closed finding_baseline_states enum {new,unchanged,updated,resolved} — harness.finding_baseline_state omitted (omit, never fake)"
+        ;;
+    esac
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -335,7 +366,9 @@ other'
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
     ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
     ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
-    ${FP_ARGS[@]+"${FP_ARGS[@]}"}
+    ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
+    ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
+    ${BS_ARGS[@]+"${BS_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

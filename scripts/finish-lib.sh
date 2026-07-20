@@ -339,9 +339,17 @@ finish_progress_finalize() {
   return 1
 }
 
-# Temporary logical review-event aggregation (issue #320). Issue #318 will
-# replace this key with harness.review_event_id; keeping the key in one helper
-# lets that migration change the identity rule without coupling either output.
+# Logical review-event aggregation (issue #318, feature finding-identity).
+# Uses harness.review_event_id as the primary event grouping key. Historical
+# spans without review_event_id fall back to (harness.reviewed_sha,
+# harness.review_mode) ONLY when no explicit-ID spans share the same
+# coordinates. When exactly one explicit event ID covers a legacy span's
+# coordinates, that legacy span bridges to the explicit key (same logical
+# event, no double-count). When multiple explicit IDs share coordinates,
+# legacy spans at those coordinates are ambiguous: they receive a null key
+# (uncovered), and coverage reports incomplete/n-a. This helper is the single
+# place that defines the event-identity rule for both Markdown and numeric
+# outputs.
 economics_review_event_summary() {
   local trace_file="${1:-}"
 
@@ -351,20 +359,68 @@ economics_review_event_summary() {
     return 0
   fi
 
+  # Honest reconciliation of explicit-ID and legacy-keyed review spans.
+  # 1. Build a mapping from valid legacy coordinates (SHA, mode) on
+  #    explicit-ID spans to the distinct event IDs they carry.
+  # 2. A legacy span whose coordinates map to exactly ONE explicit event
+  #    ID bridges to that eid key (same event, no double-count).
+  # 3. If coordinates map to ZERO explicit IDs → retain legacy fallback.
+  # 4. If coordinates map to MULTIPLE explicit IDs → attribution is
+  #    ambiguous: key=null (uncovered), coverage reports incomplete/n-a.
+  # 5. Explicit-ID-only spans remain covered; two explicit IDs on the
+  #    same SHA/mode remain two distinct rounds.
   jq -nRr '
-    def review_event_key:
+    def valid_legacy_coord:
       .["harness.reviewed_sha"] as $sha
       | .["harness.review_mode"] as $mode
       | if (($sha | type) == "string" and ($sha | length) > 0
             and ($mode | type) == "string"
             and ($mode == "full" or $mode == "concise" or $mode == "repair"))
-        then [$sha, $mode]
+        then "\($sha)\t\($mode)"
         else null
         end;
 
     [inputs | fromjson? | objects
      | select(.["harness.lifecycle_step"] == "review_verdict")] as $verdicts
-    | [$verdicts[] | {key: review_event_key, outcome: .["harness.outcome"]}] as $keyed
+
+    # Build coord→eids mapping from explicit-ID spans that also carry
+    # valid legacy coordinates.
+    | [
+        $verdicts[]
+        | .["harness.review_event_id"] as $eid
+        | select(($eid | type) == "string" and ($eid | length) > 0)
+        | valid_legacy_coord as $coord
+        | select($coord != null)
+        | {coord: $coord, eid: $eid}
+      ] as $coord_eid_raw
+    | ($coord_eid_raw | group_by(.coord)
+       | map({coord: .[0].coord,
+              eids: ([.[].eid] | unique)})) as $coord_map
+
+    # Assign each verdict span its event key, bridging unambiguous
+    # legacy coordinates and marking ambiguous ones uncovered.
+    | [
+        $verdicts[]
+        | .["harness.review_event_id"] as $eid
+        | .["harness.outcome"] as $outcome
+        | if (($eid | type) == "string" and ($eid | length) > 0)
+          then {key: ["eid", $eid], outcome: $outcome}
+          else
+            valid_legacy_coord as $coord
+            | if $coord == null
+              then {key: null, outcome: $outcome}
+              else
+                ([$coord_map[] | select(.coord == $coord)][0]) as $match
+                | if $match == null then
+                    {key: ["legacy", $coord], outcome: $outcome}
+                  elif ($match.eids | length) == 1 then
+                    {key: ["eid", $match.eids[0]], outcome: $outcome}
+                  else
+                    {key: null, outcome: $outcome}
+                  end
+              end
+          end
+      ] as $keyed
     | [$keyed[] | select(.key != null)] as $identified
     | ($identified | group_by(.key)
        | map({outcome: (if any(.[]; .outcome == "fail") then "fail" else "pass" end)})) as $events
@@ -477,7 +533,7 @@ compute_delivery_economics() {
             (if $review.total == 0 then
                "- Review rounds: 0"
              elif ($review.complete | not) then
-               "- Review rounds: n/a (event identity coverage: \($review.covered)/\($review.total) verdict spans; missing/invalid reviewed_sha or review_mode)"
+               "- Review rounds: n/a (event identity coverage: \($review.covered)/\($review.total) verdict spans; some spans lack unambiguous event identity)"
              else
                "- Review rounds: \($review.rounds) (\($review.failed) fail → \($review.passed) pass)"
              end),

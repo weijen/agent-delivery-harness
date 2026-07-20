@@ -57,6 +57,17 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    `unmapped` and set **`TRACE_FINDING_FINGERPRINT`** as the stable traceability label.
 4. **`TRACE_FINDING_FINGERPRINT`** — a stable per-finding identity string. **Required** when
    `feature_id` is `unmapped`. Recommended on all FAIL verdicts for cross-review deduplication.
+5. **`TRACE_REVIEW_EVENT_ID`** — groups all verdict/finding spans belonging to one logical review
+   event. **Required** for new reviews. All verdicts sharing the same event ID count as one
+   review round in economics.
+6. **`TRACE_FINDING_BASELINE_STATE`** — one of the closed `finding_baseline_states` enum
+   {`new`, `unchanged`, `updated`, `resolved`}. Tracks per-finding state across review events:
+   - `new` — first appearance of this finding
+   - `unchanged` — same finding from a prior review, not yet addressed
+   - `updated` — finding from a prior review, modified in scope or severity
+   - `resolved` — prior finding is no longer present (emit as a PASS verdict with the same
+     fingerprint)
+   **Required** on finding-level verdict spans that carry a `TRACE_FINDING_FINGERPRINT`.
 
 Verdict routing (pass/fail disposition) is **separate** from failure classification: a finding's
 `failure_class` describes *what kind of problem it is*, while `outcome=fail` means it blocks

@@ -73,8 +73,15 @@ command -v jq >/dev/null 2>&1 \
 # One agent review_verdict span with the given feature id and outcome.
 reject_span() {
   local ts="$1" fid="$2" outcome="$3"
-  printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":300,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.outcome":"%s","harness.failure_class":"spec-violation"}\n' \
-    "$ts" "$fid" "$outcome"
+  # fail verdicts must carry finding_fingerprint + finding_baseline_state
+  # (issue #318); pass verdicts omit them.
+  if [ "$outcome" = "fail" ]; then
+    printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":300,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.outcome":"%s","harness.failure_class":"spec-violation","harness.finding_fingerprint":"sha256:%s-%s","harness.finding_baseline_state":"new"}\n' \
+      "$ts" "$fid" "$outcome" "$fid" "$ts"
+  else
+    printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":300,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.outcome":"%s","harness.failure_class":"spec-violation"}\n' \
+      "$ts" "$fid" "$outcome"
+  fi
 }
 # The core span/log multiset check pairs `[role] step fid outcome` tuples;
 # emit a matching Action Log bullet so those findings stay silent.
