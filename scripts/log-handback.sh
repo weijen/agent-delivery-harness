@@ -137,6 +137,23 @@ esac
 SUMMARY="${SUMMARY//$'\r'/ }"
 SUMMARY="${SUMMARY//$'\n'/ }"
 
+# --- 1b. Actionability hard-fail gate (issue #318, feature actionable-rejects) --
+# A new review_verdict/fail MUST set TRACE_ACTIONABLE (true|false). Missing or
+# invalid values HARD-FAIL before either span or Action Log append — the emitter
+# can distinguish new calls, so this is a hard gate (not warn+omit). Pass
+# verdicts may omit TRACE_ACTIONABLE silently.
+if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
+  case "${TRACE_ACTIONABLE:-}" in
+    true|false) ;;  # valid closed enum
+    "")
+      fail "TRACE_ACTIONABLE is required on review_verdict/fail but is unset/empty — set to 'true' or 'false'"
+      ;;
+    *)
+      fail "TRACE_ACTIONABLE '${TRACE_ACTIONABLE}' is not in the closed enum {true,false} — set to 'true' or 'false'"
+      ;;
+  esac
+fi
+
 # --- 2. Emit the agent span first (plan D3 ordering) --------------------------
 # Guarded source: a missing trace-lib.sh degrades tracing but must never lose
 # the Action Log line (the primary human artifact).
@@ -393,6 +410,28 @@ other'
     fi
   fi
 
+  # Actionability passthrough (issue #318, feature actionable-rejects): on the
+  # review_verdict step ONLY, forward TRACE_ACTIONABLE as harness.actionable
+  # (closed enum {true,false}). Fail verdicts already validated in §1b above;
+  # pass verdicts silently omit. Forward TRACE_FINDING_REPRODUCTION and
+  # TRACE_FINDING_PROPOSED_FIX as harness.finding_reproduction /
+  # harness.finding_proposed_fix (non-empty free text; redacted by trace-lib).
+  # Unset/empty → key absent (omit, never fake).
+  ACT_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    case "${TRACE_ACTIONABLE:-}" in
+      true|false)
+        ACT_ARGS+=("harness.actionable=${TRACE_ACTIONABLE}")
+        ;;
+    esac
+    if [ -n "${TRACE_FINDING_REPRODUCTION:-}" ]; then
+      ACT_ARGS+=("harness.finding_reproduction=${TRACE_FINDING_REPRODUCTION}")
+    fi
+    if [ -n "${TRACE_FINDING_PROPOSED_FIX:-}" ]; then
+      ACT_ARGS+=("harness.finding_proposed_fix=${TRACE_FINDING_PROPOSED_FIX}")
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -408,7 +447,8 @@ other'
     ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
     ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
     ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
-    ${RS_ARGS[@]+"${RS_ARGS[@]}"}
+    ${RS_ARGS[@]+"${RS_ARGS[@]}"} \
+    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

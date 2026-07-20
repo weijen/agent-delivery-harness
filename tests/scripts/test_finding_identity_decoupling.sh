@@ -79,6 +79,8 @@ TRACE_FILE_E1="${FAKE_REPO}/.copilot-tracking/issues/issue-99/trace.jsonl"
   TRACE_FAILURE_CLASS=regression \
   TRACE_FINDING_FINGERPRINT="sha256:deadbeef" \
   TRACE_FINDING_BASELINE_STATE=new \
+  TRACE_ACTIONABLE=true \
+  TRACE_FINDING_REPRODUCTION="test run fails" \
   bash scripts/log-handback.sh code-review-subagent review_verdict f1 fail "finding one" \
 ) 2>"${SCRATCH}/e1_stderr"
 
@@ -107,6 +109,8 @@ pass E3 "TRACE_FINDING_FINGERPRINT passthrough still works"
   TRACE_FAILURE_CLASS=regression \
   TRACE_FINDING_FINGERPRINT="sha256:bad" \
   TRACE_FINDING_BASELINE_STATE=bogus \
+  TRACE_ACTIONABLE=true \
+  TRACE_FINDING_REPRODUCTION="test run fails" \
   bash scripts/log-handback.sh code-review-subagent review_verdict f1 fail "bad baseline" \
 ) 2>"${SCRATCH}/e4_stderr"
 

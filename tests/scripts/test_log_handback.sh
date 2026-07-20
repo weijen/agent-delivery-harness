@@ -446,7 +446,7 @@ PROG_C="${WTC}/.copilot-tracking/issues/issue-15/progress.md"
 TRACE_C="${MAIN}/.copilot-tracking/issues/issue-15/trace.jsonl"
 progc_sum_before="$(cksum "$PROG_C")"
 
-if run_hb "$WTC" "${TMP_DIR}/c1.out" code-review-subagent review_verdict some-feature fail "needs rework"; then
+if TRACE_ACTIONABLE=true TRACE_FINDING_REPRODUCTION=test run_hb "$WTC" "${TMP_DIR}/c1.out" code-review-subagent review_verdict some-feature fail "needs rework"; then
   cat "${TMP_DIR}/c1.out"; fail "progress.md without an '## Action Log' section must hard-fail (non-zero exit)"
 fi
 [ "$(cksum "$PROG_C")" = "$progc_sum_before" ] \
@@ -704,7 +704,7 @@ printf '%s\n' "$h1" | jq -e --arg sha "$WT_HEAD" '
 
 # 13b. review_verdict + TRACE_REVIEW_MODE UNSET → harness.review_mode ABSENT,
 #      but harness.reviewed_sha STILL present (auto-captured, not env-driven).
-run_hb "$WTA" "${TMP_DIR}/h2.out" \
+TRACE_ACTIONABLE=true TRACE_FINDING_REPRODUCTION=test run_hb "$WTA" "${TMP_DIR}/h2.out" \
   code-review-subagent review_verdict review-verdict-provenance fail "NEEDS_REVISION: missing negative fixture" \
   || { cat "${TMP_DIR}/h2.out"; fail "review_verdict handback without TRACE_REVIEW_MODE must exit 0"; }
 [ "$(line_count "$TRACE_A")" = "16" ] \

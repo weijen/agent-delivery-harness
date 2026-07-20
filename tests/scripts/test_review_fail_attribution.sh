@@ -379,7 +379,7 @@ E_TRACE="${E_DIR}/.copilot-tracking/issues/issue-318/trace.jsonl"
 
 (
   cd "$E_DIR"
-  TRACE_FAILURE_CLASS="spec-violation" TRACE_REVIEW_MODE="full" \
+  TRACE_ACTIONABLE="true" TRACE_FINDING_REPRODUCTION="test" TRACE_FAILURE_CLASS="spec-violation" TRACE_REVIEW_MODE="full" \
     "$LOG_HANDBACK" code-review-subagent review_verdict my-feature fail "test emission" 2>/dev/null
 )
 if [ -f "$E_TRACE" ]; then
@@ -395,7 +395,7 @@ fi
 rm -f "$E_TRACE"
 (
   cd "$E_DIR"
-  TRACE_FINDING_FINGERPRINT="sha256:abc123" TRACE_FAILURE_CLASS="spec-violation" TRACE_REVIEW_MODE="full" \
+  TRACE_ACTIONABLE="true" TRACE_FINDING_REPRODUCTION="test" TRACE_FINDING_FINGERPRINT="sha256:abc123" TRACE_FAILURE_CLASS="spec-violation" TRACE_REVIEW_MODE="full" \
     "$LOG_HANDBACK" code-review-subagent review_verdict unmapped fail "test fingerprint" 2>/dev/null
 )
 if [ -f "$E_TRACE" ]; then
@@ -411,7 +411,7 @@ rm -f "$E_TRACE"
 E3_ERR="${TMP_DIR}/e3_err.txt"
 (
   cd "$E_DIR"
-  TRACE_FAILURE_CLASS="totally-bogus-class" TRACE_REVIEW_MODE="full" \
+  TRACE_ACTIONABLE="true" TRACE_FINDING_REPRODUCTION="test" TRACE_FAILURE_CLASS="totally-bogus-class" TRACE_REVIEW_MODE="full" \
     "$LOG_HANDBACK" code-review-subagent review_verdict my-feature fail "test bad class" 2>"$E3_ERR"
 )
 if [ -f "$E_TRACE" ]; then
@@ -429,7 +429,7 @@ grep -qi "failure_class\|omit" "$E3_ERR" \
 rm -f "$E_TRACE"
 (
   cd "$E_DIR"
-  TRACE_FAILURE_CLASS="knowledge-gap" TRACE_REVIEW_MODE="full" \
+  TRACE_ACTIONABLE="true" TRACE_FINDING_REPRODUCTION="test" TRACE_FAILURE_CLASS="knowledge-gap" TRACE_REVIEW_MODE="full" \
     "$LOG_HANDBACK" code-review-subagent review_verdict my-feature fail "test knowledge-gap class" 2>/dev/null
 )
 if [ -f "$E_TRACE" ]; then

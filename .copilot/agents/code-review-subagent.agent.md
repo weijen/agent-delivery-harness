@@ -80,6 +80,24 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    emit it as a separate finding/review event attributed to the affected feature's own feature_id.
    Route it to the conductor as a separate `NEEDS_REVISION` for routing to the affected feature's
    generator. The current repair verdict scope remains unchanged.
+8. **`TRACE_ACTIONABLE`** — closed enum `{true, false}`. **Required** on every `NEEDS_REVISION`
+   (`fail`) verdict. Declares whether the finding is actionable — i.e. backed by evidence that the
+   generator can act on:
+   - `true` — the finding is actionable. **Must** carry at least one of `TRACE_FINDING_REPRODUCTION`
+     or `TRACE_FINDING_PROPOSED_FIX` (see below). Counts toward the 3-rejection cap.
+   - `false` — the finding is a non-actionable observation or concern. Does **not** count toward
+     the reject cap. The finding is reported as a WARNING, not a blocking FAIL in aggregate
+     economics. Use for advisory observations, style concerns, or findings that cannot be
+     reproduced or concretely fixed.
+   Missing or invalid values on a fail verdict **hard-fail** the `log-handback.sh` call (no span,
+   no Action Log line). Pass verdicts may omit this field.
+9. **`TRACE_FINDING_REPRODUCTION`** — free-text reproduction steps or evidence. Non-empty when you
+   provide steps to reproduce the issue. At least one of this or `TRACE_FINDING_PROPOSED_FIX` is
+   **required** when `TRACE_ACTIONABLE=true`. Redacted by trace-lib.
+10. **`TRACE_FINDING_PROPOSED_FIX`** — free-text concrete proposed fix. Non-empty when you provide a
+    specific fix suggestion (e.g. "add null guard on line 42 of parser.sh"). At least one of this
+    or `TRACE_FINDING_REPRODUCTION` is **required** when `TRACE_ACTIONABLE=true`. Redacted by
+    trace-lib.
 
 Verdict routing (pass/fail disposition) is **separate** from failure classification: a finding's
 `failure_class` describes *what kind of problem it is*, while `outcome=fail` means it blocks

@@ -432,7 +432,10 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.failure_class_detail"] // "") | if . == "" then "__EMPTY__" else . end) as $fcd
         | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $fp
         | (($span["harness.finding_baseline_state"] // "") | if . == "" then "__EMPTY__" else . end) as $bs
-        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)"
+        | (($span["harness.actionable"] // "") | if . == "" then "__EMPTY__" else . end) as $act
+        | (($span["harness.finding_reproduction"] // "") | if . == "" then "__EMPTY__" else . end) as $repro
+        | (($span["harness.finding_proposed_fix"] // "") | if . == "" then "__EMPTY__" else . end) as $fix
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)"
       else empty
       end ),
     # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
@@ -466,6 +469,7 @@ approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
 repairscope_lines=$'\n'
+countable_reject_ids=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
     '::gap '*)
@@ -518,11 +522,11 @@ failure_class_valid() {
   return 1
 }
 
-# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>
+# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>
 if [ "$failattr_lines" != $'\n' ]; then
   while IFS= read -r fa_line; do
     [ -n "$fa_line" ] || continue
-    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs <<< "$fa_line"
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix <<< "$fa_line"
     # review_fail_unattributed: fail verdict must carry non-empty feature_id
     # (excluding "-" placeholder) or the literal "unmapped"
     if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
@@ -578,6 +582,39 @@ if [ "$failattr_lines" != $'\n' ]; then
         printf 'VIOLATION consistency: finding_baseline_missing_fingerprint line %s\n' "$fa_n"
         violations=$((violations + 1))
       fi
+    fi
+
+    # --- Actionability rules (issue #318, feature actionable-rejects) ---------
+    # Determine whether this fail span counts toward the reject cap.
+    # A fail span is countable for the reject cap when:
+    #   (a) actionable=true AND at least one non-empty evidence field, OR
+    #   (b) actionable is ABSENT (legacy backward compatibility).
+    # Not countable:
+    #   (c) actionable=false (non-actionable finding, WARNING only), OR
+    #   (d) actionable=true but no evidence (actionable_without_evidence VIOLATION).
+    fa_act_val="${fa_act:-__EMPTY__}"
+    fa_repro_val="${fa_repro:-__EMPTY__}"
+    fa_fix_val="${fa_fix:-__EMPTY__}"
+    fa_has_evidence=0
+    if [ "$fa_repro_val" != "__EMPTY__" ] || [ "$fa_fix_val" != "__EMPTY__" ]; then
+      fa_has_evidence=1
+    fi
+
+    if [ "$fa_act_val" = "false" ]; then
+      # Non-actionable finding: WARNING, does not count toward reject cap.
+      printf 'WARNING consistency: non_actionable_finding line %s %s\n' "$fa_n" "$fa_fid"
+    elif [ "$fa_act_val" = "true" ]; then
+      if [ "$fa_has_evidence" = "0" ]; then
+        # Actionable claimed but no evidence: VIOLATION, does not count.
+        printf 'VIOLATION consistency: actionable_without_evidence line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      else
+        # Actionable with evidence: countable toward reject cap.
+        countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+      fi
+    elif [ "$fa_act_val" = "__EMPTY__" ]; then
+      # Historical: no actionable field — backward-compatible, countable.
+      countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
     fi
   done < <(printf '%s' "$failattr_lines" | grep -v '^$')
 fi
@@ -664,15 +701,17 @@ if [ "$repairscope_lines" != $'\n' ]; then
   done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
 fi
 
-# --- State: review_reject_cap_exceeded (issue #300) ---------------------------
-# The DETECTION half of the 3-rejection stop rule: when a single
-# harness.feature_id accumulates >=3 agent spans with
-# harness.lifecycle_step=="review_verdict" and harness.outcome=="fail", flag
-# it once. The count is PER feature_id. The per-line ::reject fids collected
-# above are counted here in bash (sort|uniq -c is a constant fork budget — no
-# per-line forks); the feature id is echoed, consistent with the sibling
-# feature-id findings.
-if [ "$reject_ids" != $'\n' ]; then
+# --- State: review_reject_cap_exceeded (issue #300, issue #318) ----------------
+# The DETECTION half of the 3-rejection stop rule. A fail verdict counts toward
+# the per-feature reject cap ONLY when it is countable:
+#   (a) actionable=true with evidence (non-empty reproduction or proposed_fix), OR
+#   (b) historical: no harness.actionable field (backward compatibility).
+# Non-countable fails:
+#   (c) actionable=false (non-actionable, WARNING only), OR
+#   (d) actionable=true without evidence (actionable_without_evidence VIOLATION).
+# The per-feature countable_reject_ids are accumulated above during the
+# ::failattr processing loop. The threshold is >=3 per feature_id.
+if [ "$countable_reject_ids" != $'\n' ]; then
   while IFS= read -r reject_line; do
     [ -n "$reject_line" ] || continue
     reject_count="${reject_line%% *}"
@@ -681,7 +720,7 @@ if [ "$reject_ids" != $'\n' ]; then
       printf 'VIOLATION consistency: review_reject_cap_exceeded %s\n' "$reject_fid"
       violations=$((violations + 1))
     fi
-  done < <(printf '%s' "$reject_ids" | grep -v '^$' | sort | uniq -c \
+  done < <(printf '%s' "$countable_reject_ids" | grep -v '^$' | sort | uniq -c \
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
 fi
 

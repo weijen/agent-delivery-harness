@@ -399,31 +399,40 @@ economics_review_event_summary() {
 
     # Assign each verdict span its event key, bridging unambiguous
     # legacy coordinates and marking ambiguous ones uncovered.
+    # Also carry the actionable field for economics filtering (issue #318,
+    # feature actionable-rejects): actionable=false fails are excluded from
+    # the event-fail determination.
     | [
         $verdicts[]
         | .["harness.review_event_id"] as $eid
         | .["harness.outcome"] as $outcome
+        | ((.["harness.actionable"] // null) | tostring) as $actionable
         | if (($eid | type) == "string" and ($eid | length) > 0)
-          then {key: ["eid", $eid], outcome: $outcome}
+          then {key: ["eid", $eid], outcome: $outcome, actionable: $actionable}
           else
             valid_legacy_coord as $coord
             | if $coord == null
-              then {key: null, outcome: $outcome}
+              then {key: null, outcome: $outcome, actionable: $actionable}
               else
                 ([$coord_map[] | select(.coord == $coord)][0]) as $match
                 | if $match == null then
-                    {key: ["legacy", $coord], outcome: $outcome}
+                    {key: ["legacy", $coord], outcome: $outcome, actionable: $actionable}
                   elif ($match.eids | length) == 1 then
-                    {key: ["eid", $match.eids[0]], outcome: $outcome}
+                    {key: ["eid", $match.eids[0]], outcome: $outcome, actionable: $actionable}
                   else
-                    {key: null, outcome: $outcome}
+                    {key: null, outcome: $outcome, actionable: $actionable}
                   end
               end
           end
       ] as $keyed
     | [$keyed[] | select(.key != null)] as $identified
+    # Event outcome: an event is "fail" only if it has at least one
+    # actionable fail child. Actionable=false fails are excluded from the
+    # fail determination (they are non-actionable warnings). Historical
+    # fails (actionable absent/null) remain countable for backward
+    # compatibility.
     | ($identified | group_by(.key)
-       | map({outcome: (if any(.[]; .outcome == "fail") then "fail" else "pass" end)})) as $events
+       | map({outcome: (if any(.[]; .outcome == "fail" and .actionable != "false") then "fail" else "pass" end)})) as $events
     | {
         total: ($verdicts | length),
         covered: ($identified | length),
