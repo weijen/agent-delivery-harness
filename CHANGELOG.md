@@ -2,6 +2,60 @@
 
 <!-- version list -->
 
+## v0.19.0 (2026-07-20)
+
+### Bug Fixes
+
+- Finalize closeout records and delivery economics
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+- **#320**: Count logical review events
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+### Features
+
+- **#320**: Finalize closeout conclusion
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+- **#320**: Finalize closeout records
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+- **#320**: Report active delivery time
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+### Refactoring
+
+- **#320**: Extract closeout orchestration
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+### Testing
+
+- Bound init gate sensor runtime ([#322](https://github.com/weijen/agent-delivery-harness/pull/322),
+  [`fa446e6`](https://github.com/weijen/agent-delivery-harness/commit/fa446e651484735374dcdf500bd576c9db90d9e7))
+
+- **#315**: Bound init gate sensor
+  ([#322](https://github.com/weijen/agent-delivery-harness/pull/322),
+  [`fa446e6`](https://github.com/weijen/agent-delivery-harness/commit/fa446e651484735374dcdf500bd576c9db90d9e7))
+
+- **#315**: Isolate init gate controls
+  ([#322](https://github.com/weijen/agent-delivery-harness/pull/322),
+  [`fa446e6`](https://github.com/weijen/agent-delivery-harness/commit/fa446e651484735374dcdf500bd576c9db90d9e7))
+
+- **#320**: Align lifecycle fixtures with closeout
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+- **#320**: Verify composed closeout ordering
+  ([#323](https://github.com/weijen/agent-delivery-harness/pull/323),
+  [`7c85863`](https://github.com/weijen/agent-delivery-harness/commit/7c858635bfbdd5e8d77f4e698aa299472323c832))
+
+
 ## v0.18.1 (2026-07-20)
 
 ### Bug Fixes
