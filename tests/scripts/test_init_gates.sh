@@ -50,7 +50,8 @@ touch "${GATE_SENTINEL}"
 exit 0
 SH
 chmod +x "${DOCSBIN}"/*
-if GATE_SENTINEL="${TMP_DIR}/real-root-gate-ran" PATH="${DOCSBIN}:${PATH}" \
+if GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	GATE_SENTINEL="${TMP_DIR}/real-root-gate-ran" PATH="${DOCSBIN}:${PATH}" \
 	./scripts/init.sh >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "real-root smoke must use the fail-closed preflight path"
@@ -80,7 +81,8 @@ cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
 	git init -q -b main
 	git config commit.gpgsign false
 	printf '# docs-only fixture\n' > README.md
-	GH_AUTH_OK=1 PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
+	GH_AUTH_OK=1 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+		PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
 )
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
@@ -149,7 +151,8 @@ printf '# fixture\n' > main.tf
 mkdir -p tests
 printf 'def test_fixture():\n    assert True\n' > tests/test_fixture.py
 
-GATE_LOG="${TMP_DIR}/gate.log" PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
+GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	GATE_LOG="${TMP_DIR}/gate.log" PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT"
 
 grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Node surface detected (package.json, pnpm)" "$OUT" || { cat "$OUT"; exit 1; }
@@ -192,7 +195,8 @@ git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
 printf '[project]\nname = "fixture"\nversion = "0.1.0"\n' > pyproject.toml
 
-if PATH="${FAILBIN}:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
+if GH_AUTH_OK=0 ALLOW_GH_UNAUTH=0 REQUIRE_AZ=0 \
+	PATH="${FAILBIN}:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "init.sh must hard-fail when a quality gate fails"
 	exit 1
