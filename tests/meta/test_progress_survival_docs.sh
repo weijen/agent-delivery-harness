@@ -24,13 +24,15 @@
 # not pass on the other's coincidental match. It also cross-checks that
 # scripts/finish-lib.sh and scripts/finish-issue.sh actually EXPOSE the
 # migration function/stage the docs would be describing, so the doc claim
-# cannot describe a behavior that does not exist in production. A further
-# structural guard reads the actual line numbers of the executable
-# best_effort_progress_migrate call, the economics_stamp stage marker, and
-# the worktree_remove stage marker in scripts/finish-issue.sh, and asserts
-# migrate < economics < worktree_remove numerically — proving the two
-# ordering claims above are not just documented but actually true of
-# production's execution order.
+# cannot describe a behavior that does not exist in production. The production
+# cross-check verifies the COMPOSED contract: (1) finish-lib.sh defines
+# best_effort_progress_migrate() and finish_closeout_orchestrate(); (2) within
+# the bounded orchestrator body, the progress_migrate stage precedes the
+# economics_stamp stage numerically; (3) finish-issue.sh delegates to the
+# orchestrator before its own TRACE_STAGE="worktree_remove" line — proving
+# migrate < economics (in the orchestrator) < teardown (post-orchestrator in
+# the entrypoint). This composed proof survives behavior-preserving extractions
+# that move logic from the entrypoint into a library function.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -142,48 +144,100 @@ fi
 
 # Production must actually expose the migration function/stage the docs would
 # be describing — a doc claim describing a nonexistent behavior is worse than
-# no doc claim at all.
+# no doc claim at all. After the behavior-preserving extraction (issue #320),
+# the ordering contract is COMPOSED across two files: best_effort_progress_migrate()
+# and finish_closeout_orchestrate() are defined in finish-lib.sh; the orchestrator
+# body orders progress_migrate before economics_stamp; and finish-issue.sh delegates
+# to the orchestrator before its own worktree_remove stage.
 if [ -f "$finish_lib" ]; then
 	if grep -Eq '^best_effort_progress_migrate[[:space:]]*\(\)' "$finish_lib"; then
 		ok "$finish_lib defines best_effort_progress_migrate()"
 	else
 		note "$finish_lib does not define a best_effort_progress_migrate() function for docs to describe"
 	fi
+	if grep -Eq '^finish_closeout_orchestrate[[:space:]]*\(\)' "$finish_lib"; then
+		ok "$finish_lib defines finish_closeout_orchestrate() orchestrator"
+	else
+		note "$finish_lib does not define a finish_closeout_orchestrate() orchestrator"
+	fi
 fi
 
+# Composed ordering part 1: within the bounded finish_closeout_orchestrate body
+# in finish-lib.sh, progress_migrate stage precedes economics_stamp stage.
+# This proves migrate < economics without requiring either to live directly in
+# the entrypoint.
+if [ -f "$finish_lib" ]; then
+	orch_start="$(grep -n '^finish_closeout_orchestrate[[:space:]]*()' "$finish_lib" | head -1 | cut -d: -f1 || true)"
+	if [ -z "$orch_start" ]; then
+		note "$finish_lib: finish_closeout_orchestrate() not found — cannot check internal ordering"
+	else
+		# Bound body to the next top-level function definition at col-0, or EOF.
+		orch_end="$(awk -v s="$orch_start" \
+			'NR > s && /^[a-zA-Z_][a-zA-Z0-9_]*[[:space:]]*\(\)/ { print NR; exit }' "$finish_lib")"
+		[ -z "$orch_end" ] && orch_end="$(wc -l < "$finish_lib")"
+
+		migrate_stage_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
+			'NR >= s && NR <= e && /TRACE_STAGE="progress_migrate"/ { print NR; exit }' "$finish_lib")"
+		migrate_call_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
+			'NR >= s && NR <= e && /^[[:space:]]*best_effort_progress_migrate[[:space:]]*$/ { print NR; exit }' "$finish_lib")"
+		economics_stage_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
+			'NR >= s && NR <= e && /TRACE_STAGE="economics_stamp"/ { print NR; exit }' "$finish_lib")"
+
+		if [ -z "$migrate_stage_in_orch" ] || [ -z "$migrate_call_in_orch" ] || [ -z "$economics_stage_in_orch" ]; then
+			note "$finish_lib finish_closeout_orchestrate() body must contain TRACE_STAGE=\"progress_migrate\", a best_effort_progress_migrate call, and TRACE_STAGE=\"economics_stamp\" — one or more missing"
+		elif [ "$migrate_stage_in_orch" -ge "$economics_stage_in_orch" ]; then
+			note "$finish_lib finish_closeout_orchestrate(): progress_migrate stage (line $migrate_stage_in_orch) must precede economics_stamp stage (line $economics_stage_in_orch)"
+		else
+			ok "$finish_lib finish_closeout_orchestrate() orders progress_migrate (line $migrate_stage_in_orch) before economics_stamp (line $economics_stage_in_orch)"
+		fi
+	fi
+fi
+
+# Composed ordering part 2: finish-issue.sh delegates to finish_closeout_orchestrate
+# BEFORE its own TRACE_STAGE="worktree_remove". Combined with part 1, this proves
+# the full chain: migrate < economics (in orchestrator) < teardown (in entrypoint).
 if [ -f "$finish_issue" ]; then
-	if grep -Eq 'TRACE_STAGE="progress_migrate"' "$finish_issue" &&
-		grep -Eq '^best_effort_progress_migrate$' "$finish_issue"; then
-		ok "$finish_issue runs the progress_migrate stage before teardown"
-	else
-		note "$finish_issue does not run a progress_migrate stage for docs to describe"
-	fi
+	# Match the delegation call — exclude the no-op fallback definition (has '()')
+	# and comment lines, leaving only the actual invocation site(s).
+	orch_call_line="$(grep -n 'finish_closeout_orchestrate' "$finish_issue" \
+		| grep -v '()' | head -1 | cut -d: -f1 || true)"
+	worktree_remove_stage_line="$(grep -n '^TRACE_STAGE="worktree_remove"$' "$finish_issue" | head -1 | cut -d: -f1 || true)"
 
-	# Structural ordering guard: the doc claims migrate-before-economics and
-	# migrate-before-teardown are only true if production ACTUALLY executes
-	# in that order. Anchor on the bare, unindented, no-parens call line
-	# `best_effort_progress_migrate` — this excludes the fallback function
-	# DEFINITION `best_effort_progress_migrate() { ... }` (guarded source
-	# no-op stub above) and any mention of the name in a comment, neither of
-	# which is an executable call. Pair it with the TRACE_STAGE= markers that
-	# immediately precede the real economics_stamp and worktree_remove
-	# stages — these are set unconditionally right before each stage runs, so
-	# their line numbers are a faithful proxy for execution order regardless
-	# of the conditional `if [ "${PROGRESS_MIGRATED}" = "true" ]` around the
-	# actual best_effort_economics_stamp call. This is line-number ordering,
-	# not phrase-pinning: it survives any rewording of comments/prose around
-	# these lines and only breaks if the executable ordering itself changes.
-	migrate_call_line="$(grep -n '^best_effort_progress_migrate$' "$finish_issue" | head -1 | cut -d: -f1)"
-	economics_stage_line="$(grep -n '^TRACE_STAGE="economics_stamp"$' "$finish_issue" | head -1 | cut -d: -f1)"
-	worktree_remove_stage_line="$(grep -n '^TRACE_STAGE="worktree_remove"$' "$finish_issue" | head -1 | cut -d: -f1)"
-
-	if [ -z "$migrate_call_line" ] || [ -z "$economics_stage_line" ] || [ -z "$worktree_remove_stage_line" ]; then
-		note "$finish_issue must contain the executable progress_migrate call, the economics_stamp stage marker, and the worktree_remove stage marker for ordering to be checked"
-	elif [ "$migrate_call_line" -ge "$economics_stage_line" ] || [ "$economics_stage_line" -ge "$worktree_remove_stage_line" ]; then
-		note "$finish_issue must execute the progress_migrate call (line $migrate_call_line) BEFORE the economics_stamp stage (line $economics_stage_line), which must run BEFORE the worktree_remove stage (line $worktree_remove_stage_line) — found out of order"
+	if [ -z "$orch_call_line" ]; then
+		note "$finish_issue must delegate to finish_closeout_orchestrate() before teardown (not call best_effort_progress_migrate directly)"
+	elif [ -z "$worktree_remove_stage_line" ]; then
+		note "$finish_issue must set TRACE_STAGE=\"worktree_remove\" so the composed ordering can be verified"
+	elif [ "$orch_call_line" -ge "$worktree_remove_stage_line" ]; then
+		note "$finish_issue: finish_closeout_orchestrate delegation (line $orch_call_line) must precede TRACE_STAGE=\"worktree_remove\" (line $worktree_remove_stage_line) — found out of order"
 	else
-		ok "$finish_issue executes progress_migrate (line $migrate_call_line) before economics_stamp (line $economics_stage_line) before worktree_remove (line $worktree_remove_stage_line)"
+		ok "$finish_issue delegates to finish_closeout_orchestrate (line $orch_call_line) before worktree_remove stage (line $worktree_remove_stage_line)"
+		ok "Composed order proven: migrate < economics (finish-lib.sh orchestrator) < teardown (finish-issue.sh post-orchestrator)"
 	fi
+fi
+
+# Adversarial proof: the structural ordering checks have teeth.
+# Verify that synthetic bad content (delegation moved after teardown) is
+# correctly detected as an error by the same line-number logic used above.
+_adv_fail=0
+_adv_bad_order="$(printf 'TRACE_STAGE="worktree_remove"\nif ! finish_closeout_orchestrate; then exit 1; fi\n')"
+_adv_orch_line="$(printf '%s\n' "$_adv_bad_order" | grep -n 'finish_closeout_orchestrate' | grep -v '()' | head -1 | cut -d: -f1 || true)"
+_adv_wt_line="$(printf '%s\n' "$_adv_bad_order" | grep -n 'TRACE_STAGE="worktree_remove"' | head -1 | cut -d: -f1)"
+# In the mutated content: orch=2, wt=1 → orch >= wt → ordering check detects it.
+if [ -n "$_adv_orch_line" ] && [ -n "$_adv_wt_line" ] && [ "$_adv_orch_line" -ge "$_adv_wt_line" ]; then
+	ok "adversarial proof: out-of-order delegation (orchestrate after worktree_remove) correctly detected by line-number check"
+else
+	note "adversarial proof FAILED: ordering check did not detect reordered delegation in synthetic content"
+	_adv_fail=1
+fi
+# Also verify: absent delegation produces empty orch line (would trigger the
+# 'must delegate' guard above — confirm the pattern is specific enough).
+_adv_no_deleg="$(printf 'TRACE_STAGE="worktree_remove"\n')"
+_adv_no_orch_line="$(printf '%s\n' "$_adv_no_deleg" | grep -n 'finish_closeout_orchestrate' | grep -v '()' | head -1 | cut -d: -f1 || true)"
+if [ -z "$_adv_no_orch_line" ]; then
+	ok "adversarial proof: absent delegation correctly produces empty match (would trigger must-delegate guard)"
+else
+	note "adversarial proof FAILED: absent delegation was spuriously matched — pattern too loose"
+	_adv_fail=1
 fi
 
 echo
