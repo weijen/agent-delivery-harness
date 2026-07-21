@@ -28,6 +28,23 @@
 # them as JSON numbers) ONLY when each is a pure decimal integer; unset or
 # non-numeric values simply omit the key (never an error).
 #
+# Research-provenance passthrough (issue #317): TRACE_RESEARCH_URL and
+# TRACE_RESEARCH_SUMMARY are accepted only as a pair on generator handbacks
+# for research that was actually performed. A research-requested disposition
+# means web was unavailable and always rejects provenance. The URL must use
+# HTTP(S), and the non-empty content summary must be one line. Missing or
+# invalid provenance on a research disposition hard-fails before emission;
+# research-requested input warns and omits both fields. Valid values are
+# written to the span and the same Action Log row; fetched page content is
+# never accepted as a trace field.
+#
+# Durable-rule passthrough (issue #317): TRACE_DURABLE_RULE_PATH and
+# TRACE_DURABLE_RULE_SUMMARY are accepted only as a pair on a successful
+# generator green handback carrying a class-repair disposition. The path must
+# name an existing, non-symlinked AGENTS.md or
+# .copilot/instructions/*.instructions.md file inside the actual repository;
+# the summary must be a non-empty single line. Invalid pairs warn and omit.
+#
 # Failure-mode passthrough (issue #99, feature failure-mode-span-plumbing —
 # mirrors the token passthrough): TRACE_FAILURE_MODE is forwarded as
 # harness.failure_mode (JSON string) ONLY when its value is a member of the
@@ -136,6 +153,98 @@ esac
 # flatten any embedded newlines to spaces before either artifact is rendered.
 SUMMARY="${SUMMARY//$'\r'/ }"
 SUMMARY="${SUMMARY//$'\n'/ }"
+
+# Research provenance fields are globally optional, but a generator research
+# disposition requires their valid pair. Validate before either output is
+# rendered so invalid input cannot emit a span or Action Log row.
+RESEARCH_URL=""
+RESEARCH_SUMMARY=""
+research_eligible=0
+research_unperformed=0
+if [ "$ROLE" = "generator-subagent" ]; then
+  case "$STEP" in
+    red_handback|impl_handback|green_handback)
+      case "${TRACE_FAILURE_DISPOSITION:-}" in
+        research) research_eligible=1 ;;
+        research-requested) research_unperformed=1 ;;
+      esac
+      ;;
+  esac
+fi
+if [ "$research_unperformed" = "1" ] \
+  && { [ -n "${TRACE_RESEARCH_URL:-}" ] || [ -n "${TRACE_RESEARCH_SUMMARY:-}" ]; }; then
+  warn "research provenance requires performed research; research-requested consulted no source — both fields omitted"
+elif [ "$research_eligible" = "1" ]; then
+  if [ -z "${TRACE_RESEARCH_URL:-}" ] || [ -z "${TRACE_RESEARCH_SUMMARY:-}" ]; then
+    fail "research disposition requires both TRACE_RESEARCH_URL and TRACE_RESEARCH_SUMMARY"
+  elif ! [[ "${TRACE_RESEARCH_URL}" =~ ^https?://[^/?#[:space:]]+[^[:space:]]*$ ]]; then
+    fail "research provenance URL must be a non-empty HTTP(S) URL"
+  elif [[ "${TRACE_RESEARCH_SUMMARY}" == *$'\n'* \
+    || "${TRACE_RESEARCH_SUMMARY}" == *$'\r'* \
+    || ! "${TRACE_RESEARCH_SUMMARY}" =~ [^[:space:]] ]]; then
+    fail "research provenance summary must be a non-empty one-line value"
+  else
+    RESEARCH_URL="${TRACE_RESEARCH_URL}"
+    RESEARCH_SUMMARY="${TRACE_RESEARCH_SUMMARY}"
+  fi
+fi
+
+DURABLE_RULE_PATH=""
+DURABLE_RULE_SUMMARY=""
+durable_rule_eligible=0
+if [ "$ROLE" = "generator-subagent" ] \
+  && [ "$STEP" = "green_handback" ] \
+  && [ "$OUTCOME" = "pass" ]; then
+  case "${TRACE_FAILURE_CLASS:-}:${TRACE_FAILURE_DISPOSITION:-}" in
+    knowledge-gap:research|complexity:decompose \
+      |known-flaky:override|polling:override \
+      |spec-violation:class-fix|spec-violation:override \
+      |validation-bypass:class-fix|validation-bypass:override \
+      |missing-coverage:class-fix|missing-coverage:override \
+      |regression:class-fix|regression:override \
+      |role-boundary:class-fix|role-boundary:override \
+      |other:class-fix|other:override)
+      durable_rule_eligible=1
+      ;;
+  esac
+fi
+if [ "$durable_rule_eligible" = "1" ] \
+  && { [ -n "${TRACE_DURABLE_RULE_PATH:-}" ] \
+    || [ -n "${TRACE_DURABLE_RULE_SUMMARY:-}" ]; }; then
+  durable_rule_valid=1
+  durable_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -z "${TRACE_DURABLE_RULE_PATH:-}" ] \
+    || [ -z "${TRACE_DURABLE_RULE_SUMMARY:-}" ]; then
+    durable_rule_valid=0
+  elif [[ "${TRACE_DURABLE_RULE_SUMMARY}" == *$'\n'* \
+    || "${TRACE_DURABLE_RULE_SUMMARY}" == *$'\r'* \
+    || ! "${TRACE_DURABLE_RULE_SUMMARY}" =~ [^[:space:]] ]]; then
+    durable_rule_valid=0
+  elif [ "${TRACE_DURABLE_RULE_PATH}" = "AGENTS.md" ]; then
+    if [ -z "$durable_repo_root" ] \
+      || [ ! -f "${durable_repo_root}/AGENTS.md" ] \
+      || [ -L "${durable_repo_root}/AGENTS.md" ]; then
+      durable_rule_valid=0
+    fi
+  elif [[ "${TRACE_DURABLE_RULE_PATH}" =~ ^\.copilot/instructions/[A-Za-z0-9._-]+\.instructions\.md$ ]]; then
+    if [ -z "$durable_repo_root" ] \
+      || [ -L "${durable_repo_root}/.copilot" ] \
+      || [ -L "${durable_repo_root}/.copilot/instructions" ] \
+      || [ ! -f "${durable_repo_root}/${TRACE_DURABLE_RULE_PATH}" ] \
+      || [ -L "${durable_repo_root}/${TRACE_DURABLE_RULE_PATH}" ]; then
+      durable_rule_valid=0
+    fi
+  else
+    durable_rule_valid=0
+  fi
+
+  if [ "$durable_rule_valid" = "1" ]; then
+    DURABLE_RULE_PATH="${TRACE_DURABLE_RULE_PATH}"
+    DURABLE_RULE_SUMMARY="${TRACE_DURABLE_RULE_SUMMARY}"
+  else
+    warn "durable rule evidence requires an existing non-symlinked repository rule path and non-empty one-line summary — both fields omitted"
+  fi
+fi
 
 # --- 1b. Actionability hard-fail gate (issue #318, feature actionable-rejects) --
 # A new review_verdict/fail MUST set TRACE_ACTIONABLE (true|false). Missing or
@@ -272,14 +381,23 @@ role-violation'
     fi
   fi
 
-  # Failure-class passthrough (issue #318): on the review_verdict step ONLY,
+  # Failure-class passthrough (issues #318/#317): on review_verdict or a
+  # generator red/implementation/green handback,
   # forward TRACE_FAILURE_CLASS as harness.failure_class (closed enum from
   # docs/evaluation/trace-schema.v1.json .failure_classes; out-of-enum or empty
   # → omit + warn, never fake, mirroring the failure-mode shape). Also forward
   # TRACE_FAILURE_CLASS_DETAIL as harness.failure_class_detail (free-text,
-  # non-empty → forward, empty → omit). Both absent on non-review_verdict steps.
+  # non-empty → forward, empty → omit). Both are absent outside those steps.
   FC_ARGS=()
+  failure_fields_eligible=0
   if [ "$STEP" = "review_verdict" ]; then
+    failure_fields_eligible=1
+  elif [ "$ROLE" = "generator-subagent" ]; then
+    case "$STEP" in
+      red_handback|impl_handback|green_handback) failure_fields_eligible=1 ;;
+    esac
+  fi
+  if [ "$failure_fields_eligible" = "1" ]; then
     # Validate TRACE_FAILURE_CLASS against the contract's closed enum.
     failure_class_valid() {
       local cls="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
@@ -327,6 +445,53 @@ other'
     if [ -n "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
       FC_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
     fi
+  fi
+
+  # Generator failure disposition (issue #317): a route is deliberately
+  # separate from failure_class. Forward only on generator handbacks and only
+  # from the closed schema enum; invalid values warn and omit.
+  FD_ARGS=()
+  if [ "$ROLE" = "generator-subagent" ]; then
+    case "$STEP" in
+      red_handback|impl_handback|green_handback)
+        if [ -n "${TRACE_FAILURE_DISPOSITION:-}" ]; then
+          failure_disposition_valid() {
+            local value="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+            local dispositions="" entry
+            if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
+              dispositions="$(jq -r '(.failure_dispositions // [])[]' "$contract" 2>/dev/null || true)"
+            fi
+            if [ -z "$dispositions" ]; then
+              # >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+              # point-fix
+              # class-fix
+              # research
+              # decompose
+              # exemption
+              # override
+              # research-requested
+              # <<< trace-schema:failure_dispositions
+              dispositions='point-fix
+class-fix
+research
+decompose
+exemption
+override
+research-requested'
+            fi
+            while IFS= read -r entry; do
+              [ "$entry" = "$value" ] && return 0
+            done <<< "$dispositions"
+            return 1
+          }
+          if failure_disposition_valid "${TRACE_FAILURE_DISPOSITION}"; then
+            FD_ARGS+=("harness.failure_disposition=${TRACE_FAILURE_DISPOSITION}")
+          else
+            warn "TRACE_FAILURE_DISPOSITION '${TRACE_FAILURE_DISPOSITION}' is not in the closed failure_dispositions enum — harness.failure_disposition omitted (omit, never fake)"
+          fi
+        fi
+        ;;
+    esac
   fi
 
   # Finding-fingerprint passthrough (issue #318): on the review_verdict step
@@ -432,6 +597,17 @@ other'
     fi
   fi
 
+  RESEARCH_ARGS=()
+  if [ -n "$RESEARCH_URL" ]; then
+    RESEARCH_ARGS+=("harness.research_url=${RESEARCH_URL}")
+    RESEARCH_ARGS+=("harness.research_summary=${RESEARCH_SUMMARY}")
+  fi
+  DURABLE_RULE_ARGS=()
+  if [ -n "$DURABLE_RULE_PATH" ]; then
+    DURABLE_RULE_ARGS+=("harness.durable_rule_path=${DURABLE_RULE_PATH}")
+    DURABLE_RULE_ARGS+=("harness.durable_rule_summary=${DURABLE_RULE_SUMMARY}")
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -444,11 +620,14 @@ other'
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
     ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
     ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
+    ${FD_ARGS[@]+"${FD_ARGS[@]}"} \
     ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
     ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
     ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
     ${RS_ARGS[@]+"${RS_ARGS[@]}"} \
-    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"}
+    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"} \
+    ${RESEARCH_ARGS[@]+"${RESEARCH_ARGS[@]}"} \
+    ${DURABLE_RULE_ARGS[@]+"${DURABLE_RULE_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
@@ -528,8 +707,17 @@ PROGRESS="${TOPLEVEL}/.copilot-tracking/issues/issue-${ISSUE_PAD}/progress.md"
 grep -q '^## Action Log' "$PROGRESS" \
   || append_fail "progress.md at ${PROGRESS} has no '## Action Log' section — Action Log line not recorded"
 
-BULLET="$(printf -- '- [%s] %s %s %s — %s' \
-  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" | redact_line)" \
+RESEARCH_SUFFIX=""
+if [ -n "$RESEARCH_URL" ]; then
+  RESEARCH_SUFFIX=" [research: ${RESEARCH_URL} — ${RESEARCH_SUMMARY}]"
+fi
+DURABLE_RULE_SUFFIX=""
+if [ -n "$DURABLE_RULE_PATH" ]; then
+  DURABLE_RULE_SUFFIX=" [durable rule: ${DURABLE_RULE_PATH} — ${DURABLE_RULE_SUMMARY}]"
+fi
+BULLET="$(printf -- '- [%s] %s %s %s — %s%s' \
+  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" \
+  "${RESEARCH_SUFFIX}${DURABLE_RULE_SUFFIX}" | redact_line)" \
   || append_fail "redaction of the Action Log line failed — line not recorded"
 [ -n "$BULLET" ] \
   || append_fail "redaction produced an empty Action Log line — line not recorded"

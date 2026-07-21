@@ -266,8 +266,13 @@ jq -e '
   and $a.feature_delivery.coverage == null
   and $a.review_fail.rate == null
   and $a.blocked_green.rate == null
+  and $a.same_class_failures.occurrences_by_class == null
+  and $a.same_class_failures.max_observed_per_run == null
+  and $a.same_class_failures.coverage == {"measured_inputs":0,"total_relevant_inputs":1}
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "experiment markdown fixture must agree with scorecard JSON null semantics"
+grep -Fq '| vA | n/a | n/a | n/a | 0/1 | <=2 (report-only) |' "$OUT_MD" \
+  || fail "same-class table must render old-summary vA as unmeasured with explicit 0/1 coverage"
 
 # --- 4. Missing + skipped sections when non-empty --------------------------------
 if grep -Eiq 'missing' "$OUT_MD" && grep -q 'issue-12' "$OUT_MD" \

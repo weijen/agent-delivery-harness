@@ -24,6 +24,9 @@ harness contract and the AGENTS.md conventions.
 - Prefer Bash builtins and POSIX tools that exist on both macOS and Linux. Avoid
   GNU-only flags (e.g. `sed -i` without a backup arg differs across platforms);
   when in doubt, read into a variable and rewrite the file.
+- Keep embedded jq filters compatible with jq 1.6. Parenthesize complete
+  expressions before binding with `as` (for example, `((. | length) + 1) as
+  $count`) so operator precedence cannot bind only the right-hand operand.
 - Canonicalize paths before comparing them (`(cd "$p" && pwd -P)`); a linked
   worktree can report a physical path where the main checkout reports a logical
   one (macOS `/var` → `/private/var`).

@@ -106,6 +106,22 @@ else
   exit 2
 fi
 
+TRACE_SCHEMA="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+if ! FAILURE_CLASSES="$(
+  jq -ce '
+    select(type == "object" and (.failure_classes | type == "array"))
+    | .failure_classes
+    | select(
+        length > 0
+        and all(.[]; type == "string" and length > 0)
+        and (unique | length) == length
+      )
+  ' "$TRACE_SCHEMA" 2>/dev/null
+)"; then
+  red "error: trace schema has no valid unique non-empty failure_classes enum: ${TRACE_SCHEMA}" >&2
+  exit 2
+fi
+
 ISSUES_DIR="${MAIN_ROOT}/.copilot-tracking/issues"
 OUT_FILE="${MAIN_ROOT}/${SCORECARD_REL}"
 
@@ -232,6 +248,8 @@ def percentile($values; $p):
            + (($sorted[$upper] - $sorted[$lower]) * ($position - $lower)))
         end
     end;
+def failure_class_rank:
+  . as $class | $failure_classes | index($class);
 
 {
   scorecard_schema_version: 1,
@@ -256,6 +274,7 @@ def percentile($values; $p):
          | [$feature_delivery[].rows[]?.elapsed_seconds | numbers] as $elapsed
          | [$g[].summary.review_verdicts? | objects] as $reviews
          | [$g[].summary.green_handbacks? | objects] as $greens
+         | [$g[].summary.same_class_failures? | objects] as $same_class
          | ([$reviews[].fail | numbers] | add // 0) as $review_fail
          | ([$reviews[].total | numbers] | add // 0) as $review_total
          | ([$greens[].blocked | numbers] | add // 0) as $green_blocked
@@ -337,6 +356,31 @@ def percentile($values; $p):
                       else ($green_blocked / $green_total)
                       end)}
                 end),
+             same_class_failures:
+               {
+                 occurrences_by_class:
+                   (if ($same_class | length) == 0 then null
+                    else
+                      ([$same_class[].by_class[]?]
+                       | group_by(.failure_class)
+                       | map({
+                           failure_class: .[0].failure_class,
+                           count: ([.[].count | numbers] | add // 0)
+                         })
+                       | sort_by(.failure_class | failure_class_rank))
+                    end),
+                 max_observed_per_run:
+                   ([$same_class[].max_count | numbers] | max // null),
+                 coverage: {
+                   measured_inputs: ($same_class | length),
+                   total_relevant_inputs: $runs
+                 },
+                 target: {
+                   operator: "<=",
+                   max_count: 2,
+                   policy: "report-only"
+                 }
+               },
              skills:
                ([$g[].summary.skills[]? | select(. != null)]
                 | group_by(.name)
@@ -361,6 +405,8 @@ def percentile($values; $p):
                     feature_delivery: (.summary.feature_delivery? // null),
                     review_verdicts: (.summary.review_verdicts? // null),
                     green_handbacks: (.summary.green_handbacks? // null),
+                    same_class_failures:
+                      (.summary.same_class_failures? // null),
                     tokens: .summary.tokens,
                     coverage: (.summary.coverage // null),
                     skills: (.summary.skills // []),
@@ -378,6 +424,7 @@ JQ
 SCORECARD_JSON="${TMP_DIR}/trace-scorecard.json"
 jq -n \
   --arg source_root "$ISSUES_DIR" \
+  --argjson failure_classes "$FAILURE_CLASSES" \
   --slurpfile entries "$ENTRIES" \
   --slurpfile missing "$MISSING" \
   --slurpfile skipped "$SKIPPED" \
@@ -425,6 +472,20 @@ def ratio($value; $of; $rate):
     "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ($s.by_version[]
       | "| \(.harness_version) | \(.feature_delivery.samples | na) | \(.feature_delivery.median_seconds | na) | \(.feature_delivery.p75_seconds | na) | \(.feature_delivery.p95_seconds | na) | \(if .feature_delivery.coverage == null then "n/a" else "\(.feature_delivery.coverage.paired)/\(.feature_delivery.coverage.of)" end) | \(ratio(.review_fail.fail; .review_fail.of; .review_fail.rate)) | \(ratio(.blocked_green.blocked; .blocked_green.of; .blocked_green.rate)) |"),
+    "",
+    "## Same-class generator failures",
+    "",
+    "Eligible failures are failed or blocked generator RED, implementation, and GREEN handbacks carrying a valid closed failure class. The <=2 target is report-only and does not gate lifecycle or merge.",
+    "",
+    "| version | failure class | occurrences | max per run | coverage | target |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ($s.by_version[] as $bucket
+     | if $bucket.same_class_failures.occurrences_by_class == null then
+         "| \($bucket.harness_version) | n/a | n/a | \($bucket.same_class_failures.max_observed_per_run | na) | \($bucket.same_class_failures.coverage.measured_inputs)/\($bucket.same_class_failures.coverage.total_relevant_inputs) | <=\($bucket.same_class_failures.target.max_count) (\($bucket.same_class_failures.target.policy)) |"
+       else
+         ($bucket.same_class_failures.occurrences_by_class[]
+          | "| \($bucket.harness_version) | \(.failure_class) | \(.count) | \($bucket.same_class_failures.max_observed_per_run) | \($bucket.same_class_failures.coverage.measured_inputs)/\($bucket.same_class_failures.coverage.total_relevant_inputs) | <=\($bucket.same_class_failures.target.max_count) (\($bucket.same_class_failures.target.policy)) |")
+       end),
     (if ($s.inputs.missing_summaries | length) > 0 then
        ("",
         "## Missing summaries (reported, never repaired)",

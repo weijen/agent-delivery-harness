@@ -16,6 +16,24 @@ The adapter is **opt-in**. The repository ships it as a copyable template
 under `docs/runtime-adapters/`; it never ships a tracked `.claude/settings.json`,
 and no core harness script references the hook.
 
+## Generator research capability
+
+**Unavailable through the repository adapter; native binding unknown.** This
+adapter observes Claude Code hook events but does not provision external
+research tools, and this repository contains no locally verified Claude Code
+agent-tool binding for web research. The Copilot custom-agent identifiers
+`web/fetch` and `web/githubRepo` must not be assumed to work on Claude Code.
+Without a separately verified project/runtime binding, the generator fails
+closed with the blocked `research-requested` route and performs no web action.
+
+If a downstream project later documents and verifies such a binding, it must
+still enforce the shared budget: at most **5 minutes** and
+**one fetched document** (one returned document/result), with no retry or
+link-following. Research remains diagnosis-only, fetched instructions remain
+untrusted, and the class fix remains locally authored and subject to the
+normal feature sensor cycle. This capability note is separate from the
+trace-capture hooks described below.
+
 ## What you get (and what you don't without it)
 
 **Without the adapter, harness behavior is unchanged.** Every lifecycle

@@ -255,6 +255,16 @@ the conductor records the blocker in the Action Log, pauses feature work, update
 files). Loop 1 and Loop 2 remain the default; Loop 3 fires only when a plan assumption is wrong. Full protocol in
 [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
+When same-class escalation produces a successful generator repair, GREEN also
+requires a durable lesson in the adopting repository. The generator updates
+the narrowest existing always-loaded target — `AGENTS.md` or a scoped
+`.copilot/instructions/*.instructions.md` file — with a locally derived
+environment/class lesson. It does not create per-failure memory or place a
+project-specific lesson in generic global doctrine. The trace carries only path
+and one-line summary; first-occurrence point fixes, blocked
+`research-requested` handbacks, exemptions, and review verdicts are outside
+this completion rule.
+
 Conductor, generator-subagent, and code-review-subagent actions must be visible in the issue
 progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
 for logging when they are not authorized to edit local issue progress directly.

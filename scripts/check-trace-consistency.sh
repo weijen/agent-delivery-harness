@@ -244,12 +244,16 @@ fi
 
 ISSUE_DIR="$(cd "$(dirname "$TRACE_FILE")" && pwd)"
 ARTIFACT_DIR="$ISSUE_DIR"
+REPOSITORY_ROOT=""
 if [ -z "$MARKER_FILE" ]; then
   # Path mode: the marker is resolvable only when the trace sits at a
   # contract-shaped path; otherwise the rule skips with a NOTE below.
   if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
     MARKER_FILE="${BASH_REMATCH[1]}/.copilot-tracking/review-gate/approved-head"
+    REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
   fi
+elif [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
+  REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
 fi
 
 # Real-layout fallback (#103 loop-2 review F1): on live runs the main root
@@ -420,6 +424,108 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
       end ),
+    # Eligible generator failures must carry a valid class and a separate
+    # route. Occurrence is computed in trace-file order for the same class;
+    # pass outcomes, non-generator roles, and review verdicts do not
+    # participate.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ((["red_handback", "impl_handback", "green_handback"]
+               | index($span["harness.lifecycle_step"])) != null)
+         and ((["fail", "blocked"] | index($span["harness.outcome"])) != null)
+      then
+        (($span["harness.failure_class"] // "")
+         | if type == "string" and . != "" then . else "__EMPTY__" end) as $gfc
+        | (([ $lines[0:$i][]
+             | fromjson? | objects
+             | . as $prior
+             | select(.span == "agent")
+             | select(.["gen_ai.agent.name"] == "generator-subagent")
+             | select((["red_handback", "impl_handback", "green_handback"]
+                       | index($prior["harness.lifecycle_step"])) != null)
+             | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+             | select(.["harness.failure_class"] == $gfc)
+           ] | length) + 1) as $occurrence
+        | (($span["harness.failure_class_detail"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $detail
+        | (($span["harness.failure_disposition"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $disposition
+        | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
+      else empty
+      end ),
+    # Generator research provenance is a complete route-dependent truth table:
+    # research requires one valid pair; every other disposition requires both
+    # fields to be absent. Direct traces cannot bypass either branch.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ((["red_handback", "impl_handback", "green_handback"]
+               | index($span["harness.lifecycle_step"])) != null)
+         and (
+           if $span["harness.failure_disposition"] == "research"
+           then
+             (($span["harness.research_url"] | type) != "string")
+             or (($span["harness.research_url"]
+                  | test("^https?://[^/?#[:space:]]+[^[:space:]]*$")) | not)
+             or (($span["harness.research_summary"] | type) != "string")
+             or (($span["harness.research_summary"] | test("[^[:space:]]")) | not)
+             or ($span["harness.research_summary"] | test("[\r\n]"))
+           else
+             ($span | has("harness.research_url"))
+             or ($span | has("harness.research_summary"))
+           end
+         )
+      then "::research \($n)"
+      else empty
+      end ),
+    # A successful escalated class repair is grounded in prior same-class
+    # failed/blocked handbacks. Arbitrary pass spans, point fixes, exemptions,
+    # and blocked research requests are not durable-rule completion events.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ($span["harness.lifecycle_step"] == "green_handback")
+         and ($span["harness.outcome"] == "pass")
+         and (($span["harness.failure_class"] | type) == "string")
+         and (($span["harness.failure_disposition"] | type) == "string")
+      then
+        $span["harness.failure_class"] as $dfc
+        | $span["harness.failure_disposition"] as $dfd
+        | [ $lines[0:$i][]
+            | fromjson? | objects
+            | . as $prior
+            | select(.span == "agent")
+            | select(.["gen_ai.agent.name"] == "generator-subagent")
+            | select((["red_handback", "impl_handback", "green_handback"]
+                      | index($prior["harness.lifecycle_step"])) != null)
+            | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+            | select(.["harness.failure_class"] == $dfc)
+          ] as $prior_failures
+        | (if $dfc == "knowledge-gap" then $dfd == "research"
+           elif $dfc == "complexity" then $dfd == "decompose"
+           elif ($dfc == "known-flaky" or $dfc == "polling")
+             then $dfd == "override"
+           else ($dfd == "class-fix" or $dfd == "override")
+           end) as $repair_route
+        | if (($prior_failures | length) >= 2)
+             and $repair_route
+          then
+            ($span["harness.durable_rule_path"] // null) as $drp
+            | ($span["harness.durable_rule_summary"] // null) as $drs
+            | if ($drp == null and $drs == null)
+              then "::durable \($n)\u0009missing\u0009-"
+              elif (($drp | type) != "string")
+                or (($drs | type) != "string")
+                or (($drs | test("[^[:space:]]")) | not)
+                or ($drs | test("[\r\n]"))
+              then "::durable \($n)\u0009invalid\u0009-"
+              elif ($drp == "AGENTS.md")
+                or ($drp | test("^\\.copilot/instructions/[A-Za-z0-9._-]+\\.instructions\\.md$"))
+              then "::durable \($n)\u0009target\u0009\($drp)"
+              else "::durable \($n)\u0009invalid\u0009-"
+              end
+          else empty
+          end
+      else empty
+      end ),
     # --- Fail-verdict attribution signals (issue #318) ---
     # Emit per-line signals for review_verdict/fail spans carrying attribution
     # and failure_class fields. Validated in bash below.
@@ -469,6 +575,8 @@ approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
 repairscope_lines=$'\n'
+genfail_lines=$'\n'
+durable_lines=$'\n'
 countable_reject_ids=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
@@ -488,6 +596,13 @@ while IFS= read -r out_line; do
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
     '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
+    '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
+    '::durable '*)  durable_lines="${durable_lines}${out_line#'::durable '}"$'\n' ;;
+    '::research '*)
+      printf 'VIOLATION consistency: generator_research_provenance_invalid line %s\n' \
+        "${out_line#'::research '}"
+      violations=$((violations + 1))
+      ;;
   esac
 done <<< "$state_out"
 
@@ -521,6 +636,143 @@ failure_class_valid() {
   done <<< "$FAILURE_CLASSES_ENUM"
   return 1
 }
+
+# Closed route enum, separate from failure class.
+# >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_DISPOSITIONS_ENUM="point-fix
+class-fix
+research
+decompose
+exemption
+override
+research-requested"
+# <<< trace-schema:failure_dispositions
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_dispositions="$(jq -r '(.failure_dispositions // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_dispositions" ]; then
+    FAILURE_DISPOSITIONS_ENUM="$schema_dispositions"
+  fi
+fi
+
+failure_disposition_valid() {
+  local disposition="$1"
+  while IFS= read -r fd_entry; do
+    [ "$fd_entry" = "$disposition" ] && return 0
+  done <<< "$FAILURE_DISPOSITIONS_ENUM"
+  return 1
+}
+
+# A durable target must be one of the two always-loaded repository surfaces.
+# The closed lexical shape rejects absolute paths and traversal before IO; the
+# component checks reject symlink indirection even when it resolves in-tree.
+durable_rule_target_valid() {
+  local root="$1" path="$2"
+  [ -n "$root" ] || return 1
+  case "$path" in
+    AGENTS.md)
+      [ -f "${root}/AGENTS.md" ] && [ ! -L "${root}/AGENTS.md" ]
+      ;;
+    .copilot/instructions/*.instructions.md)
+      [[ "$path" =~ ^\.copilot/instructions/[A-Za-z0-9._-]+\.instructions\.md$ ]] \
+        && [ ! -L "${root}/.copilot" ] \
+        && [ ! -L "${root}/.copilot/instructions" ] \
+        && [ -f "${root}/${path}" ] \
+        && [ ! -L "${root}/${path}" ]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# Same-class generator trigger (issue #317). Every eligible failed or blocked
+# generator handback must carry a valid closed class. For valid observations,
+# "other" still needs detail and disposition must come from its own closed
+# enum. Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must
+# route by class and can never repeat point-fix.
+if [ "$genfail_lines" != $'\n' ]; then
+  while IFS= read -r gf_line; do
+    [ -n "$gf_line" ] || continue
+    IFS=$'\t' read -r gf_n gf_class gf_detail gf_disposition gf_occurrence <<< "$gf_line"
+    if [ "$gf_class" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if ! failure_class_valid "$gf_class"; then
+      printf 'VIOLATION consistency: generator_failure_class_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    if [ "$gf_class" = "other" ] && [ "$gf_detail" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_other_no_detail line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+
+    if [ "$gf_disposition" != "__EMPTY__" ] \
+      && ! failure_disposition_valid "$gf_disposition"; then
+      printf 'VIOLATION consistency: generator_failure_disposition_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    if [ "$gf_occurrence" -lt 2 ]; then
+      continue
+    fi
+    if [ "$gf_disposition" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_disposition_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if [ "$gf_disposition" = "point-fix" ]; then
+      printf 'VIOLATION consistency: generator_repeated_point_fix line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    route_valid=0
+    case "$gf_class" in
+      knowledge-gap)
+        case "$gf_disposition" in research|research-requested) route_valid=1 ;; esac
+        ;;
+      complexity)
+        [ "$gf_disposition" = "decompose" ] && route_valid=1
+        ;;
+      known-flaky|polling)
+        case "$gf_disposition" in exemption|override) route_valid=1 ;; esac
+        ;;
+      *)
+        case "$gf_disposition" in class-fix|override) route_valid=1 ;; esac
+        ;;
+    esac
+    if [ "$route_valid" = "0" ]; then
+      printf 'VIOLATION consistency: generator_failure_route_mismatch line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$genfail_lines" | grep -v '^$')
+fi
+
+if [ "$durable_lines" != $'\n' ]; then
+  while IFS= read -r durable_line; do
+    [ -n "$durable_line" ] || continue
+    IFS=$'\t' read -r durable_n durable_state durable_path <<< "$durable_line"
+    case "$durable_state" in
+      missing)
+        printf 'VIOLATION consistency: generator_durable_rule_missing line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      invalid)
+        printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      target)
+        if ! durable_rule_target_valid "$REPOSITORY_ROOT" "$durable_path"; then
+          printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+          violations=$((violations + 1))
+        fi
+        ;;
+    esac
+  done < <(printf '%s' "$durable_lines" | grep -v '^$')
+fi
 
 # Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>
 if [ "$failattr_lines" != $'\n' ]; then

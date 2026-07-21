@@ -85,10 +85,12 @@ else
   jq -e '.summary_schema_version == 1' "$CONTRACT_DOC" >/dev/null 2>&1 \
     || fail "contract doc must declare summary_schema_version 1 as a JSON number"
   jq -e '
-    (.fields | has("feature_delivery") and has("review_verdicts") and has("green_handbacks"))
+    (.fields | has("feature_delivery") and has("review_verdicts") and has("green_handbacks")
+     and has("same_class_failures"))
     and ((.required_top_level | index("feature_delivery")) == null)
     and ((.required_top_level | index("review_verdicts")) == null)
     and ((.required_top_level | index("green_handbacks")) == null)
+    and ((.required_top_level | index("same_class_failures")) == null)
   ' "$CONTRACT_DOC" >/dev/null 2>&1 \
     || fail "experiment projections must be documented as optional additive fields, never required_top_level"
   jq -e '
@@ -191,7 +193,8 @@ else
   expect_summary "experiment additive empty measurements are honest" \
     '.feature_delivery == {"rows":[],"coverage":{"paired":0,"of":1}}
      and .review_verdicts == {"pass":0,"fail":0,"blocked":0,"total":0,"fail_rate":null}
-     and .green_handbacks == {"pass":0,"fail":0,"blocked":0,"total":0,"blocked_rate":null}'
+     and .green_handbacks == {"pass":0,"fail":0,"blocked":0,"total":0,"blocked_rate":null}
+     and .same_class_failures == {"by_class":[],"max_count":0}'
 
   # --- 3a. Null-vs-zero: absent duration is null, never 0 ------------------------
   expect_summary "red_handback stage duration is null (agent span carries no harness.duration_ms)" \
