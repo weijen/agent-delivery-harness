@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Bidirectional consistency contract: fixture files, SKILL.md jq recipes, and adapter token-metrics matrix claims.",
+  "fixtures": [
+    {
+      "id": "sample-transcript",
+      "relative_path": "tests/fixtures/copilot-log-review/sample-transcript.jsonl",
+      "surface": "vscode-transcript",
+      "observed_cli_version": null
+    },
+    {
+      "id": "cli-events-1.0.72-1",
+      "relative_path": "tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl",
+      "surface": "cli-events",
+      "observed_cli_version": "1.0.72-1"
+    }
+  ],
+  "recipes": [
+    {
+      "id": "session-inventory",
+      "source_heading": "Session inventory",
+      "source_context_level": "###",
+      "ordinal": 1,
+      "fixture_id": "sample-transcript",
+      "expectation": "(.span_s == 42) and (.user_messages == 1) and (.assistant_turns == 1) and (.tool_count == 6) and (.top_tools | length > 0)"
+    },
+    {
+      "id": "tool-durations",
+      "source_heading": "Tool durations",
+      "source_context_level": "###",
+      "ordinal": 1,
+      "fixture_id": "sample-transcript",
+      "expectation": "(length == 5) and (map(.duration_s) | min >= 0) and (map(.duration_s) | add == 30)"
+    },
+    {
+      "id": "workflow-time-decomposition",
+      "source_heading": "Workflow-time decomposition",
+      "source_context_level": "###",
+      "ordinal": 1,
+      "fixture_id": "sample-transcript",
+      "expectation": "(map(.total_s) | add == 30) and (length > 0) and (map(.total_s) | all(. >= 0))"
+    },
+    {
+      "id": "cli-session-cost",
+      "source_heading": "CLI session cost",
+      "source_context_level": "###",
+      "ordinal": 1,
+      "fixture_id": "cli-events-1.0.72-1",
+      "expectation": "(.totalNanoAiu == 4200000000) and (.ai_credits == 4.2) and (.source_event == \"session.compaction_complete\") and (.timestamp != null)"
+    },
+    {
+      "id": "qualify-reasoning-extraction",
+      "source_heading": "Qualify",
+      "source_context_level": "##",
+      "ordinal": 1,
+      "fixture_id": "sample-transcript",
+      "expectation": "(length >= 1) and (.[0].timestamp != null) and (.[0].reasoningText != null) and (.[0].reasoningText | length > 0)"
+    }
+  ],
+  "adapter_claims": [
+    {
+      "id": "legacy-shutdown-model-metrics",
+      "selectors": {
+        "version": "≤1.0.54",
+        "matrix_version_cell": "≤1.0.54",
+        "event_type": "session.shutdown",
+        "payload_path": "modelMetrics.<model>.usage",
+        "provenance": "community/empirical"
+      },
+      "fixture_backed": false
+    },
+    {
+      "id": "checkpoint-nano-aiu",
+      "selectors": {
+        "version": "1.0.72-1",
+        "matrix_version_cell": "1.0.72-1 (issue #319 observation)",
+        "event_type": "session.usage_checkpoint",
+        "payload_path": "data.totalNanoAiu",
+        "provenance": "adopter observation"
+      },
+      "fixture_backed": true
+    },
+    {
+      "id": "live-rpc-get-metrics",
+      "selectors": {
+        "version": "copilot-cli-cost",
+        "matrix_version_cell": "Observed in copilot-cli-cost (live process)",
+        "event_type": "RPC call",
+        "payload_path": "getMetrics() response",
+        "provenance": "community tool snapshot"
+      },
+      "fixture_backed": false
+    }
+  ]
+}
