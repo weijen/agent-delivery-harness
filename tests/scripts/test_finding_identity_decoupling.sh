@@ -47,6 +47,8 @@ mkdir -p "${SCRATCH}"
 setup_git_env() {
   local dir="$1"
   git -C "$dir" init -q 2>/dev/null
+  git -C "$dir" config user.name "Harness Test"
+  git -C "$dir" config user.email "harness-test@example.invalid"
   git -C "$dir" checkout -q -b feature/issue-99-test 2>/dev/null || true
   git -C "$dir" commit -q --allow-empty -m "init" 2>/dev/null
   mkdir -p "$dir/.copilot-tracking/issues/issue-99"
