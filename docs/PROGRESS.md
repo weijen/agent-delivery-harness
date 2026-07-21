@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-20 (#318)_
+_Last updated: 2026-07-21 (#319)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-20 (#318)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 201 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 206 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -69,10 +69,9 @@ _Last updated: 2026-07-20 (#318)_
 
 ## Next up
 
-- **Copilot native-record adapter guidance (#319):** document the
-  version-pinned token/AIU evidence boundaries, first-class CLI record paths,
-  hardened analysis recipes, cross-surface enumeration, and subagent
-  permission setup in the `copilot-log-review` workflow.
+- **Generator stuck-triggered research doctrine (#317):** add same-class
+  failure counting, classify-before-routing, time-boxed diagnosis-only external
+  research with provenance, durable rule emission, and scorecard coverage.
 - **CI workflow hardening (#268) — in review:** third-party actions in
   `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
   readable version comments; non-release workflows now explicitly use
@@ -112,6 +111,25 @@ _Last updated: 2026-07-20 (#318)_
 ---
 
 ## Delivered (newest first)
+
+### Synchronize Copilot native-record guidance with versioned evidence (#319): delivery complete
+
+- **Copilot token and cost claims are now version- and provenance-scoped.** The
+  adapter distinguishes the CLI <=1.0.54 shutdown buckets, the observed
+  1.0.72-1 cumulative nano-AIU checkpoint shape, and the community live-RPC
+  alternative without presenting undocumented fields as a stable contract.
+- **`copilot-log-review` now treats CLI records as first-class inputs.** Its
+  Locate and Quantify stages cover `events.jsonl`, `session-store.db`, nested
+  payloads, fractional timestamps, cumulative-checkpoint deduplication,
+  malformed records, and the empirical nano-AIU to official AI Credits mapping.
+- **Cross-surface review is explicit but honest.** A portable, fixture-executed
+  enumeration recipe inventories VS Code and CLI records by UTC event-span
+  overlap while keeping session-ID and OTel equivalences unverified unless
+  independently proven.
+- **Regression protection is executable.** Five new sensors cover permission
+  setup, the token matrix, CLI cost recipes, cross-surface enumeration, and a
+  typed fixture/recipe/claim manifest with exact row bijections and mutation
+  teeth under macOS Bash 3.2.
 
 ### Make review failures attributable, stable, scoped, and actionable (#318): delivery complete
 

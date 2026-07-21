@@ -122,6 +122,88 @@ From there, follow the lifecycle in [docs/HARNESS.md](HARNESS.md): populate
 time with the subagents, run the review gate, open a PR with
 `./scripts/create-pr.sh`, and close out with `./scripts/finish-issue.sh`.
 
+## 7. Subagent permissions
+
+The harness uses subagents (generator, reviewer, planner) that invoke harness
+scripts on your behalf. Before spawning subagents, establish the intended
+authorization mode explicitly — see the layers below.
+
+**Provenance key for this section:**
+- **(Documented)** — per official GitHub Docs
+  ([Copilot CLI tool approval](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli)):
+  when Copilot wants to use a tool that modifies or executes something in
+  interactive mode, it asks for approval; the user may approve once, or approve
+  for the running session with any options or any arguments for that tool.
+- **(Observed on CLI 1.0.72-1, issue #319)** — behavior seen in this harness
+  run but not guaranteed stable across CLI versions.
+- **(Environment-specific)** — capability that varies by deployment, org
+  policy, or configuration; verify locally.
+
+**Observed symptom (CLI 1.0.72-1, issue #319):** if the conductor launches
+several subagents and their tool-approval prompts are not surfaced (for example,
+in a background or nested context), unanswered prompts queue up and create a
+**permission denial storm** — the subagent retries, gets denied again, and the
+issue run stalls silently with no work produced.
+
+The harness documents three layers of permission control, from narrowest to
+broadest. Choose the narrowest layer your environment supports. If behavior
+differs from what is described, stop and resolve visible prompts rather than
+falling back to `/allow-all`.
+
+### Layer 1: Tool-level session approval (documented)
+
+**(Documented)** When Copilot wants to use a tool that modifies or executes
+something in interactive mode, it asks for approval. The user may approve that
+tool once, or approve it for the rest of the running session — approval applies
+with any options or any arguments for that tool within the session. This is the
+built-in CLI mechanism per official GitHub Docs; no additional configuration is
+required.
+
+### Layer 2: Environment-specific exact-command allowlisting
+
+**(Environment-specific)** Some Copilot environments, organization policies, or
+deployment configurations may expose an exact-command or exact-script allowlist
+capability. If your environment supports this, example harness entrypoints you
+might scope include:
+
+- `scripts/log-handback.sh` — logs conductor↔subagent handback events
+- `scripts/review-gate.sh` — runs the review gate checks
+
+These are examples, not an exhaustive list — additional harness scripts may be
+invoked depending on the issue workflow. Verify the exact configuration syntax
+and available options in your environment's policy UI or documentation; this
+guide intentionally provides no guessed configuration syntax because the
+capability and its interface vary across environments.
+
+### Layer 3: Explicit `/autopilot` handoff (observed operational authorization)
+
+**(Observed on CLI 1.0.72-1, issue #319)** The `/autopilot` slash-command was
+the operational authorization used in this harness run. Issuing `/autopilot` at
+the conductor level before spawning subagents allowed the autonomous run to
+proceed without per-tool prompts in that session. Official GitHub Docs list
+`/autopilot` as a CLI slash-command but do not define its exact permission
+semantics; behavior may vary across CLI versions.
+
+The key requirement observed: the `/autopilot` handoff should happen before
+subagents are spawned — not after a denial storm has already begun.
+
+### What NOT to do: permanent blanket allow-all is an anti-pattern
+
+**(Documented)** The CLI offers `/allow-all` (and the `--allow-all` launch flag)
+for trusted situations — official docs acknowledge this exists. However, using
+it as a **permanent standing configuration** across all sessions is an
+**anti-pattern** for harness work:
+
+- Defeats the principle of least privilege — any command a compromised or
+  misbehaving agent emits will execute without review.
+- Masks misconfiguration — you will never notice when a subagent tries an
+  unexpected command because nothing is ever denied.
+
+This harness prefers narrower session-scoped permission (Layer 1 or Layer 2) or
+deliberate `/autopilot` handoff (Layer 3) over a permanent blanket allow-all.
+If you encounter a permission denial storm, the correct fix is one of the layers
+above, not a standing blanket rule.
+
 ## Where to go next
 
 - [AGENTS.md](../AGENTS.md) — the map agents and contributors start from.

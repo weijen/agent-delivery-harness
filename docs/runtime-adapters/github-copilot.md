@@ -292,28 +292,224 @@ The hook script itself is session-safe by contract: on every path it exits
 `0` and writes nothing to stdout (Copilot parses hook stdout as JSON).
 Outside a harness issue run it is a silent no-op and creates no artifacts.
 
-## Token usage: the events.jsonl caveat
+## Token-metrics version matrix
 
-**Deprecated (issue #305).** The token passthrough described here is part of the
-retired runtime capture path; native Copilot session records already carry token
-accounting, so the harness no longer reconstructs `model` spans from the internal
-`events.jsonl` for analysis.
+**Deprecated (issue #305).** The harness no longer reconstructs `model` spans
+from internal `events.jsonl`. Some native Copilot CLI records carry token
+accounting; this section documents what is actually available, version-pinned
+and with provenance.
 
-On the **CLI** surface, `agentStop` triggers a best-effort read of
-`~/.copilot/session-state/<sessionId>/events.jsonl`, whose metrics events
-carry per-model token buckets. When the latest metrics event carries a model
-id and numeric input/output token counts, the adapter emits one `model` span.
+The Copilot CLI event schema is **undocumented and unversioned** — GitHub has
+not published a schema specification. An open formalization request exists
+([github/copilot-cli #3551](https://github.com/github/copilot-cli/issues/3551))
+but remains unanswered as of 2026-07-21. Nothing below is a stable contract; field paths may change without notice across CLI releases.
 
-That file is an **internal, undocumented** Copilot CLI format: the parsed
-shape is empirically **unverified** against a real CLI session as of
-2026-07-05, and it may drift across CLI versions without notice. Any shape
-mismatch — missing file, garbage lines, partial or string-typed token fields —
-degrades to the `agent` span alone, with zero fabricated keys.
+| CLI version | Event type | Payload path | Token-metrics fields | Provenance |
+|---|---|---|---|---|
+| ≤1.0.54 | `session.shutdown` | `modelMetrics.<model>.usage` | Per-model buckets: input/output/cacheRead/cacheWrite/reasoning tokens and `requests.count`/`requests.cost` | Community/empirical — [ccusage #1174](https://github.com/ccusage/ccusage/issues/1174) reports these buckets present in ~70 of 80 inspected shutdown events |
+| 1.0.72-1 (issue #319 observation) | `session.usage_checkpoint` | `data.totalNanoAiu` | Aggregate nano-AIU counter only; **no per-model token buckets** observed in the inspected records for this version | Adopter observation — scoped to the records inspected for issue #319; does not universalize to every 1.0.72 session |
+| Observed in copilot-cli-cost (live process) | RPC call | `getMetrics()` response | Per-model token buckets (input/output/cacheRead/cacheWrite/reasoning tokens, requests count/cost) — requires an active CLI process | Community tool snapshot — [DamianEdwards/copilot-cli-cost](https://github.com/DamianEdwards/copilot-cli-cost) demonstrates this RPC on its tested CLI version; the source does not publish a bounded CLI compatibility range, and no official documentation confirms which versions expose this endpoint |
 
-For **VS Code agent mode** no user-accessible per-request token source is
-documented in v1, so on that surface the adapter never emits `model` spans
-and does not read `events.jsonl` at all — an honest gap, stated rather than
-papered over.
+**Caveats and scope:**
+
+- The ≤1.0.54 `modelMetrics` observation is empirical community evidence from
+  ccusage contributors who inspected shutdown events across multiple sessions.
+  The "~70 of 80" figure scopes the observation to that sample, not a
+  guaranteed availability rate.
+- The 1.0.72-1 observation is from a single adopter's issue #319 records; other
+  1.0.72 sessions may carry different fields depending on session type, model
+  selection, or future patches.
+- The RPC `getMetrics()` path is live/in-process only — it requires a running
+  Copilot CLI session and cannot extract metrics from persisted session-state
+  files after the process exits.
+- **OTel path separation:** The OTel file exporter (`COPILOT_OTEL_FILE_EXPORTER_PATH`)
+  writes spans to a separate JSONL sink with its own `gen_ai.conversation.id`.
+  Do not assume equivalence between OTel span UUIDs and session-state
+  `sessionId` values without explicit verification.
+- **VS Code agent mode:** No user-accessible per-request token source is
+  documented in v1; on that surface the adapter never emits `model` spans —
+  an honest gap, stated rather than papered over.
+
+## Cross-surface record enumeration
+
+A single issue/review window may generate Copilot records on **two independent
+surfaces**. This section documents how to enumerate candidates from each surface,
+filter by a UTC lifecycle time window, and what cross-surface association is (and
+is not) verified.
+
+### Record surfaces
+
+**1. VS Code workspace transcripts** (macOS verified path; other OS unverified):
+
+```
+~/Library/Application Support/Code/User/workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sessionId>.jsonl
+```
+
+- **Linux (unverified):** `~/.config/Code/User/workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sessionId>.jsonl`
+- **Windows (unverified):** `%APPDATA%\Code\User\workspaceStorage\<hash>\GitHub.copilot-chat\transcripts\<sessionId>.jsonl`
+
+**2. CLI native records** (version/provenance scoped):
+
+```
+~/.copilot/session-state/<sessionId>/events.jsonl
+~/.copilot/session-store.db
+```
+
+The CLI `session-store.db` is an SQLite database indexing session metadata; each
+session directory under `session-state/` contains its `events.jsonl` event log.
+
+### Enumeration procedure
+
+Enumerate each surface independently, filter by event-timestamp interval overlap
+with a caller-supplied UTC time window, retain source path and session identifier,
+then union candidates before any attempted join.
+
+**Requirements:** `bash` (≥3.2; no Bash-4-only features used — compatible with
+macOS default), `jq` (≥1.6), `find` with `-print0` (available in macOS BSD find
+and GNU find; not POSIX but universally present on both).  No GNU-only time
+predicates are used — macOS/BSD portability is preserved.
+
+The caller provides two environment variables — `START_EPOCH` and `END_EPOCH` —
+representing the window boundaries as **integer UTC seconds since epoch**
+(portable; avoids platform-divergent `date` parsing). Roots are overridable for
+testing or non-default installs.
+
+#### Cross-surface enumeration recipe
+
+```bash
+#!/usr/bin/env bash
+# cross-surface-enumeration — portable Copilot session candidate lister.
+# Requires: bash ≥3.2, jq ≥1.6, find with -print0 (macOS BSD find / GNU find).
+set -euo pipefail
+
+# --- Overridable roots --------------------------------------------------------
+COPILOT_CLI_STATE_ROOT="${COPILOT_CLI_STATE_ROOT:-${HOME}/.copilot/session-state}"
+COPILOT_VSCODE_STORAGE_ROOT="${COPILOT_VSCODE_STORAGE_ROOT:-${HOME}/Library/Application Support/Code/User/workspaceStorage}"
+
+# --- Validate caller-supplied window ------------------------------------------
+: "${START_EPOCH:?ERROR: START_EPOCH (integer UTC seconds) must be set}"
+: "${END_EPOCH:?ERROR: END_EPOCH (integer UTC seconds) must be set}"
+case "$START_EPOCH" in ''|*[!0-9]*) echo "ERROR: START_EPOCH must be numeric" >&2; exit 1;; esac
+case "$END_EPOCH"   in ''|*[!0-9]*) echo "ERROR: END_EPOCH must be numeric"   >&2; exit 1;; esac
+if [ "$START_EPOCH" -gt "$END_EPOCH" ]; then
+  echo "ERROR: START_EPOCH ($START_EPOCH) > END_EPOCH ($END_EPOCH)" >&2; exit 1
+fi
+
+# --- Timestamp helper: normalize fractional ISO → epoch -----------------------
+# jq filter: strips fractional seconds anchored before trailing Z, then parses.
+norm_ts='def norm_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;'
+
+# --- Per-file interval overlap check ------------------------------------------
+# Reads a JSONL file, extracts .timestamp (falling back to .created_at),
+# computes min/max epoch, checks overlap with [START_EPOCH, END_EPOCH].
+# Outputs TSV: surface \t session_id \t path \t first_epoch \t last_epoch
+#
+# Error handling:
+#   - Valid timestamps outside window → silent exclusion (normal).
+#   - No timestamp field, malformed timestamp string, invalid JSON, or jq
+#     parse failure → stderr WARNING naming the file, skip (no output line).
+check_overlap() {
+  local file="$1" surface="$2" session_id="$3"
+  local jq_out jq_status
+  jq_out="$(jq -r -s --argjson s "$START_EPOCH" --argjson e "$END_EPOCH" "
+    ${norm_ts}
+    [ .[] | (.timestamp // .created_at) // empty | norm_ts ] |
+    if length == 0 then \"__NO_TIMESTAMPS__\" | halt_error(2)
+    else (min) as \$first | (max) as \$last |
+      if \$last >= \$s and \$first <= \$e then
+        \"\(\$first)\t\(\$last)\"
+      else empty end
+    end
+  " "$file" 2>&1)" && jq_status=0 || jq_status=$?
+
+  if [ "$jq_status" -ne 0 ]; then
+    # jq failed: no timestamps, malformed string, invalid JSON, or parse error
+    echo "WARNING: skipping ${file} — no valid timestamps or parse failure" >&2
+    return 0
+  fi
+
+  # jq succeeded but produced no output → valid timestamps outside window (silent)
+  [ -z "$jq_out" ] && return 0
+
+  printf '%s\t%s\t%s\t%s\n' "$surface" "$session_id" "$file" "$jq_out"
+}
+
+# --- CLI surface: <root>/<sessionId>/events.jsonl -----------------------------
+if [ -d "$COPILOT_CLI_STATE_ROOT" ]; then
+  find "$COPILOT_CLI_STATE_ROOT" -type f -name 'events.jsonl' -print0 |
+    while IFS= read -r -d '' f; do
+      sid="$(basename "$(dirname "$f")")"
+      check_overlap "$f" "cli" "$sid"
+    done
+fi
+
+# --- VS Code surface: <root>/**/GitHub.copilot-chat/transcripts/*.jsonl -------
+if [ -d "$COPILOT_VSCODE_STORAGE_ROOT" ]; then
+  find "$COPILOT_VSCODE_STORAGE_ROOT" -type f -path '*/GitHub.copilot-chat/transcripts/*.jsonl' -print0 |
+    while IFS= read -r -d '' f; do
+      sid="$(basename "$f" .jsonl)"
+      check_overlap "$f" "vscode" "$sid"
+    done
+fi
+```
+
+The recipe outputs a TSV union of candidates (one per line):
+`surface \t session_id \t path \t first_epoch \t last_epoch`.
+
+Each candidate carries its **source surface** (CLI or VS Code), **file path**,
+and the **session identifier** extracted from its path. Do not assume the two
+surfaces share a session namespace or that identifiers from one surface are
+meaningful on the other.
+
+**`session-store.db` shortlist (version-scoped):** The CLI `session-store.db`
+SQLite database may provide a cheap pre-filter of session IDs before scanning
+`events.jsonl` files. Its schema is undocumented and version-scoped — inspect
+tables/columns at runtime before relying on it; do not hardcode undocumented
+table names as a deterministic join.
+
+### Candidate key status table
+
+The following table uses a closed vocabulary for cross-surface key status:
+
+- **verified** — proven by direct observation or documented specification within
+  a single surface or for the specific technique described.
+- **unverified** — plausible but not confirmed by documentation or controlled
+  experiment; do not assume equivalence without explicit evidence.
+- **community-assumed** — reported by community members or tools but never
+  independently verified or documented by GitHub.
+
+| Candidate key / technique | Scope | Status | Notes |
+|---|---|---|---|
+| VS Code transcript `<sessionId>` from path | Within VS Code surface | verified | Identifies a transcript within that workspace; not a cross-surface key |
+| CLI `session-state/<sessionId>` directory name | Within CLI surface | verified | Identifies a CLI session; not a cross-surface key |
+| Temporal overlap via event-timestamp interval overlap | Enumeration technique | verified | Verified execution technique when using event timestamps (not filesystem mtime); produces candidate association only — **not** identity proof; multiple sessions may overlap the same window |
+| Equality: VS Code transcript sessionId = CLI session-state sessionId | Cross-surface | unverified | No documentation or controlled experiment confirms these namespaces share identity; do not assume equivalence |
+| Equality: OTel `gen_ai.conversation.id` = CLI session-state sessionId | Cross-surface | unverified | The existing adapter explicitly warns not to assume OTel span UUIDs equal session-state `sessionId` values (§ Token-metrics caveats) |
+| Equality: OTel resource `session.id` = any other surface sessionId | Cross-surface | unverified | No specification links this attribute to either transcript or session-state identifiers |
+| OTel `service.name` as surface disambiguator | Disambiguation | verified | Where present, disambiguates the producing surface (Copilot CLI observed value: `github-copilot` — per Microsoft [vscode-copilot-chat `agent_monitoring.md`](https://github.com/microsoft/vscode-copilot-chat/blob/main/docs/monitoring/agent_monitoring.md) provenance); **not a session join key** |
+| Terminal-started sessions sharing a UUID across VS Code and CLI | Cross-surface | community-assumed | Community suggestion that terminal-initiated Copilot sessions may share a session UUID between VS Code host and CLI subprocess; never independently verified or documented by GitHub |
+
+### No deterministic cross-surface mapping
+
+**Do not assume a deterministic cross-surface mapping exists.** No documented
+mechanism guarantees that a session identifier on one surface equals or maps to
+an identifier on another. The enumeration procedure produces a **union of
+candidates** per surface; any cross-surface association beyond temporal co-occurrence
+is speculative.
+
+Cross-client session sharing/mapping has no documented resolution or prior art —
+see [github/copilot-cli #2186](https://github.com/github/copilot-cli/issues/2186)
+(open as of 2026-07-21). That issue is a feature request; do not treat its
+content as official schema documentation.
+
+### `service.name` role and limits
+
+The OTel resource attribute `service.name` (observed value `github-copilot` on
+the Copilot CLI surface) can disambiguate which surface/producer emitted a given
+span or record. It is **not a session join key** — it identifies the emitting
+application, not the session instance. Use it to partition records by producer
+when multiple surfaces write to a shared OTel collector, but never as a
+cross-surface session correlator.
 
 ## Subagent tool/skill capture (`harness.subagent`)
 
