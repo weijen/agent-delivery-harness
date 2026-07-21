@@ -134,41 +134,69 @@ tail -n 2 "$TRACE" | jq -e -s 'all(.[];
 CONSISTENCY_DIR="${TMP_DIR}/consistency"
 mkdir -p "$CONSISTENCY_DIR"
 check_direct_trace() {
-  local name="$1" expected="$2" trace="$3" output="${TMP_DIR}/consistency-${1}.out"
+  local name="$1" expected="$2" trace="$3" role="${4:-generator-subagent}"
+  local step="${5:-impl_handback}" output="${TMP_DIR}/consistency-${1}.out"
   printf '%s\n' "$trace" > "${CONSISTENCY_DIR}/trace.jsonl"
-  if [ "$name" = "unrelated-role" ]; then
-    printf '# Fixture\n\n## Action Log\n\n- [conductor] deviation fixture blocked — fixture\n' \
-      > "${CONSISTENCY_DIR}/progress.md"
-  else
-    printf '# Fixture\n\n## Action Log\n\n- [generator-subagent] impl_handback fixture pass — fixture\n' \
-      > "${CONSISTENCY_DIR}/progress.md"
-  fi
+  printf '# Fixture\n\n## Action Log\n\n- [%s] %s fixture pass — fixture\n' \
+    "$role" "$step" > "${CONSISTENCY_DIR}/progress.md"
   if "$CHECKER" "${CONSISTENCY_DIR}/trace.jsonl" >"$output" 2>&1; then
     [ "$expected" = "pass" ] || fail "${name}: contradictory provenance passed consistency"
   else
-    [ "$expected" = "fail" ] || fail "${name}: valid provenance failed consistency"
-    grep -Fq 'generator_research_provenance_invalid line 1' "$output" \
-      || fail "${name}: expected provenance consistency finding"
+    [ "$expected" != "pass" ] || fail "${name}: valid provenance failed consistency"
+    if [ "$expected" = "fail" ]; then
+      grep -Fq 'generator_research_provenance_invalid line 1' "$output" \
+        || fail "${name}: expected provenance consistency finding"
+    else
+      ! grep -Fq 'generator_research_provenance_invalid' "$output" \
+        || fail "${name}: unrelated route was incorrectly provenance-validated"
+    fi
   fi
 }
 
-DIRECT_BASE='"span":"agent","gen_ai.agent.name":"generator-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"fixture","harness.outcome":"pass"'
-check_direct_trace research-valid pass \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
-check_direct_trace research-missing fail \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\"}"
-check_direct_trace research-partial fail \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\"}"
-check_direct_trace research-malformed fail \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"file:///private/source\",\"harness.research_summary\":\" \"}"
-check_direct_trace requested-absent pass \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research-requested\"}"
-check_direct_trace requested-present fail \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
-check_direct_trace non-research-ambient fail \
-  "{${DIRECT_BASE},\"harness.failure_disposition\":\"class-fix\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
+for step in red_handback impl_handback green_handback; do
+  DIRECT_BASE="\"span\":\"agent\",\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"${step}\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\""
+  check_direct_trace "${step}-research-valid" pass \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+    generator-subagent "$step"
+  check_direct_trace "${step}-research-missing" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\"}" generator-subagent "$step"
+  check_direct_trace "${step}-research-url-only" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\"}" \
+    generator-subagent "$step"
+  check_direct_trace "${step}-research-summary-only" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+    generator-subagent "$step"
+  check_direct_trace "${step}-research-malformed-url" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"file:///private/source\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+    generator-subagent "$step"
+  check_direct_trace "${step}-research-blank-summary" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\" \"}" \
+    generator-subagent "$step"
+  check_direct_trace "${step}-research-multiline-summary" fail \
+    "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"first\\nsecond\"}" \
+    generator-subagent "$step"
+
+  for disposition in point-fix class-fix decompose exemption override research-requested; do
+    check_direct_trace "${step}-${disposition}-absent" pass \
+      "{${DIRECT_BASE},\"harness.failure_disposition\":\"${disposition}\"}" generator-subagent "$step"
+    check_direct_trace "${step}-${disposition}-url-only" fail \
+      "{${DIRECT_BASE},\"harness.failure_disposition\":\"${disposition}\",\"harness.research_url\":\"${URL}\"}" \
+      generator-subagent "$step"
+    check_direct_trace "${step}-${disposition}-summary-only" fail \
+      "{${DIRECT_BASE},\"harness.failure_disposition\":\"${disposition}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+      generator-subagent "$step"
+    check_direct_trace "${step}-${disposition}-pair" fail \
+      "{${DIRECT_BASE},\"harness.failure_disposition\":\"${disposition}\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+      generator-subagent "$step"
+  done
+done
+
 check_direct_trace unrelated-role pass \
-  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"blocked\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
+  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+  conductor deviation
+check_direct_trace unrelated-step pass \
+  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+  generator-subagent deviation
 
 jq -e '
   .optional_fields["harness.research_url"]
