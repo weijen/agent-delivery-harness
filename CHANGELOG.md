@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.22.0 (2026-07-21)
+
+### Bug Fixes
+
+- **#326**: Group fallback assertions for shellcheck
+  ([`7d77c1d`](https://github.com/weijen/agent-delivery-harness/commit/7d77c1d0ff81b1f0d03d0f6029a76d4aeb503283))
+
+- **#326**: Support ruleset force rejections
+  ([`378dafc`](https://github.com/weijen/agent-delivery-harness/commit/378dafc9452882415b310f663b2d6f4ae9bceb75))
+
+### Documentation
+
+- **#326**: Define create-pr push contract
+  ([`5114597`](https://github.com/weijen/agent-delivery-harness/commit/5114597271cc3ee143ecf652a03c61a71be945bd))
+
+- **#326**: Record non-rewriting PR sync
+  ([`aed8f68`](https://github.com/weijen/agent-delivery-harness/commit/aed8f68f6c68c8803457ad62db2344e0cd9e65d2))
+
+### Features
+
+- **#326**: Add non-rewriting PR sync mode
+  ([`0ca7d2a`](https://github.com/weijen/agent-delivery-harness/commit/0ca7d2a9ba111e36ab6ebe24db75399c5cc9ea4c))
+
+- **#326**: Recover from blocked force pushes
+  ([`dc7a1ae`](https://github.com/weijen/agent-delivery-harness/commit/dc7a1aeb3a4b97014ced74f3f8b68e6e5ffc60e5))
+
+
 ## v0.21.1 (2026-07-21)
 
 ### Bug Fixes
