@@ -147,6 +147,9 @@ env_flags:
   - name: SKIP_CI_GATE
     owner: scripts/review-gate.sh
     present: SKIP_CI_GATE
+  - name: CREATE_PR_NO_REWRITE
+    owner: scripts/create-pr.sh
+    present: CREATE_PR_NO_REWRITE
 
 # ---------------------------------------------------------------------------
 # Required outputs and state transitions. Each declared artifact / naming rule
