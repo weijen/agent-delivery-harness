@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-21 (#319)_
+_Last updated: 2026-07-21 (#317)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-21 (#319)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 206 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 211 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -69,9 +69,9 @@ _Last updated: 2026-07-21 (#319)_
 
 ## Next up
 
-- **Generator stuck-triggered research doctrine (#317):** add same-class
-  failure counting, classify-before-routing, time-boxed diagnosis-only external
-  research with provenance, durable rule emission, and scorecard coverage.
+- **Conductor class-closure escalation (#298):** use consecutive same-class
+  review verdicts to stop repeated point repairs and route a class-level fix,
+  consistent with the generator failure taxonomy delivered by #317.
 - **CI workflow hardening (#268) — in review:** third-party actions in
   `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
   readable version comments; non-release workflows now explicitly use
@@ -111,6 +111,23 @@ _Last updated: 2026-07-21 (#319)_
 ---
 
 ## Delivered (newest first)
+
+### Generator stuck-triggered external research (#317): delivery complete
+
+- **The second same-class generator failure stops point-fixing.** Generator
+  handbacks reuse the closed failure-class taxonomy and record a separate
+  disposition that routes knowledge gaps to research, complexity to
+  decomposition, and known-flaky or polling work to an explicit exemption or
+  override.
+- **Research is bounded, auditable, and diagnosis-only.** Runtime-specific
+  capability notes limit a class to one five-minute/one-document action,
+  preserve validated URL plus one-line provenance through the trace and Action
+  Log, and fail closed with `research-requested` when web access is unavailable.
+- **Class fixes survive the current run and remain measurable.** Successful
+  escalated repairs name an existing always-loaded repository rule and lesson;
+  trace summaries and scorecards report canonical same-class counts, coverage,
+  and the report-only target of at most two without fabricating historical
+  zeros.
 
 ### Synchronize Copilot native-record guidance with versioned evidence (#319): delivery complete
 
