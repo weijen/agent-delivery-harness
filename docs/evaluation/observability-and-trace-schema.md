@@ -400,15 +400,20 @@ the trace and the Action Log from the same events so they cannot disagree.
 
 Generator research provenance follows that single-source rule.
 `scripts/log-handback.sh` accepts `TRACE_RESEARCH_URL` and
-`TRACE_RESEARCH_SUMMARY` only as a validated pair on eligible generator
-handbacks whose disposition is `research`, meaning an external action was
-actually performed. A `research-requested` disposition means web was
-unavailable; supplied provenance warns and is omitted because no source was
-consulted. The helper writes a valid HTTP(S) URL and non-empty one-line content
-summary to both the handback span and its one Action Log row; partial,
-malformed, or multiline input warns and creates no provenance evidence. These
-fields are local-only and excluded from trace export. They are source notes,
-not a content archive: fetched page content must never enter the trace.
+`TRACE_RESEARCH_SUMMARY` as globally optional, open-world fields. They become
+mandatory as a valid pair on generator `red_handback`, `impl_handback`, and
+`green_handback` spans whose disposition is `research`, meaning an external
+action was actually performed. The helper requires a valid HTTP(S) URL and a
+non-empty one-line content summary; a missing, partial, malformed, or multiline
+pair hard-fails before either the span or Action Log row is emitted. A direct
+trace carrying the same disposition without a valid pair fails consistency.
+
+A `research-requested` disposition means web was unavailable and is therefore
+ineligible for provenance. Supplied fake provenance warns and is omitted
+because no source was consulted. Valid provenance is written to both the
+handback span and its one Action Log row. These fields are local-only and
+excluded from trace export. They are source notes, not a content archive:
+fetched page content must never enter the trace.
 
 Closeout also separates an in-flight `Status:` from its terminal
 `Conclusion:`. `finish-issue.sh` writes the conclusion before teardown using

@@ -453,6 +453,25 @@ cat > "$STATE_FILTER" <<'JQ'
         | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
       else empty
       end ),
+    # A research disposition asserts that one bounded external action
+    # occurred. Direct trace fixtures must carry the same valid provenance
+    # pair that log-handback enforces at emission time.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ((["red_handback", "impl_handback", "green_handback"]
+               | index($span["harness.lifecycle_step"])) != null)
+         and ($span["harness.failure_disposition"] == "research")
+         and (
+           (($span["harness.research_url"] | type) != "string")
+           or (($span["harness.research_url"]
+                | test("^https?://[^/?#[:space:]]+[^[:space:]]*$")) | not)
+           or (($span["harness.research_summary"] | type) != "string")
+           or (($span["harness.research_summary"] | test("[^[:space:]]")) | not)
+           or ($span["harness.research_summary"] | test("[\r\n]"))
+         )
+      then "::research \($n)"
+      else empty
+      end ),
     # A successful escalated class repair is grounded in prior same-class
     # failed/blocked handbacks. Arbitrary pass spans, point fixes, exemptions,
     # and blocked research requests are not durable-rule completion events.
@@ -575,6 +594,11 @@ while IFS= read -r out_line; do
     '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
     '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
     '::durable '*)  durable_lines="${durable_lines}${out_line#'::durable '}"$'\n' ;;
+    '::research '*)
+      printf 'VIOLATION consistency: generator_research_provenance_invalid line %s\n' \
+        "${out_line#'::research '}"
+      violations=$((violations + 1))
+      ;;
   esac
 done <<< "$state_out"
 

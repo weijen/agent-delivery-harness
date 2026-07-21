@@ -32,10 +32,11 @@
 # TRACE_RESEARCH_SUMMARY are accepted only as a pair on generator handbacks
 # for research that was actually performed. A research-requested disposition
 # means web was unavailable and always rejects provenance. The URL must use
-# HTTP(S), and the non-empty content summary must be one line. Invalid,
-# partial, or research-requested input warns and omits both fields. Valid
-# values are written to the span and the same Action Log row; fetched page
-# content is never accepted as a trace field.
+# HTTP(S), and the non-empty content summary must be one line. Missing or
+# invalid provenance on a research disposition hard-fails before emission;
+# research-requested input warns and omits both fields. Valid values are
+# written to the span and the same Action Log row; fetched page content is
+# never accepted as a trace field.
 #
 # Durable-rule passthrough (issue #317): TRACE_DURABLE_RULE_PATH and
 # TRACE_DURABLE_RULE_SUMMARY are accepted only as a pair on a successful
@@ -153,8 +154,9 @@ esac
 SUMMARY="${SUMMARY//$'\r'/ }"
 SUMMARY="${SUMMARY//$'\n'/ }"
 
-# Research provenance is optional and pair-valued. Validate it once before
-# either output is rendered so the trace and Action Log cannot disagree.
+# Research provenance fields are globally optional, but a generator research
+# disposition requires their valid pair. Validate before either output is
+# rendered so invalid input cannot emit a span or Action Log row.
 RESEARCH_URL=""
 RESEARCH_SUMMARY=""
 research_eligible=0
@@ -172,16 +174,15 @@ fi
 if [ "$research_unperformed" = "1" ] \
   && { [ -n "${TRACE_RESEARCH_URL:-}" ] || [ -n "${TRACE_RESEARCH_SUMMARY:-}" ]; }; then
   warn "research provenance requires performed research; research-requested consulted no source — both fields omitted"
-elif [ "$research_eligible" = "1" ] \
-  && { [ -n "${TRACE_RESEARCH_URL:-}" ] || [ -n "${TRACE_RESEARCH_SUMMARY:-}" ]; }; then
+elif [ "$research_eligible" = "1" ]; then
   if [ -z "${TRACE_RESEARCH_URL:-}" ] || [ -z "${TRACE_RESEARCH_SUMMARY:-}" ]; then
-    warn "research provenance requires both TRACE_RESEARCH_URL and TRACE_RESEARCH_SUMMARY — both omitted"
+    fail "research disposition requires both TRACE_RESEARCH_URL and TRACE_RESEARCH_SUMMARY"
   elif ! [[ "${TRACE_RESEARCH_URL}" =~ ^https?://[^/?#[:space:]]+[^[:space:]]*$ ]]; then
-    warn "research provenance URL must be a non-empty HTTP(S) URL — both fields omitted"
+    fail "research provenance URL must be a non-empty HTTP(S) URL"
   elif [[ "${TRACE_RESEARCH_SUMMARY}" == *$'\n'* \
     || "${TRACE_RESEARCH_SUMMARY}" == *$'\r'* \
     || ! "${TRACE_RESEARCH_SUMMARY}" =~ [^[:space:]] ]]; then
-    warn "research provenance summary must be a non-empty one-line value — both fields omitted"
+    fail "research provenance summary must be a non-empty one-line value"
   else
     RESEARCH_URL="${TRACE_RESEARCH_URL}"
     RESEARCH_SUMMARY="${TRACE_RESEARCH_SUMMARY}"

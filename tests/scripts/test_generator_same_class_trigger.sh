@@ -50,6 +50,10 @@ add_span() {
       }
       + (if $cls == "" then {} else {"harness.failure_class": $cls} end)
       + (if $disposition == "" then {} else {"harness.failure_disposition": $disposition} end)
+      + (if $disposition == "research" then {
+          "harness.research_url": "https://example.invalid/research",
+          "harness.research_summary": "Fixture source summary."
+        } else {} end)
       + (if $detail == "" then {} else {"harness.failure_class_detail": $detail} end)
     ' >> "${TMP_DIR}/${name}/trace.jsonl"
   printf -- '- [%s] %s selected-feature %s — fixture\n' \
@@ -175,6 +179,8 @@ E_TRACE="${E_DIR}/.copilot-tracking/issues/issue-317/trace.jsonl"
 (
   cd "$E_DIR"
   TRACE_ISSUE=317 TRACE_FAILURE_CLASS=knowledge-gap TRACE_FAILURE_DISPOSITION=research \
+    TRACE_RESEARCH_URL=https://example.invalid/research \
+    TRACE_RESEARCH_SUMMARY="Fixture source summary." \
     "$LOG_HANDBACK" generator-subagent impl_handback selected-feature fail "fixture" >/dev/null
 )
 jq -e 'select(.["gen_ai.agent.name"] == "generator-subagent")
