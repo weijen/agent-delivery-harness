@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.21.1 (2026-07-21)
+
+### Bug Fixes
+
+- Require authoritative merge evidence
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+- **#328**: Make create-pr help side-effect free
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+- **#328**: Make merge-pr help side-effect free
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+- **#328**: Require merge evidence at closeout
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+- **#328**: Verify merge state before success
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+### Documentation
+
+- **#328**: Record lifecycle merge hardening
+  ([#338](https://github.com/weijen/agent-delivery-harness/pull/338),
+  [`17561ac`](https://github.com/weijen/agent-delivery-harness/commit/17561acf9d45ebddd933ab633a7f8e9ae3fa733f))
+
+
 ## v0.21.0 (2026-07-21)
 
 ### Bug Fixes
