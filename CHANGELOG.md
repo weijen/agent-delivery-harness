@@ -2,6 +2,69 @@
 
 <!-- version list -->
 
+## v0.21.0 (2026-07-21)
+
+### Bug Fixes
+
+- **#317**: Close provenance route matrix
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Persist transitioned class fixes
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Require generator failure classes
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Require research provenance
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Support jq 1.6 binding precedence
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+### Documentation
+
+- **#317**: Record research escalation delivery
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+### Features
+
+- Escalate repeated generator failure classes
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Bound generator research
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Measure same-class repeats
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Persist generator class fixes
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Record research provenance
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+- **#317**: Stop repeated point fixes
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+### Testing
+
+- **#317**: Expand provenance route matrix
+  ([#327](https://github.com/weijen/agent-delivery-harness/pull/327),
+  [`2e7649e`](https://github.com/weijen/agent-delivery-harness/commit/2e7649e4e298f75a5ce1f8a8db3f88519a76ae72))
+
+
 ## v0.20.1 (2026-07-21)
 
 ### Bug Fixes
