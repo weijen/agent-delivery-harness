@@ -84,9 +84,9 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_FAILURE_CLASS TRACE_FAILURE_CLASS_D
 # --- Prerequisites -------------------------------------------------------------
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required"
-[ -f "$CHECKER" ] && [ -x "$CHECKER" ] \
+{ [ -f "$CHECKER" ] && [ -x "$CHECKER" ]; } \
   || hard_fail "scripts/check-trace-consistency.sh not found or not executable"
-[ -f "$LOG_HANDBACK" ] && [ -x "$LOG_HANDBACK" ] \
+{ [ -f "$LOG_HANDBACK" ] && [ -x "$LOG_HANDBACK" ]; } \
   || hard_fail "scripts/log-handback.sh not found or not executable"
 
 # --- Span + Action-Log bullet builders ----------------------------------------
