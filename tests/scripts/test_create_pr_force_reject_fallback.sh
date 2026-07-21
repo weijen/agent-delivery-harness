@@ -341,7 +341,7 @@ git -C "$RA" merge-base --is-ancestor "$TIP_ON_REMOTE_A" HEAD \
   || fail "(a1) the remote's pre-fallback tip must be an ancestor of the fallback merge HEAD"
 git -C "$RA" merge-base --is-ancestor origin/main HEAD \
   || fail "(a1) origin/main must be an ancestor of the fallback merge HEAD"
-[ -f "${RA}/local_only.txt" ] && [ "$(cat "${RA}/local_only.txt")" = "local-only work" ] \
+{ [ -f "${RA}/local_only.txt" ] && [ "$(cat "${RA}/local_only.txt")" = "local-only work" ]; } \
   || fail "(a1) the pre-existing local-only unpushed commit's content must survive the fallback (local_only.txt missing or wrong content after the reset+merge) — the fallback must restore the pre-sync LOCAL tip, not the remote tip"
 git -C "$RA" rev-parse -q --verify "$OWNED_REF_A" >/dev/null 2>&1 \
   || fail "(a1) owned pre-sync ref ${OWNED_REF_A} must still exist — retained across the policy-rejection fallback until the branch push finally succeeds"
@@ -470,7 +470,7 @@ git -C "$RD" merge-base --is-ancestor "$TIP_ON_REMOTE_D" HEAD \
   || fail "(d1) the remote's pre-fallback tip must be an ancestor of the fallback merge HEAD"
 git -C "$RD" merge-base --is-ancestor origin/main HEAD \
   || fail "(d1) origin/main must be an ancestor of the fallback merge HEAD"
-[ -f "${RD}/local_only.txt" ] && [ "$(cat "${RD}/local_only.txt")" = "local-only work" ] \
+{ [ -f "${RD}/local_only.txt" ] && [ "$(cat "${RD}/local_only.txt")" = "local-only work" ]; } \
   || fail "(d1) the pre-existing local-only unpushed commit's content must survive the GH013 Rulesets fallback — the fallback must restore the pre-sync LOCAL tip, not the remote tip"
 OWNED_REF_D="$(owned_ref_path feature/issue-328-fixture)"
 git -C "$RD" rev-parse -q --verify "$OWNED_REF_D" >/dev/null 2>&1 \
