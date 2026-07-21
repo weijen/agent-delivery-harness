@@ -371,6 +371,8 @@ E_DIR="${TMP_DIR}/emission"
 mkdir -p "${E_DIR}/.copilot-tracking/issues/issue-318"
 (
   cd "$E_DIR" && git init -q && git checkout -b feature/issue-318-test 2>/dev/null
+  git config user.name "Harness Test"
+  git config user.email "harness-test@example.invalid"
   printf '# Issue 318 progress\n\nStatus: in progress.\n\n## Action Log\n\n' \
     > .copilot-tracking/issues/issue-318/progress.md
   git add -A && git commit -q -m "init" --allow-empty
