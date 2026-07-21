@@ -129,20 +129,46 @@ tail -n 2 "$TRACE" | jq -e -s 'all(.[];
   and (has("harness.research_summary") | not)
 )' >/dev/null || fail "provenance must be limited to eligible generator research handbacks"
 
-# The consistency checker independently rejects hand-written research spans
-# that bypass the emitter without a valid pair.
+# The consistency checker independently enforces the complete route-dependent
+# provenance truth table for hand-written traces that bypass the emitter.
 CONSISTENCY_DIR="${TMP_DIR}/consistency"
 mkdir -p "$CONSISTENCY_DIR"
-printf '# Fixture\n\n## Action Log\n\n- [generator-subagent] impl_handback fixture pass — fixture\n' \
-  > "${CONSISTENCY_DIR}/progress.md"
-cat > "${CONSISTENCY_DIR}/trace.jsonl" <<'JSON'
-{"span":"agent","gen_ai.agent.name":"generator-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"fixture","harness.outcome":"pass","harness.failure_disposition":"research"}
-JSON
-if "$CHECKER" "${CONSISTENCY_DIR}/trace.jsonl" >"${TMP_DIR}/consistency.out" 2>&1; then
-  fail "consistency checker must reject research disposition without provenance"
-fi
-grep -Fq 'generator_research_provenance_invalid line 1' "${TMP_DIR}/consistency.out" \
-  || fail "consistency checker must report the missing or invalid research pair"
+check_direct_trace() {
+  local name="$1" expected="$2" trace="$3" output="${TMP_DIR}/consistency-${1}.out"
+  printf '%s\n' "$trace" > "${CONSISTENCY_DIR}/trace.jsonl"
+  if [ "$name" = "unrelated-role" ]; then
+    printf '# Fixture\n\n## Action Log\n\n- [conductor] deviation fixture blocked — fixture\n' \
+      > "${CONSISTENCY_DIR}/progress.md"
+  else
+    printf '# Fixture\n\n## Action Log\n\n- [generator-subagent] impl_handback fixture pass — fixture\n' \
+      > "${CONSISTENCY_DIR}/progress.md"
+  fi
+  if "$CHECKER" "${CONSISTENCY_DIR}/trace.jsonl" >"$output" 2>&1; then
+    [ "$expected" = "pass" ] || fail "${name}: contradictory provenance passed consistency"
+  else
+    [ "$expected" = "fail" ] || fail "${name}: valid provenance failed consistency"
+    grep -Fq 'generator_research_provenance_invalid line 1' "$output" \
+      || fail "${name}: expected provenance consistency finding"
+  fi
+}
+
+DIRECT_BASE='"span":"agent","gen_ai.agent.name":"generator-subagent","harness.lifecycle_step":"impl_handback","harness.feature_id":"fixture","harness.outcome":"pass"'
+check_direct_trace research-valid pass \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
+check_direct_trace research-missing fail \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\"}"
+check_direct_trace research-partial fail \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\"}"
+check_direct_trace research-malformed fail \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"file:///private/source\",\"harness.research_summary\":\" \"}"
+check_direct_trace requested-absent pass \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research-requested\"}"
+check_direct_trace requested-present fail \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
+check_direct_trace non-research-ambient fail \
+  "{${DIRECT_BASE},\"harness.failure_disposition\":\"class-fix\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
+check_direct_trace unrelated-role pass \
+  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"blocked\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}"
 
 jq -e '
   .optional_fields["harness.research_url"]

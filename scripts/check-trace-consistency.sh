@@ -453,21 +453,26 @@ cat > "$STATE_FILTER" <<'JQ'
         | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
       else empty
       end ),
-    # A research disposition asserts that one bounded external action
-    # occurred. Direct trace fixtures must carry the same valid provenance
-    # pair that log-handback enforces at emission time.
+    # Generator research provenance is a complete route-dependent truth table:
+    # research requires one valid pair; every other disposition requires both
+    # fields to be absent. Direct traces cannot bypass either branch.
     ( if ($span.span == "agent")
          and ($span["gen_ai.agent.name"] == "generator-subagent")
          and ((["red_handback", "impl_handback", "green_handback"]
                | index($span["harness.lifecycle_step"])) != null)
-         and ($span["harness.failure_disposition"] == "research")
          and (
-           (($span["harness.research_url"] | type) != "string")
-           or (($span["harness.research_url"]
-                | test("^https?://[^/?#[:space:]]+[^[:space:]]*$")) | not)
-           or (($span["harness.research_summary"] | type) != "string")
-           or (($span["harness.research_summary"] | test("[^[:space:]]")) | not)
-           or ($span["harness.research_summary"] | test("[\r\n]"))
+           if $span["harness.failure_disposition"] == "research"
+           then
+             (($span["harness.research_url"] | type) != "string")
+             or (($span["harness.research_url"]
+                  | test("^https?://[^/?#[:space:]]+[^[:space:]]*$")) | not)
+             or (($span["harness.research_summary"] | type) != "string")
+             or (($span["harness.research_summary"] | test("[^[:space:]]")) | not)
+             or ($span["harness.research_summary"] | test("[\r\n]"))
+           else
+             ($span | has("harness.research_url"))
+             or ($span | has("harness.research_summary"))
+           end
          )
       then "::research \($n)"
       else empty

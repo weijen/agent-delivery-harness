@@ -407,6 +407,10 @@ action was actually performed. The helper requires a valid HTTP(S) URL and a
 non-empty one-line content summary; a missing, partial, malformed, or multiline
 pair hard-fails before either the span or Action Log row is emitted. A direct
 trace carrying the same disposition without a valid pair fails consistency.
+The other branch of the same conditional matrix requires both fields to be
+absent for every non-`research` disposition; partial pairs and ambient fields
+on those routes also fail direct-trace consistency. Unrelated roles and
+lifecycle steps remain outside this generator handback contract.
 
 A `research-requested` disposition means web was unavailable and is therefore
 ineligible for provenance. Supplied fake provenance warns and is omitted
