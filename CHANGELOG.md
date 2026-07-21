@@ -2,6 +2,73 @@
 
 <!-- version list -->
 
+## v0.20.0 (2026-07-21)
+
+### Bug Fixes
+
+- Make review failures attributable and actionable
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+### Documentation
+
+- **#318**: Record review trace delivery
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+### Features
+
+- **#318**: Enforce review trace coherence
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Gate rejects on actionable evidence
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Pin repair verdict scope
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Require attributed review failures
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Track review findings across events
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+### Testing
+
+- **#318**: Group actionability prerequisites
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Group attribution prerequisites
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Group integration prerequisites
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Group repair scope prerequisites
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Isolate attribution fixture git config
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Isolate identity fixture git config
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+- **#318**: Isolate repair fixture git config
+  ([#324](https://github.com/weijen/agent-delivery-harness/pull/324),
+  [`05477a1`](https://github.com/weijen/agent-delivery-harness/commit/05477a1093ecdf59aea5a6ba8da281ce5272af23))
+
+
 ## v0.19.0 (2026-07-20)
 
 ### Bug Fixes
