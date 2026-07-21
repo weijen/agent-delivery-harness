@@ -321,7 +321,7 @@ rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT4")" ] \
   || fail "waiver_allows_approve: approve must write the approved-head marker when a valid waiver is present"
 if [ -f "$(marker_path "$WT4")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT4")")" = "$(git -C "$WT4" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT4")" | tr -d '[:space:]')" = "$(git -C "$WT4" rev-parse HEAD)" ] \
     || fail "waiver_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 
@@ -348,7 +348,7 @@ rc="$(run_in "$WT5" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT5")" ] \
   || fail "teeth_proof_allows_approve: approve must write the approved-head marker when valid teeth_proof is present"
 if [ -f "$(marker_path "$WT5")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT5")")" = "$(git -C "$WT5" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT5")" | tr -d '[:space:]')" = "$(git -C "$WT5" rev-parse HEAD)" ] \
     || fail "teeth_proof_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 
@@ -370,7 +370,7 @@ rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT6")" ] \
   || fail "triple_allows_approve: approve must write the approved-head marker when an ordered role-correct triple is present"
 if [ -f "$(marker_path "$WT6")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT6")")" = "$(git -C "$WT6" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT6")" | tr -d '[:space:]')" = "$(git -C "$WT6" rev-parse HEAD)" ] \
     || fail "triple_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 

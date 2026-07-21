@@ -603,6 +603,33 @@ review_verdict_gate() {
   return 0
 }
 
+# _patch_id_for_branch — stable ordered patch identity for commits above
+# origin/main, or the deterministic empty-stream identity for a zero-commit
+# branch. Uses Git-only portable primitives (git patch-id --stable, git
+# hash-object --stdin, awk for field extraction); no new/non-POSIX hashing
+# dependency. Prints nothing and returns 1 if origin/main is unavailable or the
+# pipeline cannot run. The caller must record a blank line 2 on failure
+# (fail-closed carry design: carry will refuse rather than silently match an
+# unknown identity). Never substitutes HEAD as a fake base for an origin that
+# cannot be reached.
+_patch_id_for_branch() {
+  local base raw
+  # Fail closed: if origin/main or the merge-base is unavailable, return 1 so
+  # the caller writes a blank identity (carry refuses later, not silently match).
+  base="$(git merge-base origin/main HEAD 2>/dev/null)" || return 1
+  # Use pipefail so a nonzero patch-id/log/awk pipeline returns 1; only
+  # successful empty output means zero commits (deterministic empty-stream hash).
+  raw="$(set -o pipefail; git log --no-merges --reverse "${base}..HEAD" -p 2>/dev/null \
+    | git patch-id --stable 2>/dev/null \
+    | awk '{print $1}' 2>/dev/null)" || return 1
+  if [ -z "$raw" ]; then
+    # Zero commits above origin/main: deterministic identity of the empty stream.
+    git hash-object --stdin </dev/null 2>/dev/null || return 1
+  else
+    printf '%s\n' "$raw" | git hash-object --stdin 2>/dev/null || return 1
+  fi
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_dir="${repo_root}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
@@ -638,7 +665,12 @@ case "$command" in
       exit 1
     fi
     mkdir -p "$marker_dir"
+    # Compute stable branch patch identity (issue #310); see _patch_id_for_branch.
+    # Returns blank when origin/main is unavailable: carry fails closed later.
+    _patch_id=""
+    _patch_id="$(_patch_id_for_branch 2>/dev/null)" || _patch_id=""
     printf '%s\n' "$head_sha" > "$marker_file"
+    printf '%s\n' "$_patch_id" >> "$marker_file"
     green "✓ review approved for current HEAD ${head_sha}"
     ;;
   check)
@@ -650,7 +682,8 @@ case "$command" in
       echo "  Run review, resolve findings, then: ./scripts/review-gate.sh approve"
       exit 1
     fi
-    approved_sha="$(tr -d '[:space:]' < "$marker_file")"
+    IFS= read -r approved_sha < "$marker_file" || true
+    approved_sha="$(printf '%s' "$approved_sha" | tr -d '[:space:]')"
     if [ "$approved_sha" != "$head_sha" ]; then
       TRACE_STAGE="stale_head"
       red "✗ current HEAD has not been approved by the review gate."
