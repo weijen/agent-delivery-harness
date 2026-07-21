@@ -2,6 +2,51 @@
 
 <!-- version list -->
 
+## v0.20.1 (2026-07-21)
+
+### Bug Fixes
+
+- Sync Copilot adapter with native records
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+### Documentation
+
+- **#319**: Add CLI cost review recipes
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Document safe subagent permissions
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Enumerate Copilot record surfaces
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Record Copilot adapter delivery
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Version-pin Copilot token metrics
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+### Testing
+
+- **#319**: Cross-check Copilot record contracts
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Follow token metrics heading rename
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+- **#319**: Satisfy newer ShellCheck indexing
+  ([#325](https://github.com/weijen/agent-delivery-harness/pull/325),
+  [`aeec4fa`](https://github.com/weijen/agent-delivery-harness/commit/aeec4fa7bcc5452f7f18913076caaaecbe6500d7))
+
+
 ## v0.20.0 (2026-07-21)
 
 ### Bug Fixes
