@@ -92,6 +92,16 @@ make_case first-point-fix
 add_span first-point-fix generator-subagent impl_handback fail regression point-fix
 expect_clean first-point-fix
 
+# Every failed or blocked generator handback must be classified; otherwise it
+# is invisible to the same-class counter and can repeat point fixes forever.
+make_case missing-class
+add_span missing-class generator-subagent impl_handback fail "" point-fix
+expect_violation missing-class "generator_failure_class_missing line 1"
+
+make_case invalid-class
+add_span invalid-class generator-subagent green_handback blocked invented-class point-fix
+expect_violation invalid-class "generator_failure_class_invalid line 1"
+
 # Occurrence 2+ may use neither point-fix nor a missing disposition.
 make_case repeated-point-fix
 add_span repeated-point-fix generator-subagent impl_handback fail regression point-fix

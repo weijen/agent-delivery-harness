@@ -424,18 +424,18 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
       end ),
-    # Eligible generator failures carry class and a separate route. Occurrence
-    # is computed in trace-file order for the same class; pass outcomes,
-    # non-generator roles, and review verdicts do not participate.
+    # Eligible generator failures must carry a valid class and a separate
+    # route. Occurrence is computed in trace-file order for the same class;
+    # pass outcomes, non-generator roles, and review verdicts do not
+    # participate.
     ( if ($span.span == "agent")
          and ($span["gen_ai.agent.name"] == "generator-subagent")
          and ((["red_handback", "impl_handback", "green_handback"]
                | index($span["harness.lifecycle_step"])) != null)
          and ((["fail", "blocked"] | index($span["harness.outcome"])) != null)
-         and (($span["harness.failure_class"] | type) == "string")
-         and ($span["harness.failure_class"] != "")
       then
-        $span["harness.failure_class"] as $gfc
+        (($span["harness.failure_class"] // "")
+         | if type == "string" and . != "" then . else "__EMPTY__" end) as $gfc
         | ([ $lines[0:$i][]
              | fromjson? | objects
              | . as $prior
@@ -655,16 +655,25 @@ durable_rule_target_valid() {
   esac
 }
 
-# Same-class generator trigger (issue #317). Ignore malformed/unknown classes:
-# only valid closed classes are eligible observations. For valid observations,
-# "other" still needs detail and disposition must come from its own closed enum.
-# Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must route
-# by class and can never repeat point-fix.
+# Same-class generator trigger (issue #317). Every eligible failed or blocked
+# generator handback must carry a valid closed class. For valid observations,
+# "other" still needs detail and disposition must come from its own closed
+# enum. Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must
+# route by class and can never repeat point-fix.
 if [ "$genfail_lines" != $'\n' ]; then
   while IFS= read -r gf_line; do
     [ -n "$gf_line" ] || continue
     IFS=$'\t' read -r gf_n gf_class gf_detail gf_disposition gf_occurrence <<< "$gf_line"
-    failure_class_valid "$gf_class" || continue
+    if [ "$gf_class" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if ! failure_class_valid "$gf_class"; then
+      printf 'VIOLATION consistency: generator_failure_class_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
 
     if [ "$gf_class" = "other" ] && [ "$gf_detail" = "__EMPTY__" ]; then
       printf 'VIOLATION consistency: generator_failure_class_other_no_detail line %s\n' "$gf_n"
