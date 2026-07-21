@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-21 (#326)_
+_Last updated: 2026-07-21 (#310)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-21 (#326)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 216 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 218 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,32 @@ _Last updated: 2026-07-21 (#326)_
 ---
 
 ## Delivered (newest first)
+
+### create-pr: carry approval across content-preserving rebases (#310): delivery complete
+
+- **Approval records a stable branch identity.** `review-gate.sh approve`
+  keeps the approved HEAD on marker line 1 and writes a Git-native digest of
+  the ordered stable patch-id stream on line 2. Ordinary checks remain
+  compatible with legacy single-line markers. If the base is unavailable or
+  the approved branch contains a merge commit, line 2 is blank so carry is
+  ineligible rather than guessed.
+- **Only an actual content-preserving default rebase can carry approval.**
+  `create-pr.sh` passes the exact pre-rebase HEAD to the review gate after a
+  successful rebase. Carry succeeds only when that SHA matches marker line 1
+  and the merge-free post-rebase patch identity exactly matches marker line 2;
+  the marker then advances to the new HEAD and a
+  `review_gate_approve` span records `harness.review_gate_carry=patch-id`.
+  The authoritative approval check still runs afterward.
+- **Every other HEAD change remains fail-closed.** Changed post-rebase
+  content, wrong SHAs, malformed or legacy identities, merge histories,
+  `CREATE_PR_NO_REWRITE` merges, and reactive force-policy fallback merges
+  cannot carry approval and continue to require a fresh review approval.
+- **Two new red-first sensors bring the shell suite to 218.**
+  `tests/scripts/test_review_gate_patch_id_store.sh` covers seven marker,
+  portability, empty-branch, unavailable-base, and rebase-stability cases.
+  `tests/scripts/test_create_pr_carry_approval.sh` covers eight positive,
+  mutation, trace-consistency, malformed-state, merge-history, and
+  non-rewriting-path cases.
 
 ### create-pr: non-rewriting sync path — force-with-lease is a preference, not a hard dependency (#326): delivery complete
 
