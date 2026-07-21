@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-21 (#328)_
+_Last updated: 2026-07-21 (#326)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-21 (#328)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 213 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 216 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,46 @@ _Last updated: 2026-07-21 (#328)_
 ---
 
 ## Delivered (newest first)
+
+### create-pr: non-rewriting sync path — force-with-lease is a preference, not a hard dependency (#326): delivery complete
+
+- **`CREATE_PR_NO_REWRITE` explicit history-preserving sync mode.** When set,
+  `create-pr.sh` skips rebase and force push entirely: it opens the PR from
+  the current branch tip when it already cleanly targets `origin/main`, or
+  merges `origin/main` into the branch (re-gating the new merge HEAD for
+  approval) when a sync is needed, then does a plain push. Default rebase
+  preference and behavior are unchanged when the flag is unset.
+- **Reactive fallback when the remote itself rejects force-push.** A narrow
+  classifier distinguishes a genuine force-push-policy rejection from any
+  other push failure. On a policy rejection, the script restores the
+  pre-rebase tip from a branch-scoped, script-owned ref (`refs/create-pr/presync/<branch>`)
+  written immediately before the one place it runs `git rebase origin/main`
+  — never git's shared, unnamespaced `ORIG_HEAD` — validates the remote's
+  actual current tip is an ancestor of that owned restore point before any
+  `git reset --hard`, merges `origin/main`, re-checks approval on the new
+  merge HEAD, and plain-pushes once approved. It never issues a bare
+  `--force` push and never swallows unrelated (auth/network/content) push
+  failures, which remain hard, unswallowed errors with HEAD unmoved and no
+  PR opened.
+- **Push contract documented.** `docs/HARNESS.md`'s Review Gate section and
+  `scripts/create-pr.sh`'s header now both state, in matching terms, that
+  `--force-with-lease` applies only to the run's own single-writer feature
+  branch and is never used against `main` or a shared branch, that
+  `CREATE_PR_NO_REWRITE`/the reactive fallback make rebase a non-load-bearing
+  preference, and that force is never issued bare.
+- **Sensors, all red-first:** `tests/scripts/test_create_pr_no_rewrite.sh`
+  (current-tip, merge-required, and conflict scenarios against real local git
+  fixtures — failed pre-implementation against the unconditional-rebase
+  script, passed after the `CREATE_PR_NO_REWRITE` branch landed);
+  `tests/scripts/test_create_pr_force_reject_fallback.sh` (a real bare-origin
+  pre-receive force-push-policy hook drives the rejection/restore/merge/
+  re-approve/plain-push path and a genuine non-policy failure stays hard;
+  strengthened mid-repair to prove the owned pre-sync ref — not `ORIG_HEAD` —
+  is the sole cross-invocation restore point, failing red until the ref
+  writer, remote-ancestor guard, and ORIG_HEAD removal were all in place);
+  `tests/meta/test_create_pr_push_contract_docs.sh` (failed red against the
+  unmodified docs/header for every missing contract statement, passed once
+  the matching prose was added to both).
 
 ### Fix lifecycle scripts' --help side effects and require merge evidence (#328): delivery complete
 
