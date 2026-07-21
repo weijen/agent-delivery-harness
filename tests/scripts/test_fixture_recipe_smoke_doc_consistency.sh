@@ -89,8 +89,8 @@ normalize_cell() {
 _lookup_disc_jqfile() {
   local needle="$1" idx=0
   while [ "$idx" -lt "${#discovered_keys[@]}" ]; do
-    if [ "${discovered_keys[$idx]}" = "$needle" ]; then
-      printf '%s' "${_disc_jqfiles[$idx]}"
+    if [ "${discovered_keys[idx]}" = "$needle" ]; then
+      printf '%s' "${_disc_jqfiles[idx]}"
       return 0
     fi
     idx=$((idx + 1))
@@ -102,8 +102,8 @@ _lookup_disc_jqfile() {
 _lookup_mani_id() {
   local needle="$1" idx=0
   while [ "$idx" -lt "${#manifest_recipe_keys[@]}" ]; do
-    if [ "${manifest_recipe_keys[$idx]}" = "$needle" ]; then
-      printf '%s' "${_mani_ids[$idx]}"
+    if [ "${manifest_recipe_keys[idx]}" = "$needle" ]; then
+      printf '%s' "${_mani_ids[idx]}"
       return 0
     fi
     idx=$((idx + 1))
@@ -519,10 +519,10 @@ for i in $(seq 0 $((claim_count - 1))); do
   matched_row=-1
   match_count=0
   for r in $(seq 0 $((actual_row_count - 1))); do
-    row_v="${matrix_versions[$r]}"
-    row_e="${matrix_events[$r]}"
-    row_p="${matrix_paths[$r]}"
-    row_prov="${matrix_provenances[$r]}"
+    row_v="${matrix_versions[r]}"
+    row_e="${matrix_events[r]}"
+    row_p="${matrix_paths[r]}"
+    row_prov="${matrix_provenances[r]}"
 
     # matrix_version_cell: EXACT case-sensitive equality (not substring)
     if [ "$row_v" != "$sel_mvcell" ]; then
@@ -555,17 +555,17 @@ for i in $(seq 0 $((claim_count - 1))); do
     fail "I" "adapter claim '${cid}' selectors match ${match_count} rows (must be exactly 1)"
   else
     # Check row not already claimed (one claim per row)
-    if [ -n "${_row_claimed[$matched_row]:-}" ]; then
-      fail "I" "matrix row ${matched_row} matched by claim '${cid}' and '${_row_claimed[$matched_row]}' (duplicate)"
+    if [ -n "${_row_claimed[matched_row]:-}" ]; then
+      fail "I" "matrix row ${matched_row} matched by claim '${cid}' and '${_row_claimed[matched_row]}' (duplicate)"
     fi
-    _row_claimed[$matched_row]="$cid"
+    _row_claimed[matched_row]="$cid"
   fi
 done
 
 # Every row must be claimed (one row per claim)
 for r in $(seq 0 $((actual_row_count - 1))); do
-  if [ -z "${_row_claimed[$r]:-}" ]; then
-    fail "I" "matrix row ${r} (version='${matrix_versions[$r]}') not matched by any adapter claim (orphan row)"
+  if [ -z "${_row_claimed[r]:-}" ]; then
+    fail "I" "matrix row ${r} (version='${matrix_versions[r]}') not matched by any adapter claim (orphan row)"
   fi
 done
 
@@ -576,19 +576,19 @@ if [ -n "$manifest_cli_version" ]; then
   fb_mvcell="$(jq -r '.adapter_claims[] | select(.fixture_backed == true) | .selectors.matrix_version_cell' "$MANIFEST")"
   fb_matched_row=-1
   for r in $(seq 0 $((actual_row_count - 1))); do
-    if [ "${_row_claimed[$r]:-}" = "$fb_claim_id" ]; then
+    if [ "${_row_claimed[r]:-}" = "$fb_claim_id" ]; then
       fb_matched_row=$r
       break
     fi
   done
   if [ "$fb_matched_row" -ge 0 ]; then
     # Matched row version cell must exactly equal the claim's matrix_version_cell
-    if [ "${matrix_versions[$fb_matched_row]}" != "$fb_mvcell" ]; then
-      fail "H" "fixture-backed claim matched row version '${matrix_versions[$fb_matched_row]}' != claim matrix_version_cell '${fb_mvcell}'"
+    if [ "${matrix_versions[fb_matched_row]}" != "$fb_mvcell" ]; then
+      fail "H" "fixture-backed claim matched row version '${matrix_versions[fb_matched_row]}' != claim matrix_version_cell '${fb_mvcell}'"
     fi
     # Matched row version cell must contain the semantic pin
-    if ! printf '%s' "${matrix_versions[$fb_matched_row]}" | grep -qF "$manifest_cli_version"; then
-      fail "H" "fixture-backed claim matched row version '${matrix_versions[$fb_matched_row]}' does not contain manifest CLI version '${manifest_cli_version}'"
+    if ! printf '%s' "${matrix_versions[fb_matched_row]}" | grep -qF "$manifest_cli_version"; then
+      fail "H" "fixture-backed claim matched row version '${matrix_versions[fb_matched_row]}' does not contain manifest CLI version '${manifest_cli_version}'"
     fi
   fi
 fi
