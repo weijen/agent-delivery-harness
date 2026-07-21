@@ -183,6 +183,132 @@ record of the same run, joinable by `sessionId`. The per-session chat / debug lo
 token count there as unconfirmed until checked, since verified per-turn token usage is a
 cloud-only signal.
 
+### CLI native records (separate from VS Code transcripts)
+
+The **GitHub Copilot CLI** (the terminal-native agent, independent of VS Code) writes its own
+event records on a separate per-user record surface. These are **not** the same
+as VS Code workspace transcripts. Unlike VS Code transcripts which live under
+`workspaceStorage/<hash>/`, CLI records are per-user and session-indexed:
+
+- **CLI event stream (macOS verified):**
+  `~/.copilot/session-state/<sessionId>/events.jsonl`
+- **CLI cross-session index (macOS verified):**
+  `~/.copilot/session-store.db` — a SQLite database that indexes session metadata across
+  sessions. (Observed in CLI 1.0.72-1; internal schema undocumented and subject to change.)
+
+In the inspected/synthetic CLI 1.0.72-1 records, the event-specific usage payloads consumed
+by this recipe are nested under a `data` key; `type` and `timestamp` remain top-level
+(e.g., `{"type":"session.usage_checkpoint","timestamp":"...","data":{"totalNanoAiu":...}}`).
+This observation is version-scoped to CLI 1.0.72-1; other versions or event types may differ.
+
+**CLI 1.0.72-1 record facts (version-scoped):**
+
+- **Record family/location:** per-user at `~/.copilot/session-state/<sessionId>/events.jsonl`
+  (distinct from VS Code per-workspace `workspaceStorage/<hash>/` transcripts).
+- **Usage event types observed:** `session.usage_checkpoint`, `session.compaction_complete`.
+- **Payload nesting for usage events:** counter at `.data.totalNanoAiu` (checkpoints) or
+  `.data.copilotUsage.tokenDetails.totalNanoAiu` (compaction).
+- **Fractional-second timestamps:** observed (e.g. `2026-03-15T14:00:00.123Z`).
+
+### CLI session cost
+
+**Official: GitHub AI Credits** (usage-based billing, effective 2026-06-01):
+
+- GitHub publicly documents usage-based billing for Copilot in units called **AI Credits**.
+- 1 AI Credit = USD $0.01.
+- **Canonical source (accessed 2026-07-21):**
+  [GitHub Docs — Usage-based billing for GitHub Copilot (individuals)](https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals).
+
+**Adopter/community empirical: nano-AIU → AI Credits mapping:**
+
+- `totalNanoAiu / 1e9` = AI Credits — this maps the undocumented internal counter observed
+  in CLI event payloads to the public billing unit.
+- The field name `totalNanoAiu` is **not** part of any official public API contract or
+  documented schema; it appears only in local CLI event payloads.
+- **Community source:** [DamianEdwards/copilot-cli-cost](https://github.com/DamianEdwards/copilot-cli-cost)
+  documents this conversion empirically.
+
+The jq recipe below extracts the session cost from a CLI `events.jsonl` file. It handles:
+
+1. **`data.*` nesting** — checkpoint events carry the counter at `.data.totalNanoAiu`;
+   compaction events carry it at `.data.copilotUsage.tokenDetails.totalNanoAiu`.
+2. **Candidate normalization** — both shapes are normalized into
+   `{type, timestamp, totalNanoAiu}` before selection.
+3. **Fractional-second timestamps** — normalized with `sub("\\.[0-9]+Z$"; "Z")` before
+   `fromdateiso8601` for portable jq parsing.
+4. **Missing shutdown / abnormal end** — if no `session.shutdown` carries a valid cumulative
+   total, falls back to the latest valid checkpoint or compaction by normalized timestamp.
+   **Note:** `session.shutdown` with a numeric `.data.totalNanoAiu` is not present in the
+   version-stamped 1.0.72-1 fixture; shutdown preference is conditional/unverified
+   compatibility behavior retained for forward-compatibility but not proven by current
+   evidence. Do not assume the ≤1.0.54 `modelMetrics` shutdown shape contains
+   `totalNanoAiu`.
+5. **Cumulative deduplication** — `totalNanoAiu` is cumulative (not incremental); multiple
+   checkpoints may repeat the same value. The recipe selects the **latest valid observation**
+   rather than summing, which would fabricate usage.
+6. **Malformed/missing fields** — events where the resolved `totalNanoAiu` is not a number
+   are explicitly excluded; the recipe never fabricates usage from invalid data.
+7. **No valid candidates** — if no event yields a valid numeric `totalNanoAiu`, the recipe
+   raises a non-zero jq error (`error("no valid candidates")`, exit 5) rather than
+   fabricating zeros.
+8. **No explicit rounding** — no explicit rounding is applied; `totalNanoAiu / 1e9` and
+   `/ 1e11` are computed directly. The division `/ 1e11` is algebraically equivalent to
+   `/ 1e9 / 100`; the sensor verifies that the smallest valid counter remains nonzero.
+
+Run as:
+
+```bash
+jq -s -f cli-cost.jq ~/.copilot/session-state/<sessionId>/events.jsonl
+```
+
+```jq
+# cli-cost.jq — CLI session cost from events.jsonl (version-stamped: CLI 1.0.72-1)
+# Normalize fractional ISO timestamps for portable fromdateiso8601
+def norm_ts: sub("\\.[0-9]+Z$"; "Z");
+
+# Normalize candidates from different event shapes into {type, timestamp, totalNanoAiu}
+def candidates:
+  [.[] | select(.type == "session.shutdown" or .type == "session.usage_checkpoint" or .type == "session.compaction_complete")
+   | {type, timestamp} + (
+       if .type == "session.compaction_complete" then
+         {totalNanoAiu: .data.copilotUsage.tokenDetails.totalNanoAiu}
+       else
+         {totalNanoAiu: .data.totalNanoAiu}
+       end
+     )
+   | select((.totalNanoAiu | type) == "number")
+  ];
+
+# Prefer shutdown if present; otherwise latest by normalized timestamp
+def best_cumulative:
+  candidates
+  | if length == 0 then error("no valid candidates")
+    elif ([.[] | select(.type == "session.shutdown")] | length) > 0
+    then [.[] | select(.type == "session.shutdown")] | max_by(.timestamp | norm_ts | fromdateiso8601)
+    else max_by(.timestamp | norm_ts | fromdateiso8601)
+    end;
+
+best_cumulative
+| {
+    totalNanoAiu: .totalNanoAiu,
+    ai_credits: (.totalNanoAiu / 1e9),
+    usd: (.totalNanoAiu / 1e11),
+    source_event: .type,
+    timestamp: .timestamp
+  }
+```
+
+A commit-safe synthetic fixture exercising every edge case (fractional timestamps, repeated
+cumulative values, compaction nested path, malformed fields, no shutdown) lives at
+[../../../tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl](../../../tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl).
+
+Nano-AIU appears in two candidate shapes:
+- `session.usage_checkpoint` at `.data.totalNanoAiu`
+- `session.compaction_complete` at `.data.copilotUsage.tokenDetails.totalNanoAiu`
+
+The recipe normalizes both into a uniform candidate before selecting the latest valid
+cumulative total — summing cumulative snapshots would double- or triple-count usage.
+
 ## Qualify
 
 Quantify says *where* the time went; Qualify says *why*. Sample the `assistant.message` events'
