@@ -304,13 +304,17 @@ denominator rather than invented as zero-token runs. Acquiring those Copilot-sid
 read a real number instead of `n/a` in the GitHub Copilot runtime) is the deep-trace work tracked in **#163**; until
 it lands, `n/a` token rows are the honest state, not a defect.
 
-A review round is a distinct logical review event, not a per-feature `review_verdict` span. Until **#318** adds
-`harness.review_event_id`, the isolated temporary event key is
-`(harness.reviewed_sha, harness.review_mode)`: all verdicts with that key form one event, and one failing child makes
-the event fail. If any verdict lacks a non-empty SHA or valid review mode, the Markdown count is `n/a` with identity
-coverage and the numeric count is omitted with matching coverage fields; no verdict spans remains a measured `0`.
-Issue #318 will replace only this temporary key with `review_event_id` and must add a decoupling sensor proving the
-economics aggregation no longer depends on `reviewed_sha` or `review_mode`.
+A review round is a distinct logical review event, not a per-feature `review_verdict` span. Events are keyed by
+`harness.review_event_id` when present; historical spans without an explicit ID fall back to
+`(harness.reviewed_sha, harness.review_mode)`. All verdicts sharing one key form one event, and one failing child
+makes the event fail. If any verdict lacks valid and unambiguous event identity — it carries no explicit
+`review_event_id`, no valid SHA/mode pair, or has legacy coordinates shared by multiple explicit-ID events — the
+Markdown count is `n/a` with identity coverage and the numeric count is omitted with matching coverage fields; no
+verdict spans remains a measured `0`. Mixed traces (some explicit IDs, some legacy SHA/mode) use unambiguous bridge
+semantics: a legacy span whose coordinates match exactly one explicit event bridges to that event (same logical
+event, no double-count); pure legacy coordinates with no matching explicit-ID span retain the SHA/mode fallback;
+legacy coordinates shared by multiple explicit-ID events are ambiguous and render the round count `n/a` with the
+numeric count omitted.
 
 `./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,

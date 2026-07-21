@@ -137,6 +137,23 @@ esac
 SUMMARY="${SUMMARY//$'\r'/ }"
 SUMMARY="${SUMMARY//$'\n'/ }"
 
+# --- 1b. Actionability hard-fail gate (issue #318, feature actionable-rejects) --
+# A new review_verdict/fail MUST set TRACE_ACTIONABLE (true|false). Missing or
+# invalid values HARD-FAIL before either span or Action Log append — the emitter
+# can distinguish new calls, so this is a hard gate (not warn+omit). Pass
+# verdicts may omit TRACE_ACTIONABLE silently.
+if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
+  case "${TRACE_ACTIONABLE:-}" in
+    true|false) ;;  # valid closed enum
+    "")
+      fail "TRACE_ACTIONABLE is required on review_verdict/fail but is unset/empty — set to 'true' or 'false'"
+      ;;
+    *)
+      fail "TRACE_ACTIONABLE '${TRACE_ACTIONABLE}' is not in the closed enum {true,false} — set to 'true' or 'false'"
+      ;;
+  esac
+fi
+
 # --- 2. Emit the agent span first (plan D3 ordering) --------------------------
 # Guarded source: a missing trace-lib.sh degrades tracing but must never lose
 # the Action Log line (the primary human artifact).
@@ -255,6 +272,166 @@ role-violation'
     fi
   fi
 
+  # Failure-class passthrough (issue #318): on the review_verdict step ONLY,
+  # forward TRACE_FAILURE_CLASS as harness.failure_class (closed enum from
+  # docs/evaluation/trace-schema.v1.json .failure_classes; out-of-enum or empty
+  # → omit + warn, never fake, mirroring the failure-mode shape). Also forward
+  # TRACE_FAILURE_CLASS_DETAIL as harness.failure_class_detail (free-text,
+  # non-empty → forward, empty → omit). Both absent on non-review_verdict steps.
+  FC_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    # Validate TRACE_FAILURE_CLASS against the contract's closed enum.
+    failure_class_valid() {
+      local cls="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+      local fc_list="" fc_entry
+      if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
+        fc_list="$(jq -r '(.failure_classes // [])[]' "$contract" 2>/dev/null || true)"
+      fi
+      if [ -z "$fc_list" ]; then
+        # Frozen v1 fallback. Slug list is the drift-guarded authority copy.
+        # >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+        # spec-violation
+        # validation-bypass
+        # missing-coverage
+        # regression
+        # role-boundary
+        # knowledge-gap
+        # complexity
+        # known-flaky
+        # polling
+        # other
+        # <<< trace-schema:failure_classes
+        fc_list='spec-violation
+validation-bypass
+missing-coverage
+regression
+role-boundary
+knowledge-gap
+complexity
+known-flaky
+polling
+other'
+      fi
+      while IFS= read -r fc_entry; do
+        [ "$fc_entry" = "$cls" ] && return 0
+      done <<< "$fc_list"
+      return 1
+    }
+    if [ -n "${TRACE_FAILURE_CLASS:-}" ]; then
+      if failure_class_valid "${TRACE_FAILURE_CLASS}"; then
+        FC_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
+      else
+        warn "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — harness.failure_class omitted (omit, never fake)"
+      fi
+    fi
+    if [ -n "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
+      FC_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
+    fi
+  fi
+
+  # Finding-fingerprint passthrough (issue #318): on the review_verdict step
+  # ONLY, forward TRACE_FINDING_FINGERPRINT as harness.finding_fingerprint
+  # (free-text stable identity; non-empty → forward, empty → omit; omit-never-
+  # fake). Absent on non-review_verdict steps.
+  FP_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    if [ -n "${TRACE_FINDING_FINGERPRINT:-}" ]; then
+      FP_ARGS+=("harness.finding_fingerprint=${TRACE_FINDING_FINGERPRINT}")
+    fi
+  fi
+
+  # Review-event-ID passthrough (issue #318, feature finding-identity): on the
+  # review_verdict step ONLY, forward TRACE_REVIEW_EVENT_ID as
+  # harness.review_event_id (free-text event grouping identity; non-empty →
+  # forward, empty → omit; omit-never-fake). Absent on non-review_verdict steps.
+  EID_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    if [ -n "${TRACE_REVIEW_EVENT_ID:-}" ]; then
+      EID_ARGS+=("harness.review_event_id=${TRACE_REVIEW_EVENT_ID}")
+    fi
+  fi
+
+  # Finding-baseline-state passthrough (issue #318, feature finding-identity):
+  # on the review_verdict step ONLY, forward TRACE_FINDING_BASELINE_STATE as
+  # harness.finding_baseline_state against a CLOSED enum {new, unchanged,
+  # updated, resolved}; out-of-enum or empty → omit + warn (never fake,
+  # mirroring the failure-mode shape). Absent on non-review_verdict steps.
+  BS_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    case "${TRACE_FINDING_BASELINE_STATE:-}" in
+      new|unchanged|updated|resolved)
+        BS_ARGS+=("harness.finding_baseline_state=${TRACE_FINDING_BASELINE_STATE}")
+        ;;
+      "")
+        : # unset/empty → omit silently
+        ;;
+      *)
+        warn "TRACE_FINDING_BASELINE_STATE '${TRACE_FINDING_BASELINE_STATE}' is not in the closed finding_baseline_states enum {new,unchanged,updated,resolved} — harness.finding_baseline_state omitted (omit, never fake)"
+        ;;
+    esac
+  fi
+
+  # Repair-scope passthrough (issue #318, feature repair-verdict-scope): on the
+  # review_verdict step ONLY and ONLY when TRACE_REVIEW_MODE is "repair",
+  # forward TRACE_REPAIR_SCOPE as harness.repair_scope after validating
+  # canonical format: comma-separated list of [A-Za-z0-9._-]+ tokens, no
+  # whitespace, no empty tokens, no duplicate tokens. Invalid values → omit +
+  # warn (omit, never fake). Absent on non-review_verdict steps, on
+  # non-repair review modes, and when the env var is unset/empty.
+  RS_ARGS=()
+  if [ "$STEP" = "review_verdict" ] && [ "${TRACE_REVIEW_MODE:-}" = "repair" ]; then
+    if [ -n "${TRACE_REPAIR_SCOPE:-}" ]; then
+      # Anchored whole-string grammar check BEFORE splitting: catches boundary
+      # commas (leading "," or trailing ",") that bash's IFS=',' read -ra
+      # silently discards as empty trailing fields, letting "feat-a," pass
+      # the per-token loop. Must match ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$.
+      rs_valid=0
+      if [[ "${TRACE_REPAIR_SCOPE}" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+        rs_valid=1
+        IFS=',' read -ra rs_tokens <<< "${TRACE_REPAIR_SCOPE}"
+        rs_seen=$'\n'
+        for rs_tok in "${rs_tokens[@]}"; do
+          if ! [[ "$rs_tok" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            rs_valid=0
+            break
+          fi
+          if [[ "$rs_seen" == *$'\n'"$rs_tok"$'\n'* ]]; then
+            rs_valid=0
+            break
+          fi
+          rs_seen="${rs_seen}${rs_tok}"$'\n'
+        done
+      fi
+      if [ "$rs_valid" = "1" ]; then
+        RS_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
+      else
+        warn "TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' is not valid canonical format (comma-separated [A-Za-z0-9._-]+ tokens, no whitespace/empty/duplicates) — harness.repair_scope omitted (omit, never fake)"
+      fi
+    fi
+  fi
+
+  # Actionability passthrough (issue #318, feature actionable-rejects): on the
+  # review_verdict step ONLY, forward TRACE_ACTIONABLE as harness.actionable
+  # (closed enum {true,false}). Fail verdicts already validated in §1b above;
+  # pass verdicts silently omit. Forward TRACE_FINDING_REPRODUCTION and
+  # TRACE_FINDING_PROPOSED_FIX as harness.finding_reproduction /
+  # harness.finding_proposed_fix (non-empty free text; redacted by trace-lib).
+  # Unset/empty → key absent (omit, never fake).
+  ACT_ARGS=()
+  if [ "$STEP" = "review_verdict" ]; then
+    case "${TRACE_ACTIONABLE:-}" in
+      true|false)
+        ACT_ARGS+=("harness.actionable=${TRACE_ACTIONABLE}")
+        ;;
+    esac
+    if [ -n "${TRACE_FINDING_REPRODUCTION:-}" ]; then
+      ACT_ARGS+=("harness.finding_reproduction=${TRACE_FINDING_REPRODUCTION}")
+    fi
+    if [ -n "${TRACE_FINDING_PROPOSED_FIX:-}" ]; then
+      ACT_ARGS+=("harness.finding_proposed_fix=${TRACE_FINDING_PROPOSED_FIX}")
+    fi
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -265,7 +442,13 @@ role-violation'
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
     ${FM_ARGS[@]+"${FM_ARGS[@]}"} \
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
-    ${RM_ARGS[@]+"${RM_ARGS[@]}"}
+    ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
+    ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
+    ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
+    ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
+    ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
+    ${RS_ARGS[@]+"${RS_ARGS[@]}"} \
+    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then

@@ -34,6 +34,75 @@ End every review handback (the `Action Log` field of your output) with the struc
 `scripts/log-handback.sh`: role `code-review-subagent`, step `review_verdict` (`APPROVED` → `pass`,
 `NEEDS_REVISION` → `fail`).
 
+### FAIL Verdict Attribution Requirements (issue #318)
+
+Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following environment variables before calling
+`scripts/log-handback.sh`, so the resulting trace span carries machine-readable attribution:
+
+1. **`TRACE_FAILURE_CLASS`** — one of the closed `failure_classes` enum:
+   - `spec-violation` — implementation does not satisfy the acceptance criterion
+   - `validation-bypass` — a validation, guard, or constraint can be circumvented
+   - `missing-coverage` — sensor/test does not prove the criterion or a required failure mode
+   - `regression` — change breaks existing, previously-passing behavior
+   - `role-boundary` — lifecycle step, role boundary, or harness contract violated
+   - `knowledge-gap` — failure caused by missing knowledge about toolchain, environment, or API (research route; #317)
+   - `complexity` — failure caused by scope or design complexity requiring decomposition (decompose route; #317)
+   - `known-flaky` — failure is a known flaky/intermittent test or CI environment issue (exemption class; #317)
+   - `polling` — failure is a legitimately-repetitive polling/watch loop pattern (exemption class; #317)
+   - `other` — none of the above; **requires** non-empty `TRACE_FAILURE_CLASS_DETAIL`
+2. **`TRACE_FAILURE_CLASS_DETAIL`** — free-text detail, **required** when `TRACE_FAILURE_CLASS=other`
+   (e.g. `"jq 1.6 vs 1.7 syntax incompatibility"`). Optional for other classes.
+3. **`harness.feature_id`** (the positional arg to `log-handback.sh`) — the reviewed feature's id
+   from `feature_list.json`. When a finding cannot be mapped to any feature, use the literal value
+   `unmapped` and set **`TRACE_FINDING_FINGERPRINT`** as the stable traceability label.
+4. **`TRACE_FINDING_FINGERPRINT`** — a stable per-finding identity string. **Required** when
+   `feature_id` is `unmapped`. Recommended on all FAIL verdicts for cross-review deduplication.
+5. **`TRACE_REVIEW_EVENT_ID`** — groups all verdict/finding spans belonging to one logical review
+   event. **Required** for new reviews. All verdicts sharing the same event ID count as one
+   review round in economics.
+6. **`TRACE_FINDING_BASELINE_STATE`** — one of the closed `finding_baseline_states` enum
+   {`new`, `unchanged`, `updated`, `resolved`}. Tracks per-finding state across review events:
+   - `new` — first appearance of this finding
+   - `unchanged` — same finding from a prior review, not yet addressed
+   - `updated` — finding from a prior review, modified in scope or severity
+   - `resolved` — prior finding is no longer present (emit as a PASS verdict with the same
+     fingerprint)
+   **Required** on finding-level verdict spans that carry a `TRACE_FINDING_FINGERPRINT`.
+7. **`TRACE_REPAIR_SCOPE`** — a comma-separated list of feature-id tokens declaring the revised
+   feature set for this repair review. **Required** on every `repair`-mode `review_verdict` call
+   (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
+   commas, no whitespace, no empty tokens, no duplicates. The feature_id positional arg to
+   `log-handback.sh` **must** be an exact member of repair_scope. Absent on `full`/`concise`
+   modes. Invalid values are omitted with a warning (omit, never fake).
+
+   **Out-of-scope findings in repair mode:** if you discover a NEW regression or finding outside
+   the revised feature set during a repair review, do NOT silently expand the repair_scope. Instead,
+   emit it as a separate finding/review event attributed to the affected feature's own feature_id.
+   Route it to the conductor as a separate `NEEDS_REVISION` for routing to the affected feature's
+   generator. The current repair verdict scope remains unchanged.
+8. **`TRACE_ACTIONABLE`** — closed enum `{true, false}`. **Required** on every `NEEDS_REVISION`
+   (`fail`) verdict. Declares whether the finding is actionable — i.e. backed by evidence that the
+   generator can act on:
+   - `true` — the finding is actionable. **Must** carry at least one of `TRACE_FINDING_REPRODUCTION`
+     or `TRACE_FINDING_PROPOSED_FIX` (see below). Counts toward the 3-rejection cap.
+   - `false` — the finding is a non-actionable observation or concern. Does **not** count toward
+     the reject cap. The finding is reported as a WARNING, not a blocking FAIL in aggregate
+     economics. Use for advisory observations, style concerns, or findings that cannot be
+     reproduced or concretely fixed.
+   Missing or invalid values on a fail verdict **hard-fail** the `log-handback.sh` call (no span,
+   no Action Log line). Pass verdicts may omit this field.
+9. **`TRACE_FINDING_REPRODUCTION`** — free-text reproduction steps or evidence. Non-empty when you
+   provide steps to reproduce the issue. At least one of this or `TRACE_FINDING_PROPOSED_FIX` is
+   **required** when `TRACE_ACTIONABLE=true`. Redacted by trace-lib.
+10. **`TRACE_FINDING_PROPOSED_FIX`** — free-text concrete proposed fix. Non-empty when you provide a
+    specific fix suggestion (e.g. "add null guard on line 42 of parser.sh"). At least one of this
+    or `TRACE_FINDING_REPRODUCTION` is **required** when `TRACE_ACTIONABLE=true`. Redacted by
+    trace-lib.
+
+Verdict routing (pass/fail disposition) is **separate** from failure classification: a finding's
+`failure_class` describes *what kind of problem it is*, while `outcome=fail` means it blocks
+approval. Do not conflate the two.
+
 If the modified file list is missing or obviously incomplete, fall back to `search/changes` on the current branch and
 review every file the diff touches. Do not invent a scope wider than the diff.
 
@@ -320,6 +389,11 @@ where the whole-diff skill battery is the dominant cost driver of the review con
 **Verdicts 1-4** (spec compliance, test/sensor adequacy, the code-quality GENERAL checks #1-#5, and lifecycle/role
 boundary) **and the adversarial test-quality pass** — spec fidelity, sensor adequacy, targeted regression, and
 lifecycle discipline are judged exactly as in `full`/`concise`.
+
+**Repair scope pinning:** every `repair`-mode verdict (APPROVED or NEEDS_REVISION) **must** set
+`TRACE_REPAIR_SCOPE` to the comma-separated list of feature-id tokens under repair (provided by the conductor).
+The verdict's `harness.feature_id` must be an exact member of that scope. If you discover a new finding outside the
+revised feature set, emit it as a separate finding for its own feature — do not expand or flip the repair scope.
 
 What `repair` mode **SKIPS** is the whole-diff skill battery — the numbered code-quality checks **#6-#11**
 (`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, and

@@ -419,6 +419,37 @@ cat > "$STATE_FILTER" <<'JQ'
          and ($span["harness.pr_number"] != null)
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
+      end ),
+    # --- Fail-verdict attribution signals (issue #318) ---
+    # Emit per-line signals for review_verdict/fail spans carrying attribution
+    # and failure_class fields. Validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.failure_class"] // "") | if . == "" then "__EMPTY__" else . end) as $fc
+        | (($span["harness.failure_class_detail"] // "") | if . == "" then "__EMPTY__" else . end) as $fcd
+        | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $fp
+        | (($span["harness.finding_baseline_state"] // "") | if . == "" then "__EMPTY__" else . end) as $bs
+        | (($span["harness.actionable"] // "") | if . == "" then "__EMPTY__" else . end) as $act
+        | (($span["harness.finding_reproduction"] // "") | if . == "" then "__EMPTY__" else . end) as $repro
+        | (($span["harness.finding_proposed_fix"] // "") | if . == "" then "__EMPTY__" else . end) as $fix
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)"
+      else empty
+      end ),
+    # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
+    # Emit per-line signals for ALL review_verdict spans (pass or fail) with
+    # harness.review_mode=="repair". The repair_scope and feature_id are
+    # validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "repair")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.repair_scope"] // "") | if . == "" then "__EMPTY__" else . end) as $rs
+        | "::repairscope \($n)\t\($fid)\t\($rs)"
+      else empty
       end )
   end
 JQ
@@ -436,6 +467,9 @@ hb_if_ids=$'\n'
 rv_noif_ids=$'\n'
 approve_sha=""
 pr_span_number=""
+failattr_lines=$'\n'
+repairscope_lines=$'\n'
+countable_reject_ids=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
     '::gap '*)
@@ -452,8 +486,144 @@ while IFS= read -r out_line; do
     '::rv_noif '*) rv_noif_ids="${rv_noif_ids}${out_line#'::rv_noif '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
+    '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
+    '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
   esac
 done <<< "$state_out"
+
+# --- State: fail-verdict attribution (issue #318) -----------------------------
+# Closed failure_class enum — mirrored from the contract (single-source). Read
+# from the contract with jq when available; otherwise use the frozen fallback.
+# >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_CLASSES_ENUM="spec-violation
+validation-bypass
+missing-coverage
+regression
+role-boundary
+knowledge-gap
+complexity
+known-flaky
+polling
+other"
+# <<< trace-schema:failure_classes
+SCHEMA_CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_classes="$(jq -r '(.failure_classes // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_classes" ]; then
+    FAILURE_CLASSES_ENUM="$schema_classes"
+  fi
+fi
+
+failure_class_valid() {
+  local cls="$1"
+  while IFS= read -r fc_entry; do
+    [ "$fc_entry" = "$cls" ] && return 0
+  done <<< "$FAILURE_CLASSES_ENUM"
+  return 1
+}
+
+# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>
+if [ "$failattr_lines" != $'\n' ]; then
+  while IFS= read -r fa_line; do
+    [ -n "$fa_line" ] || continue
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix <<< "$fa_line"
+    # review_fail_unattributed: fail verdict must carry non-empty feature_id
+    # (excluding "-" placeholder) or the literal "unmapped"
+    if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
+      printf 'VIOLATION consistency: review_fail_unattributed line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fid" = "unmapped" ]; then
+      # unmapped_without_fingerprint: unmapped requires a traceability label
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: unmapped_without_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+    # failure_class_missing: fail verdict must carry failure_class
+    if [ "$fa_fc" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif ! failure_class_valid "$fa_fc"; then
+      # failure_class_invalid: not in closed enum
+      printf 'VIOLATION consistency: failure_class_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fc" = "other" ] && [ "$fa_fcd" = "__EMPTY__" ]; then
+      # failure_class_other_no_detail: "other" requires non-empty detail
+      printf 'VIOLATION consistency: failure_class_other_no_detail line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+    # finding_fingerprint / finding_baseline_state validation (issue #318,
+    # feature finding-identity):
+    # Every review_verdict/fail span MUST carry both a non-empty
+    # harness.finding_fingerprint AND a valid harness.finding_baseline_state.
+    # Each field is validated independently so a span missing both produces
+    # two distinct violations.  The unmapped_without_fingerprint rule above
+    # names the degraded-state contract specifically for unmapped findings;
+    # the rules here are universal across all fail verdicts.
+    if [ "$fa_fp" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+    if [ "${fa_bs:-}" = "__EMPTY__" ] || [ -z "${fa_bs:-}" ]; then
+      printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    else
+      # finding_baseline_state_invalid: not in closed enum {new,unchanged,updated,resolved}
+      case "$fa_bs" in
+        new|unchanged|updated|resolved) ;;
+        *)
+          printf 'VIOLATION consistency: finding_baseline_state_invalid line %s\n' "$fa_n"
+          violations=$((violations + 1))
+          ;;
+      esac
+      # finding_baseline_missing_fingerprint: baseline_state present but
+      # fingerprint absent (cross-field coherence, kept for clarity)
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: finding_baseline_missing_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+
+    # --- Actionability rules (issue #318, feature actionable-rejects) ---------
+    # Determine whether this fail span counts toward the reject cap.
+    # A fail span is countable for the reject cap when:
+    #   (a) actionable=true AND at least one non-empty evidence field, OR
+    #   (b) actionable is ABSENT (legacy backward compatibility).
+    # Not countable:
+    #   (c) actionable=false (non-actionable finding, WARNING only), OR
+    #   (d) actionable=true but no evidence (actionable_without_evidence VIOLATION).
+    fa_act_val="${fa_act:-__EMPTY__}"
+    fa_repro_val="${fa_repro:-__EMPTY__}"
+    fa_fix_val="${fa_fix:-__EMPTY__}"
+    fa_has_evidence=0
+    if [ "$fa_repro_val" != "__EMPTY__" ] || [ "$fa_fix_val" != "__EMPTY__" ]; then
+      fa_has_evidence=1
+    fi
+
+    if [ "$fa_act_val" = "false" ]; then
+      # Non-actionable finding: WARNING, does not count toward reject cap.
+      printf 'WARNING consistency: non_actionable_finding line %s %s\n' "$fa_n" "$fa_fid"
+    elif [ "$fa_act_val" = "true" ]; then
+      if [ "$fa_has_evidence" = "0" ]; then
+        # Actionable claimed but no evidence: VIOLATION, does not count.
+        printf 'VIOLATION consistency: actionable_without_evidence line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      else
+        # Actionable with evidence: countable toward reject cap.
+        countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+      fi
+    elif [ "$fa_act_val" = "__EMPTY__" ]; then
+      # Historical: no actionable field — backward-compatible, countable.
+      countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+    else
+      # actionable_invalid: value is not in the closed enum {true, false}
+      # and is not absent (legacy). The emitter prevents new invalid values;
+      # this catches malformed persisted trace data.
+      printf 'VIOLATION consistency: actionable_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$failattr_lines" | grep -v '^$')
+fi
 
 # Review/approve phase (issue #303): the review_verdict_missing rule fires only
 # once the single end-of-issue review has started. The phase is active when an
@@ -465,15 +635,89 @@ if [ -n "$approve_sha" ] || [ "${REVIEW_GATE_APPROVE_PHASE:-}" = "1" ]; then
   phase_active=1
 fi
 
-# --- State: review_reject_cap_exceeded (issue #300) ---------------------------
-# The DETECTION half of the 3-rejection stop rule: when a single
-# harness.feature_id accumulates >=3 agent spans with
-# harness.lifecycle_step=="review_verdict" and harness.outcome=="fail", flag
-# it once. The count is PER feature_id. The per-line ::reject fids collected
-# above are counted here in bash (sort|uniq -c is a constant fork budget — no
-# per-line forks); the feature id is echoed, consistent with the sibling
-# feature-id findings.
-if [ "$reject_ids" != $'\n' ]; then
+# --- State: repair-verdict scope (issue #318, feature repair-verdict-scope) ---
+# Every review_verdict span with harness.review_mode=="repair" MUST carry a
+# non-empty, valid harness.repair_scope. Canonical format: comma-separated list
+# of feature-id tokens matching [A-Za-z0-9._-]+, no whitespace, no empty tokens,
+# no duplicate tokens. The span's harness.feature_id MUST be an exact token
+# member of repair_scope — no substring matching. Full/concise verdicts are
+# exempt (repair-mode-only).
+#
+#   repair_scope_missing — repair verdict missing or empty repair_scope:
+#       VIOLATION consistency: repair_scope_missing line <N>
+#   repair_scope_invalid — repair_scope fails canonical format validation:
+#       VIOLATION consistency: repair_scope_invalid line <N>
+#   repair_scope_mismatch — feature_id is not an exact member of repair_scope:
+#       VIOLATION consistency: repair_scope_mismatch line <N>
+if [ "$repairscope_lines" != $'\n' ]; then
+  while IFS= read -r rs_line; do
+    [ -n "$rs_line" ] || continue
+    IFS=$'\t' read -r rs_n rs_fid rs_scope <<< "$rs_line"
+    # repair_scope_missing: absent or empty
+    if [ "$rs_scope" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: repair_scope_missing line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_invalid: canonical format check
+    # Rule 0 (anchored whole-string grammar, checked BEFORE splitting):
+    #   full string must match ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
+    #   This catches boundary commas (leading "," or trailing ",") that bash's
+    #   IFS=',' read -ra silently discards as empty trailing fields, which
+    #   would otherwise allow "feat-a," to pass the per-token loop.
+    # Rule 1: every token matches [A-Za-z0-9._-]+ (no whitespace, no empty)
+    # Rule 2: no duplicate tokens
+    scope_invalid=0
+    scope_tokens=()
+    if ! [[ "$rs_scope" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+      scope_invalid=1
+    else
+      IFS=',' read -ra scope_tokens <<< "$rs_scope"
+      seen_tokens=$'\n'
+      for tok in "${scope_tokens[@]}"; do
+        if ! [[ "$tok" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          scope_invalid=1
+          break
+        fi
+        # Check for duplicates via newline-delimited seen list
+        if [[ "$seen_tokens" == *$'\n'"$tok"$'\n'* ]]; then
+          scope_invalid=1
+          break
+        fi
+        seen_tokens="${seen_tokens}${tok}"$'\n'
+      done
+    fi
+    if [ "$scope_invalid" = "1" ]; then
+      printf 'VIOLATION consistency: repair_scope_invalid line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_mismatch: feature_id must be an exact token member
+    scope_match=0
+    for tok in "${scope_tokens[@]}"; do
+      if [ "$tok" = "$rs_fid" ]; then
+        scope_match=1
+        break
+      fi
+    done
+    if [ "$scope_match" = "0" ]; then
+      printf 'VIOLATION consistency: repair_scope_mismatch line %s\n' "$rs_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
+fi
+
+# --- State: review_reject_cap_exceeded (issue #300, issue #318) ----------------
+# The DETECTION half of the 3-rejection stop rule. A fail verdict counts toward
+# the per-feature reject cap ONLY when it is countable:
+#   (a) actionable=true with evidence (non-empty reproduction or proposed_fix), OR
+#   (b) historical: no harness.actionable field (backward compatibility).
+# Non-countable fails:
+#   (c) actionable=false (non-actionable, WARNING only), OR
+#   (d) actionable=true without evidence (actionable_without_evidence VIOLATION).
+# The per-feature countable_reject_ids are accumulated above during the
+# ::failattr processing loop. The threshold is >=3 per feature_id.
+if [ "$countable_reject_ids" != $'\n' ]; then
   while IFS= read -r reject_line; do
     [ -n "$reject_line" ] || continue
     reject_count="${reject_line%% *}"
@@ -482,7 +726,7 @@ if [ "$reject_ids" != $'\n' ]; then
       printf 'VIOLATION consistency: review_reject_cap_exceeded %s\n' "$reject_fid"
       violations=$((violations + 1))
     fi
-  done < <(printf '%s' "$reject_ids" | grep -v '^$' | sort | uniq -c \
+  done < <(printf '%s' "$countable_reject_ids" | grep -v '^$' | sort | uniq -c \
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
 fi
 

@@ -92,8 +92,12 @@ green_bullet() {
 # A code-review review_verdict agent span with the given outcome for a feature.
 verdict_span() {
   local ts="$1" fid="$2" outcome="$3"
-  printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":303,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.outcome":"%s"}\n' \
-    "$ts" "$fid" "$outcome"
+  local extra=""
+  if [ "$outcome" = "fail" ]; then
+    extra=',"harness.failure_class":"spec-violation"'
+  fi
+  printf '{"schema_version":1,"timestamp":"%s","span":"agent","harness.issue":303,"harness.version":"0.0.0-dev","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"%s","harness.outcome":"%s"%s}\n' \
+    "$ts" "$fid" "$outcome" "$extra"
 }
 verdict_bullet() {
   local fid="$1" outcome="$2"

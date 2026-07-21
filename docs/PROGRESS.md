@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-20 (#320)_
+_Last updated: 2026-07-20 (#318)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-20 (#320)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 196 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 201 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -69,6 +69,10 @@ _Last updated: 2026-07-20 (#320)_
 
 ## Next up
 
+- **Copilot native-record adapter guidance (#319):** document the
+  version-pinned token/AIU evidence boundaries, first-class CLI record paths,
+  hardened analysis recipes, cross-surface enumeration, and subagent
+  permission setup in the `copilot-log-review` workflow.
 - **CI workflow hardening (#268) — in review:** third-party actions in
   `release.yml`, `python-ci.yml`, and `harness-smoke.yml` are SHA-pinned with
   readable version comments; non-release workflows now explicitly use
@@ -108,6 +112,18 @@ _Last updated: 2026-07-20 (#320)_
 ---
 
 ## Delivered (newest first)
+
+### Make review failures attributable, stable, scoped, and actionable (#318): delivery complete
+
+- **#318 makes review rejection state mechanically countable and safe to
+  re-review.** Every FAIL now carries feature attribution, a closed failure
+  class, stable finding identity, SARIF-style baseline state, and explicit
+  review-event identity. Repair verdicts pin a canonical revised-feature scope
+  while retaining whole-diff visibility. Only findings backed by reproduction
+  evidence or a concrete fix consume the per-feature reject cap;
+  non-actionable findings remain warnings, and historical traces retain honest
+  compatibility. Five red-first integration and mutation sensors cover the
+  cross-field contract and bring the shell sensor suite to 201.
 
 ### Finalize closeout records and honest delivery economics (#320): delivery complete
 
