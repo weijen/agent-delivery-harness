@@ -53,7 +53,15 @@ cat > "${BIN}/gh" <<'EOF'
 #!/usr/bin/env bash
 set -uo pipefail
 case "$1 $2" in
-  "pr view")   echo "${FAKE_PR_NUMBER:-167}"; exit 0 ;;
+  "pr view")
+    case "$*" in
+      *"state,mergeCommit"*)
+        printf '%s\t%s\n' "${FAKE_MERGE_STATE:-MERGED}" "${FAKE_MERGE_SHA:-deadbeef0001cafe}"
+        ;;
+      *) echo "${FAKE_PR_NUMBER:-167}" ;;
+    esac
+    exit 0
+    ;;
   "pr checks") printf 'harness-smoke\tpass\t1m\n'; exit 0 ;;
   "pr merge")  printf '%s\n' "$*" >> "${MERGE_SENTINEL:?}"; exit 0 ;;
 esac

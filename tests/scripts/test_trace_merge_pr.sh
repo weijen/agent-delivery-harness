@@ -142,7 +142,12 @@ set -uo pipefail
 case "$1 ${2:-}" in
   "pr view")
     [ "${FAKE_PR_VIEW_RC:-0}" = "0" ] || exit "${FAKE_PR_VIEW_RC}"
-    echo "${FAKE_PR_NUMBER:-123}"
+    case "$*" in
+      *"state,mergeCommit"*)
+        printf '%s\t%s\n' "${FAKE_MERGE_STATE:-MERGED}" "${FAKE_MERGE_SHA:-deadbeef0001cafe}"
+        ;;
+      *) echo "${FAKE_PR_NUMBER:-123}" ;;
+    esac
     exit 0
     ;;
   "pr checks")
@@ -208,6 +213,10 @@ printf '%s\n' "$m1" | jq -e '
     ((.["harness.pr_number"] | tostring) == "123") and (.["harness.issue"] == 30)
   ' >/dev/null \
   || fail "green merge: pass span must carry harness.pr_number=123 (branch-resolved issue 30): ${m1}"
+printf '%s\n' "$m1" | jq -e '
+    (.["harness.merge_sha"] == "deadbeef0001cafe") and (.["harness.merge_state"] == "MERGED")
+  ' >/dev/null \
+  || fail "green merge: pass span must carry harness.merge_sha=deadbeef0001cafe and harness.merge_state=MERGED (authoritative post-merge verification): ${m1}"
 
 # ============================================================================
 # 2. CI red (gh pr checks exits 1) → fail span harness.stage=ci_checks
@@ -302,5 +311,25 @@ grep -q "No open PR found" "${TMP_DIR}/m-nolib.out" \
   || { cat "${TMP_DIR}/m-nolib.out"; fail "trace-lib absent: refusal message must be unchanged"; }
 [ ! -e "${R7}/.copilot-tracking/issues/issue-36/trace.jsonl" ] \
   || fail "trace-lib absent: no trace file may be created (no-op fallback)"
+
+# ============================================================================
+# 8. gh pr merge exits 0 but GitHub does not confirm MERGED (unconfirmed) →
+#    refuse loudly at merge_verify, merge WAS attempted, fail span
+#    harness.stage=merge_verify, NO "merged." success line.
+# ============================================================================
+R8="${TMP_DIR}/r37"
+make_merge_repo "$R8" 37 1
+if FAKE_CHECKS_RC=0 FAKE_CHECKS_OUT='harness-smoke  pass  1m' FAKE_MERGE_STATE=OPEN \
+    run_merge "$R8" "${TMP_DIR}/s8.log" "${TMP_DIR}/m-unconfirmed.out"; then
+  cat "${TMP_DIR}/m-unconfirmed.out"; fail "unconfirmed merge: merge-pr.sh must exit non-zero when gh pr view does not confirm MERGED"
+fi
+[ -f "${TMP_DIR}/s8.log" ] \
+  || fail "unconfirmed merge: gh pr merge WAS attempted (rc 0) — the sentinel must exist"
+grep -q 'merged\.' "${TMP_DIR}/m-unconfirmed.out" \
+  && { cat "${TMP_DIR}/m-unconfirmed.out"; fail "unconfirmed merge: must NOT print the '✓ PR #… merged.' success line when GitHub has not confirmed MERGED"; }
+TRACE8="${R8}/.copilot-tracking/issues/issue-37/trace.jsonl"
+validate_file "unconfirmed-merge trace" "$TRACE8"
+m8="$(get_merge_span "unconfirmed merge" "$TRACE8")"
+check_merge_span "unconfirmed merge" "$m8" fail merge_verify
 
 printf 'merge-pr trace emission contract honored\n'

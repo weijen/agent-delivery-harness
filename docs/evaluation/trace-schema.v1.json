@@ -98,6 +98,8 @@
     "harness.warning": "string; enum-like warning code emitted by a harness script (e.g. jq_skipped, incomplete_features).",
     "harness.require_complete": "string; whether the completeness gate ran in require mode (REQUIRE_FEATURES_COMPLETE), '0' | '1'.",
     "harness.pr_number": "string; GitHub pull request number (create-pr, merge-pr). Serialized as a string, not a JSON number.",
+    "harness.merge_sha": "string; the merged PR's merge commit SHA from `gh pr view --json mergeCommit -q .mergeCommit.oid`, stamped only after GitHub confirms harness.merge_state=MERGED (merge-pr.sh, issue #328).",
+    "harness.merge_state": "string; the PR state from `gh pr view --json state -q .state`, captured immediately after `gh pr merge` returns 0. A pr_merge span with harness.outcome=pass must carry harness.merge_state=MERGED paired with a non-empty harness.merge_sha (merge-pr.sh, issue #328).",
     "harness.base_ref": "string; base branch a pull request targets (create-pr).",
     "harness.branch": "string; git branch name for the issue worktree/PR. Excluded from the trace-export allowlist (never shipped to App Insights).",
     "harness.worktree": "string; absolute path of the issue worktree. Excluded from the trace-export allowlist.",

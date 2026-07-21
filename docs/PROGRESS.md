@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-21 (#317)_
+_Last updated: 2026-07-21 (#328)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-21 (#317)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 211 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 213 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,28 @@ _Last updated: 2026-07-21 (#317)_
 ---
 
 ## Delivered (newest first)
+
+### Fix lifecycle scripts' --help side effects and require merge evidence (#328): delivery complete
+
+- **`create-pr.sh` and `merge-pr.sh` `-h`/`--help` are now side-effect free.**
+  Both scripts exit 0 on usage before sourcing `trace-lib.sh` or touching
+  `gh`/`git`, instead of falling through into rebase, PR resolution, or merge
+  logic.
+- **`merge-pr.sh` re-verifies GitHub state before declaring success.** After
+  `gh pr merge` returns zero, a new `merge_verify` step calls
+  `gh pr view --json state,mergeCommit` and only stamps the pass span's
+  `harness.merge_state`/`harness.merge_sha` (and prints "merged.") when
+  GitHub independently confirms `state=MERGED` with a non-empty merge commit;
+  otherwise it fails loudly at `harness.stage=merge_verify`.
+- **Closeout rejects unevidenced merge claims while keeping the authoritative
+  GitHub check.** `finish-lib.sh`'s merged-conclusion path still trusts
+  `finish__merged_pr_exists` (GitHub's own merged-PR record) but now also
+  blocks when a present, successful `pr_merge` span lacks
+  `harness.merge_state=MERGED`/`harness.merge_sha`; issues with no `pr_merge`
+  span at all remain unaffected (backward compatible).
+- **Regression protection is executable.** Four red-first sensors cover
+  `create-pr.sh` help side-effect freedom, `merge-pr.sh` help side-effect
+  freedom, the `merge_verify` trace contract, and the closeout evidence gate.
 
 ### Generator stuck-triggered external research (#317): delivery complete
 
