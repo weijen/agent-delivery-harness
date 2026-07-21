@@ -166,6 +166,14 @@ add_span research-requested generator-subagent impl_handback fail knowledge-gap 
 add_span research-requested generator-subagent green_handback blocked knowledge-gap research-requested
 expect_clean research-requested
 
+# A later successful research repair remains escalated even when the immediately
+# preceding blocked route was research-requested, and must persist its lesson.
+make_case research-after-request
+add_span research-after-request generator-subagent impl_handback fail knowledge-gap point-fix
+add_span research-after-request generator-subagent green_handback blocked knowledge-gap research-requested
+add_span research-after-request generator-subagent green_handback pass knowledge-gap research
+expect_violation research-after-request "generator_durable_rule_missing line 3"
+
 make_case exemption
 add_escalation exemption known-flaky exemption
 add_span exemption generator-subagent green_handback pass known-flaky exemption

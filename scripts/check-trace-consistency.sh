@@ -502,7 +502,6 @@ cat > "$STATE_FILTER" <<'JQ'
            end) as $repair_route
         | if (($prior_failures | length) >= 2)
              and $repair_route
-             and ($prior_failures[-1]["harness.failure_disposition"] == $dfd)
           then
             ($span["harness.durable_rule_path"] // null) as $drp
             | ($span["harness.durable_rule_summary"] // null) as $drs
