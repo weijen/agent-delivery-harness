@@ -110,14 +110,16 @@ else
 fi
 
 # ==============================================================================
-# 3. Token passthrough (events.jsonl) section marked deprecated.
+# 3. Token-metrics section marked deprecated (feature adapter-token-metrics-matrix
+#    renamed '## Token usage' to '## Token-metrics version matrix' in issue #319;
+#    the deprecation marker pinned by issue #305 must be preserved).
 # ==============================================================================
-token="$(section '^## Token usage' '^## Subagent')"
+token="$(section '^## Token-metrics version matrix' '^## ')"
 if [ -z "${token}" ]; then
-  fail "could not locate the '## Token usage' section"
+  fail "could not locate the '## Token-metrics version matrix' section"
 else
   printf '%s\n' "${token}" | grep -qF "${MARKER_PROSE}" \
-    || fail "token passthrough section must carry '${MARKER_PROSE}'"
+    || fail "token-metrics section must carry '${MARKER_PROSE}'"
 fi
 
 # ==============================================================================
