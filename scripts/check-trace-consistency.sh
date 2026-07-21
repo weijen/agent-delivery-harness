@@ -436,7 +436,7 @@ cat > "$STATE_FILTER" <<'JQ'
       then
         (($span["harness.failure_class"] // "")
          | if type == "string" and . != "" then . else "__EMPTY__" end) as $gfc
-        | ([ $lines[0:$i][]
+        | (([ $lines[0:$i][]
              | fromjson? | objects
              | . as $prior
              | select(.span == "agent")
@@ -445,7 +445,7 @@ cat > "$STATE_FILTER" <<'JQ'
                        | index($prior["harness.lifecycle_step"])) != null)
              | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
              | select(.["harness.failure_class"] == $gfc)
-           ] | length) + 1 as $occurrence
+           ] | length) + 1) as $occurrence
         | (($span["harness.failure_class_detail"] // "")
            | if . == "" then "__EMPTY__" else . end) as $detail
         | (($span["harness.failure_disposition"] // "")
