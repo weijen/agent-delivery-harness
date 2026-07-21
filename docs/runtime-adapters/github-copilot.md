@@ -292,28 +292,43 @@ The hook script itself is session-safe by contract: on every path it exits
 `0` and writes nothing to stdout (Copilot parses hook stdout as JSON).
 Outside a harness issue run it is a silent no-op and creates no artifacts.
 
-## Token usage: the events.jsonl caveat
+## Token-metrics version matrix
 
-**Deprecated (issue #305).** The token passthrough described here is part of the
-retired runtime capture path; native Copilot session records already carry token
-accounting, so the harness no longer reconstructs `model` spans from the internal
-`events.jsonl` for analysis.
+**Deprecated (issue #305).** The harness no longer reconstructs `model` spans
+from internal `events.jsonl`. Some native Copilot CLI records carry token
+accounting; this section documents what is actually available, version-pinned
+and with provenance.
 
-On the **CLI** surface, `agentStop` triggers a best-effort read of
-`~/.copilot/session-state/<sessionId>/events.jsonl`, whose metrics events
-carry per-model token buckets. When the latest metrics event carries a model
-id and numeric input/output token counts, the adapter emits one `model` span.
+The Copilot CLI event schema is **undocumented and unversioned** — GitHub has
+not published a schema specification. An open formalization request exists
+([github/copilot-cli #3551](https://github.com/github/copilot-cli/issues/3551))
+but remains unanswered as of 2026-07-21. Nothing below is a stable contract; field paths may change without notice across CLI releases.
 
-That file is an **internal, undocumented** Copilot CLI format: the parsed
-shape is empirically **unverified** against a real CLI session as of
-2026-07-05, and it may drift across CLI versions without notice. Any shape
-mismatch — missing file, garbage lines, partial or string-typed token fields —
-degrades to the `agent` span alone, with zero fabricated keys.
+| CLI version | Event type | Payload path | Token-metrics fields | Provenance |
+|---|---|---|---|---|
+| ≤1.0.54 | `session.shutdown` | `modelMetrics.<model>.usage` | Per-model buckets: input/output/cacheRead/cacheWrite/reasoning tokens and `requests.count`/`requests.cost` | Community/empirical — [ccusage #1174](https://github.com/ccusage/ccusage/issues/1174) reports these buckets present in ~70 of 80 inspected shutdown events |
+| 1.0.72-1 (issue #319 observation) | `session.usage_checkpoint` | `data.totalNanoAiu` | Aggregate nano-AIU counter only; **no per-model token buckets** observed in the inspected records for this version | Adopter observation — scoped to the records inspected for issue #319; does not universalize to every 1.0.72 session |
+| Observed in copilot-cli-cost (live process) | RPC call | `getMetrics()` response | Per-model token buckets (input/output/cacheRead/cacheWrite/reasoning tokens, requests count/cost) — requires an active CLI process | Community tool snapshot — [DamianEdwards/copilot-cli-cost](https://github.com/DamianEdwards/copilot-cli-cost) demonstrates this RPC on its tested CLI version; the source does not publish a bounded CLI compatibility range, and no official documentation confirms which versions expose this endpoint |
 
-For **VS Code agent mode** no user-accessible per-request token source is
-documented in v1, so on that surface the adapter never emits `model` spans
-and does not read `events.jsonl` at all — an honest gap, stated rather than
-papered over.
+**Caveats and scope:**
+
+- The ≤1.0.54 `modelMetrics` observation is empirical community evidence from
+  ccusage contributors who inspected shutdown events across multiple sessions.
+  The "~70 of 80" figure scopes the observation to that sample, not a
+  guaranteed availability rate.
+- The 1.0.72-1 observation is from a single adopter's issue #319 records; other
+  1.0.72 sessions may carry different fields depending on session type, model
+  selection, or future patches.
+- The RPC `getMetrics()` path is live/in-process only — it requires a running
+  Copilot CLI session and cannot extract metrics from persisted session-state
+  files after the process exits.
+- **OTel path separation:** The OTel file exporter (`COPILOT_OTEL_FILE_EXPORTER_PATH`)
+  writes spans to a separate JSONL sink with its own `gen_ai.conversation.id`.
+  Do not assume equivalence between OTel span UUIDs and session-state
+  `sessionId` values without explicit verification.
+- **VS Code agent mode:** No user-accessible per-request token source is
+  documented in v1; on that surface the adapter never emits `model` spans —
+  an honest gap, stated rather than papered over.
 
 ## Subagent tool/skill capture (`harness.subagent`)
 
