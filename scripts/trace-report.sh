@@ -88,6 +88,22 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
+TRACE_SCHEMA="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+if ! FAILURE_CLASSES="$(
+  jq -ce '
+    select(type == "object" and (.failure_classes | type == "array"))
+    | .failure_classes
+    | select(
+        length > 0
+        and all(.[]; type == "string" and length > 0)
+        and (unique | length) == length
+      )
+  ' "$TRACE_SCHEMA" 2>/dev/null
+)"; then
+  red "error: trace schema has no valid unique non-empty failure_classes enum: ${TRACE_SCHEMA}" >&2
+  exit 2
+fi
+
 # --- Resolve the trace file (CLI parity with validate-trace.sh, plan D7) -----
 TRACE_FILE=""
 case "$ARG" in
@@ -172,6 +188,15 @@ def elapsed_secs($start; $end):
   | if $a == null or $b == null then null
     else (((($b * 1000000) | round) - (($a * 1000000) | round)) / 1000000)
     end;
+def valid_failure_class:
+  . as $span
+  | ($span["harness.failure_class"]? | type) == "string"
+  and ($failure_classes | index($span["harness.failure_class"])) != null
+  and ($span["harness.failure_class"] != "other"
+       or ((($span["harness.failure_class_detail"]? | type) == "string")
+           and (($span["harness.failure_class_detail"] | length) > 0)));
+def failure_class_rank:
+  . as $class | $failure_classes | index($class);
 
 [inputs] as $lines
 | [$lines[] | fromjson? | select(type == "object")] as $spans
@@ -189,6 +214,14 @@ def elapsed_secs($start; $end):
   | select((.["harness.feature_id"] | length) > 0)] as $feature_starts
 | [$spans[] | select(.["harness.lifecycle_step"] == "review_verdict")] as $reviews
 | [$spans[] | select(.["harness.lifecycle_step"] == "green_handback")] as $greens
+| [$spans[]
+   | select(.["gen_ai.agent.name"]? == "generator-subagent")
+   | select((.["harness.lifecycle_step"]? == "red_handback")
+            or (.["harness.lifecycle_step"]? == "impl_handback")
+            or (.["harness.lifecycle_step"]? == "green_handback"))
+   | select((.["harness.outcome"]? == "fail")
+            or (.["harness.outcome"]? == "blocked"))
+   | select(valid_failure_class)] as $same_class_failures
 | {
     summary_schema_version: 1,
     trace_file: $trace_file,
@@ -311,6 +344,18 @@ def elapsed_secs($start; $end):
          total: ($greens | length) }
        | . + { blocked_rate:
                  (if .total == 0 then null else (.blocked / .total) end) }),
+    same_class_failures:
+      (($same_class_failures
+        | group_by(.["harness.failure_class"])
+        | map({
+            failure_class: .[0]["harness.failure_class"],
+            count: length
+          })
+        | sort_by(.failure_class | failure_class_rank)) as $by_class
+       | {
+           by_class: $by_class,
+           max_count: ([$by_class[].count] | max // 0)
+         }),
     loop_indicators:
       ([$spans[]
         | del(.span_id, .parent_span_id, .timestamp,
@@ -350,7 +395,8 @@ JQ
 
 SUMMARY_JSON="${TMP_DIR}/trace-summary.json"
 # shellcheck disable=SC2094 # $TRACE_FILE is read-only here; the write goes to $SUMMARY_JSON (a different file)
-jq -nR --arg trace_file "$TRACE_FILE" -f "$SUMMARY_FILTER" \
+jq -nR --arg trace_file "$TRACE_FILE" \
+  --argjson failure_classes "$FAILURE_CLASSES" -f "$SUMMARY_FILTER" \
   < "$TRACE_FILE" > "$SUMMARY_JSON"
 
 # --- Additive: log-derived gate-failure surface (feature trace-report-log-failures) ---
@@ -424,6 +470,17 @@ def na: if . == null then "n/a" else tostring end;
       then "n/a"
       else ($s.green_handbacks.blocked_rate | tostring)
       end) + ")"),
+    "- maximum same-class failures: \($s.same_class_failures.max_count)",
+    "",
+    "## Same-class generator failures",
+    "",
+    "| failure class | eligible failures |",
+    "| --- | --- |",
+    (if ($s.same_class_failures.by_class | length) == 0
+     then "| n/a | 0 |"
+     else ($s.same_class_failures.by_class[]
+           | "| \(.failure_class) | \(.count) |")
+     end),
     "",
     "## Feature delivery",
     "",

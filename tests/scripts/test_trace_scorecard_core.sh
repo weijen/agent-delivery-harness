@@ -290,10 +290,15 @@ jq -e '
     .feature_delivery == {"samples":null,"median_seconds":null,"p75_seconds":null,"p95_seconds":null,"coverage":null}
     and .review_fail == {"fail":null,"of":null,"rate":null}
     and .blocked_green == {"blocked":null,"of":null,"rate":null}
+    and .same_class_failures.occurrences_by_class == null
+    and .same_class_failures.max_observed_per_run == null
+    and .same_class_failures.coverage == {"measured_inputs":0,"total_relevant_inputs":1}
+    and .same_class_failures.target == {"operator":"<=","max_count":2,"policy":"report-only"}
     and all(.issues[];
       .feature_delivery == null
       and .review_verdicts == null
-      and .green_handbacks == null))
+      and .green_handbacks == null
+      and .same_class_failures == null))
 ' "$SCORECARD" >/dev/null 2>&1 \
   || fail "pre-#296 summaries must aggregate with null experiment coverage and null per-issue source projections"
 
