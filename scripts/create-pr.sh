@@ -16,9 +16,16 @@
 # Steps:
 #   1. Refuse on main or a dirty tree.
 #   2. Require review approval for the current HEAD before syncing.
-#   3. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict).
-#   4. Require review approval for the final post-sync HEAD.
-#   5. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
+#   3. git fetch origin main; rebase HEAD onto origin/main (abort cleanly on conflict) —
+#      unless CREATE_PR_NO_REWRITE=1, which skips rebase entirely: open from the
+#      current tip when origin/main is already an ancestor of HEAD, or merge
+#      origin/main in (abort cleanly on conflict) when a sync is needed.
+#   4. Require review approval for the final post-sync HEAD, but only when the
+#      sync actually moved HEAD (CREATE_PR_NO_REWRITE=1 with nothing to merge
+#      never re-checks — HEAD never changed since the pre-sync approval).
+#   5. Push the branch — --force-with-lease after a rebase (the issue branch is
+#      yours alone), or a plain push after CREATE_PR_NO_REWRITE=1 (fast-forward-safe
+#      by construction: a merge's first parent is the remote's own prior tip).
 #   6. Open the PR (gh pr create) if none exists yet, passing through your args.
 #
 # Exit codes: 0 PR open (or usage printed) · 1 precondition / conflict / PR creation failure
@@ -108,28 +115,65 @@ TRACE_STAGE="review_gate"
 "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 
 # --- 2. Sync onto the latest main -------------------------------------------
+# CREATE_PR_NO_REWRITE=1 is the explicit, proactive non-rewriting mode (issue
+# #326): rebase stays the unconditional DEFAULT preference below; setting the
+# flag skips it entirely instead of ever calling `git rebase`.
+CREATE_PR_NO_REWRITE="${CREATE_PR_NO_REWRITE:-0}"
 TRACE_STAGE="rebase"
-bold "==> Syncing ${branch} onto latest origin/main"
-git fetch origin main
-if ! git rebase origin/main; then
-  git rebase --abort || true
-  red "✗ Rebase onto origin/main hit conflicts."
-  echo "  Resolve them manually:"
-  echo "    git rebase origin/main   # fix conflicts, git add, git rebase --continue"
-  echo "  then re-run ./scripts/create-pr.sh"
-  exit 1
+sync_mode="rebase"
+if [ "$CREATE_PR_NO_REWRITE" = "1" ]; then
+  bold "==> CREATE_PR_NO_REWRITE=1 — skipping rebase (non-rewriting mode)"
+  git fetch origin main
+  if git merge-base --is-ancestor origin/main HEAD; then
+    sync_mode="none"
+    green "✓ ${branch} already contains latest origin/main ($(git rev-parse --short origin/main)) — opening from current tip"
+  elif git merge --no-edit origin/main; then
+    sync_mode="merge"
+    green "✓ ${branch} merged latest origin/main ($(git rev-parse --short origin/main)) — no history rewritten"
+  else
+    git merge --abort || true
+    red "✗ Merging origin/main hit conflicts (non-rewriting mode)."
+    echo "  Resolve them manually:"
+    echo "    git merge origin/main   # fix conflicts, git add, git commit"
+    echo "  then re-run CREATE_PR_NO_REWRITE=1 ./scripts/create-pr.sh"
+    exit 1
+  fi
+else
+  bold "==> Syncing ${branch} onto latest origin/main"
+  git fetch origin main
+  if ! git rebase origin/main; then
+    git rebase --abort || true
+    red "✗ Rebase onto origin/main hit conflicts."
+    echo "  Resolve them manually:"
+    echo "    git rebase origin/main   # fix conflicts, git add, git rebase --continue"
+    echo "  then re-run ./scripts/create-pr.sh"
+    exit 1
+  fi
+  green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
 fi
-green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
 
 # --- 3. Review approval for the final HEAD ----------------------------------
+# Only re-checked when HEAD actually moved: a no-op non-rewriting sync
+# (sync_mode=none) never rewrites or advances HEAD, so the pre-sync approval
+# above still covers it — re-checking would just repeat the same comparison.
 TRACE_STAGE="post_sync_gate"
-"$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+if [ "$sync_mode" != "none" ]; then
+  "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+fi
 
-# --- 4. Push (the issue branch is single-owner; rebase rewrote local history) -
+# --- 4. Push -----------------------------------------------------------------
+# --force-with-lease only after a rebase rewrote local history (the issue
+# branch is single-owner); a non-rewriting sync (merge, or nothing to sync)
+# pushes plain — fast-forward-safe by construction, since a merge's first
+# parent is the remote's own prior tip.
 TRACE_STAGE="push"
 bold "==> Pushing ${branch}"
 if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-  git push --force-with-lease origin "$branch"
+  if [ "$sync_mode" = "rebase" ]; then
+    git push --force-with-lease origin "$branch"
+  else
+    git push origin "$branch"
+  fi
 else
   git push -u origin "$branch"
 fi
