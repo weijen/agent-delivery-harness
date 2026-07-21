@@ -169,13 +169,20 @@ emit "create-pr opens a PR on an approved HEAD when sync does not change it"
 git reset -q --hard "$approved_head"
 git push -q origin :feature/review-gate >/dev/null 2>&1 || true
 : > "$GH_LOG"
+rm -f "${GH_LOG}.created"
 add_origin_main_commit "main.txt" "main advanced"
 
-if ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-stale-after-sync.out 2>&1; then
-  fail "create-pr passed after rebase changed the approved HEAD"
+# Issue #310: a content-preserving rebase carries the approval forward via
+# patch-id identity — no fresh approve needed. The PR must open on the
+# first try after the rebase.
+if ! ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-stale-after-sync.out 2>&1; then
+  fail "create-pr must succeed after content-preserving rebase (carry approval — issue #310)"
 fi
-grep -q "current HEAD has not been approved" /tmp/create-pr-stale-after-sync.out || fail "create-pr did not require fresh approval after sync changed HEAD"
-[ ! -s "$GH_LOG" ] || fail "create-pr opened PR after sync changed approved HEAD"
-emit "create-pr requires fresh approval after sync changes the approved HEAD"
+# Independently assert the PR opened via the GH_LOG (the fake gh pr create writes
+# to it). Do not rely on carry-diagnostic text being present in output — that
+# diagnostic is an implementation detail, not the observable contract.
+[ -s "$GH_LOG" ] \
+  || { cat /tmp/create-pr-stale-after-sync.out; fail "create-pr did not open PR after content-preserving rebase (carry approval — issue #310)"; }
+emit "create-pr carries approval across a content-preserving rebase (issue #310)"
 
 tap_done

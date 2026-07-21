@@ -76,6 +76,17 @@ trace__gate_exit() {
           "harness.review_gate_sha=${head_sha:-}" \
           "${attrs[@]}"
         ;;
+      carry-rebase-approval)
+        # Emit a carry-annotated approve span only on successful carry (rc=0).
+        # A failed carry is not an approval event — leave the trace unchanged.
+        if [ "$rc" -eq 0 ]; then
+          trace_span lifecycle \
+            "harness.lifecycle_step=review_gate_approve" \
+            "harness.review_gate_sha=${head_sha:-}" \
+            "harness.review_gate_carry=patch-id" \
+            "${attrs[@]}"
+        fi
+        ;;
       check)
         if [ -n "${approved_sha:-}" ]; then
           attrs+=("harness.review_gate_sha=${approved_sha}")
@@ -102,10 +113,21 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace|log-completeness
+Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace|log-completeness|carry-rebase-approval
 
 Commands:
   approve     Record the current HEAD as reviewed.
+  carry-rebase-approval <expected-pre-rebase-head>
+              Carry a prior approval forward across a content-preserving default
+              rebase. Reads the stored patch identity from marker line 2, verifies
+              marker line 1 equals the expected pre-rebase HEAD SHA, recomputes
+              the current patch identity, and on an exact match: rewrites marker
+              line 1 to the current HEAD and emits a carry-annotated
+              review_gate_approve span. A nonzero exit means carry was impossible
+              (missing/malformed marker, wrong pre-rebase SHA, identity mismatch,
+              or computation failure) — the marker is unchanged and no span is
+              emitted. Carry is best-effort: create-pr.sh always calls the
+              authoritative `check` subcommand immediately after.
   check       Require the recorded approval to match the current HEAD, and that
               the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
               Also runs the ci-gate and the trace gate (warn-only unless
@@ -612,11 +634,24 @@ review_verdict_gate() {
 # (fail-closed carry design: carry will refuse rather than silently match an
 # unknown identity). Never substitutes HEAD as a fake base for an origin that
 # cannot be reached.
+#
+# Merge commits are deliberately ineligible for carry: a default rebase
+# flattens the non-merge first-parent patch stream, dropping any content that
+# was introduced ONLY in the merge commit (not in either parent). An approved
+# merge history could carry even though the post-rebase result omits that
+# content — silently misrepresenting what was reviewed. Returns 1 when any
+# merge commit is found in ${base}..HEAD so approve writes a blank identity and
+# carry is permanently blocked for that branch.
 _patch_id_for_branch() {
-  local base raw
+  local base raw merge_commits
   # Fail closed: if origin/main or the merge-base is unavailable, return 1 so
   # the caller writes a blank identity (carry refuses later, not silently match).
   base="$(git merge-base origin/main HEAD 2>/dev/null)" || return 1
+  # Fail closed: any merge commit in the range makes identity undefined for
+  # carry (rebase flattens/drops merge-only content). Avoid a pipeline here so
+  # the exit code is directly from git rev-list.
+  merge_commits="$(git rev-list --merges "${base}..HEAD" 2>/dev/null)" || return 1
+  [ -z "$merge_commits" ] || return 1
   # Use pipefail so a nonzero patch-id/log/awk pipeline returns 1; only
   # successful empty output means zero commits (deterministic empty-stream hash).
   raw="$(set -o pipefail; git log --no-merges --reverse "${base}..HEAD" -p 2>/dev/null \
@@ -672,6 +707,71 @@ case "$command" in
     printf '%s\n' "$head_sha" > "$marker_file"
     printf '%s\n' "$_patch_id" >> "$marker_file"
     green "✓ review approved for current HEAD ${head_sha}"
+    ;;
+  carry-rebase-approval)
+    # Carry a prior approval forward across a content-preserving default rebase.
+    # Sole owner of carry marker reads, carry marker writes, and the carry span.
+    # Exits 0 only on an exact match of both the expected pre-rebase HEAD and the
+    # stored patch identity. Any missing/malformed/mismatch condition exits nonzero
+    # without updating the marker and without emitting a carry span (fail-closed).
+    TRACE_CMD="carry-rebase-approval"
+    TRACE_T0="$(trace_now_ms)"
+
+    expected_pre_rebase="${2:-}"
+    if [ -z "$expected_pre_rebase" ]; then
+      yellow "⚠ carry-rebase-approval: missing required argument (expected pre-rebase HEAD SHA) — carry impossible"
+      exit 1
+    fi
+
+    # Require: marker exists.
+    if [ ! -f "$marker_file" ]; then
+      yellow "⚠ carry-rebase-approval: no marker file — carry impossible (no prior approval)"
+      exit 1
+    fi
+
+    # Require: marker line 1 exactly equals the provided expected pre-rebase HEAD.
+    marker_pre_sha="$(sed -n '1p' "$marker_file" | tr -d '[:space:]')"
+    if [ "$marker_pre_sha" != "$expected_pre_rebase" ]; then
+      yellow "⚠ carry-rebase-approval: marker line 1 (${marker_pre_sha}) != expected pre-rebase HEAD (${expected_pre_rebase}) — stale or wrong marker, carry impossible"
+      exit 1
+    fi
+
+    # Require: expected pre-rebase SHA resolves as a commit object.
+    if ! git rev-parse -q --verify "${expected_pre_rebase}^{commit}" >/dev/null 2>&1; then
+      yellow "⚠ carry-rebase-approval: expected pre-rebase SHA ${expected_pre_rebase} does not resolve as a commit — carry impossible"
+      exit 1
+    fi
+
+    # Require: line 2 is a valid non-blank repository-object-format hex identity
+    # (40 chars for SHA-1 repos, 64 chars for SHA-256 repos).
+    stored_patch_id="$(sed -n '2p' "$marker_file" | tr -d '[:space:]')"
+    if [ -z "$stored_patch_id" ]; then
+      yellow "⚠ carry-rebase-approval: marker line 2 is blank — no stored patch identity, carry impossible (legacy or failed-identity marker)"
+      exit 1
+    fi
+    if ! printf '%s\n' "$stored_patch_id" | grep -qE '^[0-9a-f]{40}$|^[0-9a-f]{64}$'; then
+      yellow "⚠ carry-rebase-approval: marker line 2 '${stored_patch_id}' is not a valid 40- or 64-char hex identity — carry impossible (malformed marker)"
+      exit 1
+    fi
+
+    # Require: current _patch_id_for_branch computation succeeds and matches stored.
+    _carry_id=""
+    _carry_id="$(_patch_id_for_branch 2>/dev/null)" || _carry_id=""
+    if [ -z "$_carry_id" ]; then
+      yellow "⚠ carry-rebase-approval: patch-id computation failed (origin/main unavailable?) — carry impossible"
+      exit 1
+    fi
+
+    if [ "$_carry_id" != "$stored_patch_id" ]; then
+      yellow "⚠ carry-rebase-approval: patch-id changed — branch diff was altered by the rebase (or a post-rebase amend). Re-run review and approve."
+      exit 1
+    fi
+
+    # Exact match: update marker line 1 to post-rebase HEAD; retain line 2.
+    printf '%s\n' "$head_sha" > "$marker_file"
+    printf '%s\n' "$stored_patch_id" >> "$marker_file"
+    green "✓ carry-rebase-approval: patch-id unchanged — approval carried to ${head_sha}"
+    # EXIT trap emits review_gate_approve lifecycle span with harness.review_gate_carry=patch-id.
     ;;
   check)
     TRACE_CMD="check"

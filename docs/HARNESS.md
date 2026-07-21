@@ -414,9 +414,15 @@ copies are absent.
 ## Review Gate
 
 `./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
-`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then checks again after
-`git fetch origin main` + `git rebase origin/main` before pushing or opening a PR. Any new commit or rebase that
-changes HEAD requires a fresh review approval for that final HEAD.
+`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then after
+`git fetch origin main` + `git rebase origin/main`, attempts to carry the prior approval forward
+by patch-id identity (issue #310): if the branch's ordered patch stream is unchanged, the approval
+carries automatically to the post-rebase HEAD with no second approve needed. Any content-changing
+commit or sync still requires fresh review — carry applies only when the actual successful default
+rebase produced exactly the pre-approved HEAD, the stored identity is a valid merge-free stable hex
+identity, and the post-rebase identity is unchanged. The authoritative `check` always runs after
+carry (whether carry succeeded or not): merge/non-rewrite/fallback/legacy-marker paths all require
+fresh approval.
 
 **Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
 feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch
