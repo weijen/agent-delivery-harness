@@ -90,6 +90,16 @@ write_verdict_trace() {
   done
 }
 
+append_pr_merge_span() {
+  local main="$1" issue="$2" outcome="$3" merge_state="${4:-}" merge_sha="${5:-}" pad="" extra=""
+  pad="$(printf '%02d' "$issue")"
+  [ -n "$merge_state" ] && extra="${extra},\"harness.merge_state\":\"${merge_state}\""
+  [ -n "$merge_sha" ] && extra="${extra},\"harness.merge_sha\":\"${merge_sha}\""
+  printf '{"schema_version":1,"timestamp":"2026-07-20T12:05:00Z","span":"lifecycle","harness.issue":%s,"harness.version":"0.0.0-dev","harness.lifecycle_step":"pr_merge","harness.outcome":"%s","harness.exit_status":0,"harness.duration_ms":10%s}\n' \
+    "$issue" "$outcome" "$extra" \
+    >> "${main}/.copilot-tracking/issues/issue-${pad}/trace.jsonl"
+}
+
 run_finish() {
   local main="$1" issue="$2" out="$3"
   shift 3
@@ -213,6 +223,35 @@ fi
 [ -d "${MAIN}-worktrees/issue-49" ] || fail "unwritable: worktree must remain intact"
 assert_contains "${MAIN}-worktrees/issue-49/.copilot-tracking/issues/issue-49/progress.md" \
   'Status: implementation stopped.'
+
+# A present-but-authoritative-confirmed pr_merge span carrying full merge
+# evidence (harness.merge_state=MERGED, non-empty harness.merge_sha) does not
+# block the existing authoritative GitHub merged-PR check.
+MAIN="$(make_fixture merged-evidence 51)"
+write_progress "$MAIN" 51 "implementation complete"
+write_verdict_trace "$MAIN" 51 "pass"
+append_pr_merge_span "$MAIN" 51 pass MERGED deadbeef0001
+FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-51-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":451}]' \
+  run_finish "$MAIN" 51 "${TMP_DIR}/merged-evidence.out" env \
+  || { cat "${TMP_DIR}/merged-evidence.out"; fail "merged-evidence: finish unexpectedly failed"; }
+[ ! -e "${MAIN}-worktrees/issue-51" ] || fail "merged-evidence: worktree must be removed"
+assert_contains "${MAIN}/.copilot-tracking/issues/issue-51/progress.md" \
+  'Conclusion: merged; review verdict: APPROVED.'
+
+# A present successful pr_merge span with no merge evidence (the issue-318
+# shape) must block the merged conclusion even though GitHub's own record
+# independently reports MERGED.
+MAIN="$(make_fixture merged-missing-evidence 52)"
+write_progress "$MAIN" 52 "implementation complete"
+write_verdict_trace "$MAIN" 52 "pass"
+append_pr_merge_span "$MAIN" 52 pass
+if FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-52-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":452}]' \
+  run_finish "$MAIN" 52 "${TMP_DIR}/merged-missing-evidence.out" env; then
+  fail "merged-missing-evidence: finish must reject a present successful pr_merge span with no merge evidence"
+fi
+[ -d "${MAIN}-worktrees/issue-52" ] || fail "merged-missing-evidence: worktree must remain intact"
+assert_contains "${MAIN}-worktrees/issue-52/.copilot-tracking/issues/issue-52/progress.md" \
+  'Status: implementation complete.'
 
 # A finished trace cannot coexist with a surviving in-flight Status.
 CONSISTENCY="${TMP_DIR}/consistency"

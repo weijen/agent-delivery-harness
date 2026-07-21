@@ -291,6 +291,27 @@ finish__atomic_conclusion() {
   return 0
 }
 
+finish__pr_merge_evidence_ok() {
+  local trace_file="$1" ok=""
+  if [ ! -f "$trace_file" ] || ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+  ok="$(jq -Rsr '
+    [split("\n")[] | fromjson? | objects
+     | select(.span == "lifecycle"
+              and .["harness.lifecycle_step"] == "pr_merge"
+              and .["harness.outcome"] == "pass")]
+    | if length == 0 then "true"
+      else (last
+            | if (.["harness.merge_state"] == "MERGED"
+                  and (.["harness.merge_sha"] | type) == "string"
+                  and (.["harness.merge_sha"] | length) > 0)
+              then "true" else "false" end)
+      end
+  ' "$trace_file" 2>/dev/null || true)"
+  [ "$ok" = "true" ]
+}
+
 finish_progress_finalize() {
   local issue="${ISSUE_NUM:-}" issue_pad=""
   local main_root="" main_issue_dir="" trace_file="" progress_file="" result="" verdict=""
@@ -318,7 +339,13 @@ finish_progress_finalize() {
   if [ "${ABANDONED:-0}" = "1" ]; then
     result="abandoned"
   elif finish__merged_pr_exists "${BRANCH:-}"; then
-    result="merged"
+    if finish__pr_merge_evidence_ok "$trace_file"; then
+      result="merged"
+    else
+      red "✗ progress conclusion blocked: a successful pr_merge trace span exists without merge evidence (harness.merge_sha / harness.merge_state=MERGED)."
+      echo "  Re-run ./scripts/merge-pr.sh so the pr_merge span carries verified merge evidence, or investigate the discrepancy."
+      return 1
+    fi
   else
     red "✗ progress conclusion blocked: no authoritative merged PR found for branch ${BRANCH:-<unknown>}."
     echo "  Merge the issue branch first, or use ABANDONED=1 for an explicit abandonment."
