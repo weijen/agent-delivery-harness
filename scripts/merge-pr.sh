@@ -32,7 +32,8 @@
 # HEAD in the current worktree first so no `main` checkout is ever attempted. A
 # cleanup failure warns with a follow-up command; it never fails the merge.
 #
-# Exit codes: 0 merged · 1 no PR / checks are not green / merge failure. A
+# Exit codes: 0 merged · 1 no PR / checks are not green / merge failure / merge
+#             not confirmed MERGED by GitHub after `gh pr merge` returned 0. A
 #             post-merge cleanup failure warns but keeps exit 0 (the merge won).
 set -euo pipefail
 
@@ -100,9 +101,13 @@ fi
 # refusal has passed, so that usage refusal emits nothing.
 TRACE_STAGE=""
 pr_number=""
+merge_sha=""
+merge_state=""
 trace__merge_pr_attrs() {
   printf 'harness.stage=%s\n' "${TRACE_STAGE}"
   [ -n "$pr_number" ] && printf 'harness.pr_number=%s\n' "${pr_number}"
+  [ -n "$merge_sha" ] && printf 'harness.merge_sha=%s\n' "${merge_sha}"
+  [ -n "$merge_state" ] && printf 'harness.merge_state=%s\n' "${merge_state}"
 }
 trace_lifecycle_init pr_merge trace__merge_pr_attrs
 
@@ -173,6 +178,25 @@ green "✓ CI checks are green for PR #${pr_number}"
 TRACE_STAGE="merge"
 bold "==> Merging PR #${pr_number}"
 gh pr merge "$pr_number" ${MERGE_FLAGS[@]+"${MERGE_FLAGS[@]}"}
+
+# --- 3b. Authoritative post-merge verification (issue #328) -----------------
+# `gh pr merge` returning 0 is NOT sufficient evidence of a merge: re-query
+# GitHub directly so success is reported (and the pr_merge span stamped with
+# merge_sha/merge_state) only when GitHub itself confirms MERGED with a merge
+# commit. A false-success here (e.g. a race, a stale merge, or a queued-but-
+# not-yet-applied merge) must fail loudly instead of printing "merged.".
+TRACE_STAGE="merge_verify"
+bold "==> Verifying PR #${pr_number} is confirmed merged"
+verify_out="$(gh pr view "$pr_number" --json state,mergeCommit \
+  -q '(.state // "") + "\t" + (.mergeCommit.oid // "")' 2>/dev/null || true)"
+merge_state="${verify_out%%$'\t'*}"
+merge_sha="${verify_out#*$'\t'}"
+if [ "$merge_state" != "MERGED" ] || [ -z "$merge_sha" ]; then
+  red "✗ Refusing to report success: PR #${pr_number} is not confirmed MERGED (gh pr view reports state=${merge_state:-<empty>})."
+  echo "  gh pr merge exited 0, but GitHub does not yet show a MERGED state with a merge commit."
+  echo "  Re-run ./scripts/merge-pr.sh once confirmed, or check GitHub manually: gh pr view --web"
+  exit 1
+fi
 TRACE_STAGE="done"
 green "✓ PR #${pr_number} merged."
 

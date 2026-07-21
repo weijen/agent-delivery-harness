@@ -93,7 +93,13 @@ write_fake_gh() {
 case "$1 ${2:-}" in
   "issue view") exit 1 ;;
   "pr view")
-    if [ -f "${GH_STATE:?}" ]; then echo 123; exit 0; fi
+    if [ -f "${GH_STATE:?}" ]; then
+      case "$*" in
+        *"state,mergeCommit"*) printf 'MERGED\tdeadbeef0001cafe\n' ;;
+        *) echo 123 ;;
+      esac
+      exit 0
+    fi
     exit 1
     ;;
   "pr create")

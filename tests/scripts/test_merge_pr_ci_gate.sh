@@ -62,7 +62,12 @@ cat > "${BIN}/gh" <<'EOF'
 set -uo pipefail
 case "$1 $2" in
   "pr view")
-    echo "${FAKE_PR_NUMBER:-123}"
+    case "$*" in
+      *"state,mergeCommit"*)
+        printf '%s\t%s\n' "${FAKE_MERGE_STATE:-MERGED}" "${FAKE_MERGE_SHA:-deadbeef0001cafe}"
+        ;;
+      *) echo "${FAKE_PR_NUMBER:-123}" ;;
+    esac
     exit 0
     ;;
   "pr checks")
