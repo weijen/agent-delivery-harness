@@ -6,6 +6,8 @@
 # local gates yet break against current main (or duplicate a fix already landed).
 #
 # Usage:
+#   ./scripts/create-pr.sh -h|--help          # print this usage and exit 0 —
+#                                              # side-effect free: no git/gh call
 #   ./scripts/create-pr.sh --title "feat: ..." --body-file body.md
 #   ./scripts/create-pr.sh --title "fix: ..."  --body "..."
 #   ./scripts/create-pr.sh                       # PR already exists: just re-sync + push
@@ -19,7 +21,7 @@
 #   5. Push the rebased branch (--force-with-lease — the issue branch is yours alone).
 #   6. Open the PR (gh pr create) if none exists yet, passing through your args.
 #
-# Exit codes: 0 PR open · 1 precondition / conflict / PR creation failure
+# Exit codes: 0 PR open (or usage printed) · 1 precondition / conflict / PR creation failure
 
 set -euo pipefail
 
@@ -28,6 +30,28 @@ green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Help guard (issue #328) --------------------------------------------------
+# -h/--help must exit 0 before ANY side effect (review-gate check, git fetch,
+# git rebase, git push, gh call, or trace span emission) — scanned across all
+# of $@, and placed before the trace-lib.sh guarded-source block below so no
+# pr_create span is ever armed for a help request.
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      cat <<'EOF'
+Usage: ./scripts/create-pr.sh [--title TITLE] [--body BODY | --body-file FILE] [gh pr create args...]
+
+Sync the current branch onto latest main, push it, and open (or re-sync) its
+PR. Any argument other than -h/--help is passed straight through to
+`gh pr create` (run `gh pr create --help` for its own flags). With no
+PR-creation args and no existing PR, re-run with e.g.
+--title "…" --body-file body.md.
+EOF
+      exit 0
+      ;;
+  esac
+done
 
 # --- Tracing (issue #94, plan D5) --------------------------------------------
 # Guarded source: a missing trace-lib.sh must never break PR creation. The
