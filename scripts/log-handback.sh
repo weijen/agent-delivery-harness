@@ -37,6 +37,13 @@
 # values are written to the span and the same Action Log row; fetched page
 # content is never accepted as a trace field.
 #
+# Durable-rule passthrough (issue #317): TRACE_DURABLE_RULE_PATH and
+# TRACE_DURABLE_RULE_SUMMARY are accepted only as a pair on a successful
+# generator green handback carrying a class-repair disposition. The path must
+# name an existing, non-symlinked AGENTS.md or
+# .copilot/instructions/*.instructions.md file inside the actual repository;
+# the summary must be a non-empty single line. Invalid pairs warn and omit.
+#
 # Failure-mode passthrough (issue #99, feature failure-mode-span-plumbing —
 # mirrors the token passthrough): TRACE_FAILURE_MODE is forwarded as
 # harness.failure_mode (JSON string) ONLY when its value is a member of the
@@ -178,6 +185,63 @@ elif [ "$research_eligible" = "1" ] \
   else
     RESEARCH_URL="${TRACE_RESEARCH_URL}"
     RESEARCH_SUMMARY="${TRACE_RESEARCH_SUMMARY}"
+  fi
+fi
+
+DURABLE_RULE_PATH=""
+DURABLE_RULE_SUMMARY=""
+durable_rule_eligible=0
+if [ "$ROLE" = "generator-subagent" ] \
+  && [ "$STEP" = "green_handback" ] \
+  && [ "$OUTCOME" = "pass" ]; then
+  case "${TRACE_FAILURE_CLASS:-}:${TRACE_FAILURE_DISPOSITION:-}" in
+    knowledge-gap:research|complexity:decompose \
+      |known-flaky:override|polling:override \
+      |spec-violation:class-fix|spec-violation:override \
+      |validation-bypass:class-fix|validation-bypass:override \
+      |missing-coverage:class-fix|missing-coverage:override \
+      |regression:class-fix|regression:override \
+      |role-boundary:class-fix|role-boundary:override \
+      |other:class-fix|other:override)
+      durable_rule_eligible=1
+      ;;
+  esac
+fi
+if [ "$durable_rule_eligible" = "1" ] \
+  && { [ -n "${TRACE_DURABLE_RULE_PATH:-}" ] \
+    || [ -n "${TRACE_DURABLE_RULE_SUMMARY:-}" ]; }; then
+  durable_rule_valid=1
+  durable_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -z "${TRACE_DURABLE_RULE_PATH:-}" ] \
+    || [ -z "${TRACE_DURABLE_RULE_SUMMARY:-}" ]; then
+    durable_rule_valid=0
+  elif [[ "${TRACE_DURABLE_RULE_SUMMARY}" == *$'\n'* \
+    || "${TRACE_DURABLE_RULE_SUMMARY}" == *$'\r'* \
+    || ! "${TRACE_DURABLE_RULE_SUMMARY}" =~ [^[:space:]] ]]; then
+    durable_rule_valid=0
+  elif [ "${TRACE_DURABLE_RULE_PATH}" = "AGENTS.md" ]; then
+    if [ -z "$durable_repo_root" ] \
+      || [ ! -f "${durable_repo_root}/AGENTS.md" ] \
+      || [ -L "${durable_repo_root}/AGENTS.md" ]; then
+      durable_rule_valid=0
+    fi
+  elif [[ "${TRACE_DURABLE_RULE_PATH}" =~ ^\.copilot/instructions/[A-Za-z0-9._-]+\.instructions\.md$ ]]; then
+    if [ -z "$durable_repo_root" ] \
+      || [ -L "${durable_repo_root}/.copilot" ] \
+      || [ -L "${durable_repo_root}/.copilot/instructions" ] \
+      || [ ! -f "${durable_repo_root}/${TRACE_DURABLE_RULE_PATH}" ] \
+      || [ -L "${durable_repo_root}/${TRACE_DURABLE_RULE_PATH}" ]; then
+      durable_rule_valid=0
+    fi
+  else
+    durable_rule_valid=0
+  fi
+
+  if [ "$durable_rule_valid" = "1" ]; then
+    DURABLE_RULE_PATH="${TRACE_DURABLE_RULE_PATH}"
+    DURABLE_RULE_SUMMARY="${TRACE_DURABLE_RULE_SUMMARY}"
+  else
+    warn "durable rule evidence requires an existing non-symlinked repository rule path and non-empty one-line summary — both fields omitted"
   fi
 fi
 
@@ -537,6 +601,11 @@ research-requested'
     RESEARCH_ARGS+=("harness.research_url=${RESEARCH_URL}")
     RESEARCH_ARGS+=("harness.research_summary=${RESEARCH_SUMMARY}")
   fi
+  DURABLE_RULE_ARGS=()
+  if [ -n "$DURABLE_RULE_PATH" ]; then
+    DURABLE_RULE_ARGS+=("harness.durable_rule_path=${DURABLE_RULE_PATH}")
+    DURABLE_RULE_ARGS+=("harness.durable_rule_summary=${DURABLE_RULE_SUMMARY}")
+  fi
 
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
@@ -556,7 +625,8 @@ research-requested'
     ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
     ${RS_ARGS[@]+"${RS_ARGS[@]}"} \
     ${ACT_ARGS[@]+"${ACT_ARGS[@]}"} \
-    ${RESEARCH_ARGS[@]+"${RESEARCH_ARGS[@]}"}
+    ${RESEARCH_ARGS[@]+"${RESEARCH_ARGS[@]}"} \
+    ${DURABLE_RULE_ARGS[@]+"${DURABLE_RULE_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
@@ -640,8 +710,13 @@ RESEARCH_SUFFIX=""
 if [ -n "$RESEARCH_URL" ]; then
   RESEARCH_SUFFIX=" [research: ${RESEARCH_URL} — ${RESEARCH_SUMMARY}]"
 fi
+DURABLE_RULE_SUFFIX=""
+if [ -n "$DURABLE_RULE_PATH" ]; then
+  DURABLE_RULE_SUFFIX=" [durable rule: ${DURABLE_RULE_PATH} — ${DURABLE_RULE_SUMMARY}]"
+fi
 BULLET="$(printf -- '- [%s] %s %s %s — %s%s' \
-  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" "$RESEARCH_SUFFIX" | redact_line)" \
+  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" \
+  "${RESEARCH_SUFFIX}${DURABLE_RULE_SUFFIX}" | redact_line)" \
   || append_fail "redaction of the Action Log line failed — line not recorded"
 [ -n "$BULLET" ] \
   || append_fail "redaction produced an empty Action Log line — line not recorded"

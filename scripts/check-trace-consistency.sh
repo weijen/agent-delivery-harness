@@ -244,12 +244,16 @@ fi
 
 ISSUE_DIR="$(cd "$(dirname "$TRACE_FILE")" && pwd)"
 ARTIFACT_DIR="$ISSUE_DIR"
+REPOSITORY_ROOT=""
 if [ -z "$MARKER_FILE" ]; then
   # Path mode: the marker is resolvable only when the trace sits at a
   # contract-shaped path; otherwise the rule skips with a NOTE below.
   if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
     MARKER_FILE="${BASH_REMATCH[1]}/.copilot-tracking/review-gate/approved-head"
+    REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
   fi
+elif [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
+  REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
 fi
 
 # Real-layout fallback (#103 loop-2 review F1): on live runs the main root
@@ -449,6 +453,56 @@ cat > "$STATE_FILTER" <<'JQ'
         | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
       else empty
       end ),
+    # A successful escalated class repair is grounded in prior same-class
+    # failed/blocked handbacks. Arbitrary pass spans, point fixes, exemptions,
+    # and blocked research requests are not durable-rule completion events.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ($span["harness.lifecycle_step"] == "green_handback")
+         and ($span["harness.outcome"] == "pass")
+         and (($span["harness.failure_class"] | type) == "string")
+         and (($span["harness.failure_disposition"] | type) == "string")
+      then
+        $span["harness.failure_class"] as $dfc
+        | $span["harness.failure_disposition"] as $dfd
+        | [ $lines[0:$i][]
+            | fromjson? | objects
+            | . as $prior
+            | select(.span == "agent")
+            | select(.["gen_ai.agent.name"] == "generator-subagent")
+            | select((["red_handback", "impl_handback", "green_handback"]
+                      | index($prior["harness.lifecycle_step"])) != null)
+            | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+            | select(.["harness.failure_class"] == $dfc)
+          ] as $prior_failures
+        | (if $dfc == "knowledge-gap" then $dfd == "research"
+           elif $dfc == "complexity" then $dfd == "decompose"
+           elif ($dfc == "known-flaky" or $dfc == "polling")
+             then $dfd == "override"
+           else ($dfd == "class-fix" or $dfd == "override")
+           end) as $repair_route
+        | if (($prior_failures | length) >= 2)
+             and $repair_route
+             and ($prior_failures[-1]["harness.failure_disposition"] == $dfd)
+          then
+            ($span["harness.durable_rule_path"] // null) as $drp
+            | ($span["harness.durable_rule_summary"] // null) as $drs
+            | if ($drp == null and $drs == null)
+              then "::durable \($n)\u0009missing\u0009-"
+              elif (($drp | type) != "string")
+                or (($drs | type) != "string")
+                or (($drs | test("[^[:space:]]")) | not)
+                or ($drs | test("[\r\n]"))
+              then "::durable \($n)\u0009invalid\u0009-"
+              elif ($drp == "AGENTS.md")
+                or ($drp | test("^\\.copilot/instructions/[A-Za-z0-9._-]+\\.instructions\\.md$"))
+              then "::durable \($n)\u0009target\u0009\($drp)"
+              else "::durable \($n)\u0009invalid\u0009-"
+              end
+          else empty
+          end
+      else empty
+      end ),
     # --- Fail-verdict attribution signals (issue #318) ---
     # Emit per-line signals for review_verdict/fail spans carrying attribution
     # and failure_class fields. Validated in bash below.
@@ -499,6 +553,7 @@ pr_span_number=""
 failattr_lines=$'\n'
 repairscope_lines=$'\n'
 genfail_lines=$'\n'
+durable_lines=$'\n'
 countable_reject_ids=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
@@ -519,6 +574,7 @@ while IFS= read -r out_line; do
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
     '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
     '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
+    '::durable '*)  durable_lines="${durable_lines}${out_line#'::durable '}"$'\n' ;;
   esac
 done <<< "$state_out"
 
@@ -578,6 +634,27 @@ failure_disposition_valid() {
   return 1
 }
 
+# A durable target must be one of the two always-loaded repository surfaces.
+# The closed lexical shape rejects absolute paths and traversal before IO; the
+# component checks reject symlink indirection even when it resolves in-tree.
+durable_rule_target_valid() {
+  local root="$1" path="$2"
+  [ -n "$root" ] || return 1
+  case "$path" in
+    AGENTS.md)
+      [ -f "${root}/AGENTS.md" ] && [ ! -L "${root}/AGENTS.md" ]
+      ;;
+    .copilot/instructions/*.instructions.md)
+      [[ "$path" =~ ^\.copilot/instructions/[A-Za-z0-9._-]+\.instructions\.md$ ]] \
+        && [ ! -L "${root}/.copilot" ] \
+        && [ ! -L "${root}/.copilot/instructions" ] \
+        && [ -f "${root}/${path}" ] \
+        && [ ! -L "${root}/${path}" ]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 # Same-class generator trigger (issue #317). Ignore malformed/unknown classes:
 # only valid closed classes are eligible observations. For valid observations,
 # "other" still needs detail and disposition must come from its own closed enum.
@@ -635,6 +712,29 @@ if [ "$genfail_lines" != $'\n' ]; then
       violations=$((violations + 1))
     fi
   done < <(printf '%s' "$genfail_lines" | grep -v '^$')
+fi
+
+if [ "$durable_lines" != $'\n' ]; then
+  while IFS= read -r durable_line; do
+    [ -n "$durable_line" ] || continue
+    IFS=$'\t' read -r durable_n durable_state durable_path <<< "$durable_line"
+    case "$durable_state" in
+      missing)
+        printf 'VIOLATION consistency: generator_durable_rule_missing line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      invalid)
+        printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      target)
+        if ! durable_rule_target_valid "$REPOSITORY_ROOT" "$durable_path"; then
+          printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+          violations=$((violations + 1))
+        fi
+        ;;
+    esac
+  done < <(printf '%s' "$durable_lines" | grep -v '^$')
 fi
 
 # Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>

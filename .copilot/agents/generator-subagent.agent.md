@@ -134,6 +134,35 @@ and emit all three ordered payloads — `red_handback`, `impl_handback`, then
 `green_handback` — with outcome `blocked`, explaining that diagnosis requires
 the bounded external action. Do not claim a source was consulted.
 
+## Durable Class Lessons
+
+After an escalated same-class repair succeeds, do not close on GREEN evidence
+alone. A successful escalated repair is a `green_handback/pass` whose class and
+repair disposition match a second-or-later prior failed or blocked generator
+handback of that same class. `class-fix`, `research`, `decompose`, and an
+explicit repair `override` are repair dispositions; first-occurrence
+`point-fix`, `exemption`, arbitrary pass spans, and blocked
+`research-requested` handbacks are not successful class repairs. Review
+verdicts remain outside this generator rule.
+
+Before returning that successful GREEN handback:
+
+1. Derive a concise environment- or failure-class lesson from the local repair.
+   Never paste fetched content or create per-failure scratch memory.
+2. Update the narrowest existing always-loaded repository rule that owns the
+   lesson. Valid targets are exactly `AGENTS.md` or an existing
+   `.copilot/instructions/*.instructions.md` file. Do not create a new target,
+   use an absolute/traversing/symlinked path, or put a project-specific lesson
+   into generic global doctrine.
+3. Return the repository-relative path and a non-empty one-line lesson as
+   `TRACE_DURABLE_RULE_PATH` and `TRACE_DURABLE_RULE_SUMMARY` metadata for the
+   conductor to pass to `scripts/log-handback.sh`. The trace records only that
+   path and one-line summary, not the rule-file content.
+
+Missing or invalid durable-rule evidence is a blocking GREEN gate for a
+successful escalated repair. Historical traces and generator passes that do
+not meet the history-and-disposition definition above remain unaffected.
+
 ## Pre-Handback Self-Check Delivery Checklist
 
 Under issue #303 there is no per-feature independent review, so you own general quality assurance for your feature.
