@@ -58,17 +58,31 @@ yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 bold()   { printf '\033[1m%s\033[0m\n' "$*"; }
 
 # A push rejection "looks like" a remote force-push policy block (e.g. a
-# GitHub branch-protection "Block force pushes" rule) only when it carries a
-# known branch-protection signature AND does not also carry a signature for a
-# genuinely different failure (auth, network, or a content-based rejection
+# GitHub branch-protection "Block force pushes" rule, or a modern GitHub
+# Ruleset's protected-ref rule) only when it carries a known
+# force-push/protected-ref signature AND does not also carry a signature for
+# a genuinely different failure (auth, network, or a content-based rejection
 # such as GitHub secret-scanning push protection). The deny-list is checked
-# first and wins on any overlap — ambiguous text is always treated as a
+# FIRST and wins on any overlap — ambiguous text is always treated as a
 # genuine failure, never as a silent fallback trigger (issue #326).
+#
+# GH013 / "repository rule violations" is the umbrella error code GitHub
+# Rulesets use for many unrelated rule kinds (protected-ref, required status
+# checks, secret-scanning push protection, ...), so that text ALONE stays
+# ambiguous — a hard failure — same as before. It is allow-listed ONLY when
+# paired with the exact "Cannot update this protected ref." phrase AND no
+# deny-list signature is present: that specific pairing is unambiguous
+# evidence of a protected-ref/force-push policy block, not a content-based
+# rejection (issue #326 security follow-up).
 _force_push_policy_blocked() {
   local text="$1"
   if printf '%s' "$text" | grep -Eiq \
-    'authentication failed|permission denied|could not read (username|password)|could not resolve host|connection (timed out|refused)|does not appear to be a git repository|could not read from remote repository|GH013|push protection|secret scanning|repository rule violation'; then
+    'authentication failed|permission denied|could not read (username|password)|could not resolve host|connection (timed out|refused)|does not appear to be a git repository|could not read from remote repository|push protection|secret scanning|push cannot contain secrets'; then
     return 1
+  fi
+  if printf '%s' "$text" | grep -Eiq '(GH013|repository rule violations?)' \
+    && printf '%s' "$text" | grep -Eiq 'cannot update this protected ref'; then
+    return 0
   fi
   printf '%s' "$text" | grep -Eiq \
     'protected branch|cannot force-push|force push(es)? (is|are) not allowed|force-push.*(blocked|declined|disabled)|GH006'
