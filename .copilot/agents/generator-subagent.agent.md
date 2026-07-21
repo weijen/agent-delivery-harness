@@ -68,6 +68,30 @@ from nearby context.
 5. Return changed files, RED and GREEN command results, criterion-to-sensor mapping, product-quality evidence, and the
    three lifecycle payloads in order. The conductor is the sole logger and must record them in the order returned.
 
+## Same-Class Escalation
+
+For each `red_handback`, `impl_handback`, or `green_handback` whose outcome is
+`fail` or `blocked`, select one valid `harness.failure_class` from the trace
+schema's closed `failure_classes` enum. `other` also requires a non-empty
+`harness.failure_class_detail`. A normal `red_handback/pass` is successful RED
+evidence and does not count as a failure occurrence.
+
+Before returning an eligible failed or blocked handback, inspect prior eligible
+generator handbacks for the same class in the issue trace/handback context.
+Keep the closed `harness.failure_disposition` separate from class. On occurrence
+one, `point-fix` is allowed. On occurrence two or later, never use `point-fix`
+or omit disposition:
+
+- `knowledge-gap` uses `research` or `research-requested`.
+- `complexity` uses `decompose`.
+- `known-flaky` and `polling` use `exemption` or an explicit `override`.
+- Other classes use `class-fix` or an explicit `override`.
+
+Include the selected values in the handback metadata for the conductor to log
+as `TRACE_FAILURE_CLASS`, optional `TRACE_FAILURE_CLASS_DETAIL`, and
+`TRACE_FAILURE_DISPOSITION`. This generator-only trigger does not classify or
+route review verdicts.
+
 ## Pre-Handback Self-Check Delivery Checklist
 
 Under issue #303 there is no per-feature independent review, so you own general quality assurance for your feature.

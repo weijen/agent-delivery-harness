@@ -45,6 +45,7 @@ AUTH_STRUCT="$(auth_set structural_numeric_keys)"
 AUTH_ROLES="$(auth_set roles)"
 AUTH_SPANS="$(auth_set span_types)"
 AUTH_FAILURE_CLASSES="$(auth_set failure_classes)"
+AUTH_FAILURE_DISPOSITIONS="$(auth_set failure_dispositions)"
 
 [ -n "$AUTH_NUMERIC" ] \
   || fail "authority .numeric_keys is missing/empty in $CONTRACT — add the numeric-key map to the contract (issue #173)"
@@ -58,6 +59,8 @@ AUTH_FAILURE_CLASSES="$(auth_set failure_classes)"
   || fail "authority .span_types is missing/empty in $CONTRACT"
 [ -n "$AUTH_FAILURE_CLASSES" ] \
   || fail "authority .failure_classes is missing/empty in $CONTRACT — add the failure_classes enum (issue #318)"
+[ -n "$AUTH_FAILURE_DISPOSITIONS" ] \
+  || fail "authority .failure_dispositions is missing/empty in $CONTRACT — add the failure_dispositions enum (issue #317)"
 for role in generator-subagent implementation-subagent test-subagent; do
   printf '%s\n' "$AUTH_ROLES" | grep -qxF "$role" \
     || fail "authority .roles must retain active generator and historical implementation/test roles (missing ${role})"
@@ -163,4 +166,11 @@ diff_or_fail "check-trace-consistency.sh failure_classes frozen fallback" "$AUTH
 lh_failure_classes="$(region failure_classes "$LOG_HANDBACK" | grep -oE "$FC_SLUG_RE" | LC_ALL=C sort -u)"
 diff_or_fail "log-handback.sh failure_classes frozen fallback" "$AUTH_FAILURE_CLASSES" "$lh_failure_classes"
 
-printf 'trace-schema single-source contract honored (numeric_keys, prefixes, roles, span_types, failure_classes)\n'
+# --- 7. failure_dispositions frozen fallbacks --------------------------------
+cc_failure_dispositions="$(region failure_dispositions "$CONSISTENCY" | grep -oE "$FC_SLUG_RE" | LC_ALL=C sort -u)"
+diff_or_fail "check-trace-consistency.sh failure_dispositions frozen fallback" "$AUTH_FAILURE_DISPOSITIONS" "$cc_failure_dispositions"
+
+lh_failure_dispositions="$(region failure_dispositions "$LOG_HANDBACK" | grep -oE "$FC_SLUG_RE" | LC_ALL=C sort -u)"
+diff_or_fail "log-handback.sh failure_dispositions frozen fallback" "$AUTH_FAILURE_DISPOSITIONS" "$lh_failure_dispositions"
+
+printf 'trace-schema single-source contract honored (numeric_keys, prefixes, roles, span_types, failure_classes, failure_dispositions)\n'

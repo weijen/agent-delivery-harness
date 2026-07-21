@@ -272,14 +272,23 @@ role-violation'
     fi
   fi
 
-  # Failure-class passthrough (issue #318): on the review_verdict step ONLY,
+  # Failure-class passthrough (issues #318/#317): on review_verdict or a
+  # generator red/implementation/green handback,
   # forward TRACE_FAILURE_CLASS as harness.failure_class (closed enum from
   # docs/evaluation/trace-schema.v1.json .failure_classes; out-of-enum or empty
   # → omit + warn, never fake, mirroring the failure-mode shape). Also forward
   # TRACE_FAILURE_CLASS_DETAIL as harness.failure_class_detail (free-text,
-  # non-empty → forward, empty → omit). Both absent on non-review_verdict steps.
+  # non-empty → forward, empty → omit). Both are absent outside those steps.
   FC_ARGS=()
+  failure_fields_eligible=0
   if [ "$STEP" = "review_verdict" ]; then
+    failure_fields_eligible=1
+  elif [ "$ROLE" = "generator-subagent" ]; then
+    case "$STEP" in
+      red_handback|impl_handback|green_handback) failure_fields_eligible=1 ;;
+    esac
+  fi
+  if [ "$failure_fields_eligible" = "1" ]; then
     # Validate TRACE_FAILURE_CLASS against the contract's closed enum.
     failure_class_valid() {
       local cls="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
@@ -327,6 +336,53 @@ other'
     if [ -n "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
       FC_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
     fi
+  fi
+
+  # Generator failure disposition (issue #317): a route is deliberately
+  # separate from failure_class. Forward only on generator handbacks and only
+  # from the closed schema enum; invalid values warn and omit.
+  FD_ARGS=()
+  if [ "$ROLE" = "generator-subagent" ]; then
+    case "$STEP" in
+      red_handback|impl_handback|green_handback)
+        if [ -n "${TRACE_FAILURE_DISPOSITION:-}" ]; then
+          failure_disposition_valid() {
+            local value="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+            local dispositions="" entry
+            if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
+              dispositions="$(jq -r '(.failure_dispositions // [])[]' "$contract" 2>/dev/null || true)"
+            fi
+            if [ -z "$dispositions" ]; then
+              # >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+              # point-fix
+              # class-fix
+              # research
+              # decompose
+              # exemption
+              # override
+              # research-requested
+              # <<< trace-schema:failure_dispositions
+              dispositions='point-fix
+class-fix
+research
+decompose
+exemption
+override
+research-requested'
+            fi
+            while IFS= read -r entry; do
+              [ "$entry" = "$value" ] && return 0
+            done <<< "$dispositions"
+            return 1
+          }
+          if failure_disposition_valid "${TRACE_FAILURE_DISPOSITION}"; then
+            FD_ARGS+=("harness.failure_disposition=${TRACE_FAILURE_DISPOSITION}")
+          else
+            warn "TRACE_FAILURE_DISPOSITION '${TRACE_FAILURE_DISPOSITION}' is not in the closed failure_dispositions enum — harness.failure_disposition omitted (omit, never fake)"
+          fi
+        fi
+        ;;
+    esac
   fi
 
   # Finding-fingerprint passthrough (issue #318): on the review_verdict step
@@ -444,6 +500,7 @@ other'
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
     ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
     ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
+    ${FD_ARGS[@]+"${FD_ARGS[@]}"} \
     ${FP_ARGS[@]+"${FP_ARGS[@]}"} \
     ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
     ${BS_ARGS[@]+"${BS_ARGS[@]}"} \

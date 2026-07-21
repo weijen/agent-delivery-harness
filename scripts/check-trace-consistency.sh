@@ -420,6 +420,35 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
       end ),
+    # Eligible generator failures carry class and a separate route. Occurrence
+    # is computed in trace-file order for the same class; pass outcomes,
+    # non-generator roles, and review verdicts do not participate.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "generator-subagent")
+         and ((["red_handback", "impl_handback", "green_handback"]
+               | index($span["harness.lifecycle_step"])) != null)
+         and ((["fail", "blocked"] | index($span["harness.outcome"])) != null)
+         and (($span["harness.failure_class"] | type) == "string")
+         and ($span["harness.failure_class"] != "")
+      then
+        $span["harness.failure_class"] as $gfc
+        | ([ $lines[0:$i][]
+             | fromjson? | objects
+             | . as $prior
+             | select(.span == "agent")
+             | select(.["gen_ai.agent.name"] == "generator-subagent")
+             | select((["red_handback", "impl_handback", "green_handback"]
+                       | index($prior["harness.lifecycle_step"])) != null)
+             | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+             | select(.["harness.failure_class"] == $gfc)
+           ] | length) + 1 as $occurrence
+        | (($span["harness.failure_class_detail"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $detail
+        | (($span["harness.failure_disposition"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $disposition
+        | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
+      else empty
+      end ),
     # --- Fail-verdict attribution signals (issue #318) ---
     # Emit per-line signals for review_verdict/fail spans carrying attribution
     # and failure_class fields. Validated in bash below.
@@ -469,6 +498,7 @@ approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
 repairscope_lines=$'\n'
+genfail_lines=$'\n'
 countable_reject_ids=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
@@ -488,6 +518,7 @@ while IFS= read -r out_line; do
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
     '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
+    '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
   esac
 done <<< "$state_out"
 
@@ -521,6 +552,90 @@ failure_class_valid() {
   done <<< "$FAILURE_CLASSES_ENUM"
   return 1
 }
+
+# Closed route enum, separate from failure class.
+# >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_DISPOSITIONS_ENUM="point-fix
+class-fix
+research
+decompose
+exemption
+override
+research-requested"
+# <<< trace-schema:failure_dispositions
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_dispositions="$(jq -r '(.failure_dispositions // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_dispositions" ]; then
+    FAILURE_DISPOSITIONS_ENUM="$schema_dispositions"
+  fi
+fi
+
+failure_disposition_valid() {
+  local disposition="$1"
+  while IFS= read -r fd_entry; do
+    [ "$fd_entry" = "$disposition" ] && return 0
+  done <<< "$FAILURE_DISPOSITIONS_ENUM"
+  return 1
+}
+
+# Same-class generator trigger (issue #317). Ignore malformed/unknown classes:
+# only valid closed classes are eligible observations. For valid observations,
+# "other" still needs detail and disposition must come from its own closed enum.
+# Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must route
+# by class and can never repeat point-fix.
+if [ "$genfail_lines" != $'\n' ]; then
+  while IFS= read -r gf_line; do
+    [ -n "$gf_line" ] || continue
+    IFS=$'\t' read -r gf_n gf_class gf_detail gf_disposition gf_occurrence <<< "$gf_line"
+    failure_class_valid "$gf_class" || continue
+
+    if [ "$gf_class" = "other" ] && [ "$gf_detail" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_other_no_detail line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+
+    if [ "$gf_disposition" != "__EMPTY__" ] \
+      && ! failure_disposition_valid "$gf_disposition"; then
+      printf 'VIOLATION consistency: generator_failure_disposition_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    if [ "$gf_occurrence" -lt 2 ]; then
+      continue
+    fi
+    if [ "$gf_disposition" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_disposition_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if [ "$gf_disposition" = "point-fix" ]; then
+      printf 'VIOLATION consistency: generator_repeated_point_fix line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    route_valid=0
+    case "$gf_class" in
+      knowledge-gap)
+        case "$gf_disposition" in research|research-requested) route_valid=1 ;; esac
+        ;;
+      complexity)
+        [ "$gf_disposition" = "decompose" ] && route_valid=1
+        ;;
+      known-flaky|polling)
+        case "$gf_disposition" in exemption|override) route_valid=1 ;; esac
+        ;;
+      *)
+        case "$gf_disposition" in class-fix|override) route_valid=1 ;; esac
+        ;;
+    esac
+    if [ "$route_valid" = "0" ]; then
+      printf 'VIOLATION consistency: generator_failure_route_mismatch line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$genfail_lines" | grep -v '^$')
+fi
 
 # Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>
 if [ "$failattr_lines" != $'\n' ]; then
