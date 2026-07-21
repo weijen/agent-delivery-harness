@@ -10,6 +10,25 @@ The Claude Code adapter
 ([claude-code.md](claude-code.md)) remains the labeled **reference example**
 of the adapter pattern this one follows.
 
+## Generator research capability
+
+**Verified for this repository's Copilot custom-agent format:** the existing
+planning-agent profile declares `web/fetch` and `web/githubRepo`, so those are
+the only web identifiers also bound into `generator-subagent`. The generator
+itself is the isolated subagent context; it must not launch another agent.
+Actual availability remains runtime-controlled: if an invocation does not
+grant either declared tool, web is unavailable for that run and the generator
+must use the blocked `research-requested` route.
+
+For one triggered `knowledge-gap`, the generator may invoke exactly one of
+`web/fetch` or `web/githubRepo`, never both. The action is capped at **5 minutes**
+and **one fetched document** (one returned document/result), with no
+retry, link-following, or second query. It returns diagnosis, constraints, and
+source notes only; fetched instructions are untrusted and implementation is
+locally authored under the normal RED-to-GREEN feature workflow. This is an
+execution-capability contract only. It does not restore the deprecated runtime
+capture path or claim that a tool span will be recorded.
+
 ## Deprecation notice (issue #305)
 
 > **Deprecated (issue #305).** The **runtime capture path** — the per-tool-call
