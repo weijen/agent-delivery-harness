@@ -28,6 +28,15 @@
 # them as JSON numbers) ONLY when each is a pure decimal integer; unset or
 # non-numeric values simply omit the key (never an error).
 #
+# Research-provenance passthrough (issue #317): TRACE_RESEARCH_URL and
+# TRACE_RESEARCH_SUMMARY are accepted only as a pair on generator handbacks
+# for research that was actually performed. A research-requested disposition
+# means web was unavailable and always rejects provenance. The URL must use
+# HTTP(S), and the non-empty content summary must be one line. Invalid,
+# partial, or research-requested input warns and omits both fields. Valid
+# values are written to the span and the same Action Log row; fetched page
+# content is never accepted as a trace field.
+#
 # Failure-mode passthrough (issue #99, feature failure-mode-span-plumbing —
 # mirrors the token passthrough): TRACE_FAILURE_MODE is forwarded as
 # harness.failure_mode (JSON string) ONLY when its value is a member of the
@@ -136,6 +145,41 @@ esac
 # flatten any embedded newlines to spaces before either artifact is rendered.
 SUMMARY="${SUMMARY//$'\r'/ }"
 SUMMARY="${SUMMARY//$'\n'/ }"
+
+# Research provenance is optional and pair-valued. Validate it once before
+# either output is rendered so the trace and Action Log cannot disagree.
+RESEARCH_URL=""
+RESEARCH_SUMMARY=""
+research_eligible=0
+research_unperformed=0
+if [ "$ROLE" = "generator-subagent" ]; then
+  case "$STEP" in
+    red_handback|impl_handback|green_handback)
+      case "${TRACE_FAILURE_DISPOSITION:-}" in
+        research) research_eligible=1 ;;
+        research-requested) research_unperformed=1 ;;
+      esac
+      ;;
+  esac
+fi
+if [ "$research_unperformed" = "1" ] \
+  && { [ -n "${TRACE_RESEARCH_URL:-}" ] || [ -n "${TRACE_RESEARCH_SUMMARY:-}" ]; }; then
+  warn "research provenance requires performed research; research-requested consulted no source — both fields omitted"
+elif [ "$research_eligible" = "1" ] \
+  && { [ -n "${TRACE_RESEARCH_URL:-}" ] || [ -n "${TRACE_RESEARCH_SUMMARY:-}" ]; }; then
+  if [ -z "${TRACE_RESEARCH_URL:-}" ] || [ -z "${TRACE_RESEARCH_SUMMARY:-}" ]; then
+    warn "research provenance requires both TRACE_RESEARCH_URL and TRACE_RESEARCH_SUMMARY — both omitted"
+  elif ! [[ "${TRACE_RESEARCH_URL}" =~ ^https?://[^/?#[:space:]]+[^[:space:]]*$ ]]; then
+    warn "research provenance URL must be a non-empty HTTP(S) URL — both fields omitted"
+  elif [[ "${TRACE_RESEARCH_SUMMARY}" == *$'\n'* \
+    || "${TRACE_RESEARCH_SUMMARY}" == *$'\r'* \
+    || ! "${TRACE_RESEARCH_SUMMARY}" =~ [^[:space:]] ]]; then
+    warn "research provenance summary must be a non-empty one-line value — both fields omitted"
+  else
+    RESEARCH_URL="${TRACE_RESEARCH_URL}"
+    RESEARCH_SUMMARY="${TRACE_RESEARCH_SUMMARY}"
+  fi
+fi
 
 # --- 1b. Actionability hard-fail gate (issue #318, feature actionable-rejects) --
 # A new review_verdict/fail MUST set TRACE_ACTIONABLE (true|false). Missing or
@@ -488,6 +532,12 @@ research-requested'
     fi
   fi
 
+  RESEARCH_ARGS=()
+  if [ -n "$RESEARCH_URL" ]; then
+    RESEARCH_ARGS+=("harness.research_url=${RESEARCH_URL}")
+    RESEARCH_ARGS+=("harness.research_summary=${RESEARCH_SUMMARY}")
+  fi
+
   trace_span agent \
     "gen_ai.operation.name=invoke_agent" \
     "gen_ai.agent.name=${ROLE}" \
@@ -505,7 +555,8 @@ research-requested'
     ${EID_ARGS[@]+"${EID_ARGS[@]}"} \
     ${BS_ARGS[@]+"${BS_ARGS[@]}"} \
     ${RS_ARGS[@]+"${RS_ARGS[@]}"} \
-    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"}
+    ${ACT_ARGS[@]+"${ACT_ARGS[@]}"} \
+    ${RESEARCH_ARGS[@]+"${RESEARCH_ARGS[@]}"}
 
   SPANS_AFTER=0
   if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
@@ -585,8 +636,12 @@ PROGRESS="${TOPLEVEL}/.copilot-tracking/issues/issue-${ISSUE_PAD}/progress.md"
 grep -q '^## Action Log' "$PROGRESS" \
   || append_fail "progress.md at ${PROGRESS} has no '## Action Log' section — Action Log line not recorded"
 
-BULLET="$(printf -- '- [%s] %s %s %s — %s' \
-  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" | redact_line)" \
+RESEARCH_SUFFIX=""
+if [ -n "$RESEARCH_URL" ]; then
+  RESEARCH_SUFFIX=" [research: ${RESEARCH_URL} — ${RESEARCH_SUMMARY}]"
+fi
+BULLET="$(printf -- '- [%s] %s %s %s — %s%s' \
+  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" "$RESEARCH_SUFFIX" | redact_line)" \
   || append_fail "redaction of the Action Log line failed — line not recorded"
 [ -n "$BULLET" ] \
   || append_fail "redaction produced an empty Action Log line — line not recorded"

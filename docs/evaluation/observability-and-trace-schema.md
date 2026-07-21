@@ -398,6 +398,18 @@ views of the same run. The Action Log stays the primary human artifact; the trac
 is the machine-readable projection that evals parse. Where practical, generate
 the trace and the Action Log from the same events so they cannot disagree.
 
+Generator research provenance follows that single-source rule.
+`scripts/log-handback.sh` accepts `TRACE_RESEARCH_URL` and
+`TRACE_RESEARCH_SUMMARY` only as a validated pair on eligible generator
+handbacks whose disposition is `research`, meaning an external action was
+actually performed. A `research-requested` disposition means web was
+unavailable; supplied provenance warns and is omitted because no source was
+consulted. The helper writes a valid HTTP(S) URL and non-empty one-line content
+summary to both the handback span and its one Action Log row; partial,
+malformed, or multiline input warns and creates no provenance evidence. These
+fields are local-only and excluded from trace export. They are source notes,
+not a content archive: fetched page content must never enter the trace.
+
 Closeout also separates an in-flight `Status:` from its terminal
 `Conclusion:`. `finish-issue.sh` writes the conclusion before teardown using
 authoritative merged-PR evidence (or explicit abandonment) and the latest

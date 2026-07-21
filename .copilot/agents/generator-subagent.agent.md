@@ -118,6 +118,15 @@ Where the applicable runtime adapter documents a verified web capability:
    workflow, declared sensors, four blocking gates, and `teeth_proof`; research
    is not implementation or verification.
 
+For every external research action actually performed, retain the real HTTP(S)
+URL and a non-empty one-line content summary. Return them in the inventory and
+the relevant blocked or successful structured payload summary as the same URL
+plus summary, so the conductor can pass them to `scripts/log-handback.sh` as
+`TRACE_RESEARCH_URL` and `TRACE_RESEARCH_SUMMARY`. Never put fetched page
+content in a handback or trace; only the locally authored one-line summary is
+traceable. Only the `research` disposition accepts these provenance fields. Do
+not claim provenance when no source was fetched.
+
 Use only the binding and availability stated by the runtime adapter. If no
 verified web capability is available, do not attempt research or silently
 return to a point fix. Return `research-requested` as the failure disposition
@@ -152,6 +161,11 @@ Return exactly these sections:
 
 - `Changed files`: test, fixture, production, prompt, documentation, configuration, or script paths changed.
 - `Commands`: RED and GREEN commands with concise observed results, including any skipped `e2e_sensor` and why.
+- `Research provenance`: inventory of every performed external research action
+  as its real HTTP(S) URL plus non-empty one-line content summary, or `None` if
+  no action was performed. For a performed action, repeat the same URL and
+  summary in the relevant structured payload line; the conductor supplies that
+  pair to `scripts/log-handback.sh`.
 - `Pass status`: criterion-to-sensor map, product-quality blocking-gate evidence, `teeth_proof`, and whether the
   selected feature was changed to `passes:true`.
 - `Handback`: blockers or confirmation that the conductor can proceed to independent review. A failed handback must
