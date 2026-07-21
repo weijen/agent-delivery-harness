@@ -35,6 +35,19 @@
 #      bare — only --force-with-lease.
 #   6. Open the PR (gh pr create) if none exists yet, passing through your args.
 #
+# Push contract (issue #326 — force-with-lease is a single-writer-branch tool,
+# never a main/shared-branch one, and rebase is a preference, not load-bearing):
+#   - --force-with-lease applies only to the run's own single-writer feature
+#     branch — the one this worktree owns exclusively — and never to main or
+#     any shared branch (step 1's on-main refusal enforces this structurally).
+#   - Rebase onto origin/main is the default preference for a linear history,
+#     but it is not load-bearing: CREATE_PR_NO_REWRITE=1 skips it outright, and
+#     a force-push-policy rejection triggers the same history-preserving
+#     fallback automatically (step 5) — neither path is optional plumbing.
+#   - Force is never used bare: only --force-with-lease, and a rejection that
+#     is not a recognized force-push-policy signature (auth, network, or a
+#     content-based rejection) is never swallowed as a fallback trigger.
+#
 # Exit codes: 0 PR open (or usage printed) · 1 precondition / conflict / PR creation failure
 
 set -euo pipefail

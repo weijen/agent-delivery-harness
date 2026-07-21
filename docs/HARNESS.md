@@ -418,6 +418,18 @@ copies are absent.
 `git fetch origin main` + `git rebase origin/main` before pushing or opening a PR. Any new commit or rebase that
 changes HEAD requires a fresh review approval for that final HEAD.
 
+**Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
+feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch
+(the on-`main` refusal at the top of the script enforces this structurally). Rebase onto `origin/main`
+remains the default preference for a linear history, but it is not load-bearing: setting
+`CREATE_PR_NO_REWRITE=1` skips it outright, and a `--force-with-lease` rejection that looks like a remote
+force-push policy block triggers the same history-preserving fallback automatically — reset to the
+pre-rebase tip, merge `origin/main` in, require a fresh review approval for the new HEAD, then push without
+force. The script never issues a bare `--force` push, and a rejection that does not look like a force-push
+policy block (authentication, network, or a content-based rejection such as GitHub secret-scanning push
+protection) is never swallowed as a fallback trigger — it fails exactly as loudly as any other
+precondition.
+
 `review-gate.sh check` (and `finish-issue.sh`, before worktree teardown) additionally runs the trace gate
 (`review-gate.sh trace`) **warn-only**: findings from the trace validator and the cross-artifact consistency checker
 are printed with a `⚠` summary but do not change the exit code — live traces predating the current doctrine would
