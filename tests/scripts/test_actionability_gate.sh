@@ -93,9 +93,9 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_ACTIONABLE \
 # --- Prerequisites -------------------------------------------------------------
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required"
-[ -f "$CHECKER" ] && [ -x "$CHECKER" ] \
+{ [ -f "$CHECKER" ] && [ -x "$CHECKER" ]; } \
   || hard_fail "scripts/check-trace-consistency.sh not found or not executable"
-[ -f "$LOG_HANDBACK" ] && [ -x "$LOG_HANDBACK" ] \
+{ [ -f "$LOG_HANDBACK" ] && [ -x "$LOG_HANDBACK" ]; } \
   || hard_fail "scripts/log-handback.sh not found or not executable"
 [ -f "$FINISH_LIB" ] \
   || hard_fail "scripts/finish-lib.sh not found"
