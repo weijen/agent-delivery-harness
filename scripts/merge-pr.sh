@@ -8,6 +8,8 @@
 # required check or merges past a red/pending run.
 #
 # Usage:
+#   ./scripts/merge-pr.sh -h|--help       # print this usage and exit 0 —
+#                                          # side-effect free: no gh call, no merge
 #   ./scripts/merge-pr.sh                 # gate, then `gh pr merge` with no flags
 #   ./scripts/merge-pr.sh --squash --delete-branch   # extra FLAGS pass through to gh pr merge
 #
@@ -40,6 +42,34 @@ yellow(){ printf '\033[33m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# --- Help guard (issue #328) --------------------------------------------------
+# -h/--help must exit 0 before ANY side effect (PR resolution, `gh pr checks`,
+# `gh pr merge`, branch cleanup, or trace span emission) — scanned across all
+# of $@, and placed before the trace-lib.sh guarded-source block below (and
+# thus before trace_lifecycle_init) so no pr_merge span is ever armed for a
+# help request.
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      cat <<'EOF'
+Usage: ./scripts/merge-pr.sh [FLAGS...]
+
+Verify the current branch's open PR has green CI checks, then merge it. Takes
+NO PR number — the PR is resolved from the current worktree branch. Any
+argument other than -h/--help is a pass-through flag forwarded to `gh pr
+merge` (run `gh pr merge --help` for its own flag surface), EXCEPT
+--delete-branch/-d, which this script handles itself, worktree-safely, after a
+successful merge.
+
+Examples:
+  ./scripts/merge-pr.sh
+  ./scripts/merge-pr.sh --squash --delete-branch
+EOF
+      exit 0
+      ;;
+  esac
+done
 
 # --- Tracing (issue #94, plan D5) --------------------------------------------
 # Guarded source: a missing trace-lib.sh must never break the merge gate. The
