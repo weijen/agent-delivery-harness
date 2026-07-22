@@ -14,6 +14,8 @@
 #     (idempotent); it refuses to overwrite an existing asset that differs,
 #     printing the diff and asking for --update (and exits non-zero).
 #   * --update overwrites a differing asset after showing the diff.
+#   * Retired assets are pruned only when they still match their final upstream
+#     digest; --update explicitly removes modified retired assets after a diff.
 #   * It only ever writes the enumerated harness asset paths under the target. It
 #     never touches the target project's own code or non-harness files.
 set -euo pipefail
@@ -54,14 +56,18 @@ Usage: install-harness.sh <target-dir> [--write|--update]
   <target-dir>  directory to install the harness assets into
   (no flag)     dry run — print what would be copied, write nothing
   --write       copy missing assets; no-op when already up to date;
-                refuse (with diff, non-zero exit) to overwrite an asset that differs
-  --update      overwrite a differing asset after showing the diff
+                remove unmodified retired assets; refuse (with diff, non-zero
+                exit) to overwrite or remove a modified asset
+  --update      overwrite differing assets and remove modified retired assets
+                after showing each diff
 
 Copies the real harness assets verbatim (scripts/, profiles/, tests/scripts,
 tests/meta, .copilot/instructions, .copilot/agents, .copilot/skills,
 .copilot/prompts, the smoke workflow, lifecycle and runtime contract docs,
 trace and log schemas, runtime-adapter guides and templates, and VERSION
 identity). Never touches the target project's own non-harness files.
+Retired harness assets are reported in dry-run mode and pruned on write only
+when unmodified; --update is required to remove a modified retired asset.
 USAGE
 }
 
@@ -155,7 +161,11 @@ prune_retired() {
 			if [ "$MODE" = "dry" ]; then
 				printf '  would remove retired %s\n' "$rel"
 			else
-				rm -f "$dst"
+				if ! rm -f "$dst"; then
+					printf '  failed to remove retired %s\n' "$rel" >&2
+					prune_rc=1
+					continue
+				fi
 				printf '  removed retired %s\n' "$rel"
 			fi
 			continue
@@ -165,7 +175,11 @@ prune_retired() {
 		update)
 			printf '  removing modified retired %s (diff):\n' "$rel"
 			print_tombstone_diff "$rel" "$digest" "$actual"
-			rm -f "$dst"
+			if ! rm -f "$dst"; then
+				printf '  failed to remove modified retired %s\n' "$rel" >&2
+				prune_rc=1
+				continue
+			fi
 			printf '  removed retired %s\n' "$rel"
 			;;
 		*)
