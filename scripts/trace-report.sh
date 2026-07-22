@@ -1020,34 +1020,7 @@ jq -nR --arg trace_file "$TRACE_FILE" \
   --argjson failure_classes "$FAILURE_CLASSES" -f "$SUMMARY_FILTER" \
   < "$TRACE_FILE" > "$SUMMARY_JSON"
 
-# --- Additive: log-derived gate-failure surface (feature trace-report-log-failures) ---
-# Read the sibling log.jsonl (the detail stream, docs/evaluation/log-schema.v1.json)
-# beside the resolved trace and splice a top-level `log_failures` key onto the
-# already-built summary. Metrics honesty: no readable log.jsonl => null (log
-# evidence unavailable, never a fabricated 0); a readable file => a MEASURED
-# {total, by_stage} counting only gate-failure records (level == "error" AND
-# harness.outcome == "fail"), grouped by harness.stage. Tolerant parsing
-# (fromjson? | objects) and guarded reads keep the never-crash / exit-0 contract.
-LOG_FILE="$(dirname "$TRACE_FILE")/log.jsonl"
-LOG_FAILURES="null"
-if [ -f "$LOG_FILE" ] && [ -r "$LOG_FILE" ]; then
-  { LOG_FAILURES="$(
-      jq -nR '
-        [inputs | fromjson? | objects
-         | select(.level == "error" and .["harness.outcome"] == "fail")] as $f
-        | { total: ($f | length),
-            by_stage:
-              ($f
-               | group_by(.["harness.stage"])
-               | map({ key: (.[0]["harness.stage"] | tostring), value: length })
-               | from_entries) }
-      ' < "$LOG_FILE" 2>/dev/null
-    )"; } || LOG_FAILURES="null"
-  [ -n "$LOG_FAILURES" ] || LOG_FAILURES="null"
-fi
-{ jq --argjson log_failures "$LOG_FAILURES" '. + {log_failures: $log_failures}' \
-    < "$SUMMARY_JSON" > "${SUMMARY_JSON}.next" 2>/dev/null \
-    && mv "${SUMMARY_JSON}.next" "$SUMMARY_JSON"; } || rm -f "${SUMMARY_JSON}.next"
+# log_failures surface removed (issue #333): log.jsonl retired with its writers.
 
 # --- Emit the versioned summary (feature trace-report-summary-json) ----------
 # Writes <trace dir>/trace-summary.json beside the trace — the stable pickup
@@ -1173,17 +1146,6 @@ def na: if . == null then "n/a" else tostring end;
          | "- by role — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"),
         ($s.tokens.by_feature | to_entries[]
          | "- by feature — \(.key): input \(.value.input_tokens) · output \(.value.output_tokens)"))
-     end),
-    "",
-    "## Log failures",
-    "",
-    (if $s.log_failures == null
-     then "Log failure detail: n/a (no log.jsonl — log evidence unavailable)"
-     else "Log failures: \($s.log_failures.total)"
-     end),
-    (if ($s.log_failures | type) == "object" and (($s.log_failures.by_stage | length) > 0)
-     then ($s.log_failures.by_stage | to_entries[] | "- \(.key): \(.value)")
-     else empty
      end),
     "",
     (if $s.finished

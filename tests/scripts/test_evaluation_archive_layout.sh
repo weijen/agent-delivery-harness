@@ -89,7 +89,6 @@ preserved_paths=(
   meta-test-triage.md
   observability-and-trace-schema.md
   product-quality-rubric.md
-  log-schema.v1.json
   trace-schema.v1.json
   trace-summary.v1.json
   l0-solution/README.md
