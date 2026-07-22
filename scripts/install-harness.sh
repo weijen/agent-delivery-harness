@@ -142,7 +142,9 @@ prune_retired() {
 		"" | \#*) continue ;;
 		esac
 		[[ "$digest" =~ ^[0-9a-f]{64}$ ]] || die "invalid tombstone digest for '${rel:-?}'"
-		[ -n "$rel" ] && [ -z "$extra" ] || die "invalid tombstone entry for '${rel:-?}'"
+		if [ -z "$rel" ] || [ -n "$extra" ]; then
+			die "invalid tombstone entry for '${rel:-?}'"
+		fi
 		case "$rel" in
 		/* | . | .. | ../* | */../* | */..)
 			die "unsafe tombstone path '${rel}'"

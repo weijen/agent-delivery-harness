@@ -28,11 +28,16 @@ printf 'adopter content\n' >"${target}/scripts/.gitkeep"
 
 diff_line="$(grep -n -m1 '^--- retired/scripts/.gitkeep' "$OUT" | cut -d: -f1)"
 remove_line="$(grep -n -m1 'removed retired scripts/.gitkeep' "$OUT" | cut -d: -f1)"
-[ -n "$diff_line" ] && [ -n "$remove_line" ] && [ "$diff_line" -lt "$remove_line" ] || {
+if [ -z "$diff_line" ] || [ -z "$remove_line" ]; then
+	cat "$OUT"
+	echo "--update must show both the retired-file diff and removal"
+	exit 1
+fi
+if [ "$diff_line" -ge "$remove_line" ]; then
 	cat "$OUT"
 	echo "--update must show the retired-file diff before removal"
 	exit 1
-}
+fi
 [ ! -e "${target}/scripts/.gitkeep" ] || {
 	echo "--update left the modified retired file"
 	exit 1
