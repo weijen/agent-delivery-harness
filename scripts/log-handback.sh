@@ -28,6 +28,13 @@
 # them as JSON numbers) ONLY when each is a pure decimal integer; unset or
 # non-numeric values simply omit the key (never an error).
 #
+# Sensor-scope passthrough (issue #343 — omit, never fake): TRACE_SENSOR_SCOPE
+# is forwarded as harness.sensor_scope only when it is `scoped` or `full`
+# (out-of-enum → omit + warn, exit 0); TRACE_SENSOR_COUNT is forwarded as
+# harness.sensor_count only when it is a pure decimal integer. Intended for
+# green_handback spans so runs record which sensor tier executed, but attaches
+# on any step when set.
+#
 # Research-provenance passthrough (issue #317): TRACE_RESEARCH_URL and
 # TRACE_RESEARCH_SUMMARY are accepted only as a pair on generator handbacks
 # for research that was actually performed. A research-requested disposition
@@ -354,6 +361,29 @@ role-violation'
     IF_ARGS+=("harness.instruction_files=${TRACE_INSTRUCTION_FILES}")
   fi
 
+  # Sensor-scope passthrough (issue #343): forward TRACE_SENSOR_SCOPE as
+  # harness.sensor_scope only when it is `scoped` or `full` (closed enum;
+  # out-of-enum → omit + warn, never fake, never fail — mirrors the
+  # failure-mode shape), and TRACE_SENSOR_COUNT as harness.sensor_count only
+  # when it is a pure decimal integer. Each is forwarded independently so a
+  # scoped run without a count (or vice versa) still records what it can.
+  SS_ARGS=()
+  if [ -n "${TRACE_SENSOR_SCOPE:-}" ]; then
+    case "${TRACE_SENSOR_SCOPE}" in
+      scoped|full)
+        SS_ARGS+=("harness.sensor_scope=${TRACE_SENSOR_SCOPE}")
+        ;;
+      *)
+        warn "TRACE_SENSOR_SCOPE '${TRACE_SENSOR_SCOPE}' is not in the closed enum {scoped, full} — harness.sensor_scope omitted (omit, never fake)"
+        ;;
+    esac
+  fi
+  if [[ "${TRACE_SENSOR_COUNT:-}" =~ ^[0-9]+$ ]]; then
+    SS_ARGS+=("harness.sensor_count=${TRACE_SENSOR_COUNT}")
+  elif [ -n "${TRACE_SENSOR_COUNT:-}" ]; then
+    warn "TRACE_SENSOR_COUNT '${TRACE_SENSOR_COUNT}' is not a pure decimal integer — harness.sensor_count omitted (omit, never fake)"
+  fi
+
   # Review-verdict provenance (issue #299): on the review_verdict step ONLY,
   # forward TRACE_REVIEW_MODE as harness.review_mode (closed enum {full,
   # concise, repair}; out-of-enum or empty → omit + warn, never fake, mirroring
@@ -618,6 +648,7 @@ research-requested'
     ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
     ${FM_ARGS[@]+"${FM_ARGS[@]}"} \
     ${IF_ARGS[@]+"${IF_ARGS[@]}"} \
+    ${SS_ARGS[@]+"${SS_ARGS[@]}"} \
     ${RM_ARGS[@]+"${RM_ARGS[@]}"} \
     ${FC_ARGS[@]+"${FC_ARGS[@]}"} \
     ${FD_ARGS[@]+"${FD_ARGS[@]}"} \
