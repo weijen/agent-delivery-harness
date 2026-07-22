@@ -27,13 +27,13 @@
 #      runtime session}.
 #   4. Backward-compat / validation: a hermetic trace holding (a) a normal
 #      lifecycle span WITHOUT session_id and (b) a span WITH harness.session_id
-#      set to a STRING value validates cleanly under scripts/validate-trace.sh
+#      set to a STRING value validates cleanly under scripts/check-trace-consistency.sh
 #      (exit 0, zero violations) — proving session_id-bearing spans are
 #      accepted and their absence stays valid. Both spans carry the mandatory
 #      common fields (schema_version, timestamp, span, harness.issue,
 #      harness.version) so session_id is the only dimension under test.
 #   5. harness.session_id is treated as a STRING, never a number: it must NOT
-#      appear in the numeric-keys list of scripts/validate-trace.sh (a string
+#      appear in the numeric-keys list of scripts/check-trace-consistency.sh (a string
 #      key typed as numeric would reject its string value as a
 #      type_violation).
 #
@@ -48,7 +48,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 OBS_DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
-VALIDATOR="${ROOT}/scripts/validate-trace.sh"
+VALIDATOR="${ROOT}/scripts/check-trace-consistency.sh"
 SESSION_KEY="harness.session_id"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -71,7 +71,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$OBS_DOC" ] \
   || hard_fail "observability prose authority not found (${OBS_DOC})"
 [ -x "$VALIDATOR" ] \
-  || hard_fail "scripts/validate-trace.sh not found or not executable (${VALIDATOR})"
+  || hard_fail "scripts/check-trace-consistency.sh not found or not executable (${VALIDATOR})"
 
 # --- 1. Schema declares harness.session_id with a non-empty string doc ---------
 if ! jq -e '.optional_fields["harness.session_id"] | type == "string" and (length > 0)' \
@@ -110,6 +110,7 @@ fi
 # contract this may already pass — that is the backward-compat guarantee, not a
 # weakness of the sensor.
 TRACE="${TMP_DIR}/trace.jsonl"
+printf '# Progress\n\n## Action Log\n' > "${TMP_DIR}/progress.md"
 {
   printf '{"schema_version":1,"timestamp":"2026-07-07T12:00:00Z","span":"lifecycle","harness.issue":147,"harness.version":"abc1234","harness.lifecycle_step":"preflight"}\n'
   printf '{"schema_version":1,"timestamp":"2026-07-07T12:00:01Z","span":"lifecycle","harness.issue":147,"harness.version":"abc1234","harness.lifecycle_step":"feature_start","harness.session_id":"sess-2f9c1a7b-0001"}\n'
@@ -129,7 +130,7 @@ verr="${TMP_DIR}/validate.err"
 vrc=0
 "$VALIDATOR" "$TRACE" >"$vout" 2>"$verr" || vrc=$?
 if [ "$vrc" != "0" ]; then
-  fail "validate-trace.sh must accept a trace with and without harness.session_id (exit 0), got ${vrc} (stdout: $(tr '\n' '|' < "$vout"))"
+  fail "check-trace-consistency.sh must accept a trace with and without harness.session_id (exit 0), got ${vrc} (stdout: $(tr '\n' '|' < "$vout"))"
 fi
 if grep -q 'VIOLATION' "$vout" "$verr" 2>/dev/null; then
   fail "a string-valued harness.session_id span must produce zero VIOLATION findings"
@@ -148,7 +149,7 @@ if [ -z "$numeric_keys_block" ]; then
   hard_fail "could not locate the numeric-keys array in ${VALIDATOR} — validator shape changed; update this sensor"
 fi
 if printf '%s' "$numeric_keys_block" | grep -Fq 'session_id'; then
-  fail "harness.session_id must NOT be in the numeric-keys list of validate-trace.sh — it is a string, not a number"
+  fail "harness.session_id must NOT be in the numeric-keys list of check-trace-consistency.sh — it is a string, not a number"
 fi
 
 # --- Verdict -------------------------------------------------------------------

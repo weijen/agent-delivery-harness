@@ -339,7 +339,7 @@ field is unavailable (CI, adopter machines), every native field/row **fails open
 never `n/a`. This native-record join **supersedes** the cloud token-capture approach tracked in **#163** (per the #305
 direction): #163 is no longer the prerequisite for non-`n/a` token rows but the complementary cloud-side path the local
 join now stands in for. The frozen `trace-summary.json` `tokens` field stays `null` (no model spans carry usage);
-folding the native economics into the fleet scorecard is #335's scope.
+`trace-report.sh --all` folds the final native economics spans into deterministic version buckets.
 
 A review round is a distinct logical review event, not a per-feature `review_verdict` span. Events are keyed by
 `harness.review_event_id` when present; historical spans without an explicit ID fall back to
@@ -435,15 +435,14 @@ into the worktree, and a *fresh* runtime session that surfaces the skill as a `t
 and the omit-never-fake honesty answer are documented in
 [runtime-adapters/github-copilot.md §"When a `harness.skill.name` skill span exists (and when it cannot)"](runtime-adapters/github-copilot.md#when-a-harnessskillname-skill-span-exists-and-when-it-cannot).
 
-The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
-report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
-feature list ↔ review-gate marker honesty; the retired log_without_span / span_without_log reconciliation check
-was removed in issue #332) and emits one `review-gate.trace` tool span per run with numeric aggregated finding
-counts. The consistency half is live on real runs: in issue-number mode the checker reads the main-root trace and
-falls back to the invoking worktree's toplevel tracking dir for `progress.md` and `feature_list.json` (where the
-start-issue scaffold writes them) when the main-root copies are absent. Only the Action Log reconciliation
-(log_without_span / span_without_log) was retired in issue #332; `progress.md` is still read for the retained
-`pr_mismatch` and `finished_with_inflight_status` gates.
+The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
+report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation
+folded from the retired `validate-trace.sh` (issue #335) — and emits one `review-gate.trace` tool span per run
+with numeric finding counts. The retired log_without_span / span_without_log Action-Log reconciliation was
+removed in issue #332; `progress.md` is still read for the retained `pr_mismatch` and
+`finished_with_inflight_status` gates. The checker is live on real runs: in issue-number mode it reads the
+main-root trace and falls back to the invoking worktree's toplevel tracking dir for `progress.md` /
+`feature_list.json` (where the start-issue scaffold writes them) when the main-root copies are absent.
 
 ## Review Gate
 

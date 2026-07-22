@@ -5,7 +5,7 @@
 #
 # Executable spec for `scripts/check-trace-consistency.sh
 # <issue-number|trace-path>` — the report-only cross-artifact checker in the
-# same CLI family as validate-trace.sh (findings to stdout, exit 0 no
+# same CLI family as check-trace-consistency.sh (findings to stdout, exit 0 no
 # findings · 1 findings · 2 usage/environment error). Path mode, pinned
 # here: the argument names trace.jsonl and the checker resolves progress.md
 # as a SIBLING file in the same directory (hermetic L0 fixtures — the sensor
@@ -45,12 +45,11 @@
 #   5. CLI family: no args -> exit 2 + usage on stderr; nonexistent trace
 #      path -> exit 2.
 #   6. (#103 loop-2 review F6) Corrupt-line tolerance: ONE non-JSON line
-#      inserted into an otherwise consistent trace -> the consistency pass
-#      still RUNS (no crash, no exit 2), the corrupt line is IGNORED (it is
-#      validate-trace.sh's invalid_json to report, not a consistency
-#      finding). After reconciliation retirement, a corrupt trace with an
-#      extra bullet also exits 0 (no reconciliation finding fires alongside
-#      the ignored corrupt line).
+#      inserted into an otherwise consistent trace -> the consolidated checker
+#      reports invalid_json (schema family, folded from validate-trace.sh in
+#      #335) while the cross-artifact pass still RUNS (no crash, no exit 2).
+#      After reconciliation retirement (#332) no reconciliation finding fires
+#      alongside the flagged corrupt line.
 #
 # RED status at authoring time: scripts/check-trace-consistency.sh does not
 # exist — every leg fails at the presence gate.
@@ -246,10 +245,12 @@ cp "${TMP_DIR}/case1/progress.md" "${TMP_DIR}/case7/progress.md"
   || hard_fail "case7 fixture: expected 3 lines (2 spans + 1 corrupt) — sensor bug"
 
 rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
-[ "$rc" = "0" ] \
-  || fail "corrupt tolerance: a non-JSON trace line must not crash or fail the consistency pass (invalid_json is validate-trace's finding) — expected exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
-if grep -q '^VIOLATION ' "$OUT"; then
-  fail "corrupt tolerance: the corrupt line must be IGNORED — zero consistency findings expected on the consistent pair (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" = "1" ] \
+  || fail "corrupt handling: invalid_json must fail without crashing the cross-artifact pass — expected exit 1, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+grep -Fq 'VIOLATION line 2: invalid_json' "$OUT" \
+  || fail "corrupt handling: consolidated checker must report invalid_json"
+if grep -q '^VIOLATION consistency:' "$OUT"; then
+  fail "corrupt handling: the consistent pair must produce no cross-artifact finding (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
 # Same corrupt trace + the case-2 progress.md (extra bullet): after
@@ -257,10 +258,12 @@ fi
 # corrupt trace + extra bullet still exits 0.
 cp "${TMP_DIR}/case2/progress.md" "${TMP_DIR}/case7/progress.md"
 rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
-[ "$rc" = "0" ] \
-  || fail "corrupt tolerance: reconciliation retired and corrupt line ignored — expected exit 0 with extra bullet, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
-if grep -q '^VIOLATION ' "$OUT"; then
-  fail "corrupt tolerance: no violations expected — reconciliation retired, corrupt line ignored (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" = "1" ] \
+  || fail "corrupt tolerance: consolidated checker must report the corrupt line as invalid_json (findings exit 1, never 2/crash), got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+grep -q 'invalid_json' "$OUT" \
+  || fail "corrupt tolerance: folded schema pass (#335) must flag the corrupt line as invalid_json (stdout: $(tr '\n' '|' < "$OUT"))"
+if grep -Eq 'log_without_span|span_without_log' "$OUT"; then
+  fail "corrupt tolerance: retired reconciliation findings must not fire (#332) (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
 # --- Result -------------------------------------------------------------------------

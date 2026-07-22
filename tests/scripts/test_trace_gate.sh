@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_trace_gate.sh — regression + e2e sensor for the two-phase trace gate
+# test_trace_gate.sh — regression + e2e sensor for the consolidated trace gate
 # (issue #103, feature trace-gate-two-phase, plan Phase 4).
 #
 # Executable spec. The gate follows the two established precedents: the #84
@@ -7,11 +7,10 @@
 # and REQUIRE_FEATURES_COMPLETE (documented env flag flips warn → hard fail;
 # default stays warn).
 #
-#   1. `review-gate.sh trace` runs validate-trace.sh AND
-#      check-trace-consistency.sh for the current issue (branch-resolved,
+#   1. `review-gate.sh trace` runs check-trace-consistency.sh for the current issue (branch-resolved,
 #      like every other subcommand; artifact set at the MAIN checkout root).
 #      Findings present → they are PRINTED (passed through, so the operator
-#      sees rule names from BOTH wrapped checkers) plus a warning summary,
+#      sees rule names from the checker) plus a warning summary,
 #      and the exit code stays 0 (warn-only default). Under
 #      REQUIRE_TRACE_CONSISTENCY=1 the same findings are printed and the
 #      exit code is 1 (blocking). A clean trace exits 0 in BOTH modes.
@@ -28,9 +27,9 @@
 #   3. The gate emits ONE tool span per `trace` run:
 #      gen_ai.tool.name=review-gate.trace with harness.outcome (pass when
 #      the gate exits 0, fail when blocking fired) and NUMERIC finding
-#      counts harness.violation_count / harness.warning_count aggregated
-#      across BOTH wrapped checkers. Self-clean obligation: the gate's own
-#      spans must not create new validator findings (validate-trace run
+#      counts harness.violation_count / harness.warning_count from that
+#      checker. Self-clean obligation: the gate's own
+#      spans must not create new checker findings (checker run
 #      after clean-fixture gate runs still exits 0 — numeric count keys must
 #      be added to the validator's known-key type map coherently).
 #   4. Contract presence backstop (docs/harness-contract.yml): the
@@ -45,10 +44,10 @@
 # test_trace_finish_issue.sh / test_trace_review_gate.sh. The consistency
 # artifact set (progress.md, feature_list.json) is planted at the MAIN root
 # issue dir (the plan's "main-root artifact set"). Dirty fixtures plant one
-# validator-only finding (a non-JSON trace line → invalid_json) AND one
-# consistency-only finding (a rogue-role agent span → role_attribution_gap;
-# log_without_span / span_without_log are retired, issue #332) so the output
-# proves BOTH checkers ran.
+# schema finding (a non-JSON trace line → invalid_json) AND one cross-artifact
+# finding (a rogue-role agent span → role_attribution_gap; log_without_span /
+# span_without_log are retired, issue #332) so the output proves the single
+# consolidated checker (#335) owns both rule families.
 #
 # RED status at authoring time: `review-gate.sh trace` does not exist
 # (unknown subcommand → usage + exit 1), neither script is wired, no
@@ -98,7 +97,7 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in review-gate.sh finish-issue.sh finish-lib.sh validate-trace.sh check-trace-consistency.sh \
+for s in review-gate.sh finish-issue.sh finish-lib.sh check-trace-consistency.sh \
          trace-lib.sh trace-report.sh issue-lib.sh start-issue.sh check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
@@ -138,7 +137,7 @@ make_gate_fixture() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
   for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
-           review-gate.sh trace-lib.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
+           review-gate.sh trace-lib.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"
@@ -164,10 +163,10 @@ make_gate_fixture() {
     > "${dir}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 }
 
-# dirty_gate_fixture <dir> <issue>: ONE validator finding (non-JSON trace
+# dirty_gate_fixture <dir> <issue>: ONE schema finding (non-JSON trace
 # line → invalid_json) + ONE consistency finding (rogue-role agent span →
 # role_attribution_gap). log_without_span / span_without_log are retired
-# (issue #332).
+# (issue #332); both families are owned by the consolidated checker (#335).
 dirty_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
@@ -212,14 +211,14 @@ rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.
 [ "$rc" = "0" ] \
   || fail "clean trace, blocking flag: exit must stay 0 when there are no findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 
-# --- 3a. Self-clean: the gate's own spans create no validator findings ------------
+# --- 3a. Self-clean: the gate's own spans create no checker findings --------------
 span="$(last_gate_span "$TRACE1")"
 [ -n "$span" ] \
   || fail "clean trace: no review-gate.trace tool span emitted (feature trace-gate-two-phase not instrumented)"
 rc=0
-(cd "$WT1" && env PATH="$BIN" ./scripts/validate-trace.sh 80) > "$OUT" 2>&1 || rc=$?
+(cd "$WT1" && env PATH="$BIN" ./scripts/check-trace-consistency.sh 80) > "$OUT" 2>&1 || rc=$?
 [ "$rc" = "0" ] \
-  || fail "self-clean: validate-trace.sh must accept the trace AFTER gate runs (the gate's own spans — incl. numeric finding counts — must not be schema/type violations), got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "self-clean: check-trace-consistency.sh must accept the trace AFTER gate runs (the gate's own spans — incl. numeric finding counts — must not be schema/type violations), got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 
 # --- 1b. DIRTY trace: warn-only default -------------------------------------------
 dirty_gate_fixture "$F1" 80
@@ -244,7 +243,7 @@ if [ -n "$span" ]; then
       and (.["harness.violation_count"] >= 2)
       and ((.["harness.warning_count"] | type) == "number")
       and (.["harness.warning_count"] >= 0)' >/dev/null 2>&1 \
-    || fail "dirty trace, default: review-gate.trace span must carry harness.outcome=pass (gate exited 0) and NUMERIC harness.violation_count>=2 (aggregated across BOTH wrapped checkers: 1 validator + 1 consistency) / harness.warning_count>=0: ${span}"
+    || fail "dirty trace, default: review-gate.trace span must carry harness.outcome=pass (gate exited 0) and NUMERIC harness.violation_count>=2 from the single checker / harness.warning_count>=0: ${span}"
 fi
 
 # --- 1c. DIRTY trace: REQUIRE_TRACE_CONSISTENCY=1 blocks --------------------------
@@ -334,6 +333,32 @@ if grep -q 'consistency half skipped' "$OUT"; then
 fi
 grep -q 'role_attribution_gap' "$OUT" \
   || fail "real layout: the consistency finding (role_attribution_gap) must be surfaced by the gate (output: $(tr '\n' '|' < "$OUT"))"
+
+# ============================================================================
+# Fixture F5 (issue 84): trace-only findings survive missing cross-artifacts
+# ============================================================================
+F5="${TMP_DIR}/f84"
+make_gate_fixture "$F5" 84
+WT5="${F5}-worktrees/issue-84"
+TRACE5="${F5}/.copilot-tracking/issues/issue-84/trace.jsonl"
+rm "${F5}/.copilot-tracking/issues/issue-84/progress.md" \
+  "${WT5}/.copilot-tracking/issues/issue-84/progress.md"
+printf 'GATE_FIXTURE_NOT_JSON {\n' >> "$TRACE5"
+rc="$(run_in "$WT5" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- \
+  ./scripts/review-gate.sh trace)"
+[ "$rc" = "1" ] \
+  || fail "missing progress: trace findings must still block under REQUIRE_TRACE_CONSISTENCY=1, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+grep -q 'invalid_json' "$OUT" \
+  || fail "missing progress: trace-only findings must be preserved when consistency cannot run (output: $(tr '\n' '|' < "$OUT"))"
+span="$(last_gate_span "$TRACE5")"
+if [ -n "$span" ]; then
+  printf '%s\n' "$span" | jq -e '
+      (.["harness.outcome"] == "fail")
+      and (.["harness.violation_count"] >= 1)' >/dev/null 2>&1 \
+    || fail "missing progress: gate span must count the preserved finding and fail: ${span}"
+else
+  fail "missing progress: trace gate must emit a finding-count span"
+fi
 
 # ============================================================================
 # 4. Contract presence backstop (docs/harness-contract.yml)

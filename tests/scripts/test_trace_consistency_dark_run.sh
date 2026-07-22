@@ -30,7 +30,8 @@
 #   S4 incomplete_window_skips   worktree_create but no finish -> NOTE-skip,
 #                                exit 0, no violation.
 #   S5 override_skips            complete no-spine window + TRACE_ALLOW_DARK_RUN=1
-#                                -> NOTE-skip, exit 0, no violation.
+#                                -> NOTE-skip and no spine_incomplete finding;
+#                                consolidated completeness findings remain live.
 #   S7 gate surfacing            review-gate.sh trace surfaces spine_incomplete
 #                                warn-only (exit 0); REQUIRE_TRACE_CONSISTENCY=1
 #                                makes the same finding blocking.
@@ -252,8 +253,8 @@ fi
 
 # S5: override NOTE-skips spine_incomplete on the complete no-spine fixture.
 rc="$(run_checker_allow_dark "$(trace_path s5 247)")"
-[ "$rc" = "0" ] \
-  || fail "S5 override: expected exit 0 with TRACE_ALLOW_DARK_RUN=1, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" != "2" ] \
+  || fail "S5 override: checker must run with TRACE_ALLOW_DARK_RUN=1 (stdout: $(tr '\n' '|' < "$OUT"))"
 grep -Eq '^NOTE:.*spine_incomplete' "$OUT" \
   || fail "S5 override: NOTE line naming spine_incomplete is required (stdout: $(tr '\n' '|' < "$OUT"))"
 if grep -q 'VIOLATION consistency: spine_incomplete' "$OUT"; then
@@ -267,7 +268,7 @@ make_gate_fixture() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   local s
-  for s in issue-lib.sh trace-lib.sh validate-trace.sh check-trace-consistency.sh review-gate.sh; do
+  for s in issue-lib.sh trace-lib.sh check-trace-consistency.sh review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   git -C "$dir" init -q -b main

@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# check-trace-consistency.sh — standalone, report-only cross-artifact
-# consistency checker (issue #103, features trace-consistency-core and
-# trace-consistency-state, plan Phases 2–3; issue #332 retires reconciliation).
-#
-# Where validate-trace.sh checks ONE artifact (the trace against the frozen
-# schema contract), this checker asks whether the trace, the feature list,
-# and the review-gate marker tell the SAME story. Same CLI family as
-# validate-trace.sh: findings to stdout, report-only (never called by
-# lifecycle scripts here — gate wiring is Phase 4), exit 0 no findings ·
-# 1 findings · 2 usage/environment error.
+# check-trace-consistency.sh — standalone, report-only trace and cross-artifact
+# checker. It validates each trace against the frozen schema contract (folded
+# from validate-trace.sh, issue #335), then checks whether trace.jsonl,
+# feature_list.json, and the review-gate marker tell the same story.
+# Action-Log reconciliation is RETIRED (issue #332): progress.md is rendered
+# from spans by render-action-log.sh and is no longer cross-checked here.
 #
 # Reconciliation retired (issue #332): the log_without_span / span_without_log
 # multiset detector (Phase 2) is removed. trace.jsonl is the canonical record;
@@ -146,8 +142,7 @@
 # Artifact resolution:
 #   ./scripts/check-trace-consistency.sh <issue-number>
 #       trace.jsonl lives at <main root>/.copilot-tracking/issues/issue-NN/
-#       (main root resolved via the shared git common dir, like
-#       validate-trace); marker at
+#       (main root resolved via the shared git common dir); marker at
 #       <main root>/.copilot-tracking/review-gate/approved-head.
 #       progress.md + feature_list.json resolve from the main-root issue dir
 #       when present, FALLING BACK to the invoking worktree's toplevel
@@ -161,7 +156,7 @@
 #       is <root>/.copilot-tracking/review-gate/approved-head, otherwise the
 #       marker is treated as absent (NOTE skip).
 #
-# Fork budget: a handful of constant-count processes (two jq passes, the
+# Fork budget: a handful of constant-count processes (three jq passes, the
 # lifted awk/sed/comm pipeline, one feature-list jq) — never per-line forks;
 # this gets gate-wired in Phase 4.
 #
@@ -174,8 +169,26 @@ green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -r "${SCRIPT_DIR}/issue-lib.sh" ]; then
+  red "error: cannot load scripts/issue-lib.sh" >&2
+  exit 2
+fi
 # shellcheck source=scripts/issue-lib.sh
-source "${SCRIPT_DIR}/issue-lib.sh"
+if ! source "${SCRIPT_DIR}/issue-lib.sh"; then
+  red "error: cannot load scripts/issue-lib.sh" >&2
+  exit 2
+fi
+if [ ! -r "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  red "error: cannot load scripts/trace-lib.sh" >&2
+  exit 2
+fi
+# shellcheck source=scripts/trace-lib.sh
+if ! source "${SCRIPT_DIR}/trace-lib.sh"; then
+  red "error: cannot load scripts/trace-lib.sh" >&2
+  exit 2
+fi
+
+CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
 
 usage() {
   {
@@ -198,15 +211,25 @@ if ! command -v jq >/dev/null 2>&1; then
   red "error: jq is required to check trace consistency" >&2
   exit 2
 fi
+if [ ! -f "$CONTRACT" ]; then
+  red "error: trace schema contract not found: ${CONTRACT}" >&2
+  exit 2
+fi
+if ! declare -F trace_redact >/dev/null 2>&1; then
+  red "error: scripts/trace-lib.sh (trace_redact) is required for the redaction audit" >&2
+  exit 2
+fi
 
-# --- Resolve the artifact set (house CLI shape, like validate-trace) ---------
+# --- Resolve the artifact set -------------------------------------------------
 TRACE_FILE=""
 MARKER_FILE=""
+PATH_MODE=0
 case "$ARG" in
   */* | *.jsonl)
     # Path mode: the argument names a trace file; progress.md and
     # feature_list.json are siblings in the same directory.
     TRACE_FILE="$ARG"
+    PATH_MODE=1
     ;;
   *)
     # Issue-number mode: resolve the main-checkout artifact set.
@@ -262,11 +285,6 @@ fi
 PROGRESS_FILE="${ARTIFACT_DIR}/progress.md"
 FEATURE_LIST_FILE="${ARTIFACT_DIR}/feature_list.json"
 
-if [ ! -f "$PROGRESS_FILE" ]; then
-  red "error: progress.md not found next to the trace: ${PROGRESS_FILE}" >&2
-  exit 2
-fi
-
 if command -v mktemp >/dev/null 2>&1; then
   TMP_DIR="$(mktemp -d)"
 else
@@ -276,6 +294,235 @@ fi
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 violations=0
+warnings=0
+
+# --- Single-pass jq program (issue #103, feature validate-trace-single-pass) -----
+# ONE jq invocation classifies every line (invalid_json → schema_violation →
+# type_violation first-failing-rule-wins, plus the independent
+# failure_mode_violation and jq_skipped_pass checks) AND folds in the
+# whole-trace passes (finish detection + finished-run completeness), so the
+# jq process count is constant regardless of trace length.
+#
+# Output protocol (parsed by the bash loop below):
+#   VIOLATION/WARNING finding lines  — passed through verbatim;
+#   ::total <N>                       — line count (spans read);
+#   ::finish true|false               — `finish` lifecycle step present;
+#   ::missing <step>                  — one per missing contract step
+#                                       (emitted only when finish is present).
+# Findings carry line numbers, rule names, and contract step names ONLY —
+# never attribute values or line content.
+SINGLE_PASS_FILTER="${TMP_DIR}/validate-single-pass.jq"
+cat > "$SINGLE_PASS_FILTER" <<'JQ'
+# ============================================================================
+# TRACE SPAN VALIDATION FILTER (self-contained; lifted unchanged from #92 via
+# the #97 per-line validator — the def body below is the original filter text
+# verbatim, byte-equivalent to the block previously shipped as
+# validate-span.jq and diffable against test_trace_schema.sh; only the
+# def wrapper is new, `.` is the decoded span)
+# ============================================================================
+def schema_valid:
+$contract[0] as $c
+| . as $span
+| (($span | type) == "object")
+  and ((($c.required_common // []) - ($span | keys)) | length == 0)
+  and (($c.span_types // []) | index($span.span) != null)
+  and (((($c.required_by_span // {})[$span.span // ""] // []) - ($span | keys)) | length == 0)
+  and (if $span.span == "lifecycle"
+       then (($c.lifecycle_steps // []) | index($span["harness.lifecycle_step"]) != null)
+       else true
+       end);
+
+# Known-key type map (plan D2, additive to the lifted filter so the block
+# above stays diffable against test_trace_schema.sh). Numeric keys must be
+# JSON numbers; every other key must be a JSON string. Body lifted from the
+# #97 validate-types.jq, extended in #103 with the trace-gate count keys
+# (single-sourced by docs/evaluation/trace-schema.v1.json .numeric_keys +
+#  .structural_numeric_keys; drift-guarded by
+#  tests/meta/test_trace_schema_single_source.sh).
+def types_valid:
+# >>> trace-schema:numeric_keys
+["harness.exit_status", "harness.duration_ms", "harness.finding_count", "harness.incomplete_count",
+ "harness.issue", "schema_version",
+ "harness.teeth_proof_missing_count",
+ "harness.violation_count", "harness.warning_count"] as $numeric_keys
+# <<< trace-schema:numeric_keys
+| to_entries
+| all(.[];
+    .key as $k
+    | (($k | startswith("gen_ai.usage.")) or ($k | startswith("harness.economics.")) or ($numeric_keys | index($k) != null)) as $is_numeric
+    | if $is_numeric
+      then (.value | type) == "number"
+      else (.value | type) == "string"
+      end);
+
+# Failure-mode closed enum (issue #99, feature failure-mode-span-plumbing):
+# when a span carries harness.failure_mode, its value must be in the
+# contract's closed failure_modes enum. Kept OUTSIDE the lifted #92 filter
+# above (that block stays byte-diffable against test_trace_schema.sh) and
+# reported under the distinct rule name failure_mode_violation. Body
+# verbatim from the #97 validate-failure-mode.jq.
+def failure_mode_valid:
+$contract[0] as $c
+| . as $span
+| if (($span | type) == "object") and ($span | has("harness.failure_mode"))
+  then (($c.failure_modes // []) | index($span["harness.failure_mode"]) != null)
+  else true
+  end;
+
+# Sanity flag (plan D8, validator side): a pass-outcome check-feature-list
+# tool span carrying harness.warning=jq_skipped is a pass with no validation
+# behind it — worth a WARNING, never a violation (exit unaffected).
+def jq_skipped_pass:
+  (type == "object")
+  and (.span == "tool")
+  and (.["gen_ai.tool.name"] == "check-feature-list")
+  and (.["harness.outcome"] == "pass")
+  and (.["harness.warning"] == "jq_skipped");
+
+[inputs] as $lines
+| ($lines | length) as $total
+# Per-line findings. One PRIMARY finding per line, first failing rule wins:
+# invalid_json → schema_violation → type_violation; the failure-mode enum
+# check and the jq_skipped sanity flag stay independent (they fire on any
+# parseable line, in addition to a primary finding).
+| [ range(0; $total) as $i
+    | ($i + 1) as $n
+    | $lines[$i] as $line
+    | [ $line | fromjson? ] as $parsed
+    | if ($parsed | length) == 0
+      then "VIOLATION line \($n): invalid_json"
+      else $parsed[0] as $span
+      | ( if ($span | schema_valid | not)
+          then "VIOLATION line \($n): schema_violation"
+          elif ($span | types_valid | not)
+          then "VIOLATION line \($n): type_violation"
+          else empty
+          end ),
+        ( if ($span | failure_mode_valid | not)
+          then "VIOLATION line \($n): failure_mode_violation"
+          else empty
+          end ),
+        ( if ($span | jq_skipped_pass)
+          then "WARNING line \($n): jq_skipped_pass"
+          else empty
+          end )
+      end
+  ] as $findings
+# Whole-trace pass (plan D3), folded in: finish detection + finished-run
+# lifecycle completeness, counting harness.lifecycle_step across ALL span
+# types. Unparseable lines are ignored here (already flagged per line).
+| [ $lines[] | fromjson? | .["harness.lifecycle_step"]? // empty | strings ] as $steps
+| (($steps | index("finish")) != null) as $finished
+| ( if $finished
+    then ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)
+    else []
+    end ) as $missing
+| $findings[],
+  "::total \($total)",
+  "::finish \($finished)",
+  ( $missing[] | "::missing \(.)" )
+JQ
+
+total=0
+violations=0
+warnings=0
+finish_present="false"
+missing_steps=()
+if ! single_pass_out="$(jq -nRr --slurpfile contract "$CONTRACT" \
+    -f "$SINGLE_PASS_FILTER" < "$TRACE_FILE")"; then
+  red "error: the single-pass jq classification failed to run" >&2
+  exit 2
+fi
+while IFS= read -r out_line; do
+  case "$out_line" in
+    '::total '*)   total="${out_line#'::total '}" ;;
+    '::finish '*)  finish_present="${out_line#'::finish '}" ;;
+    '::missing '*) missing_steps+=("${out_line#'::missing '}") ;;
+    'VIOLATION '*)
+      printf '%s\n' "$out_line"
+      violations=$((violations + 1))
+      ;;
+    'WARNING '*)
+      printf '%s\n' "$out_line"
+      warnings=$((warnings + 1))
+      ;;
+  esac
+done <<< "$single_pass_out"
+
+# --- Redaction audit (plan D4, batched in #103) -----------------------------------
+# trace_redact is bash (the library oracle cannot move into jq), so it is
+# batched instead: the WHOLE file round-trips through trace_redact ONCE and
+# the per-line comparison happens in bash — one spawn instead of one per
+# line. Any altered line means a secret-shaped token survived on disk
+# (redaction_leak). Runs on every line regardless of finish state; a leak on
+# a schema-invalid line is still reported. Findings NEVER echo line content.
+#
+# Fail closed, distinctly (issue #103): a trace_redact RUNTIME FAILURE flags
+# every audited line as redaction_audit_error — still a violation (exit 1),
+# but never conflated with redaction_leak ("the auditor broke" is not
+# "a secret survived").
+REDACTED_FILE="${TMP_DIR}/redacted.jsonl"
+if ! trace_redact < "$TRACE_FILE" > "$REDACTED_FILE" 2>/dev/null; then
+  n=1
+  while [ "$n" -le "$total" ]; do
+    printf 'VIOLATION line %d: redaction_audit_error\n' "$n"
+    violations=$((violations + 1))
+    n=$((n + 1))
+  done
+else
+  n=0
+  while IFS= read -r orig_line || [ -n "$orig_line" ]; do
+    n=$((n + 1))
+    redacted_line=""
+    IFS= read -r redacted_line <&4 || true
+    if [ "$redacted_line" != "$orig_line" ]; then
+      printf 'VIOLATION line %d: redaction_leak\n' "$n"
+      violations=$((violations + 1))
+    fi
+  done < "$TRACE_FILE" 4< "$REDACTED_FILE"
+fi
+
+# --- Whole-trace report: finished-run lifecycle completeness (plan D3) ------------
+# Computed inside the single jq pass above; reported here. Only a finished
+# run (a `finish` lifecycle step anywhere in the trace) is held to
+# completeness: every non-deviation contract step must appear at least once.
+# An unfinished trace skips the pass with an informational note (never a
+# violation).
+if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
+  printf 'NOTE: completeness pass skipped (TRACE_ALLOW_DARK_RUN=1 — declared partial trace)\n'
+elif [ "$finish_present" = "true" ]; then
+  for step in ${missing_steps[@]+"${missing_steps[@]}"}; do
+    printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+    violations=$((violations + 1))
+  done
+else
+  printf 'NOTE: unfinished run — completeness pass skipped\n'
+fi
+
+# --- Whole-trace pass: trace-file location sanity (plan D9) -----------------------
+# Path mode only: warn when the trace does not live at the contract location
+# .copilot-tracking/issues/issue-NN/trace.jsonl (issue-number mode constructs
+# that path, so the check is trivially satisfied there). A WARNING, never a
+# violation — the exit code is unaffected.
+if [ "$PATH_MODE" = "1" ]; then
+  ABS_TRACE="$TRACE_FILE"
+  case "$ABS_TRACE" in
+    /*) ;;
+    *)  ABS_TRACE="$(pwd)/$ABS_TRACE" ;;
+  esac
+  if ! [[ "$ABS_TRACE" =~ \.copilot-tracking/issues/issue-[0-9][0-9]+/trace\.jsonl$ ]]; then
+    printf 'WARNING: unexpected trace location\n'
+    warnings=$((warnings + 1))
+  fi
+fi
+
+# Trace-only checks above remain useful even when the cross-artifact half
+# cannot run. Defer its required progress.md precondition until those findings
+# have been emitted so callers can preserve and count them.
+if [ ! -f "$PROGRESS_FILE" ]; then
+  red "error: progress.md not found next to the trace: ${PROGRESS_FILE}" >&2
+  exit 2
+fi
 
 # --- Core: Action Log ↔ agent-span multiset comparison [RETIRED, issue #332] --
 # trace.jsonl is now the canonical record; progress.md Action Log is rendered
@@ -803,6 +1050,7 @@ if [ "$failattr_lines" != $'\n' ]; then
     if [ "$fa_fc" = "__EMPTY__" ]; then
       if [ "$fa_legacy" = "1" ]; then
         printf 'WARNING consistency: legacy_failure_class_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
       else
         printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
         violations=$((violations + 1))
@@ -831,6 +1079,7 @@ if [ "$failattr_lines" != $'\n' ]; then
     if [ "$fa_fp" = "__EMPTY__" ]; then
       if [ "$fa_legacy" = "1" ]; then
         printf 'WARNING consistency: legacy_finding_fingerprint_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
       else
         printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
         violations=$((violations + 1))
@@ -841,6 +1090,7 @@ if [ "$failattr_lines" != $'\n' ]; then
     if [ "${fa_bs:-}" = "__EMPTY__" ] || [ -z "${fa_bs:-}" ]; then
       if [ "$fa_legacy" = "1" ]; then
         printf 'WARNING consistency: legacy_finding_baseline_state_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
       else
         printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
         violations=$((violations + 1))
@@ -881,6 +1131,7 @@ if [ "$failattr_lines" != $'\n' ]; then
     if [ "$fa_act_val" = "false" ]; then
       # Non-actionable finding: WARNING, does not count toward reject cap.
       printf 'WARNING consistency: non_actionable_finding line %s %s\n' "$fa_n" "$fa_fid"
+      warnings=$((warnings + 1))
     elif [ "$fa_act_val" = "true" ]; then
       if [ "$fa_has_evidence" = "0" ]; then
         # Actionable claimed but no evidence: VIOLATION, does not count.
@@ -1029,6 +1280,7 @@ if [ "$fullreview_pairs" != $'\n' ]; then
       fullreview_sha="${fullreview_pair#*$'\t'}"
       printf 'WARNING consistency: duplicate_full_review %s %s\n' \
         "$fullreview_fid" "$fullreview_sha"
+      warnings=$((warnings + 1))
     fi
   done < <(printf '%s' "$fullreview_pairs" | grep -v '^$' | sort | uniq -c \
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
@@ -1053,6 +1305,7 @@ if [ "$hb_if_ids" != $'\n' ]; then
     if [[ "$rv_noif_ids" == *$'\n'"$hbif_fid"$'\n'* ]]; then
       printf 'WARNING consistency: reviewer_instruction_files_missing %s\n' \
         "$hbif_fid"
+      warnings=$((warnings + 1))
     fi
   done < <(printf '%s' "$hb_if_ids" | grep -v '^$' | sort -u)
 fi
@@ -1205,10 +1458,12 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         :  # role-correct ordered triple present
       elif [[ "$teeth_ids" == *$'\n'"$fid"$'\n'* ]]; then
         printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
+        warnings=$((warnings + 1))
       else
         printf 'VIOLATION consistency: teeth_proof_missing %s\n' "$fid"
         violations=$((violations + 1))
         printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
+        warnings=$((warnings + 1))
       fi
       if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
         :  # governed waiver — feature_start not required
@@ -1327,7 +1582,7 @@ else
 fi
 
 # --- Report tail + exit semantics (house family) --------------------------------
-printf '%d violation(s)\n' "$violations"
+printf '%d span(s), %d violation(s), %d warning(s)\n' "$total" "$violations" "$warnings"
 if [ "$violations" -gt 0 ]; then
   red "✗ trace/artifact consistency check failed: ${TRACE_FILE}"
   exit 1

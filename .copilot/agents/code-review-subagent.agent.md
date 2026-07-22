@@ -279,8 +279,8 @@ a **process violation**.
 1. **Locate and read local trace artifacts.** For issue `NN`, inspect
    `.copilot-tracking/issues/issue-NN/trace.jsonl` and `.copilot-tracking/issues/issue-NN/trace-summary.json` when they
    exist.
-2. **Run trace tooling when the local trace exists.** Use `scripts/validate-trace.sh NN` for schema/redaction validation
-   and `scripts/check-trace-consistency.sh NN` for lifecycle/process consistency.
+2. **Run trace tooling when the local trace exists.** Use `scripts/check-trace-consistency.sh NN` for
+   schema/redaction validation and lifecycle/process consistency.
 3. **Report trace coverage separately from behaviour.** State whether a trace exists and whether `schema` validation
    passed; whether tool spans exist, remembering that `has_tool_spans=false` means runtime **instrumentation** was
    **absent**, NOT that no tools ran; model/token coverage, remembering that `tokens=null` means token data is

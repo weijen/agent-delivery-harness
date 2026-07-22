@@ -9,7 +9,7 @@ through `scripts/sanitize-trace.sh` and a human review before commit
 provenance rules: [dataset-governance.md](../../../../docs/archive/evaluation/dataset-governance.md)).
 
 Consumers: the existing validator in path mode
-(`./scripts/validate-trace.sh <fixture>`), exercised by
+(`./scripts/check-trace-consistency.sh <fixture>`), exercised by
 `tests/scripts/test_sanitize_trace.sh`.
 
 ## issue-97-deviation.trace.jsonl
@@ -23,7 +23,7 @@ Consumers: the existing validator in path mode
   home-rooted absolute paths rewritten to `<SCRUBBED_PATH>`; fail-closed
   leak audit (redaction fixed point, path grep, secret-shape backstop,
   valid-JSONL check) passed with zero findings.
-- **Verification:** `./scripts/validate-trace.sh` path mode — 0 violations
+- **Verification:** `./scripts/check-trace-consistency.sh` path mode — 0 violations
   (the `unexpected trace location` WARNING is expected for a fixture path);
   no `/Users/` or `/home/` substring; fixed point of `trace_redact`.
 - **Human review:** completed 2026-07-04, before commit — all 37 spans

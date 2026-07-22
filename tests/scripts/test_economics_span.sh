@@ -42,13 +42,13 @@ link_tools() {
   done
 }
 link_tools "$BIN" bash sh env git basename dirname mkdir rm cat grep printf jq date \
-  od tr head cp mv awk sort sed touch chmod pwd
+  od tr head cp mv awk sort comm sed touch chmod pwd
 
 copy_fixture_scripts() {
   local dir="$1"
   local s
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for s in finish-lib.sh trace-lib.sh log-handback.sh validate-trace.sh trace-report.sh issue-lib.sh; do
+  for s in finish-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
@@ -187,9 +187,11 @@ if assert_single_economics_span "$TRACE_WITH" "with-tokens"; then
   jq_span "$span" '."harness.economics.active_ms" == 5000 and (."harness.economics.active_ms"|type) == "number"' \
     || fail "with-tokens: active_ms must be the numeric sum of adjacent qualifying gaps"
 
-  if ! (cd "$F_WITH" && env PATH="$BIN" ./scripts/validate-trace.sh "$ISSUE_WITH") \
-      > "${TMP_DIR}/validate-with.out" 2>&1; then
-    fail "with-tokens: validate-trace.sh ${ISSUE_WITH} must accept the resulting trace (output: $(tr '\n' '|' < "${TMP_DIR}/validate-with.out"))"
+  (cd "$F_WITH" && env PATH="$BIN" ./scripts/check-trace-consistency.sh "$ISSUE_WITH") \
+    > "${TMP_DIR}/validate-with.out" 2>&1 || true
+  if grep -Eq 'schema_violation|type_violation|invalid_json|failure_mode_violation' \
+      "${TMP_DIR}/validate-with.out"; then
+    fail "with-tokens: consolidated checker rejected the economics span schema/types (output: $(tr '\n' '|' < "${TMP_DIR}/validate-with.out"))"
   fi
 fi
 

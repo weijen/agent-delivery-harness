@@ -114,7 +114,7 @@ reference — not implemented by this feature) is a `TRACE_FAILURE_MODE`
 environment variable on `log-handback.sh`, mirroring the existing
 `TRACE_INPUT_TOKENS`/`TRACE_OUTPUT_TOKENS` passthrough: forwarded only when
 the value is in the frozen enum, omitted with a warning otherwise — omit,
-never fake. The standalone validator (`scripts/validate-trace.sh`) will reject
+never fake. The standalone validator (`scripts/check-trace-consistency.sh`) will reject
 out-of-enum values as `schema_violation` when the key is present.
 
 ## Governance

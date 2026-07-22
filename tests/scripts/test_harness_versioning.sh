@@ -41,7 +41,7 @@
 #      policy — flattened grep for VERSION AND (SemVer|version) AND (bump) AND
 #      (contract|behaviour|behavior).
 #   7. Backward compat: a hermetic trace whose harness.version is a SHA-valued
-#      string (abc1234) still validates under scripts/validate-trace.sh (exit 0) —
+#      string (abc1234) still validates under scripts/check-trace-consistency.sh (exit 0) —
 #      the field stays an open string.
 #
 # RED-before-green: with no VERSION file, no VERSION-driven stamping, no
@@ -55,7 +55,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="${ROOT}/scripts/trace-lib.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
-VALIDATE="${ROOT}/scripts/validate-trace.sh"
+VALIDATE="${ROOT}/scripts/check-trace-consistency.sh"
 VERSION_FILE="${ROOT}/VERSION"
 SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$'
 
@@ -203,14 +203,15 @@ grep -qiE 'contract|behaviou?r' "$policy_blob" \
 
 # --- Pin 7: a SHA-valued harness.version still validates (open string) ---------
 # Backward compatibility: an old trace stamped with a git-SHA harness.version must
-# still pass scripts/validate-trace.sh. Place it at the contract-shaped path so no
+# still pass scripts/check-trace-consistency.sh. Place it at the contract-shaped path so no
 # location warning muddies the result; a lone preflight span leaves the trace
 # unfinished, so the completeness pass is skipped (exit 0 expected).
 [ -x "$VALIDATE" ] || [ -f "$VALIDATE" ] \
-  || fail "pin 7: scripts/validate-trace.sh not found (${VALIDATE})"
+  || fail "pin 7: scripts/check-trace-consistency.sh not found (${VALIDATE})"
 COMPAT_DIR="${TMP_DIR}/.copilot-tracking/issues/issue-07"
 mkdir -p "$COMPAT_DIR"
 COMPAT_TRACE="${COMPAT_DIR}/trace.jsonl"
+printf '# Progress\n\n## Action Log\n' > "${COMPAT_DIR}/progress.md"
 jq -cn '{
     schema_version: 1,
     timestamp: "2026-07-04T12:00:00Z",
@@ -222,7 +223,7 @@ jq -cn '{
   }' > "$COMPAT_TRACE"
 
 if ! bash "$VALIDATE" "$COMPAT_TRACE" >/dev/null 2>&1; then
-  fail "pin 7: a trace with a SHA-valued harness.version ('abc1234') must still validate (exit 0); scripts/validate-trace.sh rejected it"
+  fail "pin 7: a trace with a SHA-valued harness.version ('abc1234') must still validate (exit 0); scripts/check-trace-consistency.sh rejected it"
 fi
 
 printf 'PASS: %s\n' "$(basename "$0")"

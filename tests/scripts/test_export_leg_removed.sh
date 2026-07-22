@@ -8,8 +8,8 @@
 # a finish-lib/finish-issue/create-pr call site, or a cloud-export env var in
 # .env.example comes back.
 #
-# KEEP (must NOT be flagged): trace-lib.sh, the runtime hooks, validate-trace.sh,
-# check-trace-consistency.sh, log-handback.sh, trace-report.sh, trace-scorecard.sh,
+# KEEP (must NOT be flagged): trace-lib.sh, the runtime hooks, check-trace-consistency.sh,
+# check-trace-consistency.sh, log-handback.sh, trace-report.sh, trace-report.sh --all,
 # and COPILOT_OTEL_FILE_EXPORTER_PATH (the local span-file sink for the hook).
 set -euo pipefail
 

@@ -8,10 +8,10 @@
 # whole-run first-to-last timestamp elapsed, and the final outcome from the
 # finish lifecycle span.
 #
-# Division of labor (plan D1): validation is validate-trace.sh's job. This
+# Division of labor (plan D1): validation is check-trace-consistency.sh's job. This
 # report never re-implements schema/type/redaction/completeness checks.
 # Unparseable lines (non-JSON, or JSON-non-object) are skipped and COUNTED
-# (`invalid lines: <N>`), with a pointer to ./scripts/validate-trace.sh.
+# (`invalid lines: <N>`), with a pointer to ./scripts/check-trace-consistency.sh.
 # A type-violating-but-parseable span still aggregates — the report is not
 # a validator.
 #
@@ -53,6 +53,9 @@
 #       reports on <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl
 #   ./scripts/trace-report.sh <path/to/trace.jsonl>
 #       reports on the given file directly
+#   ./scripts/trace-report.sh --all [--root <dir>]
+#       renders deterministic cross-run markdown from regenerated summaries
+#       and each sibling trace's final finish-issue.economics span
 #
 # Report-only: THIS script never gates on a run's health (exit codes below) —
 # but it is no longer un-invoked by lifecycle scripts. finish-issue.sh
@@ -80,16 +83,621 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
+cross_run_report() {
+  MAIN_ROOT=""
+  if [ "$#" -eq 1 ] && [ "$1" = "--all" ]; then
+    if ! MAIN_ROOT="$(issue_main_root 2>/dev/null)"; then
+      red "error: cannot resolve the main checkout root (not inside a git repo?)" >&2
+      exit 2
+    fi
+  elif [ "$#" -eq 3 ] && [ "$1" = "--all" ] && [ "$2" = "--root" ]; then
+    if [ ! -d "$3" ]; then
+      red "error: --root directory not found: $3" >&2
+      usage
+      exit 2
+    fi
+    MAIN_ROOT="$(cd "$3" && pwd)"
+  else
+    usage
+    exit 2
+  fi
+
+  TRACE_SCHEMA="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+  if ! FAILURE_CLASSES="$(
+    jq -ce '
+      select(type == "object" and (.failure_classes | type == "array"))
+      | .failure_classes
+      | select(
+          length > 0
+          and all(.[]; type == "string" and length > 0)
+          and (unique | length) == length
+        )
+    ' "$TRACE_SCHEMA" 2>/dev/null
+  )"; then
+    red "error: trace schema has no valid unique non-empty failure_classes enum: ${TRACE_SCHEMA}" >&2
+    exit 2
+  fi
+
+  ISSUES_DIR="${MAIN_ROOT}/.copilot-tracking/issues"
+
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "${TMP_DIR}"' EXIT
+
+  # --- Collect summaries + attribute each run (plan D1) -------------------------
+  # One compact JSON entry per aggregated run; one per missing summary. The glob
+  # expands in sorted order, so entry order (and therefore the output document)
+  # is deterministic.
+  ENTRIES="${TMP_DIR}/entries.jsonl"
+  MISSING="${TMP_DIR}/missing.jsonl"
+  SKIPPED="${TMP_DIR}/skipped.jsonl"
+  : > "$ENTRIES"
+  : > "$MISSING"
+  : > "$SKIPPED"
+
+  # skip_summary <summary-file> <reason> — skipped-with-note (plan D4): the file
+  # is reported under inputs.skipped, contributes to no aggregate, and is never
+  # repaired or reinterpreted.
+  skip_summary() {
+    local summary_file="$1" reason="$2"
+    jq -nc --arg summary_file "$summary_file" --arg reason "$reason" \
+      '{summary_file: $summary_file, reason: $reason}' >> "$SKIPPED"
+  }
+
+  for issue_dir in "${ISSUES_DIR}"/issue-*/; do
+    [ -d "$issue_dir" ] || continue
+    issue_dir="${issue_dir%/}"
+    base="$(basename "$issue_dir")"
+    summary_file="${issue_dir}/trace-summary.json"
+    trace_file="${issue_dir}/trace.jsonl"
+
+    if [ -f "$summary_file" ]; then
+      if ! jq -e 'type == "object"' "$summary_file" >/dev/null 2>&1; then
+        # Malformed / non-object summary: skipped-with-note, never a crash.
+        skip_summary "$summary_file" \
+          "unreadable summary: not parseable as a JSON object (malformed JSON?)"
+        continue
+      fi
+      # Open-world rule: this consumer understands trace-summary major 1 only.
+      # An unknown summary_schema_version major is skipped untouched, never
+      # interpreted under the v1 contract.
+      schema_major="$(jq -r \
+        '.summary_schema_version
+         | if type == "number" then (floor | tostring) else "non-numeric" end' \
+        "$summary_file")"
+      if [ "$schema_major" != "1" ]; then
+        skip_summary "$summary_file" \
+          "unknown summary_schema_version major (${schema_major}) — this consumer understands trace-summary major 1 only"
+        continue
+      fi
+      # Admission validates every v1 path consumed below before aggregation.
+      # Optional additive projections may be absent or null; required legacy
+      # fields retain their v1 null/empty semantics.
+      validation_error="$(jq -r --argjson failure_classes "$FAILURE_CLASSES" '
+        if (has("issue") | not)
+           or (.issue != null and (.issue | type) != "number") then
+          "invalid issue: expected a number or null"
+        elif (has("harness_versions") | not)
+             or (.harness_versions | type) != "array" then
+          "invalid harness_versions: expected an array"
+        elif any(.harness_versions[]; type != "string") then
+          "invalid harness_versions[]: expected strings"
+        elif (has("finished") | not) or (.finished | type) != "boolean" then
+          "invalid finished: expected a boolean"
+        elif (has("final_outcome") | not)
+             or (.final_outcome != null
+                 and (.final_outcome | type) != "string") then
+          "invalid final_outcome: expected a string or null"
+        elif (has("red_reentry") | not)
+             or (.red_reentry | type) != "array" then
+          "invalid red_reentry: expected an array"
+        elif any(.red_reentry[]; type != "string") then
+          "invalid red_reentry[]: expected strings"
+        elif (has("deviations") | not)
+             or (.deviations | type) != "object" then
+          "invalid deviations: expected an object"
+        elif (.deviations.count | type) != "number" then
+          "invalid deviations.count: expected a number"
+        elif (.deviations.feature_ids | type) != "array" then
+          "invalid deviations.feature_ids: expected an array"
+        elif any(.deviations.feature_ids[]; type != "string") then
+          "invalid deviations.feature_ids[]: expected strings"
+        elif (has("tools") | not) or (.tools | type) != "array" then
+          "invalid tools: expected an array"
+        elif any(.tools[]; type != "object") then
+          "invalid tools[]: expected objects"
+        elif any(.tools[]; (.calls | type) != "number") then
+          "invalid tools[].calls: expected numbers"
+        elif any(.tools[]; (.fail_calls | type) != "number") then
+          "invalid tools[].fail_calls: expected numbers"
+        elif (has("tokens") | not) then
+          "invalid tokens: required field is missing"
+        elif .tokens != null and (.tokens | type) != "object" then
+          "invalid tokens: expected null or an object"
+        elif .tokens != null
+             and (((.tokens.input // .tokens.input_tokens) | type) != "number"
+                  or ((.tokens.output // .tokens.output_tokens) | type) != "number") then
+          "invalid tokens: expected numeric input/output token totals"
+        elif .coverage != null and (.coverage | type) != "object" then
+          "invalid coverage: expected an object or null"
+        elif .coverage != null
+             and (.coverage.has_tool_spans | type) != "boolean" then
+          "invalid coverage.has_tool_spans: expected a boolean"
+        elif .coverage != null
+             and (.coverage.has_model_spans | type) != "boolean" then
+          "invalid coverage.has_model_spans: expected a boolean"
+        elif (has("wall_clock") | not) then
+          "invalid wall_clock: required field is missing"
+        elif .wall_clock != null and (.wall_clock | type) != "object" then
+          "invalid wall_clock: expected an object or null"
+        elif .wall_clock != null
+             and .wall_clock.elapsed_seconds != null
+             and (.wall_clock.elapsed_seconds | type) != "number" then
+          "invalid wall_clock.elapsed_seconds: expected a number or null"
+        elif .feature_delivery != null
+             and (.feature_delivery | type) != "object" then
+          "invalid feature_delivery: expected an object or null"
+        elif .feature_delivery != null
+             and (.feature_delivery.rows | type) != "array" then
+          "invalid feature_delivery.rows: expected an array"
+        elif .feature_delivery != null
+             and any(.feature_delivery.rows[]; type != "object") then
+          "invalid feature_delivery.rows[]: expected objects"
+        elif .feature_delivery != null
+             and any(.feature_delivery.rows[];
+                     (.elapsed_seconds | type) != "number") then
+          "invalid feature_delivery.rows[].elapsed_seconds: expected numbers"
+        elif .feature_delivery != null
+             and (.feature_delivery.coverage | type) != "object" then
+          "invalid feature_delivery.coverage: expected an object"
+        elif .feature_delivery != null
+             and (.feature_delivery.coverage.paired | type) != "number" then
+          "invalid feature_delivery.coverage.paired: expected a number"
+        elif .feature_delivery != null
+             and (.feature_delivery.coverage.of | type) != "number" then
+          "invalid feature_delivery.coverage.of: expected a number"
+        elif .review_verdicts != null
+             and (.review_verdicts | type) != "object" then
+          "invalid review_verdicts: expected an object or null"
+        elif .review_verdicts != null
+             and (.review_verdicts.fail | type) != "number" then
+          "invalid review_verdicts.fail: expected a number"
+        elif .review_verdicts != null
+             and (.review_verdicts.total | type) != "number" then
+          "invalid review_verdicts.total: expected a number"
+        elif .green_handbacks != null
+             and (.green_handbacks | type) != "object" then
+          "invalid green_handbacks: expected an object or null"
+        elif .green_handbacks != null
+             and (.green_handbacks.blocked | type) != "number" then
+          "invalid green_handbacks.blocked: expected a number"
+        elif .green_handbacks != null
+             and (.green_handbacks.total | type) != "number" then
+          "invalid green_handbacks.total: expected a number"
+        elif .same_class_failures != null
+             and (.same_class_failures | type) != "object" then
+          "invalid same_class_failures: expected an object or null"
+        elif .same_class_failures != null
+             and (.same_class_failures.by_class | type) != "array" then
+          "invalid same_class_failures.by_class: expected an array"
+        elif .same_class_failures != null
+             and any(.same_class_failures.by_class[]; type != "object") then
+          "invalid same_class_failures.by_class[]: expected objects"
+        elif .same_class_failures != null
+             and any(.same_class_failures.by_class[];
+                     .failure_class as $class
+                     | ($class | type) != "string"
+                       or ($failure_classes | index($class)) == null) then
+          "invalid same_class_failures.by_class[].failure_class: expected a closed failure class"
+        elif .same_class_failures != null
+             and any(.same_class_failures.by_class[];
+                     (.count | type) != "number") then
+          "invalid same_class_failures.by_class[].count: expected numbers"
+        elif .same_class_failures != null
+             and (.same_class_failures.max_count | type) != "number" then
+          "invalid same_class_failures.max_count: expected a number"
+        elif .skills != null and (.skills | type) != "array" then
+          "invalid skills: expected an array or null"
+        elif .skills != null and any(.skills[]; type != "object") then
+          "invalid skills[]: expected objects"
+        elif .skills != null and any(.skills[]; (.name | type) != "string") then
+          "invalid skills[].name: expected strings"
+        elif .skills != null
+             and any(.skills[]; (.calls | type) != "number") then
+          "invalid skills[].calls: expected numbers"
+        elif .skills != null
+             and any(.skills[]; (.fail_calls | type) != "number") then
+          "invalid skills[].fail_calls: expected numbers"
+        elif (has("loop_indicators") | not)
+             or (.loop_indicators | type) != "array" then
+          "invalid loop_indicators: expected an array"
+        elif (has("span_counts") | not)
+             or (.span_counts | type) != "object" then
+          "invalid span_counts: expected an object"
+        elif (.span_counts.invalid_lines | type) != "number" then
+          "invalid span_counts.invalid_lines: expected a number"
+        else ""
+        end
+      ' "$summary_file")"
+      if [ -n "$validation_error" ]; then
+        skip_summary "$summary_file" "$validation_error"
+        continue
+      fi
+      nver="$(jq -r '.harness_versions | length' "$summary_file")"
+      ver=""
+      attr=""
+      if [ "$nver" -eq 1 ]; then
+        ver="$(jq -r '.harness_versions[0]' "$summary_file")"
+        attr="single"
+      elif [ "$nver" -gt 1 ] && [ -r "$trace_file" ]; then
+        # Sanctioned peek: last version-CARRYING span wins (trailing
+        # version-less spans are ignored; sort order never decides).
+        ver="$(jq -nRr \
+          '[inputs | fromjson? | select(type == "object")
+            | .["harness.version"]? | strings] | last // ""' \
+          < "$trace_file")"
+        if [ -n "$ver" ]; then
+          attr="last_seen_in_trace"
+        else
+          ver="mixed"
+          attr="unresolved_mixed"
+        fi
+      else
+        # Unattributable run: multi-version without a readable trace (plan D1
+        # case 3), or a run that recorded no harness.version at all
+        # (harness_versions []). Never guess — the visible synthetic "mixed"
+        # bucket holds every run that cannot be attributed to a single version.
+        ver="mixed"
+        attr="unresolved_mixed"
+      fi
+      economics="null"
+      if [ -r "$trace_file" ]; then
+        economics="$(jq -nR '
+          [inputs | fromjson? | objects
+           | select(.["gen_ai.tool.name"]? == "finish-issue.economics")]
+          | last // null
+        ' < "$trace_file")"
+      fi
+      jq -c \
+        --arg summary_file "$summary_file" \
+        --arg ver "$ver" \
+        --arg attr "$attr" \
+        --argjson economics "$economics" \
+        '{summary_file: $summary_file, attributed: $ver, attribution: $attr,
+          economics: $economics, summary: .}' \
+        "$summary_file" >> "$ENTRIES"
+    elif [ -f "$trace_file" ]; then
+      # Report, never repair (plan D4): regeneration is trace-report.sh's job.
+      jq -nc \
+        --arg issue_dir "$base" \
+        --arg trace_file "$trace_file" \
+        --arg hint "./scripts/trace-report.sh ${base#issue-}" \
+        '{issue_dir: $issue_dir, trace_file: $trace_file, hint: $hint}' \
+        >> "$MISSING"
+    fi
+  done
+
+  # --- Single jq pass: build the aggregate object (house doctrine) --------------
+  # Absence semantics (trace-summary v1 doctrine carried forward): a bucket whose
+  # runs carried no token data emits tokens null (never 0), with token_coverage
+  # saying why; rates always carry an explicit `of` denominator.
+  AGG_FILTER="${TMP_DIR}/build-aggregate.jq"
+  cat > "$AGG_FILTER" <<'JQ'
+  def percentile($values; $p):
+    ($values | sort) as $sorted
+    | ($sorted | length) as $count
+    | if $count == 0 then null
+      else
+        (($count - 1) * $p) as $position
+        | ($position | floor) as $lower
+        | ($position | ceil) as $upper
+        | if $lower == $upper then $sorted[$lower]
+          else
+            ($sorted[$lower]
+             + (($sorted[$upper] - $sorted[$lower]) * ($position - $lower)))
+          end
+      end;
+  def failure_class_rank:
+    . as $class | $failure_classes | index($class);
+
+  {
+    generator: "scripts/trace-report.sh --all",
+    runtime: "local",
+    source_root: $source_root,
+    summary_schema_versions_seen:
+      ([$entries[].summary.summary_schema_version? | numbers] | unique),
+    inputs: {
+      summaries_found: ($entries | length),
+      missing_summaries: $missing,
+      skipped: $skipped
+    },
+    by_version:
+      ($entries
+       | group_by(.attributed)
+       | map(
+           . as $g
+           | ($g | length) as $runs
+           | [$g[].summary.tokens | select(. != null)] as $toks
+           | [$g[].summary.feature_delivery? | objects] as $feature_delivery
+           | [$feature_delivery[].rows[]?.elapsed_seconds | numbers] as $elapsed
+           | [$g[].summary.review_verdicts? | objects] as $reviews
+           | [$g[].summary.green_handbacks? | objects] as $greens
+           | [$g[].summary.same_class_failures? | objects] as $same_class
+           | ([$reviews[].fail | numbers] | add // 0) as $review_fail
+           | ([$reviews[].total | numbers] | add // 0) as $review_total
+           | ([$greens[].blocked | numbers] | add // 0) as $green_blocked
+           | ([$greens[].total | numbers] | add // 0) as $green_total
+           | {
+               harness_version: $g[0].attributed,
+               runs: $runs,
+               finished: ([$g[] | select(.summary.finished == true)] | length),
+               passed: ([$g[] | select(.summary.final_outcome == "pass")] | length),
+               red_reentry_free_rate: {
+                 free:
+                   ([$g[]
+                     | select(.summary.finished == true
+                              and .summary.final_outcome == "pass"
+                              and ((.summary.red_reentry // []) | length == 0))]
+                    | length),
+                 of: $runs
+               },
+               deviations: {
+                 count: ([$g[].summary.deviations.count? | numbers] | add // 0),
+                 feature_ids:
+                   ([$g[].summary.deviations.feature_ids[]? | strings] | unique)
+               },
+               tool_calls: {
+                 calls: ([$g[].summary.tools[]?.calls | numbers] | add // 0),
+                 fail_calls: ([$g[].summary.tools[]?.fail_calls | numbers] | add // 0)
+               },
+               tokens:
+                 (if ($toks | length) == 0 then null
+                  else
+                    { input:
+                        ([$toks[] | (.input // .input_tokens) | numbers] | add // 0),
+                      output:
+                        ([$toks[] | (.output // .output_tokens) | numbers] | add // 0) }
+                  end),
+               token_coverage: { runs_with_tokens: ($toks | length), of: $runs },
+               tool_coverage: {
+                 runs_with_tool_spans:
+                   ([$g[] | select(.summary.coverage.has_tool_spans == true)] | length),
+                 of: $runs
+               },
+               economics:
+                 ([$g[].economics
+                   | objects
+                   | select(
+                       [.[
+                          "harness.economics.native_subagent_tokens",
+                          "harness.economics.native_subagent_count",
+                          "harness.economics.native_tool_calls",
+                          "harness.economics.native_duration_ms",
+                          "harness.economics.native_models_distinct",
+                          "harness.economics.native_aiu_nano_delta"
+                        ]]
+                       | any(type == "number"))] as $econ
+                  | def measured($key): [$econ[] | .[$key]? | numbers];
+                  { coverage: {measured_runs: ($econ | length), of: $runs},
+                      native_subagent_tokens: (measured("harness.economics.native_subagent_tokens") | if length == 0 then null else add end),
+                      native_subagent_count: (measured("harness.economics.native_subagent_count") | if length == 0 then null else add end),
+                      native_tool_calls: (measured("harness.economics.native_tool_calls") | if length == 0 then null else add end),
+                      native_duration_ms: (measured("harness.economics.native_duration_ms") | if length == 0 then null else add end),
+                      native_models_distinct: (measured("harness.economics.native_models_distinct") | if length == 0 then null else add end),
+                      native_aiu_nano_delta: (measured("harness.economics.native_aiu_nano_delta") | if length == 0 then null else add end) }),
+               feature_delivery: {
+                 samples:
+                   (if ($feature_delivery | length) == 0 then null
+                    else ($elapsed | length)
+                    end),
+                 median_seconds: percentile($elapsed; 0.5),
+                 p75_seconds: percentile($elapsed; 0.75),
+                 p95_seconds: percentile($elapsed; 0.95),
+                 coverage:
+                   (if ($feature_delivery | length) == 0 then null
+                    else {
+                      paired:
+                        ([$feature_delivery[].coverage.paired? | numbers] | add // 0),
+                      of:
+                        ([$feature_delivery[].coverage.of? | numbers] | add // 0)
+                    }
+                    end)
+               },
+               review_fail:
+                 (if ($reviews | length) == 0 then
+                    {fail: null, of: null, rate: null}
+                  else
+                    {fail: $review_fail,
+                     of: $review_total,
+                     rate:
+                       (if $review_total == 0 then null
+                        else ($review_fail / $review_total)
+                        end)}
+                  end),
+               blocked_green:
+                 (if ($greens | length) == 0 then
+                    {blocked: null, of: null, rate: null}
+                  else
+                    {blocked: $green_blocked,
+                     of: $green_total,
+                     rate:
+                       (if $green_total == 0 then null
+                        else ($green_blocked / $green_total)
+                        end)}
+                  end),
+               same_class_failures:
+                 {
+                   occurrences_by_class:
+                     (if ($same_class | length) == 0 then null
+                      else
+                        ([$same_class[].by_class[]?]
+                         | group_by(.failure_class)
+                         | map({
+                             failure_class: .[0].failure_class,
+                             count: ([.[].count | numbers] | add // 0)
+                           })
+                         | sort_by(.failure_class | failure_class_rank))
+                      end),
+                   max_observed_per_run:
+                     ([$same_class[].max_count | numbers] | max // null),
+                   coverage: {
+                     measured_inputs: ($same_class | length),
+                     total_relevant_inputs: $runs
+                   },
+                   target: {
+                     operator: "<=",
+                     max_count: 2,
+                     policy: "report-only"
+                   }
+                 },
+               skills:
+                 ([$g[].summary.skills[]? | select(. != null)]
+                  | group_by(.name)
+                  | map({ name: .[0].name,
+                          calls: ([.[].calls | numbers] | add // 0),
+                          fail_calls: ([.[].fail_calls | numbers] | add // 0) })),
+               issues:
+                 [$g[]
+                  | { issue: .summary.issue,
+                      summary_file: .summary_file,
+                      attribution: .attribution,
+                      harness_versions: (.summary.harness_versions // []),
+                      finished: .summary.finished,
+                      final_outcome: .summary.final_outcome,
+                      red_reentry: (.summary.red_reentry // []),
+                      deviations: .summary.deviations,
+                      tool_calls: ([.summary.tools[]?.calls | numbers] | add // 0),
+                      tool_fail_calls:
+                        ([.summary.tools[]?.fail_calls | numbers] | add // 0),
+                      wall_clock_elapsed_seconds:
+                        (.summary.wall_clock.elapsed_seconds? // null),
+                      feature_delivery: (.summary.feature_delivery? // null),
+                      review_verdicts: (.summary.review_verdicts? // null),
+                      green_handbacks: (.summary.green_handbacks? // null),
+                      same_class_failures:
+                        (.summary.same_class_failures? // null),
+                      tokens: .summary.tokens,
+                      coverage: (.summary.coverage // null),
+                      skills: (.summary.skills // []),
+                      loop_indicator_groups:
+                        ((.summary.loop_indicators // []) | length),
+                      invalid_lines: (.summary.span_counts.invalid_lines? // null) }]
+             })),
+  }
+JQ
+
+  AGGREGATE_JSON="${TMP_DIR}/trace-aggregate.json"
+  jq -n \
+    --arg source_root "$ISSUES_DIR" \
+    --argjson failure_classes "$FAILURE_CLASSES" \
+    --slurpfile entries "$ENTRIES" \
+    --slurpfile missing "$MISSING" \
+    --slurpfile skipped "$SKIPPED" \
+    -f "$AGG_FILTER" > "$AGGREGATE_JSON"
+
+  # --- Render deterministic markdown from the in-memory aggregate. -----------
+  # --- Pass 2: render markdown FROM the aggregate object (single source) --------
+  # Always-on stdout report, mirroring trace-report.sh: every number below is
+  # read from the same object written to disk — never recomputed. Nulls render
+  # as n/a, never 0.
+  RENDER_FILTER="${TMP_DIR}/render-markdown.jq"
+  cat > "$RENDER_FILTER" <<'JQ'
+  def na: if . == null then "n/a" else tostring end;
+  def ratio($value; $of; $rate):
+    if $of == null then "n/a"
+    else "\($value)/\($of) (\($rate | na))"
+    end;
+  . as $s
+  | [
+      "# Cross-run trace report: \($s.source_root)",
+      "",
+      "- summaries aggregated: \($s.inputs.summaries_found)",
+      "## Comparison by harness version",
+      "",
+      "| version | runs | passed | red-reentry-free | token coverage | tokens | deviations | tool calls |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |",
+      ($s.by_version[]
+       | "| \(.harness_version) | \(.runs) | \(.passed) | \(.red_reentry_free_rate.free)/\(.red_reentry_free_rate.of) | \(.token_coverage.runs_with_tokens)/\(.token_coverage.of) | \(if .tokens == null then "n/a" else "in \(.tokens.input) / out \(.tokens.output)" end) | \(.deviations.count) | \(.tool_calls.calls) |"),
+      "",
+      "Definitions: red-reentry-free = finished, passing runs with no red-after-green re-entry (NOT literally first-pass green — a red before the first green is invisible to trace-summary v1); a version row labeled mixed holds multi-version runs with no readable trace to attribute (never guessed); tokens n/a = no run in the bucket carried token data (absence is null, never 0).",
+      "",
+      "## Final closeout economics",
+      "",
+      "Values come only from each trace's last finish-issue.economics span; n/a means no final span carried that measurement.",
+      "",
+      "| version | runs | passed | economics coverage | native subagent tokens | native subagents | native tool calls | native duration ms | native models | native AIU nano delta |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+      ($s.by_version[]
+       | "| \(.harness_version) | \(.runs) | \(.passed) | \(.economics.coverage.measured_runs)/\(.economics.coverage.of) | \(.economics.native_subagent_tokens | na) | \(.economics.native_subagent_count | na) | \(.economics.native_tool_calls | na) | \(.economics.native_duration_ms | na) | \(.economics.native_models_distinct | na) | \(.economics.native_aiu_nano_delta | na) |"),
+      "",
+      "## Generator experiment metrics",
+      "",
+      "Per-feature elapsed is the first observed feature_start to the last observed later green_handback for the same feature. It includes between-edge time and does not attribute tool calls to a feature. Percentiles use linear interpolation over paired observations.",
+      "",
+      "| version | elapsed samples | median seconds | p75 seconds | p95 seconds | started-feature coverage | review fail | blocked GREEN |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |",
+      ($s.by_version[]
+        | "| \(.harness_version) | \(.feature_delivery.samples | na) | \(.feature_delivery.median_seconds | na) | \(.feature_delivery.p75_seconds | na) | \(.feature_delivery.p95_seconds | na) | \(if .feature_delivery.coverage == null then "n/a" else "\(.feature_delivery.coverage.paired)/\(.feature_delivery.coverage.of)" end) | \(ratio(.review_fail.fail; .review_fail.of; .review_fail.rate)) | \(ratio(.blocked_green.blocked; .blocked_green.of; .blocked_green.rate)) |"),
+      "",
+      "## Same-class generator failures",
+      "",
+      "Eligible failures are failed or blocked generator RED, implementation, and GREEN handbacks carrying a valid closed failure class. The <=2 target is report-only and does not gate lifecycle or merge.",
+      "",
+      "| version | failure class | occurrences | max per run | coverage | target |",
+      "| --- | --- | --- | --- | --- | --- |",
+      ($s.by_version[] as $bucket
+       | if $bucket.same_class_failures.occurrences_by_class == null then
+           "| \($bucket.harness_version) | n/a | n/a | \($bucket.same_class_failures.max_observed_per_run | na) | \($bucket.same_class_failures.coverage.measured_inputs)/\($bucket.same_class_failures.coverage.total_relevant_inputs) | <=\($bucket.same_class_failures.target.max_count) (\($bucket.same_class_failures.target.policy)) |"
+         elif ($bucket.same_class_failures.occurrences_by_class | length) == 0 then
+           "| \($bucket.harness_version) | none | 0 | \($bucket.same_class_failures.max_observed_per_run) | \($bucket.same_class_failures.coverage.measured_inputs)/\($bucket.same_class_failures.coverage.total_relevant_inputs) | <=\($bucket.same_class_failures.target.max_count) (\($bucket.same_class_failures.target.policy)) |"
+         else
+           ($bucket.same_class_failures.occurrences_by_class[]
+            | "| \($bucket.harness_version) | \(.failure_class) | \(.count) | \($bucket.same_class_failures.max_observed_per_run) | \($bucket.same_class_failures.coverage.measured_inputs)/\($bucket.same_class_failures.coverage.total_relevant_inputs) | <=\($bucket.same_class_failures.target.max_count) (\($bucket.same_class_failures.target.policy)) |")
+         end),
+      (if ($s.inputs.missing_summaries | length) > 0 then
+         ("",
+          "## Missing summaries (reported, never repaired)",
+          "",
+          ($s.inputs.missing_summaries[]
+           | "- \(.issue_dir): trace.jsonl present but no trace-summary.json — regenerate with \(.hint)"))
+       else empty end),
+      (if ($s.inputs.skipped | length) > 0 then
+         ("",
+          "## Skipped summaries",
+          "",
+          ($s.inputs.skipped[] | "- \(.summary_file) — \(.reason)"))
+       else empty end)
+    ]
+  | .[]
+JQ
+
+  jq -r -f "$RENDER_FILTER" < "$AGGREGATE_JSON"
+
+  # Scorecard produced → exit 0, regardless of what it says (reporting is not gating).
+  return 0
+}
+
 usage() {
   {
     echo "usage: ./scripts/trace-report.sh <issue-number|trace-path>"
+    echo "       ./scripts/trace-report.sh --all [--root <dir>]"
     echo "  <issue-number>  reports on <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl"
     echo "  <trace-path>    reports on the given trace.jsonl file directly"
+    echo "  --all           reports across <main root>/.copilot-tracking/issues/issue-*"
+    echo "  --root <dir>    uses <dir> as the cross-run root (requires --all)"
     echo "exit codes: 0 report produced, 2 usage/environment error"
   } >&2
 }
 
 # --- Environment preconditions (exit 2: the report could not run) ------------
+if [ "${1:-}" = "--all" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    red "error: jq is required to build a cross-run trace report" >&2
+    exit 2
+  fi
+  cross_run_report "$@"
+  exit $?
+fi
+
 if [ "$#" -ne 1 ]; then
   usage
   exit 2
@@ -117,7 +725,7 @@ if ! FAILURE_CLASSES="$(
   exit 2
 fi
 
-# --- Resolve the trace file (CLI parity with validate-trace.sh, plan D7) -----
+# --- Resolve the trace file (CLI parity with check-trace-consistency.sh, plan D7) -----
 TRACE_FILE=""
 case "$ARG" in
   */* | *.jsonl)
@@ -485,7 +1093,7 @@ def na: if . == null then "n/a" else tostring end;
     "# Trace report: \($s.trace_file)",
     "",
     "- spans aggregated: \($s.span_counts.total)\($by_type)",
-    "- invalid lines: \($s.span_counts.invalid_lines) (skipped, not aggregated — run ./scripts/validate-trace.sh for details)",
+    "- invalid lines: \($s.span_counts.invalid_lines) (skipped, not aggregated — run ./scripts/check-trace-consistency.sh for details)",
     (if $s.wall_clock == null
      then "- first-to-last timestamp elapsed: n/a (no timestamps)"
      else "- first-to-last timestamp elapsed: \($s.wall_clock.elapsed_seconds | na) seconds (\($s.wall_clock.first_timestamp) → \($s.wall_clock.last_timestamp); wall clock, includes agent thinking time between spans)"

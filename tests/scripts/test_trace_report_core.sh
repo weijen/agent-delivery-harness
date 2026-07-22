@@ -34,12 +34,12 @@
 #      carries the harness.outcome of the finish lifecycle span.
 #   5. Invalid lines (unparseable JSON, or parseable-but-not-an-object) are
 #      skipped and counted, reported as  `invalid lines: <N>`  plus a pointer
-#      containing  `validate-trace.sh`  (pinned loosely — plan D1: the report
+#      containing  `check-trace-consistency.sh`  (pinned loosely — plan D1: the report
 #      never re-implements validation).
 #   6. No validation duplication (plan D1): a TYPE-violating but parseable
-#      span (validate-trace.sh would flag type_violation) still aggregates —
+#      span (check-trace-consistency.sh would flag type_violation) still aggregates —
 #      the report is not a validator.
-#   7. CLI parity with validate-trace.sh (plan D7): plain issue-number arg
+#   7. CLI parity with check-trace-consistency.sh (plan D7): plain issue-number arg
 #      resolves <main root>/.copilot-tracking/issues/issue-NN/trace.jsonl;
 #      an explicit path arg reads that file directly; no args → exit 2 with
 #      a usage message on stderr; missing trace file → exit 2. Exit 0
@@ -101,7 +101,7 @@ command -v jq >/dev/null 2>&1 \
 #   tools (gen_ai.tool.name):
 #     check-feature-list 2 · git 3 · review-gate.check 1 · typedrift-tool 1
 #     (typedrift-tool is the type-violating-but-parseable span: string
-#      schema_version and string harness.issue — validate-trace.sh territory,
+#      schema_version and string harness.issue — check-trace-consistency.sh territory,
 #      NOT the report's; it must still aggregate)
 #   invalid lines: exactly 2 (one non-JSON, one JSON-scalar non-object)
 write_fixture_trace() {
@@ -222,10 +222,10 @@ grep -Eiq 'final outcome.*pass' "$OUT" \
 # --- 7. Invalid lines: skipped, counted, pointed at the validator -------------------
 grep -Eiq 'invalid lines: 2' "$OUT" \
   || fail "invalid lines: report must count exactly the 2 planted bad lines as 'invalid lines: 2' (the type-violating span is NOT invalid here)"
-grep -Fq 'validate-trace.sh' "$OUT" \
-  || fail "invalid lines: report must point at validate-trace.sh for details (plan D1 — no validation duplication)"
+grep -Fq 'check-trace-consistency.sh' "$OUT" \
+  || fail "invalid lines: report must point at check-trace-consistency.sh for details (plan D1 — no validation duplication)"
 
-# --- 8. Issue-number mode (CLI parity with validate-trace.sh, plan D7) --------------
+# --- 8. Issue-number mode (CLI parity with check-trace-consistency.sh, plan D7) --------------
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts" "${FIX}/docs/evaluation"
 cp "$REPORT_SH" "${FIX}/scripts/trace-report.sh"

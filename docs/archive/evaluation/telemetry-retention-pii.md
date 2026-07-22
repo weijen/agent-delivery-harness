@@ -120,7 +120,7 @@ offending content.
 The redaction gates are:
 
 1. **Input gate** — a future exporter must require the trace to pass
-   `scripts/validate-trace.sh` (including its `redaction_leak` audit). The
+   `scripts/check-trace-consistency.sh` (including its `redaction_leak` audit). The
    single tolerance is that findings which are *only* `invalid_json` may be
    skipped and counted by the mapper; any other violation class must refuse the
    export.
