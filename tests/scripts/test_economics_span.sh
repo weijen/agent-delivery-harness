@@ -180,8 +180,8 @@ if assert_single_economics_span "$TRACE_WITH" "with-tokens"; then
     || fail "with-tokens: features_total must be numeric 4"
   jq_span "$span" '."harness.economics.features_passing" == 2 and (."harness.economics.features_passing"|type) == "number"' \
     || fail "with-tokens: features_passing must be numeric 2"
-  jq_span "$span" '."harness.economics.teeth_proof" == 2 and (."harness.economics.teeth_proof"|type) == "number"' \
-    || fail "with-tokens: teeth_proof must be numeric 2"
+  jq_span "$span" 'has("harness.economics.teeth_proof") | not' \
+    || fail "with-tokens: retired teeth_proof counter (#334) must not be stamped"
   jq_span "$span" '."harness.economics.wall_clock_ms" > 0 and (."harness.economics.wall_clock_ms"|type) == "number"' \
     || fail "with-tokens: wall_clock_ms must be a positive number"
   jq_span "$span" '."harness.economics.active_ms" == 5000 and (."harness.economics.active_ms"|type) == "number"' \

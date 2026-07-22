@@ -114,7 +114,7 @@ similar names by collapsing one into the other.
     feature, owns commits/PRs, and records substantive conductor actions in the issue progress Action Log.
   - **Generator** (`generator-subagent`) owns the selected feature's complete RED, minimal implementation, and GREEN
     cycle. It writes and runs sensors, edits required production assets, and follows
-    [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md). The `generator-subagent` verifies every required product-quality blocking gate before it marks only that feature `passes:true`; it also records `teeth_proof` and the required gate evidence.
+    [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md). The `generator-subagent` verifies every required product-quality blocking gate before it marks only that feature `passes:true` (teeth-proof recording retired, #334).
   - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md), and performs an adversarial test-quality pass before its final adequacy verdict. It may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose a missing failure mode, but production assets remain read-only: the reviewer must not edit production. It reports changed tests, commands, observed evidence, and the final verdict for the issue progress Action Log.
 
 #### What counts as one feature (granularity rule)
@@ -165,7 +165,7 @@ Action Log):
 3. **The same `generator-subagent` makes the minimal production change** to satisfy that sensor and returns an
   `impl_handback` payload.
 4. **The same `generator-subagent` verifies GREEN**: it runs the declared `regression_sensor` and any `e2e_sensor`,
-  records product-quality blocking gate evidence and `teeth_proof`, and only then may flip `passes:true`. It returns
+  records product-quality blocking gate evidence, and only then may flip `passes:true`. It returns
   a `green_handback` payload.
 5. **Conductor commits/pushes** the result and records the handbacks with `scripts/log-handback.sh` per the
    agent-span conventions below.
@@ -176,17 +176,14 @@ conductor does not patch production or verification assets itself.
 Every `passes:true` feature is **required** to have a matching `feature_start` agent span keyed by its feature id —
 the one recorded at step 1 above. `scripts/check-trace-consistency.sh` reports a missing span as a standalone
 `feature_start_missing` finding (role and step ordering are not enforced for this check, only presence by feature
-id); on the PR path this finding hard-blocks through the existing red-first / teeth-proof evidence gate in
+id); on the PR path this finding hard-blocks through the feature-start evidence gate (#291; red-first/teeth half retired, #334) in
 `scripts/review-gate.sh` (see Teeth-proof evidence below), not a separate gate.
 
 #### Teeth-proof evidence
 
-`teeth_proof` is the optional per-feature object that records how the `regression_sensor` was proven able to fail:
-`red_first` means the classic RED run failed before the implementation; `mutation` means the implementation was
-mutated or reverted after GREEN and the sensor observed RED; `negative_fixture` means a committed negative fixture is
-rejected by the sensor. The `generator-subagent` records `teeth_proof` at the moment it flips `passes:true`, with the kind
-and non-empty evidence. `check-feature-list.sh` reports `teeth_proof_missing` as warn-only today; a follow-up issue
-will promote that coverage check to a hard gate.
+`teeth_proof` is retired (#334): historical feature lists carrying the object stay valid and
+`check-feature-list.sh` keeps shape-validating it warn-only for legacy tolerance, but nothing
+records or gates on it anymore — test quality is the independent review's judgment.
 
 A valid canonical `teeth_proof_waiver` object, or the deprecated `red_first_waiver` alias when no canonical key is
 present, waives **both** the `teeth_proof_missing` coverage warning and the `feature_start_missing` hard finding for

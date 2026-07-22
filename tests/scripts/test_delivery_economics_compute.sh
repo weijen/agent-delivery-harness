@@ -66,7 +66,7 @@ assert_line "CASE A wall-clock" "$out" "- Wall-clock span: 2026-07-08T09:14:00Z 
 assert_line "CASE A tokens" "$out" "- Tokens: in 350 / out 110 (coverage: 2/3 runs)"
 assert_line "CASE A review rounds" "$out" "- Review rounds: 2 (1 fail → 1 pass)"
 assert_line "CASE A deviations" "$out" "- Deviations logged: 2"
-assert_line "CASE A features" "$out" "- Features: 3/4 passes:true; teeth-proof coverage 2/4"
+assert_line "CASE A features" "$out" "- Features: 3/4 passes:true"
 
 TRACE_NO_TOKENS="${TMP_DIR}/trace-no-tokens.jsonl"
 cat > "$TRACE_NO_TOKENS" <<'JSONL'

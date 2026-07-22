@@ -34,12 +34,12 @@
 #                     every passes:true entry in feature_list.json must be
 #                     backed by at least one agent span with
 #                     harness.lifecycle_step=="feature_start" and matching
-#                     harness.feature_id (issue #291; role not enforced —
-#                     narrower than the red-first triple's role check).
-#                     Waived by the same governed teeth_proof_waiver /
-#                     deprecated red_first_waiver alias as teeth_proof_missing
-#                     (key-presence precedence: a malformed canonical key
-#                     shadows a valid legacy one and does not waive).
+#                     harness.feature_id (issue #291; role not enforced).
+#                     Waived by a governed teeth_proof_waiver / deprecated
+#                     red_first_waiver alias object (key-presence precedence:
+#                     a malformed canonical key shadows a valid legacy one and
+#                     does not waive). The teeth_proof / red-first evidence
+#                     checks themselves are RETIRED (issue #334).
 #                         VIOLATION consistency: feature_start_missing <feature_id>
 #   review_verdict_missing
 #                     under issue #303 per-feature review is removed and the
@@ -1310,87 +1310,14 @@ if [ "$hb_if_ids" != $'\n' ]; then
   done < <(printf '%s' "$hb_if_ids" | grep -v '^$' | sort -u)
 fi
 
-# --- Second trace pass: red-first evidence per feature (issue #144) ------------
-# A completed (passes:true) coded feature must show one complete role-correct,
-# file-ordered RED-first profile for the SAME harness.feature_id, all
-# harness.outcome==pass, in TRACE FILE ORDER. Accepted profiles are:
-#   generator-subagent red_handback -> impl_handback -> green_handback
-# or the historical:
-#   test-subagent red_handback -> implementation-subagent impl_handback ->
-#   test-subagent green_handback
-# (strictly increasing file positions red < impl < green). This pass does NOT
-# read feature_list.json and never fabricates spans — it only observes what the
-# trace already contains and emits one verdict per feature that has ≥1 agent
-# span carrying a harness.feature_id:
-#   ::redfirst <fid> ok       a role-correct ordered triple exists
-#   ::redfirst <fid> role     an ordered triple exists by lifecycle step but a
-#                             participating span has the wrong role profile;
-#                             a passing feature emits red_first_profile_mismatch
-#   ::redfirst <fid> missing  no ordered triple of the three steps exists
-# A feature with no span here yields no line; the passing-feature loop below
-# treats an absent verdict exactly like `missing`. The waiver decision and the
-# passes:true selection stay on the bash side against feature_list.json.
-REDFIRST_FILTER="${TMP_DIR}/consistency-redfirst.jq"
-cat > "$REDFIRST_FILTER" <<'JQ'
-# ordered(reds; impls; greens): does some red.idx < impl.idx < green.idx exist?
-# Greedy is exact here: the earliest red leaves the most room for an impl after
-# it, and the earliest such impl leaves the most room for a green after it.
-def ordered($reds; $impls; $greens):
-  ($reds | map(.idx) | min) as $r
-  | if $r == null then false
-    else ([$impls[] | select(.idx > $r) | .idx] | min) as $i
-    | if $i == null then false
-      else ([$greens[] | select(.idx > $i)] | length) > 0
-      end
-    end;
-[ inputs
-  | fromjson? | objects
-  | select(.span == "agent")
-  | select((.["harness.feature_id"] | type) == "string")
-  | { fid:     .["harness.feature_id"],
-      role:    .["gen_ai.agent.name"],
-      step:    .["harness.lifecycle_step"],
-      outcome: .["harness.outcome"] } ]
-| to_entries
-| map(.value + { idx: .key })          # array index == trace file order
-| group_by(.fid)[]
-| .[0].fid as $fid
-| [ .[] | select(.outcome == "pass") ] as $pass
-| [ $pass[] | select(.step == "red_handback") ]   as $reds
-| [ $pass[] | select(.step == "impl_handback") ]  as $impls
-| [ $pass[] | select(.step == "green_handback") ] as $greens
-| [ $reds[]   | select(.role == "test-subagent") ]           as $rcRed
-| [ $impls[]  | select(.role == "implementation-subagent") ] as $rcImpl
-| [ $greens[] | select(.role == "test-subagent") ]           as $rcGreen
-| [ $reds[]   | select(.role == "generator-subagent") ] as $generatorRed
-| [ $impls[]  | select(.role == "generator-subagent") ] as $generatorImpl
-| [ $greens[] | select(.role == "generator-subagent") ] as $generatorGreen
-| ( if ordered($rcRed; $rcImpl; $rcGreen)
-         or ordered($generatorRed; $generatorImpl; $generatorGreen) then "ok"
-    elif ordered($reds; $impls; $greens) then "role"
-    else "missing" end ) as $verdict
-| "::redfirst \($fid) \($verdict)"
-JQ
-if ! redfirst_out="$(jq -nRr -f "$REDFIRST_FILTER" < "$TRACE_FILE")"; then
-  red "error: the red-first evidence jq pass failed to run" >&2
-  exit 2
-fi
-
-redfirst_ok_ids=$'\n'
-redfirst_role_ids=$'\n'
-while IFS= read -r rf_line; do
-  case "$rf_line" in
-    '::redfirst '*)
-      rf_rest="${rf_line#'::redfirst '}"
-      rf_fid="${rf_rest% *}"
-      rf_verdict="${rf_rest##* }"
-      case "$rf_verdict" in
-        ok) redfirst_ok_ids="${redfirst_ok_ids}${rf_fid}"$'\n' ;;
-        role) redfirst_role_ids="${redfirst_role_ids}${rf_fid}"$'\n' ;;
-      esac
-      ;;
-  esac
-done <<< "$redfirst_out"
+# --- Red-first evidence pass RETIRED (issue #334) -----------------------------
+# The per-feature RED-first trace-evidence profile check (issue #144/#264) and
+# teeth_proof gating are removed: measured yield across real runs was zero (all
+# real catches came from the independent review) while the ceremony taxed every
+# green. TDD remains doctrine; the trace no longer has to PROVE redness.
+# Historical traces/feature lists carrying teeth_proof or red-first spans stay
+# valid (legacy tolerance, #330 pattern). Governed waivers are retained solely
+# for the feature_start (#291) leg below.
 
 # --- State: unverified_feature_pass -------------------------------------------
 # Every passes:true feature must have green_handback evidence in the trace.
@@ -1419,51 +1346,11 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
         waiver_ids="${waiver_ids}${wfid}"$'\n'
       done <<< "$raw_waiver_ids"
     fi
-    # Completed-feature teeth proof (issue #264): without a governed waiver,
-    # a passes:true feature is satisfied by either a role-correct ordered
-    # RED-first triple or a governed teeth_proof OBJECT whose .kind is in the
-    # closed proof set and whose .evidence is a non-empty string after
-    # trimming. teeth_proof satisfies the hard rule but still emits warn-only
-    # context when trace ordering is absent.
-    teeth_ids=$'\n'
-    if raw_teeth_ids="$(jq -r '
-        ["red_first", "mutation", "negative_fixture"] as $kinds
-        | .features[]?
-        | select(.passes == true)
-        | select((.teeth_proof | type) == "object")
-        | .teeth_proof as $t
-        | select(($t.kind | type) == "string" and ($kinds | index($t.kind)) != null)
-        | select(($t.evidence | type) == "string" and ($t.evidence | test("\\S")))
-        | .id | strings' \
-        "$FEATURE_LIST_FILE" 2>/dev/null)"; then
-      while IFS= read -r tfid; do
-        [ -n "$tfid" ] || continue
-        teeth_ids="${teeth_ids}${tfid}"$'\n'
-      done <<< "$raw_teeth_ids"
-    fi
     while IFS= read -r fid; do
       [ -n "$fid" ] || continue
       if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
         printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
         violations=$((violations + 1))
-      fi
-      if [[ "$waiver_ids" != *$'\n'"$fid"$'\n'* ]] \
-          && [[ "$redfirst_role_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        printf 'VIOLATION consistency: red_first_profile_mismatch %s\n' "$fid"
-        violations=$((violations + 1))
-      fi
-      if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        :  # governed waiver — proof satisfied
-      elif [[ "$redfirst_ok_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        :  # role-correct ordered triple present
-      elif [[ "$teeth_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
-        warnings=$((warnings + 1))
-      else
-        printf 'VIOLATION consistency: teeth_proof_missing %s\n' "$fid"
-        violations=$((violations + 1))
-        printf 'WARNING consistency: red_first_ordering_absent %s\n' "$fid"
-        warnings=$((warnings + 1))
       fi
       if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
         :  # governed waiver — feature_start not required

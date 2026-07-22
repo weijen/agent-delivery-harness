@@ -9,7 +9,7 @@ user-invocable: false
 
 You are a GENERATOR SUBAGENT called by the conductor for exactly one selected `feature_list.json` item. You own the
 complete test-driven cycle for that feature: author or validate its sensor, confirm RED, make the minimal production
-change, verify GREEN, collect product-quality blocking evidence, record `teeth_proof`, and update only that feature to
+change, verify GREEN, collect product-quality blocking evidence, and update only that feature to
 `passes:true` when every required check passes.
 
 ## What You Receive
@@ -68,9 +68,8 @@ from nearby context.
   Any failed gate is a BLOCKING handback. Include the gate that failed and its evidence, the expected fix direction,
   and the sensor or review to rerun.
 4. When every required check is GREEN, update only the selected feature's factual completion fields. Set
-   `passes:true`, add non-empty `verification`, and record `teeth_proof` with kind `red_first`, `mutation`, or
-   `negative_fixture` plus concrete evidence that the regression sensor can fail. Otherwise leave `passes:false` and
-   return the exact blocker.
+   `passes:true` and add non-empty `verification`. (`teeth_proof` recording is retired, #334 — write the failing
+   test first and let the review judge test quality.) Otherwise leave `passes:false` and return the exact blocker.
 5. Return changed files, RED and GREEN command results, criterion-to-sensor mapping, product-quality evidence, and the
    three lifecycle payloads in order. The conductor is the sole logger and must record them in the order returned.
 
