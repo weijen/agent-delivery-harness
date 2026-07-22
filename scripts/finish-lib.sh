@@ -13,8 +13,9 @@
 #   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
+#   finish_summary_regen_gate     — pre-teardown REQUIRED trace-summary readiness gate (#329)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
-#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp (#320)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp→summary-gate (#320, #329)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
@@ -522,7 +523,12 @@ economics_time_summary() {
 # function of its two explicit file arguments: callers resolve paths before
 # invoking it. Metric honesty follows the trace-report omit-never-fake /
 # null-never-0 rule: absent measurements render n/a, and model spans without
-# token usage do not fabricate zero-token runs.
+# token usage do not fabricate zero-token runs. Issue #329 sharpens the token
+# row specifically: rather than a half-present "- Tokens: n/a" placeholder, the
+# token row is OMITTED entirely when no model span carried usage — the honest
+# subagent-only native token surface (joined by best_effort_economics_stamp) is
+# the operator's token source when the runtime carries no gen_ai.usage.* on
+# model spans, and a contradictory n/a line next to it is worse than absence.
 compute_delivery_economics() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
@@ -533,7 +539,6 @@ compute_delivery_economics() {
   if ! command -v jq >/dev/null 2>&1; then
     printf '%s\n' \
       '- Wall-clock span: n/a' \
-      '- Tokens: n/a' \
       '- Review rounds: n/a' \
       '- Deviations logged: n/a' \
       '- Features: n/a'
@@ -562,7 +567,8 @@ compute_delivery_economics() {
                "- Wall-clock span: \($time.first) → \($time.last) (elapsed \($time.elapsed_ms / 3600000 | one_decimal)h / active \($time.active_ms / 3600000 | one_decimal)h; gaps >30min excluded)"
              end),
             (if ($tok_models | length) == 0 then
-               "- Tokens: n/a (no run carried token data)"
+               # Omit the token row entirely (issue #329): no half-present n/a.
+               empty
              else
                "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
              end),
@@ -584,7 +590,6 @@ compute_delivery_economics() {
   else
     printf '%s\n' \
       '- Wall-clock span: n/a' \
-      '- Tokens: n/a (no run carried token data)' \
       '- Review rounds: 0' \
       '- Deviations logged: 0'
   fi
@@ -612,6 +617,212 @@ compute_delivery_economics() {
   fi
 
   return 0
+}
+
+# --- Native-record economics join (issue #329, native-record-economics-join) --
+# GitHub Copilot writes per-session native records at
+# ${COPILOT_CLI_STATE_ROOT:-~/.copilot/session-state}/<sessionId>/events.jsonl.
+# Each `subagent.completed` event carries a SINGLE `totalTokens` (no
+# input/output split), a `model`, `durationMs`, and `totalToolCalls`; cumulative
+# AIU lives on `session.usage_checkpoint` (`data.totalNanoAiu`) and
+# `session.compaction_complete` (`data.copilotUsage.tokenDetails.totalNanoAiu`).
+# The harness joins ONLY honest derived aggregates from these fields, windowed by
+# the issue trace's own first→last timestamp so events from other issues in a
+# long shared session are excluded. Every helper here is PURE (functions of its
+# explicit arguments), fails open (prints nothing) on any missing input, and
+# never copies raw event content or free text into a repo record.
+
+# native_economics_window <trace_file> — prints "<start_epoch> <end_epoch>"
+# (integer UTC seconds) from the issue trace's earliest→latest span timestamp,
+# or nothing when jq/the file/timestamps are unavailable. The window is what
+# scopes the native join to THIS issue.
+native_economics_window() {
+  local trace_file="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ] || return 0
+  jq -nRr '
+    def norm_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+    [inputs | fromjson? | objects | .timestamp? | strings
+     | (try norm_ts catch empty)] as $epochs
+    | if ($epochs | length) < 1 then empty
+      else "\($epochs | min) \($epochs | max)" end
+  ' < "$trace_file" 2>/dev/null || true
+}
+
+# compute_native_economics <events_file> <start_epoch> <end_epoch> — prints a
+# compact derived JSON object built ONLY from in-window `subagent.completed`
+# events, or nothing when there is no such event (or any input is missing):
+#   {subagent_tokens, subagent_count, tool_calls, duration_ms,
+#    models:[{model,n,tokens}…] (, aiu_nano_delta)}
+# A record is aggregated ONLY when all four required economics fields are
+# genuinely present with correct types (non-empty string model and non-negative
+# numeric totalTokens/totalToolCalls/durationMs); an incomplete/malformed record
+# is excluded whole (never mapped to `unknown`/`0`). subagent_tokens is the
+# honest single-total sum (never split). aiu_nano_delta is a WINDOWED delta of
+# the cumulative counter, emitted ONLY when a candidate at or before start gives
+# a baseline, at least one candidate inside (start,end] moves, AND the
+# window-end value has not decreased below the baseline; a decrease (session
+# reset/rollback) omits the field, and an equal value yields a measured zero.
+compute_native_economics() {
+  local events_file="${1:-}" start_epoch="${2:-}" end_epoch="${3:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$events_file" ] && [ -s "$events_file" ] && [ -r "$events_file" ] || return 0
+  case "$start_epoch" in '' | *[!0-9.]*) return 0 ;; esac
+  case "$end_epoch" in '' | *[!0-9.]*) return 0 ;; esac
+
+  jq -nRc --argjson start "$start_epoch" --argjson end "$end_epoch" '
+    def norm_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+    def ev_epoch: (.timestamp? // "" | strings | (try norm_ts catch null));
+
+    [inputs | fromjson? | objects] as $events
+
+    # In-window subagent.completed events, reduced to their honest fields.
+    # HONESTY POLICY (issue #329): aggregate a record ONLY when all four required
+    # economics fields are genuinely present with correct types — a NON-EMPTY
+    # string model and non-negative NUMERIC totalTokens/totalToolCalls/durationMs.
+    # An incomplete/malformed record is EXCLUDED whole (never mapped to an
+    # "unknown" model or a fabricated 0), so its values cannot corrupt any total.
+    # A genuinely measured numeric 0 stays valid.
+    | [ $events[]
+        | select(.type == "subagent.completed")
+        | (ev_epoch) as $ts
+        | select($ts != null and $ts >= $start and $ts <= $end)
+        | (.data | if type == "object" then . else {} end) as $d
+        | select(
+            ($d.model | type) == "string" and (($d.model | length) > 0)
+            and ($d.totalTokens | type) == "number" and ($d.totalTokens >= 0)
+            and ($d.totalToolCalls | type) == "number" and ($d.totalToolCalls >= 0)
+            and ($d.durationMs | type) == "number" and ($d.durationMs >= 0)
+          )
+        | {
+            model: $d.model,
+            tokens: $d.totalTokens,
+            tool_calls: $d.totalToolCalls,
+            duration_ms: $d.durationMs
+          }
+      ] as $subs
+
+    | if ($subs | length) < 1 then empty
+      else
+        # Cumulative AIU candidates, from either checkpoint or compaction shape.
+        ([ $events[]
+           | select(.type == "session.usage_checkpoint" or .type == "session.compaction_complete")
+           | {
+               ts: (ev_epoch),
+               aiu: (if .type == "session.compaction_complete"
+                     then .data.copilotUsage.tokenDetails.totalNanoAiu
+                     else .data.totalNanoAiu end)
+             }
+           | select((.ts != null) and ((.aiu | type) == "number"))
+         ]) as $cands
+        | ([ $cands[] | select(.ts <= $start) ] | sort_by(.ts) | last | .aiu) as $baseline
+        | ([ $cands[] | select(.ts > $start and .ts <= $end) ] | length) as $inwin_moves
+        | ([ $cands[] | select(.ts <= $end) ] | sort_by(.ts) | last | .aiu) as $endval
+        | ($subs | group_by(.model)
+           | map({ model: .[0].model, n: length, tokens: (map(.tokens) | add) })
+           | sort_by(.model)) as $models
+        | {
+            subagent_tokens: ($subs | map(.tokens) | add),
+            subagent_count: ($subs | length),
+            tool_calls: ($subs | map(.tool_calls) | add),
+            duration_ms: ($subs | map(.duration_ms) | add),
+            models: $models
+          }
+        # AIU is CUMULATIVE. Emit the windowed delta ONLY when a baseline exists
+        # at/before window start, a checkpoint moved inside (start,end], AND the
+        # window-end value did NOT decrease below the baseline. A decrease means a
+        # session reset/rollback, never real in-window consumption, so the field
+        # is OMITTED entirely (never a negative, never a masked zero). An equal
+        # end value is a genuinely measured zero and stays valid.
+        + (if ($baseline != null) and ($inwin_moves > 0) and ($endval != null)
+              and ($endval >= $baseline)
+           then { aiu_nano_delta: (($endval - $baseline) | floor) }
+           else {} end)
+      end
+  ' < "$events_file" 2>/dev/null || true
+}
+
+# render_native_economics <native_json> — prints the operator-facing markdown
+# block for a non-empty native-economics JSON (≥1 in-window subagent), or
+# nothing. The section is CLEARLY labelled subagent-only and excludes the
+# top-level session; model NAMES and per-model counts/tokens render here (never
+# an n/a line). The AIU line appears only when aiu_nano_delta is present.
+#
+# Model-label sanitization (security repair, fingerprint
+# native-model-markdown-injection, failure_class validation-bypass):
+# compute_native_economics honestly accepts ANY non-empty string `model` — that
+# field-presence check is about type/presence, not content sanity, so a local
+# native record's `model` string is untrusted operator-facing text by the time
+# it reaches this function. jq's `-r` string interpolation (`\(...)`) inserts a
+# string value's raw bytes verbatim (no JSON escaping), so an unsanitized model
+# containing CR/LF could splinter this function's single "- Subagent models: …"
+# line into several raw lines — one of which could land byte-identical to the
+# `<!-- delivery-economics:start/end -->` markers that `economics_stamp_into`
+# matches by exact line equality, corrupting that (and every later) marker
+# replacement. `sanitize_model` is applied at this narrowest boundary —
+# immediately before markdown interpolation, never upstream in
+# compute_native_economics — so the honest join/grouping in that PURE data
+# stage keeps grouping on the RAW model string (model cardinality/counts stay
+# unaffected by a display-only transform). The policy: strip every C0 control
+# character (0x00–0x1F, 0x7F — this covers CR/LF and stray ANSI/terminal
+# control bytes) to a space, collapse the resulting whitespace runs, trim the
+# ends, and cap the visible length to 60 characters (comfortably longer than
+# any real Copilot model name) with a `…` marker — bounding adversarial length
+# without touching any numeric aggregate.
+render_native_economics() {
+  local native_json="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$native_json" ] || return 0
+  printf '%s' "$native_json" | jq -r '
+    def sanitize_model:
+      if type != "string" then "(unlabeled)" else
+        gsub("[\u0000-\u001f\u007f]"; " ")
+        | gsub(" +"; " ")
+        | sub("^ +"; "") | sub(" +$"; "")
+        | if . == "" then "(unlabeled)"
+          elif length > 60 then (.[0:60] + "…")
+          else . end
+      end;
+    objects
+    | select((.subagent_count // 0) >= 1)
+    | (.models | map("\(.model|sanitize_model) ×\(.n) (\(.tokens) tok)") | join(", ")) as $models_line
+    | [
+        "## Delivery economics — native Copilot records (subagent-only, derived)",
+        "- Subagent tokens: \(.subagent_tokens) across \(.subagent_count) subagent run(s) — subagent-only; excludes the top-level session; single total, no input/output split",
+        "- Subagent models: \($models_line)",
+        "- Subagent tool calls: \(.tool_calls)",
+        "- Subagent wall-clock: \(.duration_ms) ms"
+      ]
+      + (if has("aiu_nano_delta")
+         then ["- AIU (nano) in-window delta: \(.aiu_nano_delta) (from cumulative checkpoints bracketing the issue window)"]
+         else [] end)
+    | .[]
+  ' 2>/dev/null || true
+}
+
+# native_economics_numeric <native_json> — prints the numeric `key=value` lines
+# for the finish-issue.economics span from a non-empty native-economics JSON, or
+# nothing. Model NAMES stay out of the span (strings under the numeric
+# harness.economics. prefix are invalid); only counts/sums/deltas are emitted,
+# each typed numeric by that prefix and omitted when absent.
+native_economics_numeric() {
+  local native_json="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$native_json" ] || return 0
+  printf '%s' "$native_json" | jq -r '
+    objects
+    | select((.subagent_count // 0) >= 1)
+    | (
+        "harness.economics.native_subagent_tokens=\(.subagent_tokens)",
+        "harness.economics.native_subagent_count=\(.subagent_count)",
+        "harness.economics.native_tool_calls=\(.tool_calls)",
+        "harness.economics.native_duration_ms=\(.duration_ms)",
+        "harness.economics.native_models_distinct=\(.models | length)"
+      ),
+      (if has("aiu_nano_delta")
+       then "harness.economics.native_aiu_nano_delta=\(.aiu_nano_delta)"
+       else empty end)
+  ' 2>/dev/null || true
 }
 
 finish__warn() {
@@ -1063,6 +1274,35 @@ best_effort_economics_stamp() {
     return 0
   fi
 
+  # Native-record economics join (issue #329). Resolve the local Copilot session
+  # events ONLY through COPILOT_CLI_STATE_ROOT (default ~/.copilot/session-state)
+  # + COPILOT_AGENT_SESSION_ID, window it by THIS issue's trace first→last
+  # timestamp, and append a clearly-labelled subagent-only block. Fail-open at
+  # every step: a missing session id, events file, jq, window, or in-window
+  # subagent omits the surface entirely — never a fabricated 0 or n/a.
+  local native_json="" native_block=""
+  local native_state_root="${COPILOT_CLI_STATE_ROOT:-${HOME}/.copilot/session-state}"
+  local native_sid="${COPILOT_AGENT_SESSION_ID:-}"
+  # Guard the session id to a plausible session-directory name (no path
+  # traversal / separators) before using it to build a filesystem path.
+  case "$native_sid" in '' | *[!A-Za-z0-9_-]*) native_sid="" ;; esac
+  if [ -n "$native_sid" ] && declare -F compute_native_economics >/dev/null 2>&1; then
+    local native_events="${native_state_root}/${native_sid}/events.jsonl"
+    local native_window="" native_start="" native_end=""
+    native_window="$(native_economics_window "$trace_file")"
+    if [ -n "$native_window" ]; then
+      native_start="${native_window%% *}"
+      native_end="${native_window##* }"
+      native_json="$(compute_native_economics "$native_events" "$native_start" "$native_end")"
+    fi
+  fi
+  if [ -n "$native_json" ]; then
+    native_block="$(render_native_economics "$native_json")"
+    if [ -n "$native_block" ]; then
+      block="${block}"$'\n'"${native_block}"
+    fi
+  fi
+
   printf '%s\n' "$block"
   # Stamp the human-readable block into the migrated MAIN-checkout progress.md
   # — the tracking dir SURVIVES `git worktree remove` (issue #285). trace.jsonl
@@ -1095,6 +1335,14 @@ best_effort_economics_stamp() {
     while IFS= read -r agg_line; do
       [ -n "$agg_line" ] && econ_agg+=("$agg_line")
     done < <(economics_numeric_aggregates "$trace_file" "$feature_list")
+    # Fold in the native subagent-only numerics (issue #329) when they resolved;
+    # each is typed numeric by the harness.economics. prefix and omitted
+    # otherwise. Model names are intentionally NOT emitted on the span.
+    if [ -n "$native_json" ] && declare -F native_economics_numeric >/dev/null 2>&1; then
+      while IFS= read -r agg_line; do
+        [ -n "$agg_line" ] && econ_agg+=("$agg_line")
+      done < <(native_economics_numeric "$native_json")
+    fi
     TRACE_ISSUE="$stamp_issue" trace_span tool \
       "gen_ai.tool.name=finish-issue.economics" \
       "harness.outcome=pass" \
@@ -1104,11 +1352,13 @@ best_effort_economics_stamp() {
   return 0
 }
 
-# Ordered closeout pipeline (issue #320, strip-closeout-cruft). Orchestrates
-# the four pre-teardown record-finalization steps so finish-issue.sh stays a
-# thin teardown orchestrator. Sets TRACE_STAGE (a finish-issue.sh global) on
-# each transition and returns 0 on success / 1 on first failure. The caller
-# does `exit 1` on a non-zero return.
+# Ordered closeout pipeline (issue #320, strip-closeout-cruft; issue #329
+# adds the trailing summary-regen gate). Orchestrates the pre-teardown
+# record-finalization steps so finish-issue.sh stays a thin teardown
+# orchestrator: progress_migrate → closeout_cruft_gate → progress_finalize →
+# economics_stamp (advisory) → summary_regen_gate (required). Sets TRACE_STAGE
+# (a finish-issue.sh global) on each transition and returns 0 on success / 1
+# on first failure. The caller does `exit 1` on a non-zero return.
 finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_migrate"
@@ -1139,6 +1389,68 @@ finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="economics_stamp"
   best_effort_economics_stamp
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="summary_regen_gate"
+  if ! finish_summary_regen_gate; then
+    return 1
+  fi
+}
+
+# --- Pre-teardown REQUIRED trace-summary readiness gate (issue #329,
+# closeout-regenerate-trace-summary) ------------------------------------------
+# Issue #329 names final `trace-summary.json` regeneration a MANDATORY
+# closeout step (4/6 sampled issues had no summary at all; two more were
+# frozen mid-run with `finished:false`). This gate is the ONLY point that can
+# still refuse before `git worktree remove` — it is deliberately NOT the same
+# call as `finish__regenerate_summary` in finish-issue.sh: that one runs from
+# trace-lib's EXIT trap AFTER the process has already exited, so it can never
+# block or preserve the worktree and stays best-effort by construction (it
+# also refreshes the summary with the terminal `finish` span + final counts,
+# which this pre-teardown gate — running BEFORE that span exists — cannot
+# produce). Splitting them is intentional, not redundant: this gate proves
+# the canonical regenerator is present, runs, and actually writes the summary
+# for THIS issue WHILE THE WORKTREE IS STILL INTACT; the post-hook then
+# refreshes that same file once the finish span lands. A missing/failing
+# reporter, or one that exits 0 without producing the file, is a REQUIRED
+# artifact never being written — that blocks the finish and leaves the
+# worktree intact, exactly like finish_trace_gate/finish_closeout_cruft_gate.
+#
+# Skipped (returns 0) only when tracing itself is not active at all —
+# `trace__main_root` undefined means finish-issue.sh is running the guarded
+# no-trace-lib NOOP fallback, so there is no trace.jsonl to summarize and no
+# NEW hard requirement is introduced on a checkout that predates the trace
+# tooling (mirrors the other gates' missing-tool degrade-to-skip precedent).
+finish_summary_regen_gate() {
+  declare -F trace__main_root >/dev/null 2>&1 || return 0
+
+  local main_root="" issue_pad="" summary_path=""
+  main_root="$(trace__main_root 2>/dev/null)" || return 0
+  [ -n "$main_root" ] || return 0
+  issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
+  summary_path="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace-summary.json"
+
+  local regen_out=""
+  if ! regen_out="$("${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" 2>&1 >/dev/null)"; then
+    red "✗ required trace-summary regeneration failed (issue #329): scripts/trace-report.sh could not run for issue ${ISSUE_NUM}."
+    echo "  trace-summary.json is a mandatory closeout artifact, not best-effort."
+    # Surface the reporter's own diagnosis (e.g. a refused symlink
+    # destination — security review fingerprint
+    # summary-regeneration-symlink-overwrite) rather than swallowing it.
+    [ -z "$regen_out" ] || printf '%s\n' "$regen_out" | sed 's/^/  /'
+    echo "  Fix the reporter (or its trace.jsonl input), then re-run:"
+    echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  if [ ! -s "$summary_path" ]; then
+    red "✗ required trace-summary regeneration did not produce ${summary_path} (issue #329)."
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  return 0
 }
 
 # Best-effort closeout state hygiene (issue #175). Sweeps the issue's orphaned

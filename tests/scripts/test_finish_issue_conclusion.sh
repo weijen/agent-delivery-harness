@@ -41,12 +41,20 @@ exit 1
 GH
 chmod +x "${BIN}/gh"
 
+# Hermeticity (issue #329): finish-issue.sh closeout now joins native Copilot
+# economics from ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin the root
+# to an isolated empty dir and unset the ambient session id so this fixture's
+# assertions never read the real developer ~/.copilot session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
+
 make_fixture() {
   local name="$1" issue="$2" dir="${TMP_DIR}/$1" pad=""
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts"
-  cp "${ROOT}/scripts/"{issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,trace-lib.sh} \
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  cp "${ROOT}/scripts/"{issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,trace-lib.sh,trace-report.sh} \
     "${dir}/scripts/"
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"

@@ -182,6 +182,13 @@ fail() {
 
 mkdir -p "$TMP_DIR"
 export ABANDONED=1
+# Hermeticity (issue #329): closeout now joins native Copilot economics from
+# ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin the root to an isolated
+# empty dir and unset the ambient session id so every finish-issue.sh run and
+# direct best_effort_economics_stamp call in this test reads only its planted
+# fixtures, never the real developer session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 assert_marker_count() {
   local file="$1" marker="$2" expected="$3" actual
@@ -258,13 +265,14 @@ FAKECP
 
 copy_finish_fixture_scripts() {
   local dir="$1" script
-  mkdir -p "${dir}/scripts"
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   for script in \
     issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
     trace-lib.sh log-handback.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done
   chmod +x "${dir}/scripts/"*.sh
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
 }
 
 # Build a throwaway MAIN repo + a real linked worktree for $issue via the
@@ -929,7 +937,7 @@ assert_symlinked_tracking_parent_does_not_escape() {
 # ============================================================================
 assert_full_finish_migrate_failure_never_stamps_stale_destination() {
   local main="$1" issue="$2" wt main_progress main_issue_dir sentinel rc out bin_cpfail
-  local snapshot before_listing after_listing
+  local snapshot before_listing after_listing before_listing_sans_summary after_listing_sans_summary
   make_finish_fixture "$main" "$issue"
   wt="$(worktree_dir_path "$main" "$issue")"
   seed_action_log "$wt"
@@ -970,7 +978,16 @@ assert_full_finish_migrate_failure_never_stamps_stale_destination() {
   assert_file_not_contains "$main_progress" '- [conductor] feature_start progress-migration pass'
 
   after_listing="$(find "$main_issue_dir" -mindepth 1 -maxdepth 1 | sort)"
-  [ "$before_listing" = "$after_listing" ] \
+  # issue #329: finish-issue.sh's post-finish-span regeneration hook
+  # (finish__regenerate_summary) runs on EVERY armed exit, including THIS
+  # migrate-failure exit, and legitimately creates/refreshes
+  # trace-summary.json from the final trace — that is the new mandatory
+  # closeout artifact, not residue. Exclude it from the temp-file-residue
+  # comparison so this assertion still catches a genuine scratch-file leak
+  # from the failing cp without false-failing on the intended new file.
+  before_listing_sans_summary="$(printf '%s\n' "$before_listing" | grep -v '/trace-summary\.json$' || true)"
+  after_listing_sans_summary="$(printf '%s\n' "$after_listing" | grep -v '/trace-summary\.json$' || true)"
+  [ "$before_listing_sans_summary" = "$after_listing_sans_summary" ] \
     || { printf 'before:\n%s\nafter:\n%s\n' "$before_listing" "$after_listing"; fail "no temp-file residue may be left in ${main_issue_dir} after a full finish-issue.sh run hits a cp failure during migration"; }
 
   printf '%s\n' "$out" | grep -Eiq 'progress migrate (skip|fail)|⚠ progress migrate' \

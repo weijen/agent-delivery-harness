@@ -75,9 +75,12 @@ cat > "$TRACE_NO_TOKENS" <<'JSONL'
 {"schema_version":1,"timestamp":"2026-07-08T11:00:00Z","span":"model","harness.issue":267,"harness.version":"0.7.0","gen_ai.request.model":"x"}
 JSONL
 
-# CASE B — no model usage must degrade honestly, never fake zero-token totals.
+# CASE B — no model usage: the token row is OMITTED entirely (issue #329), not a
+# half-present "- Tokens: n/a" placeholder, and never a faked zero total. The
+# honest subagent-only native token surface (joined at closeout) is the token
+# source when the runtime carries no gen_ai.usage.* on model spans.
 out="$(run_compute "$TRACE_NO_TOKENS" "$FEATURE_LIST")"
-assert_line "CASE B tokens n/a" "$out" "- Tokens: n/a (no run carried token data)"
+assert_not_contains "CASE B tokens omitted" "$out" "- Tokens:"
 assert_not_contains "CASE B tokens omit-never-fake" "$out" "in 0 / out 0"
 
 # CASE C — no feature list available.

@@ -54,7 +54,20 @@
 #   ./scripts/trace-report.sh <path/to/trace.jsonl>
 #       reports on the given file directly
 #
-# Report-only: never called by lifecycle scripts here (gate wiring is #103).
+# Report-only: THIS script never gates on a run's health (exit codes below) —
+# but it is no longer un-invoked by lifecycle scripts. finish-issue.sh
+# closeout (issue #329) calls it by issue number from TWO sites so the
+# surviving main-root trace-summary.json is never missing/stale: (1) a
+# pre-teardown REQUIRED readiness gate (finish_summary_regen_gate,
+# scripts/finish-lib.sh) that runs while the worktree is still intact — a
+# non-zero exit here (this script missing, or exiting 2) blocks the finish
+# and leaves the worktree in place, because that surviving summary is a
+# mandatory closeout artifact, not optional; (2) a best-effort post-finish-
+# span REFRESH hook (finish__regenerate_summary, scripts/finish-issue.sh) that
+# fires after the process has already exited, so it re-runs this script once
+# more to fold in the terminal `finish` span and final counts — by then
+# nothing can block or preserve the worktree, so that second call stays
+# best-effort by construction, not because the artifact itself is optional.
 #
 # Exit codes: 0 report produced (regardless of run health — reporting is
 # not gating, plan D7) · 2 usage/environment error. Never 1.
@@ -435,10 +448,28 @@ fi
 # overwritten whole on every run, never appended (exactly one JSON
 # document). Local-only: the trace dir is covered by the
 # .copilot-tracking/issues/issue-*/ gitignore rule.
+#
+# Security (issue #329 review, fingerprint
+# summary-regeneration-symlink-overwrite): `cp` follows a destination
+# symlink and writes through it into whatever file it points at. Because
+# this write is now MANDATORY and automatic on every closeout (both the
+# pre-teardown finish_summary_regen_gate and the post-finish-span
+# finish__regenerate_summary refresh call this same script), a local
+# same-user actor could preplant $out_file as a symlink to an unrelated
+# writable file and have closeout silently overwrite it while reporting
+# success. Refuse — never follow, never replace — whenever $out_file
+# already exists as a symlink; this is the single canonical write boundary
+# both callers share, so the refusal covers both automatic invocations.
 emit_summary_file() {
   local summary_json="$1" trace_file="$2"
   local out_file
   out_file="$(dirname "$trace_file")/trace-summary.json"
+  if [ -L "$out_file" ]; then
+    red "✗ refusing to write ${out_file}: it is a symlink." >&2
+    echo "  Writing trace-summary.json through a preexisting symlink could redirect the write to an" >&2
+    echo "  unrelated file. Remove or replace the symlink with a regular file (or nothing), then re-run." >&2
+    return 2
+  fi
   cp "$summary_json" "$out_file"
 }
 emit_summary_file "$SUMMARY_JSON" "$TRACE_FILE"

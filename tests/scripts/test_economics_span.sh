@@ -110,9 +110,13 @@ JSONL
 
 run_economics_stamp() {
   local dir="$1" issue="$2"
+  # Hermeticity (issue #329): pin the native-record root to an isolated empty
+  # dir and unset the ambient COPILOT_AGENT_SESSION_ID so the real developer
+  # ~/.copilot/session-state can never leak native economics into this fixture.
   (
     cd "$dir"
-    env PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" \
+    env -u COPILOT_AGENT_SESSION_ID PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" \
+      COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty" \
       bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; best_effort_economics_stamp >/dev/null'
   )
 }

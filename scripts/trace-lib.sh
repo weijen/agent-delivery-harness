@@ -535,7 +535,7 @@ trace_log() {
 }
 
 # --- Shared terminal lifecycle-span EXIT trap (issue #213, P-1) ---------------
-# trace_lifecycle_init <lifecycle_step> [attr_fn]
+# trace_lifecycle_init <lifecycle_step> [attr_fn] [post_fn]
 #   Installs the stage-tracking state + an EXIT trap that emits EXACTLY ONE
 #   `lifecycle` span (harness.lifecycle_step=<lifecycle_step>) carrying
 #   outcome/exit_status/duration_ms, plus any extra `key=value` attributes that
@@ -548,6 +548,19 @@ trace_log() {
 #   preserving the prior inline templates' "TRACE_STAGE gates emission" and
 #   "T0 set at the arming stage" semantics exactly.
 #
+#   The optional 3rd arg post_fn (issue #329, plan Phase A) names a function
+#   invoked AFTER the terminal span (and its trace_log line) are written —
+#   i.e. AFTER the trace file already contains the finish/pr_merge/etc span
+#   this exit is emitting. This is the ONLY correct place for any closeout
+#   step that must see the terminal span already on disk (e.g. regenerating
+#   trace-summary.json from the truly-final trace). post_fn runs on EVERY
+#   armed exit — pass, fail, or blocked — so a mandatory closeout step is
+#   never silently skipped on a failing path. It is called best-effort: any
+#   error it raises is swallowed and never changes `rc`, the exit code the
+#   caller originally raised, preserving teardown safety exactly. Backward
+#   compatible: existing 1-2 arg callers (start-issue, create-pr, merge-pr,
+#   the finish-issue path before this feature) are unaffected.
+#
 #   This is the single home for the boilerplate that used to be copy-pasted into
 #   start-issue / create-pr / merge-pr / finish-issue (drift-guarded by
 #   tests/meta/test_lifecycle_trap_no_inline_copy.sh). When trace-lib.sh is
@@ -556,6 +569,7 @@ trace_log() {
 trace_lifecycle_init() {
   TRACE_LIFECYCLE_STEP="${1:?trace_lifecycle_init: lifecycle step required}"
   TRACE_LIFECYCLE_ATTR_FN="${2:-}"
+  TRACE_LIFECYCLE_POST_FN="${3:-}"
   TRACE_LIFECYCLE_ARMED=0
   TRACE_LIFECYCLE_T0=0
   trap '__trace_lifecycle_exit' EXIT
@@ -595,6 +609,15 @@ __trace_lifecycle_exit() {
       "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}" \
       "harness.outcome=${outcome}" \
       "harness.exit_status=${rc}"
+    # Post-emission hook (issue #329, plan Phase A): runs AFTER the terminal
+    # span above is already on disk, on every armed exit regardless of
+    # outcome. Best-effort — a failing/absent post_fn must never change the
+    # exit code the caller originally raised (`rc` is fixed before this
+    # block and returned unconditionally below).
+    if [ -n "${TRACE_LIFECYCLE_POST_FN:-}" ] &&
+       declare -F "${TRACE_LIFECYCLE_POST_FN}" >/dev/null 2>&1; then
+      "${TRACE_LIFECYCLE_POST_FN}" || true
+    fi
   fi
   exit "$rc"
 }

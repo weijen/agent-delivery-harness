@@ -31,7 +31,7 @@ fail() {
 command -v jq >/dev/null 2>&1 \
   || fail "jq is required (check-feature-list.sh validates the feature_list)"
 
-for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
+for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh trace-report.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || fail "required harness script missing: scripts/${s}"
 done
@@ -64,6 +64,12 @@ write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE FORCE DELETE_BRANCH \
   REQUIRE_TRACE_CONSISTENCY TRACE_EXPORT_OTLP APPLICATIONINSIGHTS_CONNECTION_STRING \
   COPILOT_TRANSCRIPTS_DIR 2>/dev/null || true
+# Hermeticity (issue #329): finish-issue.sh closeout now joins native Copilot
+# economics from ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin the root
+# to an isolated empty dir and unset the ambient session id so this fixture's
+# assertions never read the real developer ~/.copilot session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 export ABANDONED=1
 
 COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}'
@@ -72,10 +78,11 @@ make_state_hygiene_fixture() {
   local dir="$1" issue="$2" other_issue="$3" pad
   pad="$(printf '%02d' "$issue")"
 
-  mkdir -p "${dir}/scripts"
-  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh trace-report.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
 
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
