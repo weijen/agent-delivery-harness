@@ -14,12 +14,15 @@
 #     (idempotent); it refuses to overwrite an existing asset that differs,
 #     printing the diff and asking for --update (and exits non-zero).
 #   * --update overwrites a differing asset after showing the diff.
+#   * Retired assets are pruned only when they still match their final upstream
+#     digest; --update explicitly removes modified retired assets after a diff.
 #   * It only ever writes the enumerated harness asset paths under the target. It
 #     never touches the target project's own code or non-harness files.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+TOMBSTONE_LEDGER="${SCRIPT_DIR}/install-harness.tombstones"
 
 # --- Harness asset manifest (paths relative to REPO_ROOT) --------------------
 # Directories are copied recursively (excluding compiled python artifacts); plain
@@ -53,14 +56,18 @@ Usage: install-harness.sh <target-dir> [--write|--update]
   <target-dir>  directory to install the harness assets into
   (no flag)     dry run — print what would be copied, write nothing
   --write       copy missing assets; no-op when already up to date;
-                refuse (with diff, non-zero exit) to overwrite an asset that differs
-  --update      overwrite a differing asset after showing the diff
+                remove unmodified retired assets; refuse (with diff, non-zero
+                exit) to overwrite or remove a modified asset
+  --update      overwrite differing assets and remove modified retired assets
+                after showing each diff
 
 Copies the real harness assets verbatim (scripts/, profiles/, tests/scripts,
 tests/meta, .copilot/instructions, .copilot/agents, .copilot/skills,
 .copilot/prompts, the smoke workflow, lifecycle and runtime contract docs,
 trace and log schemas, runtime-adapter guides and templates, and VERSION
 identity). Never touches the target project's own non-harness files.
+Retired harness assets are reported in dry-run mode and pruned on write only
+when unmodified; --update is required to remove a modified retired asset.
 USAGE
 }
 
@@ -108,6 +115,83 @@ reconcile() {
 	local missing=0
 	[ -e "$RC_DST" ] || missing=1
 	reconcile_entry "$rel" "$MODE" 1 "$missing"
+}
+
+sha256_file() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+	else
+		shasum -a 256 "$1" | awk '{print $1}'
+	fi
+}
+
+print_tombstone_diff() {
+	local rel="$1" expected="$2" actual="$3"
+	printf '%s\n' "--- retired/${rel}" "+++ adopter/${rel}"
+	printf '%s\n' "- sha256 ${expected}" "+ sha256 ${actual}"
+}
+
+# Remove one retired asset only when its content still matches the final
+# upstream version. Modified files require the explicit --update mode.
+prune_retired() {
+	local digest rel extra dst actual prune_rc=0
+	[ -f "$TOMBSTONE_LEDGER" ] || die "tombstone ledger missing: ${TOMBSTONE_LEDGER}"
+
+	while IFS=$'\t' read -r digest rel extra; do
+		case "$digest" in
+		"" | \#*) continue ;;
+		esac
+		[[ "$digest" =~ ^[0-9a-f]{64}$ ]] || die "invalid tombstone digest for '${rel:-?}'"
+		if [ -z "$rel" ] || [ -n "$extra" ]; then
+			die "invalid tombstone entry for '${rel:-?}'"
+		fi
+		case "$rel" in
+		/* | . | .. | ../* | */../* | */..)
+			die "unsafe tombstone path '${rel}'"
+			;;
+		esac
+
+		dst="${TARGET_DIR}/${rel}"
+		[ -e "$dst" ] || [ -L "$dst" ] || continue
+		if [ -f "$dst" ] && [ ! -L "$dst" ]; then
+			actual="$(sha256_file "$dst")"
+		else
+			actual="not-a-regular-file"
+		fi
+
+		if [ "$actual" = "$digest" ]; then
+			if [ "$MODE" = "dry" ]; then
+				printf '  would remove retired %s\n' "$rel"
+			else
+				if ! rm -f "$dst"; then
+					printf '  failed to remove retired %s\n' "$rel" >&2
+					prune_rc=1
+					continue
+				fi
+				printf '  removed retired %s\n' "$rel"
+			fi
+			continue
+		fi
+
+		case "$MODE" in
+		update)
+			printf '  removing modified retired %s (diff):\n' "$rel"
+			print_tombstone_diff "$rel" "$digest" "$actual"
+			if ! rm -f "$dst"; then
+				printf '  failed to remove modified retired %s\n' "$rel" >&2
+				prune_rc=1
+				continue
+			fi
+			printf '  removed retired %s\n' "$rel"
+			;;
+		*)
+			printf '  preserving modified retired %s — pass --update to remove (diff):\n' "$rel"
+			print_tombstone_diff "$rel" "$digest" "$actual"
+			[ "$MODE" = "dry" ] || prune_rc=1
+			;;
+		esac
+	done <"$TOMBSTONE_LEDGER"
+	return "$prune_rc"
 }
 
 # --- Argument parsing --------------------------------------------------------
@@ -159,7 +243,11 @@ for asset in "${HARNESS_ASSETS[@]}"; do
 	done < <(list_files "$asset")
 done
 
+if ! prune_retired; then
+	rc=1
+fi
+
 if [ "$rc" -ne 0 ]; then
-	printf 'Refused to overwrite one or more differing files — re-run with --update to apply them.\n' >&2
+	printf 'Refused to overwrite or remove one or more modified files — re-run with --update to apply them.\n' >&2
 fi
 exit "$rc"

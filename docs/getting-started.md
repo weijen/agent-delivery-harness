@@ -24,13 +24,16 @@ descriptor. There are two common ways to start:
   target directory verbatim, touching nothing else:
 
   ```sh
-  ./scripts/install-harness.sh /path/to/project            # dry run — prints what it would copy
-  ./scripts/install-harness.sh /path/to/project --write    # copy missing assets (never clobbers a differing file)
-  ./scripts/install-harness.sh /path/to/project --update   # overwrite a differing asset (after showing the diff)
+  ./scripts/install-harness.sh /path/to/project            # dry run — prints copies and retired-asset removals
+  ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
+  ./scripts/install-harness.sh /path/to/project --update   # overwrite or prune modified assets after a diff
   ```
 
-  It defaults to a dry run, never overwrites a target file that differs without
-  `--update`, and leaves your project's own code in place. All
+  It defaults to a dry run, never overwrites or removes a modified target file
+  without `--update`, and leaves your project's own code in place. A tombstone
+  ledger lets upgrades remove retired harness assets that remain byte-identical
+  to their final upstream version; modified retired files are preserved with a
+  digest diff unless `--update` explicitly authorizes removal. All
   `.copilot/instructions/*` are installed, including the language-specific ones
   (`python`, `terraform-azure`) — delete whichever you do not need.
 

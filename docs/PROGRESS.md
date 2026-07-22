@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#337)_
+_Last updated: 2026-07-22 (#313)_
 
 ---
 
@@ -112,6 +112,18 @@ _Last updated: 2026-07-22 (#337)_
 ---
 
 ## Delivered (newest first)
+
+### Installer retired-asset pruning (#313): delivery complete
+
+- **Managed deletions now propagate to adopters.** A SHA-256 tombstone ledger
+  records retired harness assets and a history sensor prevents future managed
+  deletions from landing without a tombstone.
+- **Pruning is conservative by default.** Dry-run reports removals, `--write`
+  deletes only files that still match their final upstream content, and
+  modified retired files survive with a digest diff and non-zero result.
+- **Destructive cleanup stays explicit.** `--update` may remove a modified
+  retired file only after showing its digest diff; replacement directories are
+  never recursively deleted.
 
 ### Archive dormant docs/evaluation content (#337): delivery complete
 
