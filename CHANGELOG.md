@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v0.24.0 (2026-07-22)
+
+### Features
+
+- **#343**: Register sensor_scope/sensor_count in the trace contract
+  ([`1a1b75c`](https://github.com/weijen/agent-delivery-harness/commit/1a1b75cd818e2ace5318543900de53152a4aab68))
+
+- **#343**: Tiered sensor execution — scoped GREEN runs, full suite pre-review/pre-PR
+  ([`7b41279`](https://github.com/weijen/agent-delivery-harness/commit/7b412793160f9a174a0b3b2a28e2497c307152ef))
+
+
 ## v0.23.2 (2026-07-22)
 
 ### Bug Fixes
