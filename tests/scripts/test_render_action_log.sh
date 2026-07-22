@@ -58,7 +58,9 @@ grep -qF -- '- [generator-subagent] red_handback render-action-log pass — RED 
 al="$(grep -n '^## Action Log$' "${d}/progress.md" | head -1 | cut -d: -f1)"
 [ "$(grep -n 'feature_start render-action-log pass' "${d}/progress.md" | head -1 | cut -d: -f1)" -gt "$al" ] \
   || fail "leg1: bullet must appear after heading"
-grep -qF -- '_Record conductor handbacks' "${d}/progress.md" && fail "leg1: placeholder must be replaced" || true
+if grep -qF -- '_Record conductor handbacks' "${d}/progress.md"; then
+  fail "leg1: placeholder must be replaced"
+fi
 
 # --- Leg 2: missing ## Action Log heading → exit 0, unchanged ---
 d="${TMP_DIR}/l2"; mkdir -p "$d"; make_spans "${d}/trace.jsonl"
@@ -93,8 +95,9 @@ sed 's/gen_ai\.agent\.name/harness.lifecycle_step/g' "$RENDERER" > "${md}/render
 chmod +x "${md}/render-action-log.sh"
 d="${TMP_DIR}/l5"; mkdir -p "$d"; make_spans "${d}/trace.jsonl"; scaffold_progress "$d"
 bash "${md}/render-action-log.sh" "${d}/trace.jsonl" 2>/dev/null
-grep -qF -- '- [conductor]' "${d}/progress.md" \
-  && fail "leg5(TEETH): mutant still produces [conductor] — leg1 assertion would not catch wrong-field extraction" || true
+if grep -qF -- '- [conductor]' "${d}/progress.md"; then
+  fail "leg5(TEETH): mutant still produces [conductor] — leg1 assertion would not catch wrong-field extraction"
+fi
 grep -qF -- '- [feature_start]' "${d}/progress.md" \
   || fail "leg5(TEETH): mutant must produce [feature_start]; mutation may not have applied"
 
@@ -197,7 +200,8 @@ printf '%s\n' '{"schema_version":1,"span":"agent","span_id":"r1","timestamp":"20
 bash "$RENDERER" "${d}/trace.jsonl" 2>/dev/null
 grep -qF -- '- [generator-subagent] green_handback some-research-feature pass — completed with research' \
   "${d}/progress.md" || fail "leg17: research span must render core five-field bullet"
-grep -q 'research:' "${d}/progress.md" \
-  && fail "leg17: must not add a research: annotation — Action Log is core five fields only" || true
+if grep -q 'research:' "${d}/progress.md"; then
+  fail "leg17: must not add a research: annotation — Action Log is core five fields only"
+fi
 
 printf 'ok - all legs passed\n'
