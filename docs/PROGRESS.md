@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#329)_
+_Last updated: 2026-07-22 (#311)_
 
 ---
 
@@ -111,6 +111,11 @@ _Last updated: 2026-07-22 (#329)_
 ---
 
 ## Delivered (newest first)
+
+### installer runtime dependency closure (#311): delivery complete
+
+- `install-harness.sh` now ships the eval, fixture, release, environment, and
+  evaluation-document assets required by installed workflow consumers.
 
 ### closeout: final summaries and native Copilot economics (#329): delivery complete
 
