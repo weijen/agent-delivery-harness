@@ -625,6 +625,23 @@ review_verdict_gate() {
   return 0
 }
 
+# _main_root_from_common_dir — resolve the main checkout root using the shared
+# git common dir (same pattern as issue_main_root in issue-lib.sh, self-
+# contained here for standalone use by carry-rebase-approval). In a plain repo
+# the result equals --show-toplevel; in a linked worktree it resolves to the
+# main checkout root where check-trace-consistency reads the canonical marker.
+# Prints the absolute path; returns 1 if unresolvable.
+_main_root_from_common_dir() {
+  local common
+  common="$(git rev-parse --git-common-dir 2>/dev/null)" || return 1
+  [ -n "$common" ] || return 1
+  case "$common" in
+    /*) ;;
+    *)  common="$(pwd)/$common" ;;
+  esac
+  (cd "$(dirname "$common")" 2>/dev/null && pwd) || return 1
+}
+
 # _patch_id_for_branch — stable ordered patch identity for commits above
 # origin/main, or the deterministic empty-stream identity for a zero-commit
 # branch. Uses Git-only portable primitives (git patch-id --stable, git
@@ -767,9 +784,36 @@ case "$command" in
       exit 1
     fi
 
-    # Exact match: update marker line 1 to post-rebase HEAD; retain line 2.
-    printf '%s\n' "$head_sha" > "$marker_file"
-    printf '%s\n' "$stored_patch_id" >> "$marker_file"
+    # Resolve the canonical main-root marker for linked-worktree awareness.
+    # In a plain repo the canonical path equals marker_file (write once). In a
+    # linked worktree the canonical marker lives in the main checkout root;
+    # check-trace-consistency reads it there, so carry must update it too.
+    _carry_main_root=""
+    _carry_main_root="$(_main_root_from_common_dir 2>/dev/null)" || _carry_main_root="$repo_root"
+    canonical_marker_file="${_carry_main_root}/.copilot-tracking/review-gate/approved-head"
+
+    if [ "$canonical_marker_file" != "$marker_file" ]; then
+      # Linked worktree: canonical and local markers are distinct paths.
+      # If the canonical marker exists, require its line 1 to equal the
+      # expected pre-rebase SHA (fail-closed: refuse to overwrite an approval
+      # that belongs to a different issue currently active in the main root).
+      if [ -f "$canonical_marker_file" ]; then
+        canonical_pre_sha="$(sed -n '1p' "$canonical_marker_file" | tr -d '[:space:]')"
+        if [ "$canonical_pre_sha" != "$expected_pre_rebase" ]; then
+          yellow "⚠ carry-rebase-approval: canonical main-root marker (${canonical_marker_file}) line 1 '${canonical_pre_sha}' != expected pre-rebase SHA '${expected_pre_rebase}' — another issue may hold an active approval; carry refused to avoid overwriting it"
+          exit 1
+        fi
+      fi
+      # Write canonical marker FIRST (fail-closed: if this write fails the local
+      # marker stays stale, so the authoritative check still gates correctly).
+      mkdir -p "$(dirname "$canonical_marker_file")"
+      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$canonical_marker_file"
+      # Write local worktree marker.
+      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$marker_file"
+    else
+      # Plain repo or resolved to the same path: write once.
+      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$marker_file"
+    fi
     green "✓ carry-rebase-approval: patch-id unchanged — approval carried to ${head_sha}"
     # EXIT trap emits review_gate_approve lifecycle span with harness.review_gate_carry=patch-id.
     ;;

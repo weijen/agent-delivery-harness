@@ -515,4 +515,158 @@ grep -q "has not been approved" "$OUT_M" \
 
 printf 'ok - (M) mutation witness: disabling carry causes content-preserving rebase to fail without second approve\n'
 
-printf '\n1..8\nall carry-approval scenarios passed\n'
+# ============================================================================
+# (W) Linked-worktree carry: both main-root and worktree markers updated,
+#     check-trace-consistency exits 0 (no review_sha_mismatch).
+#
+# Reproduces the real-run RED: carry was called from a linked worktree and
+# updated only the worktree marker; check-trace-consistency reads the canonical
+# main-root marker (via --git-common-dir), which still held the pre-rebase SHA,
+# and reported review_sha_mismatch.
+#
+# Setup: make_pr_repo creates main checkout on the feature branch; we then
+# switch main checkout to main and add a linked worktree on the feature branch.
+# The pre-approval marker is mirrored to the main root to match harness practice
+# (conductor copies the worktree marker to main after approve).
+# ============================================================================
+RW_MAIN="${TMP_DIR}/rw_main"
+RW_WT="${TMP_DIR}/rw_wt"
+
+make_pr_repo "$RW_MAIN" 310
+# Switch main checkout back to main so the feature branch lives only in the worktree.
+git -C "$RW_MAIN" checkout -q main
+# Create a linked worktree on the feature branch (real git worktree, distinct paths).
+git -C "$RW_MAIN" worktree add -q "$RW_WT" "feature/issue-310-fixture"
+# Symlink origin so advance_origin_main_unrelated (which looks for <dir>-origin.git) works.
+ln -sf "${RW_MAIN}-origin.git" "${RW_WT}-origin.git"
+# Create .copilot-tracking in the worktree (.copilot-tracking is gitignored; not auto-created).
+mkdir -p "${RW_WT}/.copilot-tracking/issues/issue-310"
+printf '# Progress\n\nwork\n' > "${RW_WT}/.copilot-tracking/issues/issue-310/progress.md"
+
+# Approve from the WORKTREE (writes worktree marker only, as current approve behaviour).
+(cd "$RW_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(W) setup: approve from linked worktree failed"
+PRE_REBASE_HEAD_W="$(git -C "$RW_WT" rev-parse HEAD)"
+WT_MARKER_W="${RW_WT}/.copilot-tracking/review-gate/approved-head"
+MAIN_MARKER_W="${RW_MAIN}/.copilot-tracking/review-gate/approved-head"
+
+# Mirror worktree marker to main root (current harness practice: conductor copies it).
+mkdir -p "$(dirname "$MAIN_MARKER_W")"
+cp "$WT_MARKER_W" "$MAIN_MARKER_W"
+
+[ "$(sed -n '1p' "$WT_MARKER_W" | tr -d '[:space:]')" = "$PRE_REBASE_HEAD_W" ] \
+  || fail "(W) setup: worktree marker must hold pre-rebase SHA"
+[ "$(sed -n '1p' "$MAIN_MARKER_W" | tr -d '[:space:]')" = "$PRE_REBASE_HEAD_W" ] \
+  || fail "(W) setup: main-root marker must hold pre-rebase SHA (mirrored)"
+
+# Advance origin/main with an unrelated change so a content-preserving rebase is needed.
+advance_origin_main_unrelated "$RW_WT"
+
+OUT_W="${TMP_DIR}/w.out"
+# carry must work: create-pr.sh must exit 0 from the linked worktree.
+if ! run_cpr "$RW_WT" w "$OUT_W" -- --title "feat: carry" --body "test"; then
+  cat "$OUT_W"
+  fail "(W) create-pr.sh must exit 0 on linked-worktree content-preserving rebase"
+fi
+[ -f "${TMP_DIR}/gh-state-w" ] \
+  || { cat "$OUT_W"; fail "(W) PR must open in linked-worktree carry scenario"; }
+
+POST_REBASE_HEAD_W="$(git -C "$RW_WT" rev-parse HEAD)"
+[ "$POST_REBASE_HEAD_W" != "$PRE_REBASE_HEAD_W" ] \
+  || fail "(W) HEAD must move after rebase (setup: origin/main must have advanced)"
+
+# Worktree marker line 1 must be the post-rebase HEAD.
+WT_LINE1_W="$(sed -n '1p' "$WT_MARKER_W" | tr -d '[:space:]')"
+[ "$WT_LINE1_W" = "$POST_REBASE_HEAD_W" ] \
+  || fail "(W) worktree marker line 1 must be post-rebase HEAD ${POST_REBASE_HEAD_W}, got ${WT_LINE1_W}"
+
+# Main-root marker line 1 must ALSO be the post-rebase HEAD (the core regression fix).
+MAIN_LINE1_W="$(sed -n '1p' "$MAIN_MARKER_W" | tr -d '[:space:]')"
+[ "$MAIN_LINE1_W" = "$POST_REBASE_HEAD_W" ] \
+  || fail "(W) main-root marker line 1 must be post-rebase HEAD ${POST_REBASE_HEAD_W}, got ${MAIN_LINE1_W} — carry must update BOTH markers in a linked-worktree"
+
+# Exactly one carry span in the main-root trace (the trace target in a worktree).
+TRACE_W="${RW_MAIN}/.copilot-tracking/issues/issue-310/trace.jsonl"
+if [ -f "$TRACE_W" ] && command -v jq >/dev/null 2>&1; then
+  CARRY_COUNT_W="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_W" | wc -l | tr -d ' ')"
+  [ "$CARRY_COUNT_W" = "1" ] \
+    || fail "(W) main-root trace must have exactly 1 carry span, got ${CARRY_COUNT_W}"
+fi
+
+# check-trace-consistency.sh run from the linked worktree must exit 0.
+if [ -x "${RW_WT}/scripts/check-trace-consistency.sh" ]; then
+  CONS_OUT_W="${TMP_DIR}/w-cons.out"
+  CONS_RC_W=0
+  (cd "$RW_WT" && PATH="${BIN}:${PATH}" TRACE_ISSUE=310 ./scripts/check-trace-consistency.sh 310) \
+    > "$CONS_OUT_W" 2>&1 || CONS_RC_W=$?
+  if [ "$CONS_RC_W" != "0" ]; then
+    cat "$CONS_OUT_W"
+    fail "(W) check-trace-consistency.sh must exit 0 after linked-worktree carry; got exit ${CONS_RC_W}"
+  fi
+  grep -q "review_sha_mismatch" "$CONS_OUT_W" \
+    && { cat "$CONS_OUT_W"; fail "(W) consistency must not report review_sha_mismatch after linked-worktree carry"; }
+fi
+
+printf 'ok - (W) linked-worktree carry: both markers updated, consistency passes\n'
+
+# ============================================================================
+# (Wm) Canonical marker mismatch: carry refused, neither marker updated, no span.
+#
+# When the main-root marker's line 1 does not equal the expected pre-rebase SHA
+# (another issue's approval may be active), carry must refuse without updating
+# EITHER marker or emitting a carry span.
+# ============================================================================
+RWM_MAIN="${TMP_DIR}/rwm_main"
+RWM_WT="${TMP_DIR}/rwm_wt"
+
+make_pr_repo "$RWM_MAIN" 310
+git -C "$RWM_MAIN" checkout -q main
+git -C "$RWM_MAIN" worktree add -q "$RWM_WT" "feature/issue-310-fixture"
+ln -sf "${RWM_MAIN}-origin.git" "${RWM_WT}-origin.git"
+mkdir -p "${RWM_WT}/.copilot-tracking/issues/issue-310"
+printf '# Progress\n\nwork\n' > "${RWM_WT}/.copilot-tracking/issues/issue-310/progress.md"
+
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(Wm) setup: approve from linked worktree failed"
+PRE_REBASE_HEAD_WM="$(git -C "$RWM_WT" rev-parse HEAD)"
+WT_MARKER_WM="${RWM_WT}/.copilot-tracking/review-gate/approved-head"
+MAIN_MARKER_WM="${RWM_MAIN}/.copilot-tracking/review-gate/approved-head"
+
+# Set main-root marker to a DIFFERENT SHA (simulating another issue's active approval).
+mkdir -p "$(dirname "$MAIN_MARKER_WM")"
+FAKE_SHA_WM="aabbccdd11223344aabbccdd11223344aabbccdd"
+printf '%s\n' "$FAKE_SHA_WM" > "$MAIN_MARKER_WM"
+
+# Advance origin/main and manually rebase (so we can call carry directly).
+advance_origin_main_unrelated "$RWM_WT"
+(cd "$RWM_WT" && git rebase origin/main -q) || fail "(Wm) setup: rebase failed"
+
+# Direct carry call: must refuse (exit non-zero) because canonical marker != expected.
+CARRY_OUT_WM="${TMP_DIR}/wm-carry.out"
+CARRY_RC_WM=0
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_WM") \
+  > "$CARRY_OUT_WM" 2>&1 || CARRY_RC_WM=$?
+[ "$CARRY_RC_WM" -ne 0 ] \
+  || { cat "$CARRY_OUT_WM"; fail "(Wm) carry must refuse when canonical main-root marker SHA != expected pre-rebase SHA"; }
+
+# Worktree marker must be unchanged (still pre-rebase SHA, not post-rebase).
+WT_LINE1_WM="$(sed -n '1p' "$WT_MARKER_WM" | tr -d '[:space:]')"
+[ "$WT_LINE1_WM" = "$PRE_REBASE_HEAD_WM" ] \
+  || fail "(Wm) worktree marker must remain pre-rebase SHA ${PRE_REBASE_HEAD_WM} after refused carry, got ${WT_LINE1_WM}"
+
+# Main-root marker must be unchanged (still the fake SHA, not overwritten).
+MAIN_LINE1_WM="$(sed -n '1p' "$MAIN_MARKER_WM" | tr -d '[:space:]')"
+[ "$MAIN_LINE1_WM" = "$FAKE_SHA_WM" ] \
+  || fail "(Wm) main-root marker must remain '${FAKE_SHA_WM}' after refused carry, got ${MAIN_LINE1_WM}"
+
+# No carry span must have been emitted (EXIT trap skips span on rc != 0).
+TRACE_WM="${RWM_MAIN}/.copilot-tracking/issues/issue-310/trace.jsonl"
+if [ -f "$TRACE_WM" ] && command -v jq >/dev/null 2>&1; then
+  CARRY_COUNT_WM="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_WM" | wc -l | tr -d ' ')"
+  [ "$CARRY_COUNT_WM" = "0" ] \
+    || fail "(Wm) no carry span must be emitted when carry is refused, got ${CARRY_COUNT_WM}"
+fi
+
+printf 'ok - (Wm) canonical marker mismatch: carry refused, neither marker updated, no carry span\n'
+
+printf '\n1..10\nall carry-approval scenarios passed\n'
