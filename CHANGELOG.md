@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.27.4 (2026-07-22)
+
+### Bug Fixes
+
+- Symlink guard falsely refused on Linux — never mutate the logical path
+  ([`4c90977`](https://github.com/weijen/agent-delivery-harness/commit/4c909770cfc49851798ad7711aac956a202bf542))
+
+
 ## v0.27.3 (2026-07-22)
 
 ### Bug Fixes
