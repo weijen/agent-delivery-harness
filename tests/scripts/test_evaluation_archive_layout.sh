@@ -91,7 +91,6 @@ preserved_paths=(
   product-quality-rubric.md
   log-schema.v1.json
   trace-schema.v1.json
-  trace-scorecard.v1.json
   trace-summary.v1.json
   l0-solution/README.md
   l0-solution/architecture.md
