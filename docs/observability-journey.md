@@ -73,7 +73,7 @@ Runtime 那一側，`scripts/copilot-trace-hook.sh` 掛在 Copilot 的 `postTool
 
 每個 panel 都有 honest empty state：量到零和沒有資料，畫出來的樣子不一樣。
 
-Trace 同時也是本機工具鏈的共同資料源：`trace-report.sh` 產生單一 issue 的 run report、`trace-scorecard.sh` 做跨 run 的 scorecard、`check-trace-consistency.sh` 比對 trace 和 progress.md 的 Action Log 有沒有互相矛盾。
+Trace 同時也是本機工具鏈的共同資料源：`trace-report.sh` 產生單一 issue 的 run report、`trace-report.sh --all` 做跨 run 的 report、`check-trace-consistency.sh` 比對 trace 和 progress.md 的 Action Log 有沒有互相矛盾。
 
 ## 我們遭遇了哪些困難，如何克服
 
@@ -135,7 +135,7 @@ $ head -2 .copilot-tracking/issues/issue-220/log.jsonl
 
 ```console
 $ ./scripts/trace-report.sh 220     # 單一 issue 的 run report
-$ ./scripts/trace-scorecard.sh      # 跨 run、以 harness.version 聚合的 scorecard
+$ ./scripts/trace-report.sh --all      # 跨 run、以 harness.version 聚合的 report
 ```
 
 ### 3. Dry-run 匯出（不需要連線字串，適合現場 demo）
@@ -207,7 +207,7 @@ union dependencies, customEvents, traces
 
 ## 結語
 
-這一段 observability 工作，最後的產出不只是報表和 dashboard，而是一套 evidence system：agent 的交付過程可以被 review（看得到 red-first 證據、看得到 gate 有沒有跑）、問題可以被定位（每一層都有訊號，可以逐層排除）、eval 有共同資料源（report、scorecard、consistency check、dashboard 讀的是同一套 schema）。
+這一段 observability 工作，最後的產出不只是報表和 dashboard，而是一套 evidence system：agent 的交付過程可以被 review（看得到 red-first 證據、看得到 gate 有沒有跑）、問題可以被定位（每一層都有訊號，可以逐層排除）、eval 有共同資料源（per-run report、cross-run report、consistency check、dashboard 讀的是同一套 schema）。
 
 而它教我們最重要的一課，反而是關於邊界的：agent 系統最危險的時刻，就是把沒觀測到的東西講成已經知道。這套系統做到最後，不是「什麼都追得到」，而是清楚地分出三類——哪些可以硬證明、哪些只是輔助訊號、哪些現在就是看不到。看不到的，標成缺口，用 issue 和 sensor 慢慢收斂。
 

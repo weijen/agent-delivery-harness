@@ -66,7 +66,7 @@ remain coverage gaps; they do not receive a zero elapsed value. Historical
 legacy roles and the generator role are included because the projections use
 lifecycle steps and feature ids, not agent-role filters.
 
-The scorecard groups these measurements by harness version and reports elapsed
+The `trace-report.sh --all` report groups these measurements by harness version and reports elapsed
 sample count, median, p75, p95, started-feature coverage, review failures as
 `{fail, of}`, blocked GREEN as `{blocked, of}`, and per-issue source rows. Old
 summaries remain valid and contribute no invented observations or
@@ -303,9 +303,9 @@ steps.
   schema is shared in [observability-and-trace-schema.md](observability-and-trace-schema.md).
 - Cross-run cost and efficiency metrics (tool calls, deviations, tokens with
   honest coverage) are aggregated per harness version by
-  `scripts/trace-scorecard.sh` into `tests/evals/scorecards/trace-scorecard.json`
-  — the cross-run metrics artifact, under the versioned contract in
-  [trace-scorecard.v1.json](trace-scorecard.v1.json).
+  `scripts/trace-report.sh --all` as deterministic markdown. Native economics
+  come from each trace's last `finish-issue.economics` span; coverage and `n/a`
+  preserve the distinction between measured zero and unavailable data.
 - Cost baselines follow the trial and baseline rules in
   [statistical-methodology.md](../archive/evaluation/statistical-methodology.md).
 - Azure Machine Learning is the preferred managed runtime for scheduled cost,

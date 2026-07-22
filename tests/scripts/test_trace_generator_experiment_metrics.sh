@@ -6,8 +6,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPORT_SH="${ROOT}/scripts/trace-report.sh"
-SCORECARD_SH="${ROOT}/scripts/trace-scorecard.sh"
-SCORECARD_REL="tests/evals/scorecards/trace-scorecard.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -23,7 +21,6 @@ hard_fail() {
 
 command -v jq >/dev/null 2>&1 || hard_fail "jq is required"
 [ -x "$REPORT_SH" ] || hard_fail "trace-report.sh must be executable"
-[ -x "$SCORECARD_SH" ] || hard_fail "trace-scorecard.sh must be executable"
 
 FX_ROOT="${TMP_DIR}/fixture-root"
 ISSUES_DIR="${FX_ROOT}/.copilot-tracking/issues"
@@ -199,55 +196,6 @@ jq -e '
   }
 ' "${ISSUES_DIR}/issue-16/trace-summary.json" >/dev/null 2>&1 \
   || fail "wall-clock ordering must compare parsed timestamps rather than lexical timestamp strings"
-
-"$SCORECARD_SH" --root "$FX_ROOT" > "${TMP_DIR}/scorecard.md" \
-  2> "${TMP_DIR}/scorecard.err" || hard_fail "trace-scorecard.sh failed"
-SCORECARD="${FX_ROOT}/${SCORECARD_REL}"
-
-jq -e '
-  (.by_version[] | select(.harness_version == "experiment-v1")) as $b
-  | $b.feature_delivery == {
-      "samples":2,
-      "median_seconds":25.25,
-      "p75_seconds":27.875,
-      "p95_seconds":29.975,
-      "coverage":{"paired":2,"of":3}
-    }
-  and $b.review_fail == {"fail":1,"of":2,"rate":0.5}
-  and $b.blocked_green == {"blocked":2,"of":4,"rate":0.5}
-  and ([$b.issues[].issue] == [10,11,12])
-  and ($b.issues[0].feature_delivery.coverage == {"paired":1,"of":2})
-  and ($b.issues[1].review_verdicts.fail_rate == null)
-  and ($b.issues[2].feature_delivery == null)
-  and ($b.issues[2].review_verdicts == null)
-  and ($b.issues[2].green_handbacks == null)
-' "$SCORECARD" >/dev/null 2>&1 \
-  || fail "scorecard must aggregate fractional elapsed quantiles and honest denominators while preserving old summaries: $(jq -c '.by_version[] | select(.harness_version == "experiment-v1") | .feature_delivery' "$SCORECARD" 2>/dev/null)"
-
-jq -e '
-  (.by_version[] | select(.harness_version == "zero-v")) as $zero
-  | ($zero.feature_delivery == {
-      "samples":0,
-      "median_seconds":null,
-      "p75_seconds":null,
-      "p95_seconds":null,
-      "coverage":{"paired":0,"of":1}
-    })
-  and ($zero.review_fail == {"fail":0,"of":0,"rate":null})
-  and ($zero.blocked_green == {"blocked":0,"of":0,"rate":null})
-  and ((.by_version[] | select(.harness_version == "fraction-v")).feature_delivery == {
-      "samples":1,
-      "median_seconds":0.8,
-      "p75_seconds":0.8,
-      "p95_seconds":0.8,
-      "coverage":{"paired":1,"of":1}
-    })
-' "$SCORECARD" >/dev/null 2>&1 \
-  || fail "zero- and one-sample buckets must have deterministic null/index percentile semantics"
-
-grep -Fq '| experiment-v1 | 2 | 25.25 | 27.875 | 29.975 | 2/3 | 1/2 (0.5) | 2/4 (0.5) |' \
-  "${TMP_DIR}/scorecard.md" \
-  || fail "scorecard markdown must render the fractional JSON quantiles exactly"
 
 if [ "$fails" -ne 0 ]; then
   printf '%d generator experiment metric violation(s).\n' "$fails" >&2

@@ -339,7 +339,7 @@ field is unavailable (CI, adopter machines), every native field/row **fails open
 never `n/a`. This native-record join **supersedes** the cloud token-capture approach tracked in **#163** (per the #305
 direction): #163 is no longer the prerequisite for non-`n/a` token rows but the complementary cloud-side path the local
 join now stands in for. The frozen `trace-summary.json` `tokens` field stays `null` (no model spans carry usage);
-folding the native economics into the fleet scorecard is #335's scope.
+`trace-report.sh --all` folds the final native economics spans into deterministic version buckets.
 
 A review round is a distinct logical review event, not a per-feature `review_verdict` span. Events are keyed by
 `harness.review_event_id` when present; historical spans without an explicit ID fall back to

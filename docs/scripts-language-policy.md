@@ -32,7 +32,7 @@ depends on them staying interpreter-free:
 ## 2. May become Python — trigger-based, never wholesale
 
 Only the **three surviving trace-analytics tools** are candidates:
-`check-trace-consistency.sh`, `trace-report.sh`, and `trace-scorecard.sh`.
+`check-trace-consistency.sh`, `trace-report.sh`, and `trace-report.sh --all`.
 They are already "Python programs wearing a bash
 costume" (~600 lines of jq in heredocs, no types, no debugger, no unit-test
 seams).

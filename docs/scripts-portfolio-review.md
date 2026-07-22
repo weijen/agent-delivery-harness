@@ -63,9 +63,8 @@ script with one justified mini-CLI (`review-gate.sh` subcommands).
 | `trace-export.sh` | 900 | Map spans → App Insights / OTLP envelopes, fail-closed gates, curl ship | **114 + 114 lines** | 6 |
 | `copilot-trace-hook.sh` | 576 | Copilot runtime hook: tool/agent/model spans, interval attribution | 31 jq call sites | 8 |
 | `check-trace-consistency.sh` | 1,608 | Schema/type/redaction + trace ↔ progress.md ↔ feature_list cross-checks | 145 lines | – |
-| `trace-report.sh` | 396 | Per-issue aggregation → summary JSON + markdown | **141 lines** | 5 |
+| `trace-report.sh` | 1,072 | Per-issue summary/report plus `--all` cross-run markdown | **141 + 90 lines** | 9 |
 | `trace-lib.sh` | 388 | `trace_span` emission, redaction, portable clock, main-root pinning | 37 lines | 8 |
-| `trace-scorecard.sh` | 368 | Cross-run aggregation by harness version | 90 lines | 4 |
 | `trace-reconstruct.sh` | 296 | Backfill tool spans from Copilot transcripts | moderate | 3 |
 | `claude-code-trace-hook.sh` | 285 | Claude Code runtime hook | moderate | – |
 | `log-handback.sh` | 279 | Single-source agent span + Action Log line | small | – |
@@ -117,10 +116,10 @@ The six trace analytics tools are **data programs, not orchestration**:
 - `check-trace-consistency.sh` — a 109-line single-pass jq filter carrying schema + types + enums +
   sanity flags, deliberately monolithic to avoid per-line process forks (a constraint Python
   simply doesn't have).
-- `trace-report.sh` — a 141-line jq aggregation (token bucketing with absence-vs-zero
+- `trace-report.sh` — per-run and cross-run jq aggregation (token bucketing with absence-vs-zero
   semantics, loop-indicator grouping via reduce, red-reentry state tracking) that would be
   ~40 lines of readable Python with `collections`.
-- `trace-scorecard.sh` — 90-line jq cross-run aggregation with version-attribution case logic.
+  plus version attribution and final closeout economics in `--all` mode).
 - `check-trace-consistency.sh` — three separate passes in three tool families (awk/sed/comm
   multiset diff, two jq filters) over the same inputs; one Python pass would read
   trace + progress.md + feature_list once and evaluate all rules.
