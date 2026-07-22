@@ -38,8 +38,10 @@ grep -Eq '^  conflicts:[[:space:]]+1$' "$OUT" \
 
 summary_line="$(grep -n -m1 '^Update classification:' "$OUT" | cut -d: -f1)"
 detail_line="$(grep -n -m1 -E '^  (updating|kept|conflict) ' "$OUT" | cut -d: -f1)"
-[ -n "$summary_line" ] && [ -n "$detail_line" ] && [ "$summary_line" -lt "$detail_line" ] \
-	|| fail "classification summary must precede every per-file update detail"
+if [ -z "$summary_line" ] || [ -z "$detail_line" ] \
+	|| [ "$summary_line" -ge "$detail_line" ]; then
+	fail "classification summary must precede every per-file update detail"
+fi
 
 grep -Fq '.harness-keep' "${ROOT}/docs/getting-started.md" \
 	|| fail "getting-started does not document protected paths"

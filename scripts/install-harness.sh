@@ -178,8 +178,9 @@ emit_reject() {
 validate_harness_lock() {
 	local digest="" rel="" extra=""
 	[ -e "$LOCK_FILE" ] || return 0
-	[ -f "$LOCK_FILE" ] && [ ! -L "$LOCK_FILE" ] \
-		|| die "refusing non-regular .harness-lock"
+	if [ ! -f "$LOCK_FILE" ] || [ -L "$LOCK_FILE" ]; then
+		die "refusing non-regular .harness-lock"
+	fi
 	while IFS=$'\t' read -r digest rel extra; do
 		case "$digest" in
 		"" | \#*) continue ;;
@@ -215,8 +216,9 @@ write_harness_lock() {
 is_protected_path() {
 	local rel="$1" keep_file="${TARGET_DIR}/.harness-keep" pattern=""
 	[ -e "$keep_file" ] || return 1
-	[ -f "$keep_file" ] && [ ! -L "$keep_file" ] \
-		|| die "refusing non-regular .harness-keep"
+	if [ ! -f "$keep_file" ] || [ -L "$keep_file" ]; then
+		die "refusing non-regular .harness-keep"
+	fi
 	while IFS= read -r pattern || [ -n "$pattern" ]; do
 		pattern="${pattern%$'\r'}"
 		case "$pattern" in
