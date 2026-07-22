@@ -41,7 +41,6 @@ doctrine tests, KEEP the rest. Net effect below.
 
 | File | Verdict | Justification |
 | --- | --- | --- |
-| test_agent_delivery_accuracy_matrix_contract.sh | KEEP-structural | Validates the machine-readable accuracy-matrix contract (honest denominator/absence semantics). |
 | test_agent_delivery_accuracy_matrix_doc.sh | DELETE | Prose sibling of the contract test; pins doc sentences (`actual failing output`, `detail stream`) the contract already guarantees structurally. |
 | test_agent_model_pins.sh | KEEP-structural | Parses agent frontmatter `model:` pins against the known lineup (drift sensor). |
 | test_agent_span_doctrine.sh | CONVERT | Doctrine-critical (agent-span emission), but pins ordering prose with long fragment greps. |

@@ -18,11 +18,12 @@
 #      archive, recursively) resolves to a real file — this single pass
 #      covers both the boundary-crossing link fixes and the archive-internal
 #      links that must keep working after the move.
-#   4. The four sensors that hard-gate a moved file by path
-#      (test_agent_delivery_accuracy_matrix_contract.sh,
-#      test_telemetry_retention_docs.sh, test_log_pii_governance.sh,
-#      test_trace_schema_docs.sh) still pass once retargeted — proves the
-#      move did not regress a pre-existing green gate.
+#   4. The boundary sensor that hard-gates a moved file by path
+#      (test_trace_schema_docs.sh) still passes once retargeted — proves the
+#      move did not regress a pre-existing green gate. (The three dedicated
+#      archived-content sensors this list once carried were deleted under
+#      #337 feature retarget-archive-sensors: archived prose is no longer
+#      content-gated.)
 #   5. Every path in the kept log-schema.v1.json and trace-schema.v1.json
 #      `.redaction.authorities[]` array resolves to a real file. Those two
 #      schema files stayed in docs/evaluation/ (preserved set) but their
@@ -155,11 +156,8 @@ while IFS= read -r -d '' archived_md; do
   check_links_in_file "$archived_md"
 done < <(find docs/archive/evaluation -type f -name '*.md' -print0 | sort -z)
 
-# --- 4. The four retargeted, path-coupled sensors stay green -----------------
+# --- 4. The retargeted, path-coupled boundary sensor stays green -------------
 retargeted_sensors=(
-  tests/meta/test_agent_delivery_accuracy_matrix_contract.sh
-  tests/scripts/test_telemetry_retention_docs.sh
-  tests/scripts/test_log_pii_governance.sh
   tests/scripts/test_trace_schema_docs.sh
 )
 for sensor in "${retargeted_sensors[@]}"; do
