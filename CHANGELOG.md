@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v0.28.0 (2026-07-22)
+
+### Bug Fixes
+
+- **#313**: Avoid shellcheck boolean ambiguity
+  ([`47b041e`](https://github.com/weijen/agent-delivery-harness/commit/47b041ebbe5a583d237f501f0e6ea7d9dc5cfac8))
+
+- **#313**: Support shallow history in tombstone sensor
+  ([`eb068e9`](https://github.com/weijen/agent-delivery-harness/commit/eb068e9af5f4db31f06f7205ff13157a2ff6465d))
+
+### Documentation
+
+- **#313**: Record retired asset pruning
+  ([`252b26e`](https://github.com/weijen/agent-delivery-harness/commit/252b26e4df007914e557267e0a5fd2b1c5c404de))
+
+### Features
+
+- **#313**: Prune modified assets on explicit update
+  ([`da7b12f`](https://github.com/weijen/agent-delivery-harness/commit/da7b12f2621a2370e7fef8dbe3e3edf39b0c8776))
+
+- **#313**: Safely prune retired harness assets
+  ([`c8ecb2d`](https://github.com/weijen/agent-delivery-harness/commit/c8ecb2dc97937d2b6181f98137f94d2da18cb5b7))
+
+- **#313**: Track retired harness assets
+  ([`fd5d6f1`](https://github.com/weijen/agent-delivery-harness/commit/fd5d6f154965c6b296fa51867f6551468ec88e7a))
+
+
 ## v0.27.4 (2026-07-22)
 
 ### Bug Fixes
