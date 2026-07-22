@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v0.23.2 (2026-07-22)
+
+### Bug Fixes
+
+- **#329**: Group SC2015 test assertion for shellcheck 0.11.0+
+  ([`de02d29`](https://github.com/weijen/agent-delivery-harness/commit/de02d29262e6daee950ab9aea2a92ca79acea077))
+
+- **#329**: Harden closeout local writes
+  ([`d068156`](https://github.com/weijen/agent-delivery-harness/commit/d068156cbd4e495417061587e613266f5c166d13))
+
+- **#329**: Join native run economics
+  ([`e3ceddd`](https://github.com/weijen/agent-delivery-harness/commit/e3cedddf53459a1b9681449eeddfe0f83d9bca9b))
+
+- **#329**: Regenerate final trace summary
+  ([`77535d7`](https://github.com/weijen/agent-delivery-harness/commit/77535d758dcdc6863588fff4bcd25de9f40becf2))
+
+### Testing
+
+- **#329**: Group economics shellcheck assertion
+  ([`6d1c3ba`](https://github.com/weijen/agent-delivery-harness/commit/6d1c3bacca5c4ce524336f013398454c2190851b))
+
+- **#329**: Isolate native economics fixtures
+  ([`f67a5b1`](https://github.com/weijen/agent-delivery-harness/commit/f67a5b133bbc0054f383e224867a594a9695bd6a))
+
+
 ## v0.23.1 (2026-07-22)
 
 ### Bug Fixes
