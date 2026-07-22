@@ -29,6 +29,8 @@ HARNESS_ASSETS=(
 	profiles
 	tests/scripts
 	tests/meta
+	tests/fixtures
+	tests/evals/bin tests/evals/manifests tests/evals/fixtures tests/evals/baselines tests/evals/scorecards
 	.copilot/instructions
 	.copilot/agents
 	.copilot/skills
@@ -39,13 +41,8 @@ HARNESS_ASSETS=(
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
-	docs/evaluation/product-quality-rubric.md
-	docs/evaluation/README.md
-	docs/evaluation/trace-schema.v1.json
-	docs/evaluation/log-schema.v1.json
-	docs/evaluation/trace-summary.v1.json
-	docs/evaluation/trace-scorecard.v1.json
-	docs/evaluation/observability-and-trace-schema.md
+	.env.example docs/RELEASING.md
+	docs/evaluation
 	docs/runtime-adapters
 )
 

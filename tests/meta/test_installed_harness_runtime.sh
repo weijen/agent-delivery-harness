@@ -13,30 +13,21 @@ GETTING_STARTED="${ROOT}/docs/getting-started.md"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 MANDATORY_FILES=(
-	VERSION
-	docs/evaluation/trace-schema.v1.json
-	docs/evaluation/log-schema.v1.json
-	docs/evaluation/trace-summary.v1.json
-	docs/evaluation/trace-scorecard.v1.json
-	docs/evaluation/observability-and-trace-schema.md
+	VERSION .env.example docs/RELEASING.md
 )
 
-JSON_FILES=(
-	docs/evaluation/trace-schema.v1.json
-	docs/evaluation/log-schema.v1.json
-	docs/evaluation/trace-summary.v1.json
-	docs/evaluation/trace-scorecard.v1.json
-	docs/runtime-adapters/github-copilot.hooks.example.json
-	docs/runtime-adapters/claude-code.settings.example.json
+MANDATORY_DIRS=(
+	docs/evaluation docs/runtime-adapters tests/fixtures
+	tests/evals/bin tests/evals/manifests tests/evals/fixtures tests/evals/baselines tests/evals/scorecards
 )
 
 INSTALLED_SENSORS=(
-	tests/scripts/test_harness_versioning.sh
-	tests/scripts/test_trace_lib.sh
-	tests/meta/test_log_schema_single_source.sh
-	tests/scripts/test_trace_report_summary_json.sh
-	tests/scripts/test_runtime_adapters_docs.sh
-	tests/scripts/test_copilot_hook_tool_span.sh
+	tests/scripts/test_eval_dir_contract.sh
+	tests/scripts/test_eval_manifest_validator.sh
+	tests/scripts/test_run_evals_scorecard.sh
+	tests/evals/bin/run-l0-suite.sh
+	tests/meta/test_agent_delivery_accuracy_matrix_contract.sh
+	tests/scripts/test_meta_triage_record.sh
 )
 
 fail() {
@@ -52,6 +43,12 @@ assert_verbatim() {
 		|| fail "mandatory installed runtime asset is absent: ${rel}"
 	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
 		|| fail "installed runtime asset differs from source: ${rel}"
+	case "$rel" in
+	*.json)
+		jq empty "${TARGET}/${rel}" >/dev/null 2>&1 \
+			|| fail "installed runtime JSON asset does not parse: ${rel}"
+		;;
+	esac
 }
 
 assert_documented_category() {
@@ -111,16 +108,13 @@ for rel in "${MANDATORY_FILES[@]}"; do
 	assert_verbatim "$rel"
 done
 
-[ -d "${ROOT}/docs/runtime-adapters" ] \
-	|| fail "mandatory source directory is absent: docs/runtime-adapters"
-while IFS= read -r source_file; do
-	rel="${source_file#"${ROOT}/"}"
-	assert_verbatim "$rel"
-done < <(find "${ROOT}/docs/runtime-adapters" -type f | sort)
-
-for rel in "${JSON_FILES[@]}"; do
-	jq empty "${TARGET}/${rel}" >/dev/null 2>&1 \
-		|| fail "installed runtime JSON asset does not parse: ${rel}"
+for directory in "${MANDATORY_DIRS[@]}"; do
+	[ -d "${ROOT}/${directory}" ] \
+		|| fail "mandatory source directory is absent: ${directory}"
+	while IFS= read -r source_file; do
+		rel="${source_file#"${ROOT}/"}"
+		assert_verbatim "$rel"
+	done < <(find "${ROOT}/${directory}" -type f | sort)
 done
 
 for sensor in "${INSTALLED_SENSORS[@]}"; do
