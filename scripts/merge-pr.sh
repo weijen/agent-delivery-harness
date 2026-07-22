@@ -75,7 +75,7 @@ done
 if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ]; then
   # shellcheck source=scripts/github-identity-lib.sh
   source "${SCRIPT_DIR}/github-identity-lib.sh"
-  harness_identity_activate
+  harness_identity_activate "$(harness_identity_repo_root)"
 fi
 
 # --- Tracing (issue #94, plan D5) --------------------------------------------

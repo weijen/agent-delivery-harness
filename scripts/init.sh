@@ -112,7 +112,7 @@ done
 if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ] && command -v gh >/dev/null 2>&1; then
   # shellcheck source=scripts/github-identity-lib.sh
   source "${SCRIPT_DIR}/github-identity-lib.sh"
-  if ! harness_identity_activate; then
+  if ! harness_identity_activate "$(harness_identity_repo_root)"; then
     gh_identity_ready=0
     note_fail \
       "repository-bound GitHub account is unavailable" \

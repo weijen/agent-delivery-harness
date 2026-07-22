@@ -141,7 +141,7 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   exit 1
 fi
 if declare -F harness_identity_activate >/dev/null 2>&1; then
-  harness_identity_activate
+  harness_identity_activate "$ROOT"
 fi
 
 resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
