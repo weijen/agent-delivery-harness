@@ -230,9 +230,13 @@ fi
 # =============================================================================
 
 # --- C1: fail verdict without failure_class -> failure_class_missing -----------
+# Timestamp deliberately post-#324's merge instant (2026-07-21T00:31:35Z):
+# issue #330 downgrades this same rule to a WARNING for a PROVABLY pre-#324
+# span, so C1 must use a current (post-boundary) timestamp to keep proving
+# the unconditional VIOLATION path this leg pins.
 mkdir -p "${TMP_DIR}/c1"
 {
-  fail_verdict_span "2026-07-19T10:00:00Z" '{"harness.feature_id":"my-feature"}'
+  fail_verdict_span "2026-07-21T10:00:00Z" '{"harness.feature_id":"my-feature"}'
 } > "$(trace_path c1)"
 { progress_header; bullet "my-feature" fail; } > "${TMP_DIR}/c1/progress.md"
 

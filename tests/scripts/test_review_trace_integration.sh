@@ -239,9 +239,13 @@ fi
 # A span with finding_baseline_state="new" but no finding_fingerprint must
 # produce BOTH finding_fingerprint_missing (universal) AND
 # finding_baseline_missing_fingerprint (cross-field coherence).
+# Timestamp deliberately post-#324's merge instant (2026-07-21T00:31:35Z):
+# issue #330 downgrades finding_fingerprint_missing to a WARNING for a
+# PROVABLY pre-#324 span, so this leg must use a current (post-boundary)
+# timestamp to keep proving the unconditional VIOLATION path it pins.
 mkdir -p "${TMP_DIR}/i2"
 {
-  custom_fail_span "2026-07-20T10:00:00Z" feat-b \
+  custom_fail_span "2026-07-21T10:00:00Z" feat-b \
     '{"harness.finding_fingerprint": null, "harness.finding_baseline_state": "new"}' \
     | jq -c 'del(.["harness.finding_fingerprint"])'
 } > "$(trace_path i2)"
@@ -259,9 +263,11 @@ grep -Fq 'VIOLATION consistency: finding_baseline_missing_fingerprint' "$OUT" \
 # Cross-rule composition: unmapped_without_fingerprint (attribution rule),
 # finding_fingerprint_missing (identity rule), and
 # finding_baseline_missing_fingerprint (cross-field rule) all fire together.
+# Timestamp deliberately post-#324's merge instant (2026-07-21T00:31:35Z);
+# see I2's comment above — same legacy carve-out consideration applies.
 mkdir -p "${TMP_DIR}/i3"
 {
-  custom_fail_span "2026-07-20T10:00:00Z" unmapped \
+  custom_fail_span "2026-07-21T10:00:00Z" unmapped \
     '{"harness.finding_baseline_state": "new"}' \
     | jq -c 'del(.["harness.finding_fingerprint"])'
 } > "$(trace_path i3)"
