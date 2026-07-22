@@ -140,6 +140,9 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   red "✗ run finish-issue.sh from the main checkout, not from a worktree."
   exit 1
 fi
+if declare -F harness_identity_activate >/dev/null 2>&1; then
+  harness_identity_activate
+fi
 
 resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
 

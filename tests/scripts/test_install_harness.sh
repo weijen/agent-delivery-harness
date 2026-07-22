@@ -15,6 +15,7 @@ trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
 REQUIRED_FILES=(
 	scripts/install-harness.sh
 	scripts/init.sh
+	scripts/github-identity-lib.sh
 	scripts/issue-lib.sh
 	profiles/python.profile.sh
 	tests/scripts/test_install_harness.sh
@@ -25,6 +26,7 @@ REQUIRED_FILES=(
 	.copilot/skills/code-review/SKILL.md
 	.copilot/prompts/session-ritual.prompt.md
 	.github/workflows/harness-smoke.yml
+	.github/harness-identity.env.example
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md

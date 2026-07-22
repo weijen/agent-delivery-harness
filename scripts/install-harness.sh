@@ -40,6 +40,7 @@ HARNESS_ASSETS=(
 	.copilot/agents
 	.copilot/skills
 	.copilot/prompts
+	.github/harness-identity.env.example
 	.github/workflows/harness-smoke.yml
 	VERSION
 	docs/HARNESS.md
@@ -336,6 +337,18 @@ fi
 
 if ! prune_retired; then
 	rc=1
+fi
+
+if [ "$MODE" != "dry" ] \
+	&& [ -f "${TARGET_DIR}/.github/harness-identity.env" ] \
+	&& git -C "$TARGET_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+	# Source path is anchored to the runtime repository root.
+	# shellcheck disable=SC1091
+	source "${REPO_ROOT}/scripts/github-identity-lib.sh"
+	if ! harness_identity_configure_git "$TARGET_DIR"; then
+		printf 'error: could not apply the target repository GitHub identity binding\n' >&2
+		rc=1
+	fi
 fi
 
 if [ "$rc" -ne 0 ]; then

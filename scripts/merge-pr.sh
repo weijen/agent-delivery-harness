@@ -72,6 +72,12 @@ EOF
   esac
 done
 
+if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ]; then
+  # shellcheck source=scripts/github-identity-lib.sh
+  source "${SCRIPT_DIR}/github-identity-lib.sh"
+  harness_identity_activate
+fi
+
 # --- Tracing (issue #94, plan D5) --------------------------------------------
 # Guarded source: a missing trace-lib.sh must never break the merge gate. The
 # script runs inside the issue worktree, so trace-lib resolves the issue from
