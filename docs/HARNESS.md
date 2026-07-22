@@ -280,6 +280,12 @@ state. Incomplete (`passes:false`) features are a non-blocking warning by defaul
 is deliberately generic: it does not read project docs, devcontainers, CI, or any sensor registry, and never executes
 anything from the feature list.
 
+### Durable class lessons
+
+A successful escalated class repair (see the Same-Class Escalation doctrine) appends a one- or
+two-line durable lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md` file; the
+trace carries only the path and one-line summary of that lesson, never its body.
+
 ## Gates And Sensors
 
 `./scripts/init.sh` detects project surfaces and runs the matching local gates when present. Each language is
