@@ -24,7 +24,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#312)_
+_Last updated: 2026-07-22 (#313)_
 
 ---
 
@@ -117,19 +117,6 @@ _Last updated: 2026-07-22 (#312)_
 ---
 
 ## Delivered (newest first)
-
-### Adopter-safe installer sensor profile (#312): delivery complete
-
-- **Default installs are repository-neutral.** The installer consumes
-  `tests/harness-dev-sensors.txt` and omits harness release, infrastructure,
-  archive/eval-authoring, meta, and top-level documentation obligation sensors
-  from adopter projects.
-- **Upgrades clean old profile residue safely.** Byte-identical harness-dev
-  sensors from earlier installs are pruned; modified copies survive with a diff
-  unless `--update` explicitly removes them.
-- **Full harness development remains available.** `--with-dev-sensors` installs
-  the complete suite, while a clean-adopter acceptance sweep executes every
-  default-installed core sensor and requires zero failures.
 
 ### Installer retired-asset pruning (#313): delivery complete
 
