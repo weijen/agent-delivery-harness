@@ -49,13 +49,11 @@ Model the run as a tree of spans:
   creation). The closed 13-step enumeration lives only in
   [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
 
-Tool and model spans originate inside the agent runtime, so they are supplied
-by the optional runtime adapters under `docs/runtime-adapters/` — GitHub
-Copilot is the primary runtime target
-([runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md)),
-with [runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) as
-the labeled reference example; without an adapter the trace carries agent and
-lifecycle spans only.
+Current harness traces carry lifecycle and handback spans emitted by the
+harness itself. Deep GitHub Copilot tool/model analysis reads native records
+([runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md));
+[runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) remains a
+labeled reference example. Historical traces may retain runtime-derived spans.
 
 ## Evidence Authority Split
 
@@ -188,11 +186,9 @@ replacement analysis path is the
 and the deprecated capture path is marked in the adapter doc,
 [runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md).
 
-**Phase-2 deletion gate.** Phase 1 (this issue) only marks the capture code
-**deprecated-but-present**; it is not deleted. The capture code stays in the
-tree until **one native-records-only L4 review on foundry** is produced with
-**nothing found missing**. Only when that native-records-only L4 run confirms no
-lost signal is the capture code deleted, in **Phase 2** (a separate issue).
+**Deletion resolved.** The native-records-only L4 review found no missing kept
+signal, so the runtime reconstruction hook, template, and capture-only sensors
+were deleted. The semantic spine and every deterministic gate above remain.
 
 **Launch topology is no longer a dark-run risk.** This section is the
 authoritative resolution of the old launch-topology warning; AGENTS.md, the
@@ -304,7 +300,7 @@ at emission time** and otherwise omits it — omit, never fake. A flat span with
 no `parent_span_id` is always legal.
 
 - **Model span → agent span (linked).** The runtime stop hooks
-  (`claude-code-trace-hook.sh`, `copilot-trace-hook.sh`) emit an `agent` span
+  (including the historical Copilot adapter) emit an `agent` span
   and then a `model` span in the same Stop/agentStop event. The model span
   carries `parent_span_id` = that agent span's `span_id`. This is the one
   deterministic in-process link available, so it is always set (unless the

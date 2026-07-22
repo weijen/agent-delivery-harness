@@ -241,16 +241,12 @@ else
 fi
 end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
 
-# --- 2f. Trace evidence contract backstop (issue #264) -----------------------
-# The contract must freeze the issue #264 teeth-proof gate boundary explicitly.
-# If any YAML record is deleted, this scenario fails before the generic
-# check_owner_present scans can silently shrink their worklist.
+# --- 2f. Trace evidence contract backstop (#291; red-first legs retired #334) --
+# The contract must freeze the PR-path evidence gate boundary explicitly.
 require_contract_record scripts path scripts/check-trace-consistency.sh
-require_contract_record lifecycle id interval-attribution scripts/copilot-trace-hook.sh
 require_contract_record failure_modes id missing-teeth-proof-evidence scripts/review-gate.sh
-require_contract_record failure_modes id red-first-ordering-absent scripts/check-trace-consistency.sh
 require_contract_record lifecycle id pr-path-red-first-gate scripts/review-gate.sh
-end_scenario "contract declares the #264 teeth-proof gate boundary"
+end_scenario "contract declares the PR-path evidence gate boundary"
 
 # --- 2g. Teeth-proof warning contract backstop (issue #263) ------------------
 require_contract_record failure_modes id teeth-proof-missing-warn scripts/check-feature-list.sh

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_claude_hook_noop.sh — regression sensor for
-# scripts/claude-code-trace-hook.sh silent no-op guard
+# optional/runtime-adapters/claude-code-trace-hook.sh silent no-op guard
 # (issue #96, feature claude-hook-noop-guard, plan Phase 1).
 #
 # The hook is wired into a user's LIVE Claude Code session via a copyable
@@ -61,7 +61,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOOK="${ROOT}/scripts/claude-code-trace-hook.sh"
+HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -80,7 +80,7 @@ command -v jq >/dev/null 2>&1 \
 
 # RED gate: the hook under test must exist before anything can be exercised.
 [ -f "$HOOK" ] \
-  || fail "scripts/claude-code-trace-hook.sh not found (${HOOK}) — the silent no-op guard for feature claude-hook-noop-guard (issue #96) is not implemented yet"
+  || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK}) — the silent no-op guard for feature claude-hook-noop-guard (issue #96) is not implemented yet"
 
 BASH_BIN="$(command -v bash)"
 
@@ -155,7 +155,7 @@ assert_silent_noop() {
 # --- Fixture A: plain git repo on main — NOT a harness issue context ------------
 PLAIN_REPO="${TMP_DIR}/plainrepo"
 mkdir -p "${PLAIN_REPO}/scripts"
-cp "$HOOK" "${PLAIN_REPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${PLAIN_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${PLAIN_REPO}/scripts/trace-lib.sh"
 (
   cd "$PLAIN_REPO" || exit 1
@@ -170,13 +170,13 @@ cp "$LIB" "${PLAIN_REPO}/scripts/trace-lib.sh"
 # --- Fixture B: directory that is not a git repo at all --------------------------
 NONREPO="${TMP_DIR}/nonrepo"
 mkdir -p "${NONREPO}/scripts"
-cp "$HOOK" "${NONREPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${NONREPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${NONREPO}/scripts/trace-lib.sh"
 
 # --- Fixture C: issue-worktree-shaped repo (valid harness context) ---------------
 ISSUE_REPO="${TMP_DIR}/issuerepo"
 mkdir -p "${ISSUE_REPO}/scripts"
-cp "$HOOK" "${ISSUE_REPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${ISSUE_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${ISSUE_REPO}/scripts/trace-lib.sh"
 (
   cd "$ISSUE_REPO" || exit 1
@@ -188,7 +188,7 @@ cp "$LIB" "${ISSUE_REPO}/scripts/trace-lib.sh"
   git commit -q -m initial
   git checkout -q -b feature/issue-07-hook-fixture
 ) || fail "could not build the issue-context fixture"
-ISSUE_HOOK="${ISSUE_REPO}/scripts/claude-code-trace-hook.sh"
+ISSUE_HOOK="${ISSUE_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 ISSUE_TRACE="${ISSUE_REPO}/.copilot-tracking/issues/issue-07/trace.jsonl"
 
 # --- Fixture D: stub PATH with everything EXCEPT jq (guard G1) --------------------
@@ -229,7 +229,7 @@ printf '\n' >> "$HUGE_GARBAGE"
 # Case 1 — valid PostToolUse payload, cwd OUTSIDE any harness issue context
 # =============================================================================
 run_hook "case1-out-of-context" "$PLAIN_REPO" \
-  "${PLAIN_REPO}/scripts/claude-code-trace-hook.sh" "$PAYLOAD_PLAIN"
+  "${PLAIN_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh" "$PAYLOAD_PLAIN"
 assert_silent_noop "case1-out-of-context" "$PLAIN_REPO"
 [ ! -e "${PLAIN_REPO}/.copilot-tracking" ] \
   || fail "case1-out-of-context: no .copilot-tracking dir may be created outside a harness run"
@@ -238,7 +238,7 @@ assert_silent_noop "case1-out-of-context" "$PLAIN_REPO"
 # Case 2 — cwd is not a git repo at all
 # =============================================================================
 run_hook "case2-not-a-repo" "$NONREPO" \
-  "${NONREPO}/scripts/claude-code-trace-hook.sh" "$PAYLOAD_NONREPO"
+  "${NONREPO}/optional/runtime-adapters/claude-code-trace-hook.sh" "$PAYLOAD_NONREPO"
 assert_silent_noop "case2-not-a-repo" "$NONREPO"
 [ ! -e "${NONREPO}/.copilot-tracking" ] \
   || fail "case2-not-a-repo: no .copilot-tracking dir may be created in a non-repo cwd"
@@ -271,9 +271,9 @@ fi
 # =============================================================================
 LIBLESS="${TMP_DIR}/libless"
 mkdir -p "${LIBLESS}/scripts"
-cp "$HOOK" "${LIBLESS}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${LIBLESS}/optional/runtime-adapters/claude-code-trace-hook.sh"
 run_hook "case5-no-trace-lib" "$ISSUE_REPO" \
-  "${LIBLESS}/scripts/claude-code-trace-hook.sh" "$PAYLOAD_ISSUE"
+  "${LIBLESS}/optional/runtime-adapters/claude-code-trace-hook.sh" "$PAYLOAD_ISSUE"
 assert_silent_noop "case5-no-trace-lib" "$ISSUE_REPO"
 assert_silent_noop "case5-no-trace-lib(libless-root)" "$LIBLESS"
 

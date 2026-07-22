@@ -81,7 +81,8 @@ for rel in "${archived_paths[@]}"; do
 done
 
 # Preserved set stays live-referenced (runtime-referenced or L0/l1-solution) —
-# must NOT have moved.
+# must NOT have moved. trace-scorecard.v1.json is intentionally absent: issue
+# #335 retired it together with its sole consumer after #337 landed.
 preserved_paths=(
   README.md
   cost-efficiency-evals.md

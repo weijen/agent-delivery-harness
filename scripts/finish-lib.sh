@@ -1463,12 +1463,11 @@ finish_summary_regen_gate() {
 }
 
 # Best-effort closeout state hygiene (issue #175). Sweeps the issue's orphaned
-# hook-state dir and expires any session bindings pinned to this issue. ALWAYS
-# returns 0.
+# Claude duration-correlation hook state. ALWAYS returns 0.
 best_effort_state_hygiene() {
   declare -F trace__main_root >/dev/null 2>&1 || return 0
 
-  local main_root="" issue_pad="" state_dir="" sessions_dir="" f bound
+  local main_root="" issue_pad="" state_dir=""
   main_root="$(trace__main_root 2>/dev/null)" || return 0
   [ -n "$main_root" ] || return 0
   issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
@@ -1482,27 +1481,5 @@ best_effort_state_hygiene() {
     fi
   fi
 
-  sessions_dir="${main_root}/.copilot-tracking/sessions"
-  if [ -d "$sessions_dir" ]; then
-    for f in "$sessions_dir"/*; do
-      [ -f "$f" ] || continue
-      bound="$(cat "$f" 2>/dev/null || true)"
-      if [ "$bound" = "$ISSUE_NUM" ]; then
-        rm -f "$f" 2>/dev/null || yellow "⚠ could not expire session binding $(basename "$f") — best-effort"
-      fi
-    done
-  fi
-
-  # Active-issue marker (issue #216, P-5): remove ONLY our own marker so the
-  # hook stops treating this issue as live. Never touch a concurrent issue's
-  # marker.
-  local marker="${main_root}/.copilot-tracking/active-issues/${ISSUE_NUM}"
-  if [ -f "$marker" ]; then
-    if rm -f "$marker" 2>/dev/null; then
-      green "✓ Swept active-issue marker for issue ${ISSUE_NUM}"
-    else
-      yellow "⚠ could not sweep active-issue marker for issue ${ISSUE_NUM} — best-effort"
-    fi
-  fi
   return 0
 }

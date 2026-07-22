@@ -8,8 +8,8 @@
 The retained sink infrastructure still provisions an Application Insights
 component and Log Analytics workspace (see
 [infra/terraform/README.md](../../infra/terraform/README.md)), and the local
-runtime adapters still use OTel-aligned `gen_ai.*`, `harness.*`, and
-`COPILOT_OTEL_*` vocabulary. What issue #272 removed is the live export flow: no
+runtime records and optional adapters still use OTel-aligned `gen_ai.*` and
+`harness.*` vocabulary. What issue #272 removed is the live export flow: no
 tracked harness script currently posts Track API envelopes or OTLP logs/traces.
 
 ## Attribute-name contract

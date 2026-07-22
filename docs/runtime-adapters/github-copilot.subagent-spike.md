@@ -3,7 +3,7 @@
 This is the spike write-up for issue #226: **do Copilot CLI hooks fire for tool
 and skill calls made *inside* a subagent, and can a subagent's spans be
 attributed back to the subagent that produced them?** It is the sibling of
-[`github-copilot.skill-spike.md`](github-copilot.skill-spike.md) (#121, which
+the historical issue #121 skill-observability spike (which
 settled that a *top-level* skill invocation surfaces as `toolName == "skill"`).
 It gates the follow-up binding issue [#227](https://github.com/weijen/agent-delivery-harness/issues/227).
 **Extended by [#231](https://github.com/weijen/agent-delivery-harness/issues/231)

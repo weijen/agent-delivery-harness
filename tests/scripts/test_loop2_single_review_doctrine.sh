@@ -38,7 +38,7 @@ fi
 
 # Extract the Loop 2 block: from the Loop 2 heading down to the Loop 3 heading.
 # ASCII-only anchors so a UTF-8 em-dash in the heading never defeats the match.
-block="$(sed -n '/\*\*Loop 2/,/\*\*Loop 3/p' "${DOC_HARNESS}")"
+block="$(sed -n '/\*\*Review profile in Loop 2/,/^#### /p' "${DOC_HARNESS}")"
 
 if [ -z "${block}" ]; then
   fail "could not locate the §3 Loop 2 doctrine block"
@@ -46,13 +46,13 @@ fi
 
 # 1. Conductor must NOT invoke code-review-subagent per feature mid-stream.
 printf '%s\n' "${block}" \
-  | grep -qiE 'does not invoke .*code-review-subagent.* per feature|not invoke .*code-review-subagent.* per feature mid-stream' \
-  || fail "Loop 2 must state the conductor does NOT invoke code-review-subagent per feature mid-stream"
+  | grep -qiE 'single end-of-issue review|once.{0,40}pre-?PR' \
+  || fail "Loop 2 must state the review is the single end-of-issue pass (#303/#352)"
 
 # 1b. Per-feature verification is fully owned by the generator.
 printf '%s\n' "${block}" \
-  | grep -qiE 'per-feature verification .*(fully )?owned by .*generator-subagent|generator-subagent .*owns .*per-feature verification' \
-  || fail "Loop 2 must state per-feature verification is fully owned by generator-subagent"
+  | grep -qiE 'repair.{0,60}scoped|scoped to.{0,40}revised' \
+  || fail "Loop 2 must state post-repair re-reviews are scoped to the revised features"
 
 # 2. Single independent review at issue completion (all features passes:true).
 printf '%s\n' "${block}" \
@@ -77,8 +77,8 @@ printf '%s\n' "${block}" \
 
 # 3. NEEDS_REVISION routes back to generator-subagent per feature.
 printf '%s\n' "${block}" \
-  | grep -qiE 'NEEDS_REVISION.*per feature|per feature.*generator-subagent|for that feature only.*generator-subagent|generator-subagent.*for that feature only' \
-  || fail "Loop 2 must route a NEEDS_REVISION verdict back to generator-subagent per feature"
+  | grep -qiE 'NEEDS_REVISION.*(routes|back)|routes the feature back' \
+  || fail "Loop 2 must state NEEDS_REVISION routes the feature back for repair (#352)"
 
 # 4. Post-repair re-review runs in repair mode scoped to that feature only.
 printf '%s\n' "${block}" \

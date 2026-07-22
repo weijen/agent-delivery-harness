@@ -46,7 +46,7 @@ scripts:
     role: Validate per-issue feature_list.json structure and completion.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
-    role: Trace/artifact consistency checker; emits the teeth_proof_missing violation and red_first_ordering_absent warning that gate the PR path.
+    role: Trace/artifact consistency checker (schema validation folded in, #335); emits the feature_start_missing violation that gates the PR path (#334 retired the red-first/teeth legs).
   - id: review-gate
     path: scripts/review-gate.sh
     role: HEAD-bound local review approval marker.
@@ -62,9 +62,6 @@ scripts:
   - id: finish-lib
     path: scripts/finish-lib.sh
     role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
-  - id: copilot-trace-hook
-    path: scripts/copilot-trace-hook.sh
-    role: GitHub Copilot runtime adapter hook; emits tool/agent spans with git-first, interval-fallback issue attribution (#146). Exit-0/stdout-clean on every path.
 
 # ---------------------------------------------------------------------------
 # Lifecycle order. The harness must continue to perform these actions in this
@@ -108,9 +105,6 @@ lifecycle:
   - id: closeout-worktree-cleanup
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
-  - id: interval-attribution
-    owner: scripts/copilot-trace-hook.sh
-    present: hook__resolve_issue_by_interval
   - id: pr-path-red-first-gate
     owner: scripts/review-gate.sh
     present: red_first_evidence_gate
@@ -242,11 +236,7 @@ failure_modes:
   - id: missing-teeth-proof-evidence
     kind: hard
     owner: scripts/review-gate.sh
-    present: teeth_proof_missing|feature_start_missing
-  - id: red-first-ordering-absent
-    kind: warn
-    owner: scripts/check-trace-consistency.sh
-    present: red_first_ordering_absent
+    present: feature_start_missing
   - id: teeth-proof-missing-warn
     kind: warn
     owner: scripts/check-feature-list.sh

@@ -79,17 +79,16 @@ in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 flowchart TD
   A[GitHub issue] --> B[./scripts/start-issue.sh N]
   B --> C[Issue worktree]
-  C --> PL[planning-subagent: plan + Open Questions]
-  PL --> HG[Conductor relays Open Questions: human-input gate]
-  HG --> D[Conductor authors feature_list.json]
+  C --> HG[Plan + Open Questions: human-input gate]
+  HG --> D[Author feature_list.json]
   D --> E[Select one passes:false feature]
-  E --> F[generator-subagent: RED then implementation then GREEN]
+  E --> F[TDD: RED then implementation then GREEN, scoped sensors]
   F --> H{Feature sensors and quality gates pass?}
   H -- no --> F
   H -- yes --> I[Mark feature passes:true]
   I --> J{All issue features pass?}
   J -- no --> E
-  J -- yes --> K[code-review-subagent and local gates]
+  J -- yes --> K[pre-review gate + code-review-subagent, once]
   K --> L[./scripts/review-gate.sh approve]
   L --> M[./scripts/create-pr.sh]
   M --> N[Pull request]
@@ -103,18 +102,16 @@ The normal path is:
 1. Create or pick a GitHub issue with concrete acceptance criteria and sensors.
 2. Run `./scripts/start-issue.sh <N>` from the main checkout.
 3. Work inside `../<repo>-worktrees/issue-NN`, not directly on the main checkout.
-4. **(conductor)** Author `.copilot-tracking/issues/issue-NN/feature_list.json` —
-   but only *after* the `planning-subagent` plan is approved and the
-   **human-input gate** has resolved every Open Question. The breakdown is the
-   conductor's to write (each feature carrying its `regression_sensor` /
-   `e2e_sensor`); the `planning-subagent` never authors it. See
+4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions to the
+   **human-input gate**, then author `feature_list.json` from the confirmed plan (each feature
+   carrying its `regression_sensor` / `e2e_sensor`). See
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
-6. Use `generator-subagent` for the selected feature's RED sensor, minimal production implementation, GREEN
-  verification, product-quality blocking gate evidence, and `passes:true` update.
-7. Preserve the generator's ordered `red_handback`, `impl_handback`, and `green_handback` payloads for conductor
-  logging.
-8. Run local gates and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
+6. Deliver it yourself with TDD — RED sensor, minimal production implementation, GREEN verified
+   with scoped sensors (`./scripts/run-sensors.sh green`), record `feature_start` and any
+   `deviation` spans, flip `passes:true` (#352: one agent, no handback choreography).
+7. Repeat until all features pass.
+8. Run `./scripts/run-sensors.sh --gate pre-review`, then `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
@@ -132,26 +129,21 @@ Who turns the issue into `feature_list.json`, and when, is fixed — the breakdo
 is never authored before a plan exists, and never while a human still owes a
 decision:
 
-1. **`planning-subagent` plans and surfaces decisions.** It researches the issue,
-   produces the plan, and lists an explicit **Open Questions / Needs-Human-Input**
-   section. It never writes `feature_list.json` — its write scope is
-   `.copilot-tracking/plans/` only.
-2. **The conductor runs the human-input gate.** It relays those open questions to
-   the human and **pauses**. No breakdown is authored while any open question is
-   unresolved.
-3. **The conductor authors the breakdown.** Once the human resolves the questions,
-   the conductor authors `feature_list.json` from the confirmed plan, each feature
-   carrying its `regression_sensor` / `e2e_sensor`.
-4. **The GitHub issue stays the contract; `feature_list.json` is the derived
-   breakdown.**
+1. **Plan and surface decisions.** Research the issue, write the plan in
+   `.copilot-tracking/issues/issue-NN/plan.md`, and list an explicit **Open Questions /
+   Needs-Human-Input** section.
+2. **Run the human-input gate.** Relay open questions to the human and **pause**. No breakdown
+   is authored while any open question is unresolved.
+3. **Author the breakdown.** Once the human resolves the questions, author `feature_list.json`
+   from the confirmed plan, each feature carrying its `regression_sensor` / `e2e_sensor`.
+4. **The GitHub issue stays the contract; `feature_list.json` is the derived breakdown.**
 
-This keeps decisions that need a human in front of the human *before* any
-breakdown is committed, and keeps breakdown authorship with the conductor — no
-subagent gains the right to write it.
+This keeps decisions that need a human in front of the human *before* any breakdown is
+committed (#352: one agent owns plan, breakdown, and delivery).
 
 #### What counts as one feature
 
-When the conductor authors the breakdown in step 3, granularity is fixed by one rule (the
+When authoring the breakdown in step 3, granularity is fixed by one rule (the
 authority is the *What counts as one feature* subsection in
 [.copilot/instructions/harness.instructions.md](../.copilot/instructions/harness.instructions.md)):
 a feature is one externally observable acceptance criterion provable by **exactly one**
@@ -161,48 +153,21 @@ two candidates when they share a single sensor and cannot be verified independen
 the unit — every `feature_list` item names exactly one `regression_sensor`, and no two items share
 one.
 
-## Copilot Roles
+## Agent Topology (#352: one agent + one reviewer)
 
-| Asset | Responsibility |
-| --- | --- |
-| `planning-subagent` | Researches the issue, reuses existing harness patterns first, and writes self-contained verifiable phases when planning is needed. |
-| `generator-subagent` | Delivers one selected `feature_list` item through RED, minimal implementation, GREEN, product-quality blocking evidence, and `passes:true`. |
-| `code-review-subagent` | Reviews spec compliance and quality, adds and executes test-only adversarial coverage when needed, applies the product-quality scorecard, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. Production assets remain read-only. |
-| `session-ritual.prompt.md` | A user-invoked prompt for resuming the coding-session ritual on a specific issue. |
-| Skills under `.copilot/skills/` | On-demand review, PR, security, drift, and code-quality sensors used by the conductor and review workflow. |
+The lifecycle is delivered by **one agent in one continuous context** per issue. It plans,
+authors the breakdown, implements with TDD, runs scoped sensors, records its own spans
+(`feature_start`, `deviation`), and drives the boundary scripts. The **only other model
+invocation** is `code-review-subagent` — invoked once, pre-PR, over the whole branch diff, in a
+fresh context with no visibility into the delivery conversation (that independence is what made
+it the harness's most effective defect catcher). `repair`-mode re-reviews after a
+`NEEDS_REVISION` are scoped to the revised features. If the runner does not register the
+`code-review-subagent` agent name from its `.agent.md` file, the fallback is unchanged: invoke a
+fresh (blank/current) subagent and paste the full role contract from the agent file.
 
-The conductor remains responsible for selecting the issue and feature, preserving scope, approving the current HEAD,
-committing, pushing, opening PRs, and merging.
-
-#### Unregistered-named-subagent fallback
-
-The repo defines each role as an agent file, for example `.copilot/agents/generator-subagent.agent.md`. Some runtimes
-register those agents by `agentName` and can invoke
-them directly; others do not. When the current runner does **not** register the named subagent (the `agentName` is
-`not registered`), the conductor uses this **fallback**: invoke a blank or current subagent and paste the full **role
-contract** from that `.agent.md` file into the prompt, then record the handback under the intended role exactly as if
-the named agent had run. The role boundary is defined by the contract text, not by whether the runtime knows the agent
-name — so an unregistered `agentName` never becomes an excuse for the conductor to do the feature work itself.
-
-### Skill × subagent × stage
-
-Which skill fires, who owns it, and at which lifecycle phase:
-
-| Skill | Owner role | Stage / phase | Fires on |
-| --- | --- | --- | --- |
-| `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
-| `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
-| `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
-| `dead-code-detection` | `code-review-subagent` | Review | Dead code among symbols the diff adds, renames, routes, or removes |
-| `sync-docs` | `code-review-subagent` | Review | Doc drift from touched commands, paths, agent/skill names |
-| `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
-| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Pre-commit / pre-PR diff review (every commit, every PR) |
-| `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
-| `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
-
-Planner and generator carry no distinctive skill; their quality bar comes from the
-applicable `<language>.instructions.md` plus `tdd.instructions.md`, not a skill. The audit skills are concentrated in
-`code-review-subagent` so one fresh-context pass owns whole-diff quality.
+The retired conductor/generator/planning role choreography (late-2025 pattern) and its handback
+payload protocol are documented in git history; historical traces carrying those role names
+remain valid.
 
 ### Running the audit sweep
 
@@ -223,52 +188,6 @@ one-shot prompt drives the same script and summarizes the Fix-now findings back 
 `sync-docs`'s fix mode still runs manually. This script is also the future entry point for the (blocked, #256)
 scheduled-CI audit.
 
-### The conductor must not do feature work itself (non-delegable)
-
-When the issue workflow is active, the conductor **must not directly** write the feature's tests/sensors or its
-production implementation, and must not flip `passes:true`. That feature work is **non-delegable** to the conductor:
-it belongs to the subagents. The required per-feature handoff is:
-
-1. **conductor selects** one `passes:false` feature and prepares context;
-2. **`generator-subagent` creates or validates the RED sensor**, confirming the expected failure;
-3. **the same `generator-subagent` makes the minimal production change** to satisfy it;
-4. **the same `generator-subagent` verifies GREEN**, records product-quality evidence, and updates
-  completion status (`passes:true`);
-5. **conductor commits/pushes** and records the handbacks.
-
-A progress log that only records **"conductor TDD"** is non-compliant — it hides this handoff. See
-[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md) for the enforceable rule.
-
-When a handoff step fails, the conductor runs two **grading-driven revision loops** (it owns the loop boundary;
-subagents never call each other). **Loop 1 (generator repair):** a production defect or verification gap routes back
-to `generator-subagent` (never weakening a declared sensor). **Loop 2 (review → generator):** a
-`code-review-subagent` first maps criteria to sensors and may add and execute the smallest independent test, fixture,
-smoke, or validation asset. The reviewer must not edit production; ambiguous paths and required production hooks route
-to the conductor. A newly exposed production defect produces `NEEDS_REVISION` and routes through the conductor to
-`generator-subagent`, then the reviewer reruns the adversarial sensor on the repaired HEAD and reports changed tests,
-commands, and evidence. The implementation-usefulness grade is a routing signal, not a severity override, and repeated
-failure stops and asks the human after two attempts. **Loop 3 (plan correction)** is a lightweight, conductor-owned
-escape hatch on top of these two: when a `Plan first` handback, a wrong-declared-sensor handback, a review scope /
-planning decision, or two failed repairs reveal that the **plan or sensor contract** — not the code — is falsified,
-the conductor records the blocker in the Action Log, pauses feature work, updates the plan or re-invokes
-`planning-subagent`, and resets the affected features to `passes:false` (reusing the `blocked_on` field, no new state
-files). Loop 1 and Loop 2 remain the default; Loop 3 fires only when a plan assumption is wrong. Full protocol in
-[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
-
-When same-class escalation produces a successful generator repair, GREEN also
-requires a durable lesson in the adopting repository. The generator updates
-the narrowest existing always-loaded target — `AGENTS.md` or a scoped
-`.copilot/instructions/*.instructions.md` file — with a locally derived
-environment/class lesson. It does not create per-failure memory or place a
-project-specific lesson in generic global doctrine. The trace carries only path
-and one-line summary; first-occurrence point fixes, blocked
-`research-requested` handbacks, exemptions, and review verdicts are outside
-this completion rule.
-
-Conductor, generator-subagent, and code-review-subagent actions must be visible in the issue
-progress Action Log. Subagents preserve their role boundaries by reporting substantive actions back to the conductor
-for logging when they are not authorized to edit local issue progress directly.
-
 ## Local Tracking
 
 `.copilot-tracking/` is gitignored local state. It is persistent on the developer machine but never pushed.
@@ -278,10 +197,10 @@ for logging when they are not authorized to edit local issue progress directly.
 | `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `teeth_proof`, `blocked_on`, and `verification`. |
 | `.copilot-tracking/issues/issue-NN/progress.md` | Running local log of completed features, verification, commits, and next work. |
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
-| `.copilot-tracking/plans/*.md` | Local planning-subagent output for deep plans. |
+| `.copilot-tracking/plans/*.md` | Local deep-plan documents (multi-issue runs, prompts). |
 | `.copilot-tracking/review-gate/approved-head` | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
 
-`progress.md` should include an Action Log section for substantive lifecycle actions, including conductor decisions,
+`progress.md` includes an Action Log section rendered from trace spans (#332), covering substantive lifecycle actions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
 
 While an issue is open, the **worktree** copy of `progress.md` is authoritative: `scripts/log-handback.sh` writes
@@ -361,6 +280,12 @@ state. Incomplete (`passes:false`) features are a non-blocking warning by defaul
 is deliberately generic: it does not read project docs, devcontainers, CI, or any sensor registry, and never executes
 anything from the feature list.
 
+### Durable class lessons
+
+A successful escalated class repair (see the Same-Class Escalation doctrine) appends a one- or
+two-line durable lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md` file; the
+trace carries only the path and one-line summary of that lesson, never its body.
+
 ## Gates And Sensors
 
 `./scripts/init.sh` detects project surfaces and runs the matching local gates when present. Each language is
@@ -414,7 +339,7 @@ review identity coverage is incomplete, while the two coverage keys explain why.
 tracing it warns-and-continues and never blocks teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
-conductor runs it once per decision or handback (single-source), and that single invocation writes the agent span to
+delivering agent runs it once per recorded event (single-source), and that single invocation writes the agent span to
 `trace.jsonl` — the canonical record. The `## Action Log` section in `progress.md` is **rendered** from those
 spans by `scripts/render-action-log.sh` (which log-handback.sh calls after span emission), so the trace is the
 single source of truth and the Action Log is a human-readable view derived from it. Never hand-author the span or
@@ -422,18 +347,11 @@ the Action Log line separately; always use `scripts/log-handback.sh` so the cano
 stay in step. Full conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule)
 live in [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
-Tool and model spans from an agent runtime (per-tool-call arguments, latency, token usage) are contributed by the
-optional runtime adapters under `docs/runtime-adapters/` — GitHub Copilot is the primary runtime target
-([runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md)), with the Claude Code adapter
-([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md)) kept as the labeled reference example of the
-pattern; without one installed the trace simply lacks those spans and everything else is unchanged.
-
-A frequent misread is expecting `harness.skill.name` skill spans (proof that a named audit skill fired) to always
-appear in an issue's trace. They exist only under two preconditions — the fixed hook installed on `main` and seeded
-into the worktree, and a *fresh* runtime session that surfaces the skill as a `toolName="skill"` tool span — and they
-**cannot be backfilled** into an already-run session. The exact rules, the `review_verdict`-vs-skill-span distinction,
-and the omit-never-fake honesty answer are documented in
-[runtime-adapters/github-copilot.md §"When a `harness.skill.name` skill span exists (and when it cannot)"](runtime-adapters/github-copilot.md#when-a-harnessskillname-skill-span-exists-and-when-it-cannot).
+The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
+tool/model/skill analysis reads native records through the path documented in
+[runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md); the
+Claude Code adapter ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md))
+remains a labeled reference example.
 
 The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation

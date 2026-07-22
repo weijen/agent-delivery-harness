@@ -18,7 +18,7 @@ Every coding task is classified into one of four tiers before work begins.
 | 0    | Questions, explanations, shell-only / read-only ops | None | No | None | No |
 | 1    | 1–3 file low-risk edits, no API/infra/security impact | Main-agent self-check; no subagent unless user asks or risk surfaces | No | Targeted only | No (commit on request) |
 | 2    | Multi-file change with behavior change needing tests; contained scope | Optional single `code-review-subagent` pass when risk warrants it or the user asks | Only if user asks or work spans sessions | Targeted first; full suite at end / when risk justifies | No (commit on request) |
-| 3    | Auth, security, infra, teardown, cross-module refactor (5+ files), or user requests phased/planned work | Full pipeline: `planning-subagent` → implementation path chosen by repo harness → `code-review-subagent` | Yes, in `.copilot-tracking/plans/` (host repo should gitignore this) | Full suite at milestones and completion | Yes, ask at the start |
+| 3    | Auth, security, infra, teardown, cross-module refactor (5+ files), or user requests phased/planned work | Full pipeline: plan in `.copilot-tracking/plans/` → single-agent implementation (#352) → `code-review-subagent` | Yes, in `.copilot-tracking/plans/` (host repo should gitignore this) | Full suite at milestones and completion | Yes, ask at the start |
 
 ### Tier 0 — Direct answers
 
@@ -47,8 +47,8 @@ Any of: auth, security, telemetry, infra, deployment, teardown; cross-module arc
 with code + config; large refactors (5+ files, behavior across modules); user explicitly asks for plan / phased work /
 strict TDD / subagent review; work spans multiple phases or sessions.
 
-Uses `planning-subagent` and `code-review-subagent`. In repos that provide a feature generator agent, the conductor
-may route one selected `feature_list` item through `generator-subagent`; otherwise the main
+Uses `code-review-subagent` for the independent review (#352 retired the planning/generator
+subagents — plan directly in `.copilot-tracking/plans/`); otherwise the main
 agent implements directly. Plan approval pause and final review pause are mandatory unless the repo's issue harness
 defines a stricter per-feature flow.
 
@@ -97,7 +97,6 @@ file and pass its full content plus relevant work context as the subagent prompt
 
 Personal subagent locations:
 
-- `.copilot/agents/planning-subagent.agent.md`
 - `.copilot/agents/code-review-subagent.agent.md`
 
 ### 1. Start
@@ -107,7 +106,7 @@ Acknowledge the task. Ask commit preference:
 
 ### 2. Plan
 
-Invoke `planning-subagent` with depth `deep`. Pass the user's request, conversation context, and any relevant host-repo
+Write the plan yourself in `.copilot-tracking/plans/` (deep detail). Include the user's request, conversation context, and any relevant host-repo
 conventions you've already gathered. The planner returns a plan saved to `.copilot-tracking/plans/`.
 
 ### 3. Plan approval — MANDATORY PAUSE
@@ -119,7 +118,7 @@ approval.** Do not proceed until approved.
 
 For each phase in the approved plan:
 
-a. **Implement** — follow the host repo's implementation path. If the repo provides `generator-subagent`, use it for
+a. **Implement** — follow the host repo's implementation path (#352: single agent) for
   the selected feature's complete RED, minimal implementation, GREEN, teeth-proof, and pass-state cycle; otherwise
   the conductor implements directly.
    - For behavior changes, follow strict TDD: failing test → verify right failure → minimal implementation → passing test.

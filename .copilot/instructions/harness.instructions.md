@@ -18,8 +18,7 @@ Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model
 - **OpenAI/Codex** — repo as system of record, AGENTS.md as a map, enforce invariants not
   implementations, garbage collection of drift.
 
-If you deviate from the harness path, stop, and
-record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
+If you deviate from the harness path: stop, report, recover — record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
 conventions in §3) so the agent span and the Action Log entry are written together, then recover by returning to the
 required lifecycle step before continuing.
 
@@ -102,260 +101,104 @@ separate**: `docs/PROGRESS.md` is repo-wide, tracked, and pushed; the per-issue 
 local, gitignored Action Log for a single issue. Do not merge them, and do not "fix" the
 similar names by collapsing one into the other.
 
-## 3. Implement one feature (TDD, incremental)
+## 3. Deliver the issue (one agent, one context — #352)
 
-- **Never one-shot** a feature or a whole issue. One `feature_list` item at a time.
-- **Red → Green → Refactor** (applies to Python code; for prompt assets, analyzer schemas, or
-  other non-code artifacts, use the project-defined equivalent such as fixture diffing or a
-  smoke run): write the smallest failing test that expresses the feature; confirm it fails for
-  the right reason; write minimal code to pass; refactor with the suite green.
-- For Copilot-assisted issue work, keep the roles separate:
-  - **Conductor** chooses the issue, reads the GitHub contract, selects one `passes:false`
-    feature, owns commits/PRs, and records substantive conductor actions in the issue progress Action Log.
-  - **Generator** (`generator-subagent`) owns the selected feature's complete RED, minimal implementation, and GREEN
-    cycle. It writes and runs sensors, edits required production assets, and follows
-    [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md). The `generator-subagent` verifies every required product-quality blocking gate before it marks only that feature `passes:true` (teeth-proof recording retired, #334).
-  - **Reviewer** (`code-review-subagent`) reviews the completed diff for spec compliance and code quality, applies the product-quality scorecard in [docs/evaluation/product-quality-rubric.md](../../docs/evaluation/product-quality-rubric.md), and performs an adversarial test-quality pass before its final adequacy verdict. It may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose a missing failure mode, but production assets remain read-only: the reviewer must not edit production. It reports changed tests, commands, observed evidence, and the final verdict for the issue progress Action Log.
+There are no conductor/generator roles and no handback choreography. ONE agent owns the issue
+end-to-end in a single continuous context. The only other model invocation in the lifecycle is
+the independent review (gate 3).
 
-#### What counts as one feature (granularity rule)
+Workflow per issue:
 
-This is the single source of truth for how an issue is split into `feature_list` items; `docs/HARNESS.md`
-and `AGENTS.md` rule 8 point here rather than restating it.
+1. **Start (gate 1):** `./scripts/start-issue.sh <N>` from the main checkout — preflight,
+   identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
+   (description AND comments), then break it into a `feature_list.json` of criterion-sized
+   features (2–5 typical; each provable by one `regression_sensor`, plus an `e2e_sensor` when it
+   crosses a real runtime boundary).
+2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
+   delete a test to make it pass. Record one `feature_start` span per selected feature
+   (`scripts/log-handback.sh`, role `conductor` — the enum is kept for historical-trace
+   compatibility; the #291 selection-evidence gate keys on the span), and record any
+   deviation as a `deviation` span at the moment it happens. Verify each feature with
+   **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
+   — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
+   is the only exception). Commit and push after each completed feature.
+3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,
+   then invoke the `code-review-subagent` in `full` mode over the whole branch diff. It issues
+   per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
+   A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
+   re-reviews are `repair`-mode and scoped to the revised features. Same-class escalation (#317/#327) applies to your own repairs: on the second
+   same-class failure stop point-fixing and fix the class.
+4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
+   `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh` (authoritative MERGED + merge SHA,
+   #328) → `./scripts/finish-issue.sh` (write-once conclusion #323, economics #329, teardown
+   gated on live merge evidence #316).
 
-A **feature** is one externally observable acceptance criterion that can be proven by **exactly one**
-`regression_sensor` (plus an `e2e_sensor` when the criterion crosses a real runtime boundary — an external
-service call, agent run, report generation, or deployed endpoint). The sensor is the unit: if you cannot name
-the one sensor that proves a `feature_list` item, it is not yet a feature.
+**Claims are audited against tool output.** Before reporting any step, feature, or issue as
+complete, verify the claim against an actual tool result (test output, gh state query, file
+content) — never from memory of intending to run it. A status line that names a check must be
+backed by that check's real output in this session; the merge gate (#328) enforces this for
+merges, and the same standard applies to every completion claim.
 
-- **Split** a candidate feature when it needs **more than one independent sensor** to prove, or when it mixes
-  **more than one concern** (e.g. a parser change *and* an unrelated CLI flag). Each resulting piece must carry
-  its own sensor.
-- **Merge** two candidate features when they share a **single sensor** and cannot be verified independently —
-  forcing them apart produces a sensor that has to assert both, which defeats attribution.
-
-A good `feature_list` is therefore a list where every item names exactly one `regression_sensor`, no two items
-share a sensor, and no item bundles concerns. The conductor authors the breakdown to satisfy this rule after the
-plan + human-input gate (see the breakdown-flow doctrine), and `passes:true` stays meaningful because each item
-is provable in isolation.
-
-#### The conductor's feature work is non-delegable to itself (MANDATORY)
-
-When the issue workflow is active, the conductor must not directly perform feature work — a **non-delegable**
-boundary that **cannot be delegated** back to the conductor by convenience, time pressure, or "it's just a small
-change". The conductor **must not**:
-
-- **write tests or sensors** (no test-writing, no sensor implementation, no RED/GREEN authoring) for the feature;
-- write the feature's **production implementation** (no production code / production assets changes);
-- flip a feature to `passes:true` or otherwise own verification.
-
-Those acts belong to `generator-subagent`. The
-conductor's own job is strictly orchestration: select the issue and one `passes:false` feature, prepare context, invoke
-the correct subagent, record handbacks, own commits/pushes/PRs/merge, and stop on blockers. If no subagent is
-available, **stop and report the blocker** — do not silently absorb the generator role.
+**Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
+runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
+sweep (check #7, `public-exposure-audit`); the five quality skills run only in audit-sweep
+(#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
+runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair (the third rejection
+of one feature — three or more `review_verdict/fail` spans — trips `review_reject_cap_exceeded`
+and stops the issue; `review-gate.sh` remains its deterministic enforcer);
+post-repair re-reviews run the **`repair` review profile** scoped to the revised features only
+and defer the exposure sweep to the pre-PR review (§6).
 
 #### Required per-feature handoff sequence
 
-For each selected `passes:false` feature, the conductor drives this exact sequence (it must appear, in order, in the
-Action Log):
+Retired as choreography (#352) — one agent delivers the feature end-to-end. What REMAINS
+required and keyed by feature id: every `passes:true` feature **must** carry a matching
+`feature_start` agent span (#291). The governed waiver object waives it: `teeth_proof_waiver`
+is the **canonical** key, `red_first_waiver` the **deprecated** alias; a malformed canonical
+key still **shadows** the legacy alias (key-presence **precedence**), and a malformed waiver
+does not waive.
 
-1. **Conductor selects** one `passes:false` feature and prepares context (changed files, declared sensors), recording
-   the selection as a `feature_start` agent span via `scripts/log-handback.sh` (see the agent-span conventions below).
-2. **`generator-subagent` creates or validates the RED sensor**: the smallest failing test or sensor that expresses
-  the feature, confirmed to fail for the right reason. It returns a `red_handback` payload.
-3. **The same `generator-subagent` makes the minimal production change** to satisfy that sensor and returns an
-  `impl_handback` payload.
-4. **The same `generator-subagent` verifies GREEN**: it runs the declared `regression_sensor` and any `e2e_sensor`,
-  records product-quality blocking gate evidence, and only then may flip `passes:true`. It returns
-  a `green_handback` payload.
-5. **Conductor commits/pushes** the result and records the handbacks with `scripts/log-handback.sh` per the
-   agent-span conventions below.
+#### Agent-span conventions
 
-If a step fails, the conductor routes the handback to `generator-subagent` and re-runs it for the same feature. The
-conductor does not patch production or verification assets itself.
+Spans are written via `scripts/log-handback.sh` (role `conductor`; the role enum is retained
+for historical-trace compatibility). The Action Log in `progress.md` is rendered from spans
+(#332) — never hand-written.
 
-Every `passes:true` feature is **required** to have a matching `feature_start` agent span keyed by its feature id —
-the one recorded at step 1 above. `scripts/check-trace-consistency.sh` reports a missing span as a standalone
-`feature_start_missing` finding (role and step ordering are not enforced for this check, only presence by feature
-id); on the PR path this finding hard-blocks through the feature-start evidence gate (#291; red-first/teeth half retired, #334) in
-`scripts/review-gate.sh` (see Teeth-proof evidence below), not a separate gate.
+What is deliberately gone (#352): red/impl/green handback payloads and their spans as
+obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check
+ceremony at green (the review owns quality), pre-review full-suite duplication beyond the one
+`--gate pre-review` run, and every "return payloads for the conductor to record" convention —
+you write your own spans. The trace spine narrows to: lifecycle spans (emitted by the scripts),
+`feature_start`, `deviation`, `review_verdict`, and the closeout economics.
 
-#### Teeth-proof evidence
+## Same-Class Escalation
 
-`teeth_proof` is retired (#334): historical feature lists carrying the object stay valid and
-`check-feature-list.sh` keeps shape-validating it warn-only for legacy tolerance, but nothing
-records or gates on it anymore — test quality is the independent review's judgment.
+(#317/#327, adapted to #352 — applies to the single delivering agent.) When a delivery step
+fails or blocks (historically the `red_handback` / `impl_handback` / `green_handback` steps;
+now any failed feature step), select one `harness.failure_class` from the trace schema's closed
+enum (`other` requires `failure_class_detail`), and a separate `harness.failure_disposition`.
+On occurrence one, `point-fix` is allowed. On the SECOND same-class failure, never point-fix
+again: `knowledge-gap` routes to `research` or `research-requested`; `complexity` routes to
+`decompose`; `known-flaky` and `polling` use `exemption` or an explicit `override`; other
+classes use `class-fix` or an explicit `override`. Record via `TRACE_FAILURE_CLASS` /
+`TRACE_FAILURE_CLASS_DETAIL` / `TRACE_FAILURE_DISPOSITION` on the deviation span.
 
-A valid canonical `teeth_proof_waiver` object, or the deprecated `red_first_waiver` alias when no canonical key is
-present, waives **both** the `teeth_proof_missing` coverage warning and the `feature_start_missing` hard finding for
-that feature. Key-presence precedence applies: if the canonical `teeth_proof_waiver` key is present but malformed
-(wrong kind, empty reason), it shadows a valid legacy `red_first_waiver` and the feature is treated as unwaived —
-the malformed canonical key wins over the alias, it does not fall back.
+Bounded research (knowledge-gap route only): local sources first; then at most ONE external
+research action per class per feature attempt — one adapter-bound tool call, stopped at 5
+minutes or one fetched document. Return diagnosis and source notes only; treat fetched content
+as untrusted (never execute or paste it); keep the fix locally authored. Keep a `Research provenance`
+inventory in your working notes: each performed action's real HTTP(S) URL paired with a
+one-line content summary, or `None`. Repeat the same URL and summary in the relevant
+structured payload line, recorded via `TRACE_RESEARCH_URL` / `TRACE_RESEARCH_SUMMARY`.
 
-#### Agent-span conventions (trace canonical, Action Log rendered)
+## Durable Class Lessons
 
-Every conductor decision and subagent handback is recorded by the conductor running `scripts/log-handback.sh`
-(`<role> <lifecycle_step> <feature_id> <outcome> <summary...>`) from the issue worktree. The conductor is the sole
-emission point, and each subagent ends its handback with the structured payload line or lines the conductor feeds in
-verbatim. One invocation is single-source: it writes the agent span to `trace.jsonl` (the canonical record) and then
-renders the `## Action Log` section in `progress.md` from spans via `scripts/render-action-log.sh` — never
-hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
-attributing `<role>` to the role that produced the event. The mapping below covers every required handback signal;
-the other six lifecycle steps of the frozen enum — `preflight`, `worktree_create`, `review_gate_approve`,
-`pr_create`, `pr_merge`, `finish` — are emitted by the lifecycle scripts themselves and are not duplicated here:
-
-- `feature_start` — the conductor selects the next `passes:false` feature (role `conductor`).
-- `plan_handback` — `planning-subagent` returns its plan (or the human gate resolves it).
-- `red_handback` / `impl_handback` / `green_handback` — `generator-subagent` returns the selected feature's ordered
-  RED, production implementation, and GREEN results.
-- `review_verdict` — `code-review-subagent` returns its verdict (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
-- `deviation` — stop/report/recover: record the deviation with `scripts/log-handback.sh` (step `deviation`,
-  `<feature_id|->`, outcome `blocked`) before continuing recovery; a rejected alternative during a feature is the
-  same call attributed to the deciding role.
-
-**Subagent handback payload line (single source).** Each subagent ends its handback with the structured payload line
-the conductor feeds **verbatim** to `scripts/log-handback.sh`: `[<role>] <step> <feature_id> <outcome> — <summary>`
-(`<lifecycle_step>` is accepted for `<step>`). `<role>` is the emitting role, `<step>` its role-correct lifecycle step
-from the mapping above, `<feature_id>` the feature id (or `-` for a whole-issue/closeout span), `<outcome>` the closed
-enum `pass|fail|blocked`, and `<summary>` a one-line summary. Each agent prompt names only its own role and valid
-step(s) and points here — the template is defined once, not restated per agent.
-
-**Token usage — omit, never fake.** Export `TRACE_INPUT_TOKENS` / `TRACE_OUTPUT_TOKENS` so the helper forwards
-`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` only when the runtime actually displayed real counts;
-never estimate or invent token counts — an absent field is correct, a fabricated one is not.
-
-#### Grading-driven revision loops (conductor-owned)
-
-The conductor runs two explicit revision loops. The **conductor owns the loop boundary**: subagents do **not call
-each other** directly — the conductor passes compact, concrete handback context and re-invokes the right role. The
-implementation-usefulness grading from the audit skills (issue #13) is a **routing signal, not a severity override**:
-it helps decide *where* work goes and *what proof* is needed, but it never downgrades a blocking severity — Critical
-security, data-loss, destructive behaviour, or a missing acceptance criterion still blocks regardless of score.
-
-**Loop 1 — generator repair.** After `generator-subagent` returns, the conductor records its ordered payloads. When
-the generator reports a failure, the conductor routes by defect type:
-
-- **Production defect** (declared sensor fails on real behaviour) → back to `generator-subagent` with the same
-  selected feature, the changed files, the failing commands, and the exact sensor output summary.
-- **Verification gap** (missing/weak/incorrect sensor) → back to `generator-subagent` to strengthen the sensor,
-  **without weakening any declared sensor**. If a declared sensor is itself wrong, the generator reports the gap and
-  hands back to the conductor rather than silently substituting a weaker check.
-- **Low verification clarity** (per the #13 grading) → the conductor pauses or plans the missing sensor rather than
-  flipping `passes:true` on weak evidence.
-
-Loop 1 continues until the declared `regression_sensor` and any required `e2e_sensor` pass, or a real blocker is
-recorded.
-
-**Loop 2 — end-of-issue review → generator.** Independent review is a **single independent review at issue
-completion**, not a per-feature mid-stream step. **The conductor does not invoke `code-review-subagent` per feature
-mid-stream.** Per-feature verification is **fully owned by `generator-subagent`** — tests, production code, declared
-sensors, product-quality blocking gates, and red-first teeth proof — before it flips that feature `passes:true`. When
-**all** features are `passes:true`, the conductor runs the **one** independent review over the **whole branch diff**
-(`main...HEAD`) in **`full` mode** as the §6 Pre-PR verify gate — that §6 review **is** THE review, and it issues
-**per-feature verdicts**:
-
-- **APPROVED** (per feature) → the conductor proceeds to the next lifecycle step.
-- Before approval, the reviewer maps criteria to sensors, assesses assertion strength, boundaries, negative/mutation
-  cases, and implementation-fitting tests, then adds and executes the smallest independent verification asset when
-  needed. Reviewer writes are limited to tests, fixtures, smoke checks, and validation assets; production is
-  read-only, and ambiguous paths or required production hooks stop and route through the conductor.
-- **NEEDS_REVISION** (per feature) with CRITICAL/MAJOR findings (or skill findings mapped to Critical/Major/High) →
-  the conductor routes the exact findings — file/path, problem, expected fix direction, and the sensor/review to
-  re-run — back to `generator-subagent` **for that feature only** when production or verification repair is needed.
-  Scope and planning decisions remain with the conductor.
-- A new failing adversarial sensor is `NEEDS_REVISION`, not a reviewer production-edit exception. The conductor routes
-  the exposed production defect to `generator-subagent`; after repair, the reviewer reruns that sensor and reports
-  changed test files, commands, and observed pass/fail evidence.
-- The conductor appends an entry whenever a CRITICAL or MAJOR review finding is empirically refuted (for example, by running a
-  cannot-run/cannot-parse claim and observing success) to the known-false-positive registry at
-  [`../skills/_review-known-false-positives.md`](../skills/_review-known-false-positives.md); the entry carries the
-  disproving command and its observed output, and omit-never-fake applies, so never invent output.
-- **MINOR/Low** → may be deferred only where §6 allows, with rationale and tracking; never silently dropped when a
-  concise review mode hides them.
-
-After any per-feature fix, the conductor re-runs the relevant deterministic sensor and then re-reviews **only that
-feature** on the new HEAD/diff. Keep each per-feature repair scoped to the **same** feature unless the user or issue
-plan expands scope, and **preserve role boundaries**: `generator-subagent` owns production generation while
-`code-review-subagent` may edit only dedicated verification assets during independent review.
-
-**Review profile in Loop 2.** The single end-of-issue review runs in **`full` mode** over the whole branch diff:
-Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure sweep (check #7,
-`public-exposure-audit`). The five quality skills (`find-brute-force`, `find-duplicates`, `find-over-design`,
-`dead-code-detection`, `sync-docs`) do **not** run in any review mode — since #350 their only execution point is
-the periodic `audit-sweep` (reversible findings never gate a PR; the reviewer may still flag egregious cases by
-plain judgment, check #6). Use `concise` or `full` (not `repair`) for the pre-PR pass so the exposure sweep
-always runs before `gh pr create`. The **only** mid-stream reviews are the **post-repair re-reviews** after a
-`NEEDS_REVISION`: those run in the **`repair` review profile** **scoped to that feature only** and defer the
-exposure sweep to the pre-PR review (§6).
-**Avoid infinite loops** — repeated failure on the same sensor or finding stops
-and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
-exists. For THIS repo the local rule overrides that generic default: the **3rd review rejection (NEEDS_REVISION) for
-the same feature stops the whole issue and hands back to the human** — no further repair attempts on that feature. It
-is enforced deterministically by `review-gate.sh`, which hard-blocks by default on the `review_reject_cap_exceeded`
-consistency finding (three or more `review_verdict`/`fail` spans for one feature), so approve and check both refuse
-until a human takes over.
-
-**Loop 3 — plan correction (conductor-owned, lightweight).** Loop 1 and Loop 2 stay the default path; Loop 3 fires
-**only when a plan assumption or the sensor contract is falsified**, not on ordinary defects. Triggers: a `Plan first`
-handback, a "declared sensor is wrong" handback, a `code-review-subagent` finding that routes a **scope or planning
-decision** to the conductor, or **two failed repair attempts** that reveal a bad plan assumption rather than a code
-defect. This is intentionally not a third heavy workflow — the escape hatches already exist; Loop 3 just makes the
-return-to-planning step explicit so it is not forgotten. Conductor action:
-
-- **Record the blocker** in the issue Action Log and **pause feature work** on the affected feature(s).
-- **Correct the plan** — update the issue plan directly, or re-invoke `planning-subagent` when the breakdown itself is
-  wrong.
-- **Reset affected features to `passes:false`** (reuse the existing `feature_list.json` `blocked_on` field to name the
-  replan; do **not** add new state files) so a falsified feature can never stay `passes:true`.
-- **Re-run the human-input gate only if** scope, feature breakdown, acceptance-criteria mapping, or the sensor
-  contract changes; a pure sequencing or wording correction does not re-trigger the gate.
-
-Loop 3 owns no new roles or scripts: it is a conductor discipline expressed entirely through the Action Log and the
-existing `blocked_on`/`passes` fields, enforced fail-closed by `scripts/check-feature-list.sh` (a feature cannot be
-`blocked_on` a replan **and** `passes:true` at the same time).
-
-#### Pass the applicable instruction files into subagent prompts
-
-Subagents run in a **fresh context** and do **not** inherit the conductor's Copilot instruction resolution. So the
-conductor must make the relevant instruction files part of the subagent prompt, not assume the subagent already has
-them. Routing is **profile-aware**: select the instruction file that matches the files the feature changes, by
-extension, under `.copilot/instructions/<language>.instructions.md` — `.py` → `python`, `.go` → `go`,
-`.ts`/`.tsx`/`.js`/`.jsx` → `node`, `.java` → `java`, `.rb` → `ruby`, `.sh` → `bash`,
-`.tf`/`.bicep` → `terraform-azure`. For a **mixed-language** feature, pass **every**
-applicable language instruction file, always alongside `.copilot/instructions/tdd.instructions.md` and this harness
-contract. For example, when the selected feature touches Python (`.py`):
-
-- to `generator-subagent`: include/point to `.copilot/instructions/python.instructions.md` **and**
-  `.copilot/instructions/tdd.instructions.md`;
-- to `code-review-subagent`: name `.copilot/instructions/python.instructions.md` and
-  `.copilot/instructions/tdd.instructions.md` as review criteria for the Python diff.
-
-Apply the same `<language>.instructions.md` pattern for `go`, `node`, `java`, and `ruby` surfaces. If a matching
-`<language>.instructions.md` file does not exist yet (only some languages are provisioned — see `profiles/` and
-`scripts/scaffold-language.sh`), fall back to this harness contract and the AGENTS.md conventions rather than
-inventing language conventions.
-
-When the selected feature touches harness shell (`scripts/**/*.sh` or `tests/**/*.sh`), apply the same pattern with
-`.copilot/instructions/bash.instructions.md`: include/point to it for the generator's implementation and test work,
-and name it as a review criterion for the shell diff. Likewise, when the feature touches Terraform/Azure surfaces (`*.tf` or
-`*.bicep`), apply the same pattern with `.copilot/instructions/terraform-azure.instructions.md`.
-
-How to pass them: either paste the file contents into the subagent prompt, or give the explicit repo paths and an
-instruction to read and follow them before acting. The matching subagent templates also require reading the applicable
-`<language>.instructions.md` files, so this is a belt-and-suspenders contract: the conductor supplies them and the
-subagent loads them.
-
-When the conductor logs the reviewer's `review_verdict` with `scripts/log-handback.sh`, it sets
-`TRACE_INSTRUCTION_FILES` to the instruction files it fed the reviewer — the same passthrough already used for the
-generator handbacks — so `harness.instruction_files` is captured on the `review_verdict` span and reviewer provenance
-is recorded alongside the generator's.
-- **Never edit, weaken, or delete a test/feature/sensor to make things pass.** Initializer or
-  planning work may define feature `steps`, `regression_sensor`, and `e2e_sensor` fields up
-  front; coding sessions must not weaken those fields. During implementation, edit
-  `feature_list.json` only to flip `passes`, add factual `blocked_on` / `verification` status,
-  or **strengthen** sensors when a real gap is found.
-- Verify the feature **end-to-end** as a user would (an external-service call on a fixed fixture,
-  agent loop on representative input, CLI report against known-good structured data) — not just unit
-  tests or a green type-check. Only then set `passes:true`.
+A successful escalated class repair persists a durable repository rule so the class cannot
+silently recur: append the lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md`
+file (the only allowed durable targets — existing, non-symlinked, inside the repository), and
+record it via `TRACE_DURABLE_RULE_PATH` / `TRACE_DURABLE_RULE_SUMMARY` on the successful green
+span — the trace carries only the path and one-line summary, never the lesson body. Instruction-budget rule (#352): a durable lesson is one or two lines, and adding one is
+the moment to check whether an older rule it supersedes can be deleted.
 
 ## 4. Sensors — run to self-correct (quality-left)
 
@@ -409,15 +252,10 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
    docs-only era; ruff/mypy/pytest once Python lands).
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
-  commit sha, next feature to pick). Its Action Log must include substantive conductor and subagent actions, including
-  any stop/report/recover entry for a harness deviation. Update `.copilot-tracking/issues/<issue>/plan.md` if the
-  approach or remaining phases changed.
-   - **Distinguish conductor actions from subagent handbacks.** Each Action Log entry must attribute the act to its
-     owner — conductor (selection, context prep, commit/push/PR/merge) versus `generator-subagent` (RED, production,
-     GREEN, teeth proof, and `passes:true`) versus `code-review-subagent` (review verdict). A log that only says
-     **"conductor TDD"** — i.e. the conductor claiming the test+implementation work —
-     is **visibly non-compliant**, because it hides the required subagent handoff and means the non-delegable
-     role-separation rule (§3) was skipped.
+  commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
+  `feature_start` / `deviation` / `review_verdict` spans as they happen and the render stays
+  truthful. Update `.copilot-tracking/issues/<issue>/plan.md` if the approach or remaining
+  phases changed.
 4. When the issue's features are all `passes:true`, bring the repo-wide
    `docs/PROGRESS.md` to its **final** form as part of the
    branch — **inside the PR, never as a post-merge commit on `main`**. Once the PR is open you

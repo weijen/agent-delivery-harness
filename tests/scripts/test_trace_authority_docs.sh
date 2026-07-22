@@ -121,19 +121,17 @@ if require_doc "$DOC_OBS" "docs/evaluation/observability-and-trace-schema.md"; t
 fi
 
 # ==============================================================================
-# C. github-copilot.md — local hook seeding into a new worktree.
+# C. github-copilot.md — semantic spine and native-record analysis pointers.
 # ==============================================================================
 if require_doc "$DOC_COPILOT" "docs/runtime-adapters/github-copilot.md"; then
   C_FLAT="$(flat "$DOC_COPILOT")"
 
-  grep -qF '.github/hooks/harness-trace.json' "$C_FLAT" \
-    || fail "github-copilot.md must name the local hook file .github/hooks/harness-trace.json (C)"
-  grep -qiE 'seed(s|ed)?' "$C_FLAT" \
-    || fail "github-copilot.md must document that start-issue seeds the local hook file (C)"
-  grep -qiF 'worktree' "$C_FLAT" \
-    || fail "github-copilot.md must document seeding into a new worktree (C)"
-  grep -qiE 'when present|when it exists|no-op|absent' "$C_FLAT" \
-    || fail "github-copilot.md must document the when-present / absent-is-a-clean-no-op semantics (C)"
+  grep -qiF 'semantic spine' "$C_FLAT" \
+    || fail "github-copilot.md must point to the kept semantic spine (C)"
+  grep -qF 'copilot-log-review' "$C_FLAT" \
+    || fail "github-copilot.md must point to native-record analysis (C)"
+  grep -qiF 'no runtime adapter setup is required' "$C_FLAT" \
+    || fail "github-copilot.md must state the zero-setup runtime boundary (C)"
 fi
 
 # ==============================================================================
@@ -148,8 +146,8 @@ if require_doc "$DOC_OTLP" "docs/runtime-adapters/otlp-azure-monitor.md"; then
     || fail "otlp-azure-monitor.md must state the harness no longer ships spans/logs through an in-loop export path (D)"
   grep -qiE 'attribute-name mapping|exit-ramp contract' "$D_FLAT" \
     || fail "otlp-azure-monitor.md must retain the OTel/App Insights attribute-name mapping / exit-ramp contract framing (D)"
-  grep -qF 'COPILOT_OTEL_' "$D_FLAT" \
-    || fail "otlp-azure-monitor.md must keep the COPILOT_OTEL_* vocabulary reference while the export leg is dormant (D)"
+  grep -qF 'gen_ai.*' "$D_FLAT" \
+    || fail "otlp-azure-monitor.md must keep the OTel-aligned runtime vocabulary reference (D)"
 fi
 
 # ==============================================================================

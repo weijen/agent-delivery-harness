@@ -8,9 +8,9 @@
 # a finish-lib/finish-issue/create-pr call site, or a cloud-export env var in
 # .env.example comes back.
 #
-# KEEP (must NOT be flagged): trace-lib.sh, the runtime hooks, check-trace-consistency.sh,
+# KEEP (must NOT be flagged): trace-lib.sh, check-trace-consistency.sh,
 # check-trace-consistency.sh, log-handback.sh, trace-report.sh, trace-report.sh --all,
-# and COPILOT_OTEL_FILE_EXPORTER_PATH (the local span-file sink for the hook).
+# and the lifecycle/review/closeout gates.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -49,15 +49,12 @@ if grep -q 'log-export\.sh' scripts/create-pr.sh; then
   note "scripts/create-pr.sh still invokes the deleted log-export.sh"
 fi
 
-# 5. The cloud-export env vars are gone from the committed template, but the
-#    local Copilot OTel file sink stays (it feeds the kept trace hook).
+# 5. Cloud-export and retired local hook-sink env vars are gone.
 for v in TRACE_EXPORT_OTLP TRACE_EXPORT_OTLP_HTTP LOG_EXPORT_OTLP LOG_EXPORT_OTLP_HTTP \
-         CREATE_PR_LOG_EXPORT APPLICATIONINSIGHTS_CONNECTION_STRING; do
+         CREATE_PR_LOG_EXPORT APPLICATIONINSIGHTS_CONNECTION_STRING \
+         COPILOT_OTEL_ENABLED COPILOT_OTEL_FILE_EXPORTER_PATH; do
   if grep -q "^${v}=" .env.example; then note ".env.example still declares removed cloud-export var ${v}"; fi
 done
-if ! grep -q '^COPILOT_OTEL_FILE_EXPORTER_PATH=' .env.example; then
-  note ".env.example must keep COPILOT_OTEL_FILE_EXPORTER_PATH (local hook span sink)"
-fi
 
 if [ "$fail" -ne 0 ]; then
   echo "export leg is NOT fully removed"
