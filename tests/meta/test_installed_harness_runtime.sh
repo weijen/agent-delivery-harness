@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regression sensor (issue #294): a real --write install must include the
-# runtime dependency closure needed by the installed trace and hook sensors.
+# Regression sensor (issues #294, #312): a full harness-development install
+# must include the runtime dependency closure needed by its eval sensors.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -98,9 +98,9 @@ assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
 
 mkdir -p "$TARGET"
-if ! "$INSTALL" "$TARGET" --write >"$INSTALL_OUT" 2>&1; then
+if ! "$INSTALL" "$TARGET" --write --with-dev-sensors >"$INSTALL_OUT" 2>&1; then
 	cat "$INSTALL_OUT" >&2
-	fail "installer --write failed"
+	fail "installer --write --with-dev-sensors failed"
 fi
 
 for rel in "${MANDATORY_FILES[@]}"; do

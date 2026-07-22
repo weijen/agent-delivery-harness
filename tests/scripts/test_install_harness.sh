@@ -18,7 +18,7 @@ REQUIRED_FILES=(
 	scripts/issue-lib.sh
 	profiles/python.profile.sh
 	tests/scripts/test_install_harness.sh
-	tests/meta/test_skill_references_resolve.sh
+	tests/harness-dev-sensors.txt
 	.copilot/instructions/harness.instructions.md
 	.copilot/instructions/python.instructions.md
 	.copilot/agents/code-review-subagent.agent.md
@@ -59,6 +59,11 @@ c="${TMP_DIR}/c"; mkdir -p "$c"
 for rel in "${REQUIRED_FILES[@]}"; do
 	[ -f "$c/$rel" ] || { echo "case-c: expected asset not installed: $rel"; exit 1; }
 done
+# Harness-repository self-management sensors require an explicit opt-in.
+[ ! -e "$c/tests/meta/test_skill_references_resolve.sh" ] || {
+	echo "case-c: default adopter install included a harness-dev meta sensor"
+	exit 1
+}
 # Files are copied verbatim (byte-for-byte), not regenerated/skeletonised.
 for rel in "${REQUIRED_FILES[@]}"; do
 	cmp -s "$ROOT/$rel" "$c/$rel" || { echo "case-c: installed asset differs from source: $rel"; exit 1; }
