@@ -93,7 +93,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
 for s in review-gate.sh finish-issue.sh finish-lib.sh validate-trace.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh; do
+         trace-lib.sh trace-report.sh issue-lib.sh start-issue.sh check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
 done
@@ -132,7 +132,7 @@ make_gate_fixture() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
   for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
-           review-gate.sh trace-lib.sh validate-trace.sh check-trace-consistency.sh; do
+           review-gate.sh trace-lib.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"

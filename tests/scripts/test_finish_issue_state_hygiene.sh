@@ -31,7 +31,7 @@ fail() {
 command -v jq >/dev/null 2>&1 \
   || fail "jq is required (check-feature-list.sh validates the feature_list)"
 
-for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
+for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh trace-report.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || fail "required harness script missing: scripts/${s}"
 done
@@ -72,10 +72,11 @@ make_state_hygiene_fixture() {
   local dir="$1" issue="$2" other_issue="$3" pad
   pad="$(printf '%02d' "$issue")"
 
-  mkdir -p "${dir}/scripts"
-  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh trace-report.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
 
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"

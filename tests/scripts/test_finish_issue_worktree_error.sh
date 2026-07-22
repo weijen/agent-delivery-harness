@@ -61,10 +61,11 @@ COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"veri
 make_finish_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts"
-  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh; do
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh trace-lib.sh trace-report.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"

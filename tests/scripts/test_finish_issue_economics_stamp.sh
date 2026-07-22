@@ -73,13 +73,14 @@ FAKEGH
 
 copy_finish_fixture_scripts() {
   local dir="$1" script
-  mkdir -p "${dir}/scripts"
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   for script in \
     issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
     trace-lib.sh log-handback.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done
   chmod +x "${dir}/scripts/"*.sh
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
 }
 
 make_finish_fixture() {

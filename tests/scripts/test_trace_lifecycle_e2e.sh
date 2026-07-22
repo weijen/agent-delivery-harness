@@ -139,11 +139,12 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE SKIP_INIT FORCE
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
-mkdir -p "${R}/scripts" "${R}/docs"
+mkdir -p "${R}/scripts" "${R}/docs/evaluation"
 for s in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
-         create-pr.sh merge-pr.sh finish-issue.sh finish-lib.sh trace-lib.sh; do
+         create-pr.sh merge-pr.sh finish-issue.sh finish-lib.sh trace-lib.sh trace-report.sh; do
   cp "${ROOT}/scripts/${s}" "${R}/scripts/"
 done
+cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${R}/docs/evaluation/trace-schema.v1.json"
 cat > "${R}/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash
 echo "stub preflight ok"

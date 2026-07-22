@@ -13,8 +13,9 @@
 #   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
+#   finish_summary_regen_gate     — pre-teardown REQUIRED trace-summary readiness gate (#329)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
-#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp (#320)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp→summary-gate (#320, #329)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
@@ -1104,11 +1105,13 @@ best_effort_economics_stamp() {
   return 0
 }
 
-# Ordered closeout pipeline (issue #320, strip-closeout-cruft). Orchestrates
-# the four pre-teardown record-finalization steps so finish-issue.sh stays a
-# thin teardown orchestrator. Sets TRACE_STAGE (a finish-issue.sh global) on
-# each transition and returns 0 on success / 1 on first failure. The caller
-# does `exit 1` on a non-zero return.
+# Ordered closeout pipeline (issue #320, strip-closeout-cruft; issue #329
+# adds the trailing summary-regen gate). Orchestrates the pre-teardown
+# record-finalization steps so finish-issue.sh stays a thin teardown
+# orchestrator: progress_migrate → closeout_cruft_gate → progress_finalize →
+# economics_stamp (advisory) → summary_regen_gate (required). Sets TRACE_STAGE
+# (a finish-issue.sh global) on each transition and returns 0 on success / 1
+# on first failure. The caller does `exit 1` on a non-zero return.
 finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_migrate"
@@ -1139,6 +1142,63 @@ finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="economics_stamp"
   best_effort_economics_stamp
+
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="summary_regen_gate"
+  if ! finish_summary_regen_gate; then
+    return 1
+  fi
+}
+
+# --- Pre-teardown REQUIRED trace-summary readiness gate (issue #329,
+# closeout-regenerate-trace-summary) ------------------------------------------
+# Issue #329 names final `trace-summary.json` regeneration a MANDATORY
+# closeout step (4/6 sampled issues had no summary at all; two more were
+# frozen mid-run with `finished:false`). This gate is the ONLY point that can
+# still refuse before `git worktree remove` — it is deliberately NOT the same
+# call as `finish__regenerate_summary` in finish-issue.sh: that one runs from
+# trace-lib's EXIT trap AFTER the process has already exited, so it can never
+# block or preserve the worktree and stays best-effort by construction (it
+# also refreshes the summary with the terminal `finish` span + final counts,
+# which this pre-teardown gate — running BEFORE that span exists — cannot
+# produce). Splitting them is intentional, not redundant: this gate proves
+# the canonical regenerator is present, runs, and actually writes the summary
+# for THIS issue WHILE THE WORKTREE IS STILL INTACT; the post-hook then
+# refreshes that same file once the finish span lands. A missing/failing
+# reporter, or one that exits 0 without producing the file, is a REQUIRED
+# artifact never being written — that blocks the finish and leaves the
+# worktree intact, exactly like finish_trace_gate/finish_closeout_cruft_gate.
+#
+# Skipped (returns 0) only when tracing itself is not active at all —
+# `trace__main_root` undefined means finish-issue.sh is running the guarded
+# no-trace-lib NOOP fallback, so there is no trace.jsonl to summarize and no
+# NEW hard requirement is introduced on a checkout that predates the trace
+# tooling (mirrors the other gates' missing-tool degrade-to-skip precedent).
+finish_summary_regen_gate() {
+  declare -F trace__main_root >/dev/null 2>&1 || return 0
+
+  local main_root="" issue_pad="" summary_path=""
+  main_root="$(trace__main_root 2>/dev/null)" || return 0
+  [ -n "$main_root" ] || return 0
+  issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
+  summary_path="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace-summary.json"
+
+  if ! "${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" >/dev/null 2>&1; then
+    red "✗ required trace-summary regeneration failed (issue #329): scripts/trace-report.sh could not run for issue ${ISSUE_NUM}."
+    echo "  trace-summary.json is a mandatory closeout artifact, not best-effort."
+    echo "  Fix the reporter (or its trace.jsonl input), then re-run:"
+    echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  if [ ! -s "$summary_path" ]; then
+    red "✗ required trace-summary regeneration did not produce ${summary_path} (issue #329)."
+    echo "  The worktree is left intact."
+    return 1
+  fi
+
+  return 0
 }
 
 # Best-effort closeout state hygiene (issue #175). Sweeps the issue's orphaned

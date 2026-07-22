@@ -54,7 +54,20 @@
 #   ./scripts/trace-report.sh <path/to/trace.jsonl>
 #       reports on the given file directly
 #
-# Report-only: never called by lifecycle scripts here (gate wiring is #103).
+# Report-only: THIS script never gates on a run's health (exit codes below) —
+# but it is no longer un-invoked by lifecycle scripts. finish-issue.sh
+# closeout (issue #329) calls it by issue number from TWO sites so the
+# surviving main-root trace-summary.json is never missing/stale: (1) a
+# pre-teardown REQUIRED readiness gate (finish_summary_regen_gate,
+# scripts/finish-lib.sh) that runs while the worktree is still intact — a
+# non-zero exit here (this script missing, or exiting 2) blocks the finish
+# and leaves the worktree in place, because that surviving summary is a
+# mandatory closeout artifact, not optional; (2) a best-effort post-finish-
+# span REFRESH hook (finish__regenerate_summary, scripts/finish-issue.sh) that
+# fires after the process has already exited, so it re-runs this script once
+# more to fold in the terminal `finish` span and final counts — by then
+# nothing can block or preserve the worktree, so that second call stays
+# best-effort by construction, not because the artifact itself is optional.
 #
 # Exit codes: 0 report produced (regardless of run health — reporting is
 # not gating, plan D7) · 2 usage/environment error. Never 1.

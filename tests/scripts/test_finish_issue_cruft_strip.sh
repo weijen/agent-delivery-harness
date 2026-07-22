@@ -40,9 +40,10 @@ chmod +x "${BIN}/gh"
 make_fixture() {
   local name="$1" issue="$2" dir="${TMP_DIR}/$1" pad=""
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts"
-  cp "${ROOT}/scripts/"{issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,review-gate.sh,trace-lib.sh} \
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  cp "${ROOT}/scripts/"{issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,review-gate.sh,trace-lib.sh,trace-report.sh} \
     "${dir}/scripts/"
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"

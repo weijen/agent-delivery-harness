@@ -79,8 +79,8 @@ PROGRESS_MIGRATED=false
 # survives teardown only because trace-lib pins the trace file to the MAIN
 # checkout root (plan D1). TRACE_STAGE names the last stage reached
 # (completion_check|trace_gate|progress_migrate|closeout_cruft_gate|
-# progress_finalize|economics_stamp|worktree_remove|state_hygiene|
-# branch_delete|done), surfaced
+# progress_finalize|economics_stamp|summary_regen_gate|worktree_remove|
+# state_hygiene|branch_delete|done), surfaced
 # as harness.stage by the attr callback; refusals before arming emit nothing.
 TRACE_STAGE=""
 WORKTREE_REMOVED=false
@@ -91,7 +91,28 @@ trace__finish_attrs() {
   printf 'harness.worktree_removed=%s\n' "${WORKTREE_REMOVED}"
   printf 'harness.branch_deleted=%s\n' "${BRANCH_DELETED}"
 }
-trace_lifecycle_init finish trace__finish_attrs
+# Post-emission REFRESH hook (issue #329): trace_lifecycle_init's shared EXIT
+# trap calls this AFTER the finish span above is already written to the
+# MAIN-root trace.jsonl, on every armed exit (pass or fail) — the only point
+# at which "the final trace" truly includes the terminal span. Reuses the
+# canonical trace-report.sh regenerator (never a bespoke summary writer) so
+# the versioned trace-summary.v1 contract stays single-source. This is
+# deliberately still best-effort — NOT the mandatory regeneration itself —
+# because the process has already exited by the time this trap fires, so it
+# can no longer preserve the worktree or the original exit code: stdout is
+# muted, and trace_lifecycle_init's own `|| true` around this call guarantees
+# a missing/failing regenerator can never change finish-issue.sh's exit code.
+# The MANDATORY closeout artifact requirement lives in the pre-teardown
+# `finish_summary_regen_gate` (scripts/finish-lib.sh, TRACE_STAGE=
+# summary_regen_gate) — that gate runs earlier, while the worktree is still
+# intact, and blocks the finish (leaving the worktree in place) when the
+# canonical reporter is missing, fails, or does not write the summary. This
+# hook's only job is to refresh that already-required file once the terminal
+# finish span exists, so a successful run's summary reflects final counts.
+finish__regenerate_summary() {
+  "${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" >/dev/null 2>&1 || true
+}
+trace_lifecycle_init finish trace__finish_attrs finish__regenerate_summary
 
 # --- Parse args -------------------------------------------------------------
 NUM_ARG="" SLUG_ARG=""

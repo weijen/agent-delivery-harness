@@ -164,7 +164,9 @@ make_finish_fixture() {
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   if [ "$with_lib" = "1" ]; then
-    cp "${ROOT}/scripts/trace-lib.sh" "${dir}/scripts/"
+    mkdir -p "${dir}/docs/evaluation"
+    cp "${ROOT}/scripts/trace-lib.sh" "${ROOT}/scripts/trace-report.sh" "${dir}/scripts/"
+    cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   fi
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
