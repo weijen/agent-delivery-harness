@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.24.1 (2026-07-22)
+
+### Bug Fixes
+
+- Complete installer runtime assets
+  ([#345](https://github.com/weijen/agent-delivery-harness/pull/345),
+  [`15af67c`](https://github.com/weijen/agent-delivery-harness/commit/15af67c2751dfb929acd117d052fb253013da379))
+
+- **#311**: Complete installer runtime assets
+  ([#345](https://github.com/weijen/agent-delivery-harness/pull/345),
+  [`15af67c`](https://github.com/weijen/agent-delivery-harness/commit/15af67c2751dfb929acd117d052fb253013da379))
+
+### Documentation
+
+- **#311**: Record installer closure
+  ([#345](https://github.com/weijen/agent-delivery-harness/pull/345),
+  [`15af67c`](https://github.com/weijen/agent-delivery-harness/commit/15af67c2751dfb929acd117d052fb253013da379))
+
+
 ## v0.24.0 (2026-07-22)
 
 ### Features
