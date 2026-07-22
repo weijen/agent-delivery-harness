@@ -27,6 +27,7 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project            # dry run — prints copies and retired-asset removals
   ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
   ./scripts/install-harness.sh /path/to/project --update   # overwrite or prune modified assets after a diff
+  ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # full harness-repository sensor suite
   ```
 
   It defaults to a dry run, never overwrites or removes a modified target file
@@ -36,6 +37,13 @@ descriptor. There are two common ways to start:
   digest diff unless `--update` explicitly authorizes removal. All
   `.copilot/instructions/*` are installed, including the language-specific ones
   (`python`, `terraform-azure`) — delete whichever you do not need.
+
+  The default **adopter profile** installs product-neutral lifecycle and runtime
+  sensors but omits this repository's own release, infrastructure, archive,
+  evaluation-authoring, meta, and top-level documentation obligation sensors.
+  The shipped `tests/harness-dev-sensors.txt` manifest is the machine-readable
+  exclusion source for the installer and adopter CI. Harness maintainers can
+  opt into the complete self-development suite with `--with-dev-sensors`.
 
 Either way, project-specific product specs, architecture notes, and delivery
 plans live under `docs/` and are linked from [AGENTS.md](../AGENTS.md).
