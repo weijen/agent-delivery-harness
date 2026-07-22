@@ -11,7 +11,12 @@
     "research_provenance": "harness.research_url and harness.research_summary are globally optional, open-world fields governed by one conditional matrix on generator red_handback, impl_handback, and green_handback spans: they are conditionally required as a valid pair for a research disposition, while every other disposition requires both fields to be absent. Missing, partial, or malformed research provenance hard-fails log-handback before span or Action Log emission; contradictory direct traces fail consistency. research-requested is ineligible because no source was consulted; supplied provenance warns and is omitted."
   },
   "single_source_note": "numeric_keys / numeric_key_prefixes / structural_numeric_keys / roles are the additive single-source authority (issue #173) for values previously hand-copied into script bodies. numeric_keys + numeric_key_prefixes are the keys trace-lib.sh types as JSON numbers (the #103 trace-gate counts + the gen_ai.usage.* token prefix). structural_numeric_keys (harness.issue, schema_version) are additionally required to be numeric by validate-trace.sh's type check but are set structurally by the emitter, not via the trace-lib numeric-typing predicate — so validate-trace.sh's list is numeric_keys + structural_numeric_keys. roles is the closed log-handback / check-trace-consistency role enum. Script-local copies are wrapped in '# >>> trace-schema:<name> ... # <<< trace-schema:<name>' markers and drift-guarded by tests/meta/test_trace_schema_single_source.sh. Additive and open-world: no change to existing v1 required-field/enum semantics.",
-  "span_types": ["agent", "model", "tool", "lifecycle"],
+  "span_types": [
+    "agent",
+    "model",
+    "tool",
+    "lifecycle"
+  ],
   "numeric_keys": [
     "harness.exit_status",
     "harness.duration_ms",
@@ -21,8 +26,14 @@
     "harness.violation_count",
     "harness.warning_count"
   ],
-  "numeric_key_prefixes": ["gen_ai.usage.", "harness.economics."],
-  "structural_numeric_keys": ["harness.issue", "schema_version"],
+  "numeric_key_prefixes": [
+    "gen_ai.usage.",
+    "harness.economics."
+  ],
+  "structural_numeric_keys": [
+    "harness.issue",
+    "schema_version"
+  ],
   "roles": [
     "conductor",
     "planning-subagent",
@@ -31,12 +42,27 @@
     "test-subagent",
     "code-review-subagent"
   ],
-  "required_common": ["schema_version", "timestamp", "span", "harness.issue", "harness.version"],
+  "required_common": [
+    "schema_version",
+    "timestamp",
+    "span",
+    "harness.issue",
+    "harness.version"
+  ],
   "required_by_span": {
-    "agent": ["gen_ai.operation.name", "gen_ai.agent.name"],
-    "model": ["gen_ai.request.model"],
-    "tool": ["gen_ai.tool.name"],
-    "lifecycle": ["harness.lifecycle_step"]
+    "agent": [
+      "gen_ai.operation.name",
+      "gen_ai.agent.name"
+    ],
+    "model": [
+      "gen_ai.request.model"
+    ],
+    "tool": [
+      "gen_ai.tool.name"
+    ],
+    "lifecycle": [
+      "harness.lifecycle_step"
+    ]
   },
   "lifecycle_steps": [
     "preflight",
@@ -130,7 +156,9 @@
     "harness.repair_scope": "string; comma-separated list of feature-id tokens ([A-Za-z0-9._-]+) declaring the revised feature set for a repair-mode review verdict. Required on every review_verdict span with harness.review_mode=repair (consistency rule repair_scope_missing); the span's harness.feature_id MUST be an exact token member of repair_scope (repair_scope_mismatch). Canonical format: no whitespace, no empty tokens, no duplicate tokens (repair_scope_invalid). Absent on full/concise review modes and non-review_verdict steps. Emitted via TRACE_REPAIR_SCOPE passthrough in log-handback.sh (review_verdict + repair only; invalid values omit + warn, omit-never-fake).",
     "harness.actionable": "string; closed enum {true, false}. Required on every new review_verdict/fail span (emitter hard-fails on missing/invalid). Declares whether the finding is actionable — i.e. whether it carries sufficient evidence (reproduction steps or a concrete proposed fix) to be countable toward the reject cap. actionable=true with evidence is countable; actionable=false is a non-actionable warning (does not consume the reject cap, and is excluded from event-fail determination in economics). actionable=true without evidence triggers an actionable_without_evidence consistency violation and is also not countable. Historical fail spans without this field (absent) are treated as legacy countable for backward compatibility. Emitted via TRACE_ACTIONABLE passthrough in log-handback.sh (review_verdict only; pass verdicts may omit).",
     "harness.finding_reproduction": "string; free-text reproduction steps or evidence for a review finding. Non-empty when the reviewer provides steps to reproduce the issue. Emitted via TRACE_FINDING_REPRODUCTION passthrough in log-handback.sh (review_verdict only; unset/empty → key absent, omit-never-fake). Redacted by trace-lib like every other attribute. Required (at least one of reproduction or proposed_fix) when harness.actionable=true.",
-    "harness.finding_proposed_fix": "string; free-text concrete proposed fix for a review finding. Non-empty when the reviewer provides a specific fix suggestion. Emitted via TRACE_FINDING_PROPOSED_FIX passthrough in log-handback.sh (review_verdict only; unset/empty → key absent, omit-never-fake). Redacted by trace-lib like every other attribute. Required (at least one of reproduction or proposed_fix) when harness.actionable=true."
+    "harness.finding_proposed_fix": "string; free-text concrete proposed fix for a review finding. Non-empty when the reviewer provides a specific fix suggestion. Emitted via TRACE_FINDING_PROPOSED_FIX passthrough in log-handback.sh (review_verdict only; unset/empty → key absent, omit-never-fake). Redacted by trace-lib like every other attribute. Required (at least one of reproduction or proposed_fix) when harness.actionable=true.",
+    "harness.sensor_scope": "enum: scoped | full; which sensor tier ran for a GREEN handback (issue #343 tiered sensor execution): `scoped` = declared sensors + the scripts/affected-sensors.sh set, `full` = the whole suite (FULL fallback or a full-suite gate). Omit-never-fake: absent when the tier was not recorded.",
+    "harness.sensor_count": "number (integer); how many sensors the recorded tier executed for that handback (issue #343). Forwarded only when a pure decimal integer; absent otherwise."
   },
   "trace_file": {
     "path": ".copilot-tracking/issues/issue-NN/trace.jsonl",
