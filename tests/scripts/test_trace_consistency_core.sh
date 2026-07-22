@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test_trace_consistency_core.sh — regression sensor for the cross-artifact
-# consistency checker core (issue #103, feature trace-consistency-core,
-# plan Phase 2).
+# consistency checker core (issue #103, features trace-consistency-core and
+# trace-consistency-state; issue #332 retires reconciliation).
 #
 # Executable spec for `scripts/check-trace-consistency.sh
 # <issue-number|trace-path>` — the report-only cross-artifact checker in the
@@ -13,16 +13,12 @@
 #
 # Rules pinned by this sensor (finding formats frozen):
 #
-#   log_without_span / span_without_log — the lifted #95 multiset detector:
-#     compare `[role] step feature_id outcome` tuples from span=="agent"
-#     trace lines against the `## Action Log` payload bullets of progress.md
-#     (`- [<role>] <step> <feature_id> <outcome> — <summary>`, exactly what
-#     log-handback.sh writes). Pinned finding shapes:
-#         VIOLATION consistency: log_without_span [<role>] <step> <feature_id> <outcome>
-#         VIOLATION consistency: span_without_log [<role>] <step> <feature_id> <outcome>
-#     Echoing the tuple is deliberate and safe: the tuple is enum-valued
-#     fields already public in progress.md (plan decision 6) — free-text
-#     summaries are never echoed.
+#   log_without_span / span_without_log — RETIRED (issue #332): trace.jsonl
+#     is now the canonical record; progress.md Action Log is rendered from
+#     spans by render-action-log.sh. Pre-renderer records (spans written
+#     alongside bullets by the old dual-write log-handback.sh) are tolerated
+#     as-is — the detector is removed and no reconciliation violation fires
+#     for any mismatch between spans and progress.md bullets.
 #
 #   role_attribution_gap — every span=="agent" line must carry a
 #     gen_ai.agent.name inside the closed log-handback role enum
@@ -33,47 +29,34 @@
 #         VIOLATION consistency: role_attribution_gap line <N>
 #
 # Legs:
-#   1. Fixture pair produced by the REAL log-handback.sh (single-source
-#      emitter, same MAIN-repo + linked-worktree pattern as the meta oracle)
-#      -> exit 0, zero VIOLATION findings.
-#   2. Hand-appended Action Log bullet with no span -> exit 1 + the pinned
-#      log_without_span finding naming the exact tuple; nothing misreported
-#      as span_without_log.
-#   3. Bullet removed for a real span -> exit 1 + the pinned span_without_log
-#      finding; nothing misreported as log_without_span.
-#   4a. Hand-written agent span with NO gen_ai.agent.name (log-handback
-#       always sets it; only a hand-written span can lack it) -> exit 1 +
+#   1. Fixture pair produced by the REAL log-handback.sh -> exit 0, zero
+#      VIOLATION findings.
+#   2. Reconciliation retired (issue #332): extra Action Log bullet with no
+#      span -> exit 0, NO log_without_span violation (detector removed).
+#      Legacy carve-out proof: pre-renderer dual-write records are tolerated.
+#   3. Reconciliation retired (issue #332): bullet removed for a real span
+#      -> exit 0, NO span_without_log violation (detector removed).
+#      Legacy carve-out proof: trace-only records are tolerated.
+#   4a. Hand-written agent span with NO gen_ai.agent.name -> exit 1 +
 #       role_attribution_gap naming the line.
 #   4b. Hand-written agent span with an OUT-OF-ENUM role AND a matching
-#       Action Log bullet (multisets agree!) -> role_attribution_gap still
-#       fires, and neither log_without_span nor span_without_log does —
-#       proves the gap rule is independent of the multiset comparison.
-#   5. Parity leg: on the case-1/2/3 fixtures, this sensor re-runs the meta
-#      oracle's detector pipeline (tests/meta/test_trace_action_log_consistency.sh
-#      detect(): jq tuple extraction + awk section slice + sed bullet parse +
-#      comm side-selection, copied VERBATIM below) and asserts the live
-#      checker reports exactly the same tuple multisets under the underscore
-#      rule names. Honesty mechanism (plan decision 5): the meta test keeps
-#      its own inlined mutation-tested copy; THIS leg holds the live script
-#      to tuple-for-tuple parity with that logic, so weakening the live
-#      comparison breaks this sensor even if the meta test still passes.
-#   6. CLI family: no args -> exit 2 + usage on stderr; nonexistent trace
+#       Action Log bullet -> role_attribution_gap still fires; proves the
+#       gap rule is independent of span/bullet content.
+#   5. CLI family: no args -> exit 2 + usage on stderr; nonexistent trace
 #      path -> exit 2.
-#   7. (#103 loop-2 review F6) Corrupt-line tolerance: ONE non-JSON line
+#   6. (#103 loop-2 review F6) Corrupt-line tolerance: ONE non-JSON line
 #      inserted into an otherwise consistent trace -> the consistency pass
 #      still RUNS (no crash, no exit 2), the corrupt line is IGNORED (it is
 #      validate-trace.sh's invalid_json to report, not a consistency
-#      finding), and findings on the parseable spans are unaffected: the
-#      consistent pair stays exit 0 / zero findings, and the same corrupt
-#      trace with the case-2 rogue bullet still reports exactly the
-#      log_without_span tuple. Regression protection for the documented
-#      fromjson? tolerance deviation in the lifted detector.
+#      finding). After reconciliation retirement, a corrupt trace with an
+#      extra bullet also exits 0 (no reconciliation finding fires alongside
+#      the ignored corrupt line).
 #
 # RED status at authoring time: scripts/check-trace-consistency.sh does not
 # exist — every leg fails at the presence gate.
-# Loop-2 note (2026-07-04, honest status): leg 7 was authored GREEN — the
-# fromjson? tolerance had already landed with the gate wiring; the leg pins
-# it against regression (e.g. a revert to the oracle's parse-strict jq).
+# Issue-332 note: legs 2 and 3 deliberately pin the RETIRED state — they
+# fail RED against any checker that still has the old detector, and pass
+# GREEN once the detector is removed.
 #
 # Exit codes: 0 consistency-core contract honored · 1 a contract obligation regressed.
 
@@ -114,34 +97,15 @@ command -v jq >/dev/null 2>&1 \
 [ -x "$CHECKER" ] \
   || hard_fail "scripts/check-trace-consistency.sh exists but is not executable (${CHECKER})"
 
-# ============================================================================
-# META ORACLE DETECTOR (copied VERBATIM from
-# tests/meta/test_trace_action_log_consistency.sh detect() — the #95
-# mutation-tested reference; only the temp-file names differ). Used by the
-# parity leg to hold the live checker to tuple-for-tuple agreement.
-# ============================================================================
-oracle_detect() {
-  local trace="$1" progress="$2"
-  local spans="${TMP_DIR}/oracle-spans" logs="${TMP_DIR}/oracle-logs"
-  if [ -f "$trace" ]; then
-    jq -r 'select(.span == "agent")
-           | "[\(.["gen_ai.agent.name"])] \(.["harness.lifecycle_step"] // "-") \(.["harness.feature_id"] // "-") \(.["harness.outcome"] // "-")"' \
-      "$trace" | sort > "$spans"
-  else
-    : > "$spans"
-  fi
-  awk '/^## Action Log/{inlog=1; next} /^## /{inlog=0} inlog' "$progress" \
-    | sed -En 's/^- (\[[^]]+\] [^ ]+ [^ ]+ [^ ]+) — .*/\1/p' \
-    | sort > "$logs"
-  comm -23 "$logs" "$spans" | sed 's/^/log-without-span: /'
-  comm -13 "$logs" "$spans" | sed 's/^/span-without-log: /'
-}
+# (Issue #332: the META ORACLE DETECTOR block was removed along with the parity
+# leg. The reconciliation oracle meta-test is deleted; reconciliation is retired.)
 
 # --- Fixture: MAIN repo + linked worktree, pairs produced by the REAL helper ---
 MAIN="${TMP_DIR}/main-repo"
 mkdir -p "${MAIN}/scripts"
 cp "$HELPER" "${MAIN}/scripts/log-handback.sh"
 cp "$LIB" "${MAIN}/scripts/trace-lib.sh"
+cp "${ROOT}/scripts/render-action-log.sh" "${MAIN}/scripts/render-action-log.sh"
 git -C "$MAIN" init -q -b main
 git -C "$MAIN" config user.name "Harness Test"
 git -C "$MAIN" config user.email "harness-test@example.invalid"
@@ -216,24 +180,23 @@ if grep -q '^VIOLATION ' "$OUT"; then
   fail "consistent pair: zero VIOLATION findings expected (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
-# --- 2. Hand-authored bullet with no span -> log_without_span ---------------------
+# --- 2. Reconciliation retired: extra bullet with no span -> NO log_without_span (issue #332) ---
+# Legacy carve-out: pre-renderer dual-write records (or any mismatch) are
+# tolerated as-is once reconciliation is retired.
 rc="$(run_checker "${TMP_DIR}/case2/trace.jsonl")"
-[ "$rc" = "1" ] \
-  || fail "log_without_span: expected exit 1, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
-grep -Fq 'VIOLATION consistency: log_without_span [test-subagent] green_handback demo-feature pass' "$OUT" \
-  || fail "log_without_span: pinned finding format 'VIOLATION consistency: log_without_span [test-subagent] green_handback demo-feature pass' missing (stdout: $(tr '\n' '|' < "$OUT"))"
-if grep -q 'span_without_log' "$OUT"; then
-  fail "log_without_span case must not misreport span_without_log (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" = "0" ] \
+  || fail "reconciliation-retired (log_without_span): extra bullet must not fire — expected exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+if grep -q 'log_without_span' "$OUT"; then
+  fail "reconciliation-retired: log_without_span detection is retired — no violation may fire for an extra bullet (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
-# --- 3. Bullet removed for a real span -> span_without_log ------------------------
+# --- 3. Reconciliation retired: missing bullet for real span -> NO span_without_log (issue #332) ---
+# Legacy carve-out: a trace-only record (no bullet) is also tolerated.
 rc="$(run_checker "${TMP_DIR}/case3/trace.jsonl")"
-[ "$rc" = "1" ] \
-  || fail "span_without_log: expected exit 1, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
-grep -Fq 'VIOLATION consistency: span_without_log [test-subagent] red_handback demo-feature pass' "$OUT" \
-  || fail "span_without_log: pinned finding format 'VIOLATION consistency: span_without_log [test-subagent] red_handback demo-feature pass' missing (stdout: $(tr '\n' '|' < "$OUT"))"
-if grep -q 'log_without_span' "$OUT"; then
-  fail "span_without_log case must not misreport log_without_span (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" = "0" ] \
+  || fail "reconciliation-retired (span_without_log): missing bullet must not fire — expected exit 0, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+if grep -q 'span_without_log' "$OUT"; then
+  fail "reconciliation-retired: span_without_log detection is retired — no violation may fire for a missing bullet (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
 # --- 4a. Agent span with NO gen_ai.agent.name -> role_attribution_gap -------------
@@ -250,7 +213,7 @@ rc="$(run_checker "${TMP_DIR}/case4b/trace.jsonl")"
 grep -Fq "VIOLATION consistency: role_attribution_gap line ${GAP_LINE_4B}" "$OUT" \
   || fail "role gap (out-of-enum): pinned finding 'VIOLATION consistency: role_attribution_gap line ${GAP_LINE_4B}' missing (stdout: $(tr '\n' '|' < "$OUT"))"
 if grep -Eq 'log_without_span|span_without_log' "$OUT"; then
-  fail "role gap (out-of-enum): multisets agree, so no log/span finding may fire — the gap rule must be independent (stdout: $(tr '\n' '|' < "$OUT"))"
+  fail "role gap (out-of-enum): reconciliation is retired, no log/span finding may fire (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 if grep -q 'janitor' "$OUT"; then
   # No multiset finding fires here (asserted above), so the offending role
@@ -260,30 +223,7 @@ if grep -q 'janitor' "$OUT"; then
   fail "role gap (out-of-enum): the report echoed the offending role value (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
-# --- 5. Parity with the meta oracle detector on cases 1-3 -------------------------
-# Same verdict AND same tuple multiset: oracle 'log-without-span: T' /
-# 'span-without-log: T' lines map 1:1 to the live checker's
-# 'VIOLATION consistency: log_without_span T' / 'span_without_log T' lines.
-parity_case() {
-  local name="$1"
-  local trace="${TMP_DIR}/${name}/trace.jsonl" progress="${TMP_DIR}/${name}/progress.md"
-  local oracle_norm="${TMP_DIR}/${name}-oracle.norm" live_norm="${TMP_DIR}/${name}-live.norm"
-  oracle_detect "$trace" "$progress" \
-    | sed -e 's/^log-without-span: /log_without_span /' \
-          -e 's/^span-without-log: /span_without_log /' \
-    | sort > "$oracle_norm"
-  "$CHECKER" "$trace" > "${TMP_DIR}/${name}-live.out" 2>/dev/null || true
-  sed -En 's/^VIOLATION consistency: (log_without_span|span_without_log) (.*)$/\1 \2/p' \
-    "${TMP_DIR}/${name}-live.out" | sort > "$live_norm"
-  if ! diff -u "$oracle_norm" "$live_norm" > "${TMP_DIR}/${name}-parity.diff" 2>&1; then
-    fail "parity (${name}): live checker and meta oracle disagree on the tuple multiset (diff: $(tr '\n' '|' < "${TMP_DIR}/${name}-parity.diff"))"
-  fi
-}
-parity_case case1
-parity_case case2
-parity_case case3
-
-# --- 6. CLI family: usage/environment errors exit 2 -------------------------------
+# --- 5. CLI family: usage/environment errors exit 2 -------------------------------
 rc="$(run_checker)"
 [ "$rc" = "2" ] \
   || fail "no args: expected exit 2 (usage error), got ${rc}"
@@ -312,14 +252,16 @@ if grep -q '^VIOLATION ' "$OUT"; then
   fail "corrupt tolerance: the corrupt line must be IGNORED — zero consistency findings expected on the consistent pair (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
 
-# Same corrupt trace + the case-2 rogue bullet: parseable-span findings
-# must be unaffected by the corrupt neighbor.
+# Same corrupt trace + the case-2 progress.md (extra bullet): after
+# reconciliation retirement, the extra bullet fires no violation, so the
+# corrupt trace + extra bullet still exits 0.
 cp "${TMP_DIR}/case2/progress.md" "${TMP_DIR}/case7/progress.md"
 rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
-[ "$rc" = "1" ] \
-  || fail "corrupt tolerance: findings on parseable spans must be unaffected — expected exit 1 with the rogue bullet, got ${rc} (stdout: $(tr '\n' '|' < "$OUT"))"
-grep -Fq 'VIOLATION consistency: log_without_span [test-subagent] green_handback demo-feature pass' "$OUT" \
-  || fail "corrupt tolerance: the log_without_span tuple must still be reported exactly alongside a corrupt line (stdout: $(tr '\n' '|' < "$OUT"))"
+[ "$rc" = "0" ] \
+  || fail "corrupt tolerance: reconciliation retired and corrupt line ignored — expected exit 0 with extra bullet, got ${rc} (stdout: $(tr '\n' '|' < "$OUT") stderr: $(tr '\n' '|' < "$ERR"))"
+if grep -q '^VIOLATION ' "$OUT"; then
+  fail "corrupt tolerance: no violations expected — reconciliation retired, corrupt line ignored (stdout: $(tr '\n' '|' < "$OUT"))"
+fi
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

@@ -84,7 +84,7 @@ doctrine tests, KEEP the rest. Net effect below.
 | test_subagent_prompt_dedup.sh | KEEP-structural | Structural dedup (heading absence, line budget, phrase-count ≤ 1). |
 | test_tap_helper.sh | KEEP-structural | Behaviour test of the TAP helper library. |
 | test_teeth_proof_doctrine.sh | KEEP-structural | Pins the closed teeth_proof kind-set + evaluator binding (#263). |
-| test_trace_action_log_consistency.sh | KEEP-structural | Behaviour test of check-trace-consistency detection. |
+| test_trace_action_log_consistency.sh | RETIRE (issue #332) | Behaviour test of the retired log_without_span / span_without_log reconciliation; deleted with that check. |
 | test_trace_schema_key_coverage.sh | KEEP-structural | Schema vocabulary authority vs trace-lib output. |
 | test_trace_schema_single_source.sh | KEEP-structural | Byte-for-byte schema-enum single-source drift sensor. |
 

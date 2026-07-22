@@ -29,8 +29,8 @@
 #       file carries BOTH the real Action Log bullets AND the delivery
 #       economics block — proof the stamp ran against the migrated file, not
 #       a hollow stub it would otherwise leave behind), and the post-teardown
-#       `check-trace-consistency.sh <N>` run succeeds with no
-#       span_without_log findings.
+#       `check-trace-consistency.sh <N>` run succeeds (reconciliation is
+#       retired, issue #332, so no span_without_log is possible).
 #   M1b. Ordering, isolated: calling the migration helper BY ITSELF (no
 #       economics stamp call at all) already deposits the real worktree
 #       Action Log at main root with NO economics block — proof migration is
@@ -268,7 +268,7 @@ copy_finish_fixture_scripts() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   for script in \
     issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
-    trace-lib.sh log-handback.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
+    trace-lib.sh log-handback.sh render-action-log.sh validate-trace.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done
   chmod +x "${dir}/scripts/"*.sh
@@ -375,7 +375,7 @@ worktree_dir_path() {
 # --- Environment ---------------------------------------------------------
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc \
-  chmod cp head awk comm diff find mktemp mv sort tail touch ls readlink
+  chmod cp head awk comm diff find mktemp mv sort tail touch ls readlink stat
 write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE \
   REQUIRE_TRACE_CONSISTENCY FORCE DELETE_BRANCH 2>/dev/null || true
@@ -432,20 +432,16 @@ assert_happy_path_ordering_and_consistency() {
   assert_marker_count "$main_progress" '- [test-subagent] red_handback progress-migration pass — authored red sensor' 1
 
   # REQUIREMENT 4: post-teardown check-trace-consistency.sh by issue number
-  # must succeed — no missing-progress, no false span_without_log — now
-  # that the Action Log migrated with the trace. TRACE_ALLOW_DARK_RUN=1
-  # scopes this leg to the migration contract: this fixture's spans come
-  # only from log-handback.sh (no real runtime tool spans), so the
-  # unrelated issue #243 dark_run rule would otherwise fire and is not
-  # this feature's concern (see tests/scripts/test_trace_consistency_dark_run.sh).
+  # must succeed — reconciliation is retired (issue #332) so no span_without_log
+  # can fire; the consistency check is clean once progress.md migrated.
+  # TRACE_ALLOW_DARK_RUN=1 scopes this leg to the migration contract: this
+  # fixture's spans come only from log-handback.sh (no real runtime tool
+  # spans), so the unrelated issue #243 dark_run rule would otherwise fire
+  # and is not this feature's concern (see test_trace_consistency_dark_run.sh).
   check_rc=0
   check_out="$(cd "$main" && PATH="$BIN" TRACE_ALLOW_DARK_RUN=1 ./scripts/check-trace-consistency.sh "$issue" 2>&1)" || check_rc=$?
   [ "$check_rc" -eq 0 ] \
     || { printf '%s\n' "$check_out"; fail "check-trace-consistency.sh ${issue} must succeed after teardown once the Action Log has migrated (got exit ${check_rc})"; }
-  if printf '%s\n' "$check_out" | grep -F -q 'span_without_log'; then
-    printf '%s\n' "$check_out"
-    fail "check-trace-consistency.sh must not report span_without_log once the Action Log survives teardown"
-  fi
 }
 
 # ============================================================================
@@ -1043,6 +1039,77 @@ assert_economics_stamp_into_rejects_symlink_destination() {
     || { printf '%s\n' "$out"; fail "economics_stamp_into must emit a distinct economics-stamp symlink warning when rejecting a symlink destination directly"; }
 }
 
+# ============================================================================
+# M12 — Closeout render sensor: canonical trace spans are rendered into the
+# final MAIN-root progress.md AFTER migration, not before.
+#
+# RED contract: finish_closeout_orchestrate renders action log BEFORE migrating
+# (TRACE_STAGE="action_log_render" precedes TRACE_STAGE="progress_migrate").
+# When finish runs from the main checkout, the renderer in issue-number mode
+# looks for progress.md in the main root → not found (it lives in the worktree
+# only at that point) → warns and returns 0 without rendering. Migration then
+# copies the unrendered worktree placeholder progress.md to main. Result: the
+# main-root progress.md still contains the scaffold placeholder, not the
+# rendered canonical trace spans.
+#
+# GREEN contract: after fix, migration runs first, then the renderer runs
+# against the now-present main-root progress.md → spans are rendered → the
+# main-root progress.md contains the rendered Action Log bullets, not the
+# placeholder. The rendered bullet confirms the canonical trace is the source
+# of truth and the ordering is correct.
+assert_closeout_renders_trace_into_migrated_progress() {
+  local main="$1" issue="$2" wt wt_progress main_progress pad trace_file rc out
+  make_finish_fixture "$main" "$issue"
+  pad="$(printf '%02d' "$issue")"
+  wt="$(worktree_dir_path "$main" "$issue")"
+  wt_progress="${wt}/.copilot-tracking/issues/issue-${pad}/progress.md"
+  main_progress="$(main_progress_path "$main" "$issue")"
+  trace_file="${main}/.copilot-tracking/issues/issue-${pad}/trace.jsonl"
+
+  # Confirm the worktree holds only the scaffold placeholder (no rendering
+  # has run yet — log-handback.sh has not been called).
+  assert_file_contains "$wt_progress" \
+    '- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._'
+
+  # Write one canonical agent span directly to trace.jsonl in the main root
+  # (bypassing log-handback.sh so the worktree progress.md stays unrendered).
+  # The closeout renderer must produce this bullet in the migrated main-root
+  # progress.md; if it runs before migration (the current bug), it cannot
+  # find progress.md and silently skips — leaving the placeholder behind.
+  # Use -c (compact/single-line) so each span is one JSONL line as the
+  # renderer expects.
+  mkdir -p "${main}/.copilot-tracking/issues/issue-${pad}"
+  jq -cn '{
+    "span": "agent",
+    "gen_ai.operation.name": "invoke_agent",
+    "gen_ai.agent.name": "conductor",
+    "harness.lifecycle_step": "feature_start",
+    "harness.feature_id": "render-closeout",
+    "harness.outcome": "pass",
+    "harness.summary": "closeout render sensor confirms ordered execution"
+  }' >> "$trace_file"
+
+  rc=0
+  out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
+  [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "closeout-render (M12): finish-issue.sh must exit 0 (issue ${issue})"; }
+
+  [ -f "$main_progress" ] \
+    || fail "closeout-render (M12): migrated progress.md must exist at ${main_progress} after finish"
+
+  # The main-root progress.md must contain the rendered bullet from the
+  # canonical trace span. If the renderer ran BEFORE migration (the bug),
+  # it could not find progress.md → warned and skipped → migration copied
+  # the placeholder → this assertion fails.
+  assert_file_contains "$main_progress" \
+    '- [conductor] feature_start render-closeout pass — closeout render sensor confirms ordered execution'
+
+  # The scaffold placeholder must be gone: the renderer replaced it with the
+  # rendered span bullet. If migration ran without a post-migration render,
+  # the placeholder would still be present.
+  assert_file_not_contains "$main_progress" \
+    '- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._'
+}
+
 assert_happy_path_ordering_and_consistency "${TMP_DIR}/r1" 501
 assert_migrate_alone_produces_real_content_no_stamp "${TMP_DIR}/r1b" 511
 assert_idempotent_rerun_while_worktree_remains "${TMP_DIR}/r2" 502
@@ -1057,5 +1124,6 @@ assert_full_finish_never_stamps_through_symlinked_destination "${TMP_DIR}/r8" 50
 assert_symlinked_tracking_parent_does_not_escape "${TMP_DIR}/r9" 509
 assert_full_finish_migrate_failure_never_stamps_stale_destination "${TMP_DIR}/r10" 510
 assert_economics_stamp_into_rejects_symlink_destination "${TMP_DIR}/r11"
+assert_closeout_renders_trace_into_migrated_progress "${TMP_DIR}/r12" 517
 
 printf 'finish-issue progress.md migration contract honored\n'

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # log-handback.sh — single-source recorder for conductor decisions and
-# subagent handbacks (issue #95, feature log-handback-helper, plan Phase 1).
+# subagent handbacks (issue #95, feature log-handback-helper, plan Phase 1;
+# updated issue #332, feature trace-only-handback).
 #
 # Usage:
 #   scripts/log-handback.sh <role> <lifecycle_step> <feature_id> <outcome> <summary...>
 #
-# Turns ONE decision/handback event into:
-#   1. one `agent` span appended (via trace-lib.sh) to the MAIN checkout
-#      root's .copilot-tracking/issues/issue-NN/trace.jsonl, and
-#   2. one derived Action Log bullet appended under '## Action Log' in the
-#      CURRENT worktree's .copilot-tracking/issues/issue-NN/progress.md:
-#        - [<role>] <lifecycle_step> <feature_id> <outcome> — <summary>
-# Both views are rendered from the same argv (single-source, plan D3); the
-# span is written first, then the log line.
+# Turns ONE decision/handback event into one `agent` span appended (via
+# trace-lib.sh) to the MAIN checkout root's
+# .copilot-tracking/issues/issue-NN/trace.jsonl.  After writing the span,
+# scripts/render-action-log.sh is called in ISSUE-NUMBER mode to regenerate
+# the ## Action Log section of the CURRENT worktree's
+# .copilot-tracking/issues/issue-NN/progress.md from all spans in the trace.
+# Renderer is warn-never-fail; it never blocks the handback exit code.
 #
 # Closed enums (plan D1/D2):
 #   role:    conductor | planning-subagent | generator-subagent |
@@ -61,7 +61,7 @@
 # warning, call still exits 0 (omit, never fake, never hard-fail). The
 # passthrough attaches on ANY lifecycle step — the deviation/failure
 # convention is prose in docs/evaluation/failure-mode-taxonomy.md, not a
-# gate here. The Action Log bullet format is unchanged.
+# gate here.
 #
 # Instruction-files passthrough (issue #300, feature instruction-files-span —
 # mirrors the token/failure-mode passthrough): TRACE_INSTRUCTION_FILES is
@@ -70,8 +70,7 @@
 # conductor injected into a handback prompt. Unlike failure-mode there is NO
 # closed enum: any non-empty value is accepted as-is and redacted by trace-lib
 # like every other attribute. Unset or empty → key absent (omit, never fake);
-# the call still exits 0. Informational only (no consistency gate). The Action
-# Log bullet format is unchanged.
+# the call still exits 0. Informational only (no consistency gate).
 #
 # Review-verdict provenance (issue #299, feature review-verdict-provenance):
 # on the review_verdict step ONLY, two attributes are attached. (1)
@@ -81,22 +80,12 @@
 # is inline here, distinct from failure_modes). (2) harness.reviewed_sha is
 # AUTO-captured at emit time from `git rev-parse HEAD` (NOT from any env var) and
 # omitted when unresolvable. On every OTHER lifecycle step both attributes are
-# absent even when TRACE_REVIEW_MODE is set in the ambient env. The Action Log
-# bullet format is unchanged.
+# absent even when TRACE_REVIEW_MODE is set in the ambient env.
 #
 # Failure semantics (plan D4, conductor-resolved):
 #   * Bad role/step/outcome or missing args → non-zero exit, nothing written.
-#   * Validate first, THEN span, THEN log line. If the Action Log append
-#     fails after the span was written (progress.md missing, or no
-#     '## Action Log' section), exit non-zero and warn on stderr naming the
-#     ORPHAN span; progress.md is never created or half-written.
-#   * trace-lib.sh absent → tracing degrades, the Action Log never does:
-#     warn (mentioning trace-lib), still append the line, exit 0.
-#
-# Redaction (defense in depth): the span is redacted by trace-lib; the
-# Action Log line is redacted here too — via trace_redact when trace-lib is
-# present, else a minimal local mask of GitHub-token shapes (the narrower
-# fallback is a documented tradeoff of the degraded no-trace-lib mode).
+#   * trace-lib.sh absent → tracing degrades: warn (mentioning trace-lib),
+#     span skipped, renderer called (warn-never-fail), exit 0.
 
 set -euo pipefail
 
@@ -271,35 +260,23 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
 fi
 
 # --- 2. Emit the agent span first (plan D3 ordering) --------------------------
-# Guarded source: a missing trace-lib.sh degrades tracing but must never lose
-# the Action Log line (the primary human artifact).
+# Guarded source: a missing trace-lib.sh degrades tracing but never blocks exit.
 HAVE_TRACE_LIB=0
 if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
   # shellcheck source=scripts/trace-lib.sh
   source "${SCRIPT_DIR}/trace-lib.sh"
   HAVE_TRACE_LIB=1
 else
-  warn "scripts/trace-lib.sh not found — agent span skipped, Action Log line still recorded"
+  warn "scripts/trace-lib.sh not found — agent span skipped"
 fi
 
-# trace_span is warn-and-return-0 by contract (#93 plan D2), so a dropped
-# span would otherwise be silent here. Snapshot the trace file around the
-# call and warn explicitly when no span landed, so the caller knows the
-# Action Log line has no matching span (the consistency sensor catches the
-# divergence post-hoc; exit semantics are unchanged).
-SPAN_WRITTEN=0
+SPAN_ISSUE=""
 if [ "$HAVE_TRACE_LIB" = "1" ]; then
-  # Resolve the same trace file trace_span will target, via the lib's own
-  # helpers so the two paths cannot disagree. Unresolvable → the span will
-  # be dropped anyway; leave TRACE_FILE empty.
-  TRACE_FILE=""
-  if MAIN_ROOT="$(trace__main_root 2>/dev/null)" \
-    && SPAN_ISSUE="$(trace__resolve_issue 2>/dev/null)"; then
-    TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-$(printf '%02d' "$SPAN_ISSUE")/trace.jsonl"
-  fi
-  SPANS_BEFORE=0
-  if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
-    SPANS_BEFORE="$(wc -l < "$TRACE_FILE" | tr -d '[:space:]')"
+  # Resolve the issue number so the renderer (Section 3) can reference it.
+  # Unresolvable → SPAN_ISSUE stays empty; renderer falls back to its own
+  # resolution chain (branch pattern, worktree basename).
+  if SPAN_ISSUE="$(trace__resolve_issue 2>/dev/null)"; then
+    : # SPAN_ISSUE resolved for the renderer
   fi
 
   # Token passthrough: forward each env var independently, only when it is a
@@ -660,100 +637,33 @@ research-requested'
     ${RESEARCH_ARGS[@]+"${RESEARCH_ARGS[@]}"} \
     ${DURABLE_RULE_ARGS[@]+"${DURABLE_RULE_ARGS[@]}"}
 
-  SPANS_AFTER=0
-  if [ -n "$TRACE_FILE" ] && [ -f "$TRACE_FILE" ]; then
-    SPANS_AFTER="$(wc -l < "$TRACE_FILE" | tr -d '[:space:]')"
-  fi
-  if [ -n "$TRACE_FILE" ] && [ "$SPANS_AFTER" -gt "$SPANS_BEFORE" ]; then
-    SPAN_WRITTEN=1
+fi
+
+# --- 3. Render the Action Log from trace (warn-never-fail) -------------------
+# Call render-action-log.sh in ISSUE-NUMBER mode so it resolves the canonical
+# main-root trace.jsonl and falls back to the invoking worktree's progress.md.
+# Prefer SPAN_ISSUE resolved by trace-lib above; fall back to the branch/
+# worktree heuristic when trace-lib is absent.
+RENDER_ISSUE="${SPAN_ISSUE}"
+if [ -z "$RENDER_ISSUE" ]; then
+  RENDER_RAW=""
+  if [ -n "${TRACE_ISSUE:-}" ]; then
+    RENDER_RAW="${TRACE_ISSUE}"
   else
-    warn "agent span was dropped by trace-lib — Action Log line has no matching span"
+    RENDER_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    RENDER_TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+    if [[ "$RENDER_BRANCH" =~ ^feature/issue-([0-9]+)- ]]; then
+      RENDER_RAW="${BASH_REMATCH[1]}"
+    elif [[ "$(basename "${RENDER_TOPLEVEL}")" =~ issue-([0-9]+) ]]; then
+      RENDER_RAW="${BASH_REMATCH[1]}"
+    fi
+  fi
+  if [[ "$RENDER_RAW" =~ ^[0-9]+$ ]]; then
+    RENDER_ISSUE="$RENDER_RAW"
   fi
 fi
-
-# --- 3. Append the derived Action Log line (hard-fails, plan D4) --------------
-# Redaction for the Action Log line. With trace-lib present the full trace_redact
-# filter is reused so span and log line share one policy. When trace-lib.sh is
-# unavailable, the degraded fallback below runs the IDENTICAL sed program so the
-# Action Log never leaks a secret shape that trace_redact would have masked
-# (issue #270). Parity between the two is guarded by
-# tests/scripts/test_log_handback_redaction_parity.sh — keep this program a byte
-# copy of trace_redact's.
-redact_line() {
-  if [ "$HAVE_TRACE_LIB" = "1" ]; then
-    trace_redact
-  else
-      sed -E \
-      -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
-      -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED]/g' \
-      -e 's/AKIA[0-9A-Z]{16}/[REDACTED]/g' \
-      -e 's/[Ii]nstrumentation[Kk]ey=[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/InstrumentationKey=[REDACTED]/g' \
-      -e 's/sk-ant-[A-Za-z0-9_-]{20,}/[REDACTED]/g' \
-      -e 's/sk-[A-Za-z0-9]{20,}/[REDACTED]/g' \
-      -e 's/[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+=-]+/Bearer [REDACTED]/g' \
-      -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*"[[:space:]]*:[[:space:]]*")[^"]*/\1\2[REDACTED]/g' \
-      -e 's/(^|[^[:alnum:]_])(([sS][eE][cC][rR][eE][tT]|[tT][oO][kK][eE][nN]|[pP][aA][sS][sS][wW][oO][rR][dD]|[pP][aA][sS][sS][wW][dD]|[aA][pP][iI]_?[kK][eE][yY]|[cC][rR][eE][dD][eE][nN][tT][iI][aA][lL])[[:alnum:]_.]*=)[^"\\[:space:]]+/\1\2[REDACTED]/g' \
-      -e 's/([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|ACCESS_KEY|API_KEY)S?=)[^"\\[:space:]]+/\1[REDACTED]/g' \
-      -e 's/(([A-Za-z0-9]+-)+([Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd])[[:space:]]*:[[:space:]]*)[^"\\[:space:]]+/\1[REDACTED]/g' \
-      -e 's/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/[REDACTED]/g' \
-      -e 's/([?&][Ss][Ii][Gg]=)[^"&[:space:]]+/\1[REDACTED]/g' \
-      -e 's/([Aa]ccount[Kk]ey=)[^";[:space:]]+/\1[REDACTED]/g' \
-      -e 's/-----BEGIN [A-Z ]*PRIVATE KEY-----[^-]*-----END [A-Z ]*PRIVATE KEY-----/[REDACTED]/g'
-  fi
-}
-
-# The append-failure message names the orphan span only when one was
-# verifiably written (the snapshot above), not merely when the lib loaded.
-append_fail() {
-  if [ "$SPAN_WRITTEN" = "1" ]; then
-    fail "$* — the agent span already written to trace.jsonl is now an ORPHAN (no matching Action Log line)"
-  else
-    fail "$*"
-  fi
-}
-
-TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)" \
-  || append_fail "not inside a git worktree — cannot locate progress.md for the Action Log"
-
-# Issue resolution mirrors trace-lib's D5 precedence: TRACE_ISSUE env, then
-# the feature/issue-NN-* branch, then an issue-NN worktree basename.
-ISSUE_RAW=""
-if [ -n "${TRACE_ISSUE:-}" ]; then
-  ISSUE_RAW="${TRACE_ISSUE}"
-else
-  BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  if [[ "$BRANCH" =~ ^feature/issue-([0-9]+)- ]]; then
-    ISSUE_RAW="${BASH_REMATCH[1]}"
-  elif [[ "$(basename "$TOPLEVEL")" =~ issue-([0-9]+) ]]; then
-    ISSUE_RAW="${BASH_REMATCH[1]}"
-  fi
+if [ -n "$RENDER_ISSUE" ] && [ -f "${SCRIPT_DIR}/render-action-log.sh" ]; then
+  "${SCRIPT_DIR}/render-action-log.sh" "${RENDER_ISSUE}" || true
 fi
-[[ "$ISSUE_RAW" =~ ^[0-9]+$ ]] \
-  || append_fail "cannot resolve the issue number (set TRACE_ISSUE, or use a feature/issue-NN-* branch or issue-NN worktree) — cannot locate progress.md for the Action Log"
-ISSUE_PAD="$(printf '%02d' "$((10#$ISSUE_RAW))")"
-
-PROGRESS="${TOPLEVEL}/.copilot-tracking/issues/issue-${ISSUE_PAD}/progress.md"
-[ -f "$PROGRESS" ] \
-  || append_fail "progress.md not found at ${PROGRESS} — Action Log line not recorded"
-grep -q '^## Action Log' "$PROGRESS" \
-  || append_fail "progress.md at ${PROGRESS} has no '## Action Log' section — Action Log line not recorded"
-
-RESEARCH_SUFFIX=""
-if [ -n "$RESEARCH_URL" ]; then
-  RESEARCH_SUFFIX=" [research: ${RESEARCH_URL} — ${RESEARCH_SUMMARY}]"
-fi
-DURABLE_RULE_SUFFIX=""
-if [ -n "$DURABLE_RULE_PATH" ]; then
-  DURABLE_RULE_SUFFIX=" [durable rule: ${DURABLE_RULE_PATH} — ${DURABLE_RULE_SUMMARY}]"
-fi
-BULLET="$(printf -- '- [%s] %s %s %s — %s%s' \
-  "$ROLE" "$STEP" "$FEATURE_ID" "$OUTCOME" "$SUMMARY" \
-  "${RESEARCH_SUFFIX}${DURABLE_RULE_SUFFIX}" | redact_line)" \
-  || append_fail "redaction of the Action Log line failed — line not recorded"
-[ -n "$BULLET" ] \
-  || append_fail "redaction produced an empty Action Log line — line not recorded"
-
-printf '%s\n' "$BULLET" >> "$PROGRESS" \
-  || append_fail "cannot append to ${PROGRESS} — Action Log line not recorded"
 
 exit 0

@@ -1,33 +1,21 @@
 #!/usr/bin/env bash
 # check-trace-consistency.sh — standalone, report-only cross-artifact
 # consistency checker (issue #103, features trace-consistency-core and
-# trace-consistency-state, plan Phases 2–3).
+# trace-consistency-state, plan Phases 2–3; issue #332 retires reconciliation).
 #
 # Where validate-trace.sh checks ONE artifact (the trace against the frozen
-# schema contract), this checker asks whether the trace, progress.md, the
-# feature list, and the review-gate marker tell the SAME story. Same CLI
-# family as validate-trace.sh: findings to stdout, report-only (never called
-# by lifecycle scripts here — gate wiring is Phase 4), exit 0 no findings ·
+# schema contract), this checker asks whether the trace, the feature list,
+# and the review-gate marker tell the SAME story. Same CLI family as
+# validate-trace.sh: findings to stdout, report-only (never called by
+# lifecycle scripts here — gate wiring is Phase 4), exit 0 no findings ·
 # 1 findings · 2 usage/environment error.
 #
-# Core rules (Phase 2):
-#   log_without_span / span_without_log
-#                     the lifted #95 multiset detector (tests/meta/
-#                     test_trace_action_log_consistency.sh detect(), built
-#                     explicitly for this issue to lift; pipeline kept
-#                     VERBATIM below): compare `[role] step feature_id
-#                     outcome` tuples from span=="agent" trace lines against
-#                     the `## Action Log` payload bullets of progress.md
-#                     (`- [<role>] <step> <feature_id> <outcome> — <summary>`,
-#                     exactly what log-handback.sh writes), via comm on
-#                     sorted multisets. A bullet with no span is a
-#                     hand-written claim; a span with no bullet is an
-#                     unlogged action. Findings echo the tuple — deliberate
-#                     and safe: enum-valued fields already public in
-#                     progress.md (plan decision 6); free-text summaries are
-#                     never echoed.
-#                         VIOLATION consistency: log_without_span [<role>] <step> <feature_id> <outcome>
-#                         VIOLATION consistency: span_without_log [<role>] <step> <feature_id> <outcome>
+# Reconciliation retired (issue #332): the log_without_span / span_without_log
+# multiset detector (Phase 2) is removed. trace.jsonl is the canonical record;
+# progress.md Action Log is rendered from spans by render-action-log.sh. All
+# pre-renderer records are tolerated as-is.
+#
+# Core rules (Phase 2, retained):
 #   role_attribution_gap
 #                     every span=="agent" line must carry a gen_ai.agent.name
 #                     inside the closed log-handback role enum (conductor |
@@ -289,40 +277,13 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 violations=0
 
-# --- Core: Action Log ↔ agent-span multiset comparison ------------------------
-# ============================================================================
-# LIFTED #95 DETECTOR (tuple extraction + Action Log slice + comm side
-# selection copied from tests/meta/test_trace_action_log_consistency.sh
-# detect() — the mutation-tested reference, built in #95 explicitly for this
-# issue to lift; only the temp-file names and the finding prefixes differ,
-# plus ONE tolerance deviation (#103 gate wiring): the oracle feeds jq the
-# trace as parsed JSON and would ABORT on an unparseable line, while the
-# live checker reads raw lines through `fromjson? | objects` so a corrupt
-# line (already flagged invalid_json by validate-trace.sh) cannot crash the
-# consistency pass. The tuple template string itself stays byte-identical.
-# The meta test keeps its own inlined copy as the oracle; the
-# test_trace_consistency_core.sh parity leg holds THIS copy tuple-for-tuple
-# to it, so the two cannot drift apart silently — plan decision 5.)
-# ============================================================================
-SPANS_SORTED="${TMP_DIR}/spans.sorted"
-LOGS_SORTED="${TMP_DIR}/logs.sorted"
-jq -R -r 'fromjson? | objects | select(.span == "agent")
-       | "[\(.["gen_ai.agent.name"])] \(.["harness.lifecycle_step"] // "-") \(.["harness.feature_id"] // "-") \(.["harness.outcome"] // "-")"' \
-  "$TRACE_FILE" | sort > "$SPANS_SORTED"
-awk '/^## Action Log/{inlog=1; next} /^## /{inlog=0} inlog' "$PROGRESS_FILE" \
-  | sed -En 's/^- (\[[^]]+\] [^ ]+ [^ ]+ [^ ]+) — .*/\1/p' \
-  | sort > "$LOGS_SORTED"
-
-while IFS= read -r tuple; do
-  [ -n "$tuple" ] || continue
-  printf 'VIOLATION consistency: log_without_span %s\n' "$tuple"
-  violations=$((violations + 1))
-done < <(comm -23 "$LOGS_SORTED" "$SPANS_SORTED")
-while IFS= read -r tuple; do
-  [ -n "$tuple" ] || continue
-  printf 'VIOLATION consistency: span_without_log %s\n' "$tuple"
-  violations=$((violations + 1))
-done < <(comm -13 "$LOGS_SORTED" "$SPANS_SORTED")
+# --- Core: Action Log ↔ agent-span multiset comparison [RETIRED, issue #332] --
+# trace.jsonl is now the canonical record; progress.md Action Log is rendered
+# from spans by render-action-log.sh. The log_without_span / span_without_log
+# multiset detector (lifted from #95 via #103) is removed: all pre-renderer
+# records (spans written alongside bullets by the old dual-write log-handback.sh)
+# are tolerated as-is. No reconciliation violation fires for any mismatch
+# between spans and progress.md bullets.
 
 # --- Single trace pass: role attribution + state-rule span extraction ---------
 # One jq program (single-pass house style, like validate-trace) emits a line

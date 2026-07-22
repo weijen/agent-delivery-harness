@@ -15,7 +15,7 @@
 #   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
 #   finish_summary_regen_gate     — pre-teardown REQUIRED trace-summary readiness gate (#329)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
-#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→scrub→conclude→stamp→summary-gate (#320, #329)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→render→scrub→conclude→stamp→summary-gate (#320, #329, #332)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
@@ -1355,10 +1355,11 @@ best_effort_economics_stamp() {
 # Ordered closeout pipeline (issue #320, strip-closeout-cruft; issue #329
 # adds the trailing summary-regen gate). Orchestrates the pre-teardown
 # record-finalization steps so finish-issue.sh stays a thin teardown
-# orchestrator: progress_migrate → closeout_cruft_gate → progress_finalize →
-# economics_stamp (advisory) → summary_regen_gate (required). Sets TRACE_STAGE
-# (a finish-issue.sh global) on each transition and returns 0 on success / 1
-# on first failure. The caller does `exit 1` on a non-zero return.
+# orchestrator: progress_migrate → action_log_render → closeout_cruft_gate →
+# progress_finalize → economics_stamp (advisory) → summary_regen_gate
+# (required). Sets TRACE_STAGE (a finish-issue.sh global) on each transition
+# and returns 0 on success / 1 on first failure. The caller does `exit 1` on
+# a non-zero return.
 finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_migrate"
@@ -1367,6 +1368,16 @@ finish_closeout_orchestrate() {
     red "✗ progress migration blocked the finish; the durable conclusion was not copied safely."
     echo "  The worktree is left intact."
     return 1
+  fi
+
+  # Render the Action Log into the now-present main-root progress.md so the
+  # migrated copy carries fully-rendered canonical trace spans rather than the
+  # worktree's last-written content (warn-never-fail, never blocks).
+  # Must run AFTER migration so the renderer finds the main-root progress.md.
+  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
+  TRACE_STAGE="action_log_render"
+  if [ -f "${SCRIPT_DIR}/render-action-log.sh" ]; then
+    "${SCRIPT_DIR}/render-action-log.sh" "${ISSUE_NUM}" || true
   fi
 
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap

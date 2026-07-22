@@ -194,14 +194,14 @@ that feature. Key-presence precedence applies: if the canonical `teeth_proof_wai
 (wrong kind, empty reason), it shadows a valid legacy `red_first_waiver` and the feature is treated as unwaived —
 the malformed canonical key wins over the alias, it does not fall back.
 
-#### Agent-span conventions (single-source with the Action Log)
+#### Agent-span conventions (trace canonical, Action Log rendered)
 
 Every conductor decision and subagent handback is recorded by the conductor running `scripts/log-handback.sh`
 (`<role> <lifecycle_step> <feature_id> <outcome> <summary...>`) from the issue worktree. The conductor is the sole
 emission point, and each subagent ends its handback with the structured payload line or lines the conductor feeds in
-verbatim. One invocation is single-source by construction: it writes the agent
-span first, then the derived Action Log line in `progress.md` from the same arguments —
-never hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
+verbatim. One invocation is single-source: it writes the agent span to `trace.jsonl` (the canonical record) and then
+renders the `## Action Log` section in `progress.md` from spans via `scripts/render-action-log.sh` — never
+hand-author the span or the Action Log line as a separate pair. Run it at every decision/handback boundary,
 attributing `<role>` to the role that produced the event. The mapping below covers every required handback signal;
 the other six lifecycle steps of the frozen enum — `preflight`, `worktree_create`, `review_gate_approve`,
 `pr_create`, `pr_merge`, `finish` — are emitted by the lifecycle scripts themselves and are not duplicated here:
