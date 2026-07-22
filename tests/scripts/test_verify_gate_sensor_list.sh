@@ -56,9 +56,13 @@ for drop in 'find-duplicates' 'find-over-design' 'find-brute-force' \
   fi
 done
 
-# A rationale sentence must explain the shrink: embedded checks #6-#11 + audit-sweep.
-grep -qiE '#6.{0,5}#11' "${DOC_HARNESS}" \
-  || fail "doctrine must reference embedded checks #6-#11 as the quality skills' diff-scoped coverage"
+# A rationale sentence must explain the shrink (#350): the five quality skills'
+# only execution point is the periodic audit-sweep — no review mode runs them.
+grep -qiE 'only execution point.{0,60}audit-sweep|audit-sweep.{0,80}only' "${DOC_HARNESS}" \
+  || fail "doctrine must state the quality skills run only in the periodic audit-sweep (#350)"
+if grep -qiE 'embedded.{0,20}checks? #6.{0,5}#11' "${DOC_HARNESS}"; then
+  fail "doctrine must no longer claim the quality skills ship embedded in review checks #6-#11 (#350 moved them to audit-sweep)"
+fi
 
 # The §8 garbage-collection section must carry the audit-sweep cadence doctrine.
 # Scope to §8 (between its heading and §9) so wrapped markdown lines don't defeat

@@ -281,13 +281,14 @@ plan expands scope, and **preserve role boundaries**: `generator-subagent` owns 
 `code-review-subagent` may edit only dedicated verification assets during independent review.
 
 **Review profile in Loop 2.** The single end-of-issue review runs in **`full` mode** over the whole branch diff:
-Verdicts 1-4, the adversarial test-quality pass, **and** the whole-diff skill battery (code-quality checks #6-#11:
-`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, `public-exposure-audit`).
-Use `concise` or `full` (not `repair`) for that pre-PR pass so the whole-diff sweep, including the
-`public-exposure-audit` security check, always runs before `gh pr create`. The **only** mid-stream reviews are the
-**post-repair re-reviews** after a `NEEDS_REVISION`: those run in the **`repair` review profile** **scoped to that feature only** and skip the whole-diff skill battery (#6-#11) to keep the repair-loop review context small, because
-that battery already runs in the full pre-PR review. Nothing is permanently skipped — the pre-PR review runs the
-**full battery** over the whole branch diff (§6).
+Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure sweep (check #7,
+`public-exposure-audit`). The five quality skills (`find-brute-force`, `find-duplicates`, `find-over-design`,
+`dead-code-detection`, `sync-docs`) do **not** run in any review mode — since #350 their only execution point is
+the periodic `audit-sweep` (reversible findings never gate a PR; the reviewer may still flag egregious cases by
+plain judgment, check #6). Use `concise` or `full` (not `repair`) for the pre-PR pass so the exposure sweep
+always runs before `gh pr create`. The **only** mid-stream reviews are the **post-repair re-reviews** after a
+`NEEDS_REVISION`: those run in the **`repair` review profile** **scoped to that feature only** and defer the
+exposure sweep to the pre-PR review (§6).
 **Avoid infinite loops** — repeated failure on the same sensor or finding stops
 and asks the human after the project-defined retry limit, or after **two failed repair attempts** when no local rule
 exists. For THIS repo the local rule overrides that generic default: the **3rd review rejection (NEEDS_REVISION) for
@@ -472,11 +473,11 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    - `security-audit`
    - `public-exposure-audit`
 
-   The five diff-scoped quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
-   `dead-code-detection`, `sync-docs`) are **not** repeated as standalone sensors here: their
-   diff-scoped coverage already ships at zero extra cost inside the `full`-mode review's embedded
-   checks #6-#11 (unchanged), and their whole-repo coverage is owned by the periodic `audit-sweep`
-   (`scripts/audit-sweep.sh`).
+   The five quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
+   `dead-code-detection`, `sync-docs`) do **not** run here at all — not standalone and not embedded
+   (#350): quality-pattern findings are reversible, so by the same irreversibility principle their
+   only execution point is the periodic whole-repo `audit-sweep` (`scripts/audit-sweep.sh`). The
+   review keeps a plain-judgment flag for egregious cases (review check #6).
 5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
@@ -560,12 +561,11 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 Agents replicate existing patterns, including bad ones — drift is inevitable. Pay debt down in
 small increments, not painful bursts.
 
-- The inferential drift sensors do **not** run on a vague "per milestone" cadence. The five drift
-  skills (`find-duplicates`, `find-over-design`, `find-brute-force`, `dead-code-detection`,
-  `sync-docs`) run **diff-scoped inside the `full`-mode review on every PR** (the embedded
-  code-quality checks #6-#11 of the Pre-PR verify gate, §6) **and** whole-repo on the audit-sweep
-  cadence below — they are **not** standalone §6 sensors. Their findings follow the same
-  severity→action loop-back table. GC is enforced per issue, not deferred to entropy.
+- The inferential drift sensors do **not** run on a vague "per milestone" cadence, and since #350
+  they do **not** run per PR either: the five drift skills (`find-duplicates`, `find-over-design`,
+  `find-brute-force`, `dead-code-detection`, `sync-docs`) run **whole-repo on the audit-sweep
+  cadence below only**. Their findings follow the same severity→action loop-back table, paid down
+  in scheduled increments rather than per-PR tolls.
 - Run the whole-repo `scripts/audit-sweep.sh` (the audit-sweep driver, issue #258) on a periodic
   cadence — **weekly or per release** — to sweep drift across the whole tree, not just the branch
   diff. This is promoted to scheduled CI when **#256** unblocks.
