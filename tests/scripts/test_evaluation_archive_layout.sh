@@ -24,7 +24,7 @@
 #      archived-content sensors this list once carried were deleted under
 #      #337 feature retarget-archive-sensors: archived prose is no longer
 #      content-gated.)
-#   5. Every path in the kept log-schema.v1.json and trace-schema.v1.json
+#   5. Every path in the kept trace-schema.v1.json
 #      `.redaction.authorities[]` array resolves to a real file. Those two
 #      schema files stayed in docs/evaluation/ (preserved set) but their
 #      embedded authority pointers name files that the move relocated, so a
@@ -169,13 +169,12 @@ for sensor in "${retargeted_sensors[@]}"; do
 done
 
 # --- 5. Redaction authority pointers in the kept schemas resolve ------------
-# log-schema.v1.json and trace-schema.v1.json did not move, but the move
+# trace-schema.v1.json did not move, but the move
 # relocated the files their .redaction.authorities[] pointers name. Checking
 # only that the pointer strings match a filename (as steps 1-4 do) would miss
 # a pointer left aimed at the pre-move docs/evaluation/ location, so this
 # resolves each authority path against the repo root and requires it to exist.
 authority_schemas=(
-  docs/evaluation/log-schema.v1.json
   docs/evaluation/trace-schema.v1.json
 )
 for schema in "${authority_schemas[@]}"; do
