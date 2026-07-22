@@ -19,7 +19,9 @@ start_commit="$(git -C "$ROOT" log --diff-filter=A --format=%H --reverse -- scri
 	exit 1
 }
 
-git -C "$ROOT" log --diff-filter=D --format= --name-only "${start_commit}^..HEAD" -- \
+# The introduction commit only adds the installer. Excluding it avoids
+# dereferencing a parent that is unavailable when CI checks out a shallow root.
+git -C "$ROOT" log --diff-filter=D --format= --name-only "${start_commit}..HEAD" -- \
 	scripts profiles tests .copilot .github/workflows docs VERSION .env.example |
 	sort -u |
 	while IFS= read -r path; do
