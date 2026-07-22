@@ -136,6 +136,12 @@ export GH_LOG="${TMP_DIR}/gh.log"
 : > "$GH_LOG"
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE SKIP_INIT FORCE DELETE_BRANCH 2>/dev/null || true
+# Hermeticity (issue #329): finish-issue.sh closeout now joins native Copilot
+# economics from ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin the root
+# to an isolated empty dir and unset the ambient session id so this fixture's
+# assertions never read the real developer ~/.copilot session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
