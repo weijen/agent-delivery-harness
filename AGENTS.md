@@ -26,9 +26,9 @@ sanitized, commit-safe fixture or specification.
 
 1. **Work one `feature_list` item at a time. Never one-shot a feature or a whole issue.**
 2. **TDD stays the default discipline** (once code exists): write a failing test first, then
-   minimal code, and never edit or delete a test just to make it pass. The **gate**, though,
-   checks **teeth** — every `passes:true` feature must carry a sensor **proven able to fail**
-   (red-first, mutation, or a negative fixture) or a governed waiver — not handback ordering.
+   minimal code, and never edit or delete a test just to make it pass. Trace-level proof of
+   redness is retired (#334): test quality is judged by the independent end-of-issue review,
+   not by evidence ceremony at every green.
 3. **Leave the environment clean after every session**: green gates, committed, progress updated.
 4. **Push after every completed feature** to the issue's working branch.
 5. **Agents don't call privileged cloud/provider APIs with privileged credentials from a worktree** —

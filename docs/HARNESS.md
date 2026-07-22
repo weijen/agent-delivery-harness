@@ -111,7 +111,7 @@ The normal path is:
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
 6. Use `generator-subagent` for the selected feature's RED sensor, minimal production implementation, GREEN
-  verification, product-quality blocking gate evidence, teeth proof, and `passes:true` update.
+  verification, product-quality blocking gate evidence, and `passes:true` update.
 7. Preserve the generator's ordered `red_handback`, `impl_handback`, and `green_handback` payloads for conductor
   logging.
 8. Run local gates and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
@@ -166,7 +166,7 @@ one.
 | Asset | Responsibility |
 | --- | --- |
 | `planning-subagent` | Researches the issue, reuses existing harness patterns first, and writes self-contained verifiable phases when planning is needed. |
-| `generator-subagent` | Delivers one selected `feature_list` item through RED, minimal implementation, GREEN, product-quality blocking evidence, teeth proof, and `passes:true`. |
+| `generator-subagent` | Delivers one selected `feature_list` item through RED, minimal implementation, GREEN, product-quality blocking evidence, and `passes:true`. |
 | `code-review-subagent` | Reviews spec compliance and quality, adds and executes test-only adversarial coverage when needed, applies the product-quality scorecard, and checks security, brute-force patterns, duplication, over-design, dead-code risk, and docs drift. Production assets remain read-only. |
 | `session-ritual.prompt.md` | A user-invoked prompt for resuming the coding-session ritual on a specific issue. |
 | Skills under `.copilot/skills/` | On-demand review, PR, security, drift, and code-quality sensors used by the conductor and review workflow. |
@@ -232,7 +232,7 @@ it belongs to the subagents. The required per-feature handoff is:
 1. **conductor selects** one `passes:false` feature and prepares context;
 2. **`generator-subagent` creates or validates the RED sensor**, confirming the expected failure;
 3. **the same `generator-subagent` makes the minimal production change** to satisfy it;
-4. **the same `generator-subagent` verifies GREEN**, records product-quality evidence and teeth proof, and updates
+4. **the same `generator-subagent` verifies GREEN**, records product-quality evidence, and updates
   completion status (`passes:true`);
 5. **conductor commits/pushes** and records the handbacks.
 
@@ -487,25 +487,15 @@ intact and the durable record without a conclusion. `LOG_COMPLETENESS_PATHS` may
 with a whitespace-separated list of `NN` path templates. Each resolved run emits a
 `review-gate.log-completeness` trace span with numeric `harness.finding_count`.
 
-### Sensor teeth-proof obligation
+### Sensor teeth-proof obligation (retired, #334)
 
-The L4 outcome is now SENSOR TEETH — a sensor proven able to fail via red-first, mutation, or a negative fixture —
-not handback ordering for its own sake; ordering remains useful signal, but is no longer the hard bar.
-
-`check-trace-consistency.sh` treats a `passes:true` feature as satisfied when it carries a valid first-class
-`teeth_proof` object (kind `red_first`, `mutation`, or `negative_fixture`, with non-empty evidence), or a
-role-correct ordered `red_handback` → `impl_handback` → `green_handback` triple, or a governed waiver. When none of
-those is present it raises `VIOLATION consistency: teeth_proof_missing`. When `teeth_proof` is present but the
-ordered triple is absent, it emits the warn-only `WARNING consistency: red_first_ordering_absent` as context, never as
-a block.
-
-`review-gate.sh` approve and check hard-block on `teeth_proof_missing` by default, and `create-pr.sh` inherits that
-block. The ordering warning never blocks a review approval, PR creation, or closeout by itself.
-
-The governed waiver key is now **`teeth_proof_waiver`** (canonical). The older **`red_first_waiver`** remains accepted
-as a **deprecated alias** during migration. Both keys use the same explicit object shape: `kind` must be one of
-`bootstrap`, `visual-only`, `doc-only`, or `justified`, and `reason` must be non-empty. If both keys are present,
-`teeth_proof_waiver` wins. An empty or kind-less waiver still does not satisfy the gate.
+The teeth-proof evidence machinery — the `teeth_proof` object, the red-first ordered-triple check, and the
+`teeth_proof_missing` PR block — is retired. Measured yield across real runs was zero (every real catch came
+from the independent end-of-issue review), while the ceremony taxed every green. TDD remains the working
+discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof` /
+`teeth_proof_waiver` (or the deprecated `red_first_waiver` alias) stay valid: `check-feature-list.sh` still
+shape-validates them warn-only, and governed waivers still satisfy the retained `feature_start` selection-evidence
+gate (#291), which is the only per-feature hard evidence obligation left on the PR path.
 
 ## CI Boundary
 

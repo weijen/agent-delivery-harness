@@ -418,16 +418,18 @@ log_completeness_gate() {
   return "$gate_rc"
 }
 
-# red_first_evidence_gate — hard-block the PR path on missing red-first
+# red_first_evidence_gate — hard-block the PR path on missing feature-start
+# evidence only (issue #334 retired the red-first/teeth half; the name is kept
+# for call-site stability). Original doc: hard-block on missing red-first
 # evidence (issue #144, feature trace-red-first-pr-gate).
 #
 # Unlike the broader warn-only trace_gate, this gate BLOCKS BY DEFAULT (no env
 # flag). It runs check-trace-consistency.sh for the current issue and fails
 # ONLY when one of the two hard teeth-proof findings is present:
-#   VIOLATION consistency: teeth_proof_missing <fid>
+#   VIOLATION consistency: feature_start_missing <fid>   (only — #334)
 #   VIOLATION consistency: feature_start_missing <fid>
 # (issue #291: feature_start_missing is the per-feature selection-evidence
-# counterpart of teeth_proof_missing — both are hard obligations on a
+# the per-feature selection-evidence obligation (#291) on a
 # passes:true feature, cleared by the same governed waiver.)
 # The red-first ordering finding is warn-only and must never block here:
 #   WARNING consistency: red_first_ordering_absent <fid>
@@ -472,16 +474,12 @@ red_first_evidence_gate() {
   # VIOLATION prefix.
   local findings=""
   findings="$(printf '%s\n' "$out" \
-    | grep -E 'VIOLATION consistency: (teeth_proof_missing|feature_start_missing)' || true)"
+    | grep -E 'VIOLATION consistency: feature_start_missing' || true)"
   if [ -n "$findings" ]; then
-    red "✗ red-first gate: completed feature(s) fail a hard evidence obligation."
+    red "✗ feature-start gate: completed feature(s) lack selection evidence (#291)."
     printf '%s\n' "$findings"
-    echo "  teeth_proof_missing: provide a valid teeth_proof, a role-correct ordered"
-    echo "  red_handback -> impl_handback -> green_handback triple, or a governed waiver."
     echo "  feature_start_missing: record a matching feature_start agent span via"
     echo "  scripts/log-handback.sh, or a governed waiver."
-    echo "  Both are independent hard obligations that block by default; a governed"
-    echo "  waiver clears both."
     return 1
   fi
 

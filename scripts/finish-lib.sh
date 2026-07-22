@@ -604,8 +604,7 @@ compute_delivery_economics() {
         else
           (.features | length) as $total
           | ([.features[] | select(.passes == true)] | length) as $passing
-          | ([.features[] | select((.teeth_proof? | type) == "object")] | length) as $teeth
-          | "- Features: \($passing)/\($total) passes:true; teeth-proof coverage \($teeth)/\($total)"
+          | "- Features: \($passing)/\($total) passes:true"
         end
       ' "$feature_list_file" 2>/dev/null || true
     )"
@@ -1074,8 +1073,7 @@ economics_numeric_aggregates() {
       if (.features | type) != "array" then empty
       else
         "harness.economics.features_total=\(.features | length)",
-        "harness.economics.features_passing=\([.features[] | select(.passes == true)] | length)",
-        "harness.economics.teeth_proof=\([.features[] | select((.teeth_proof? | type) == "object")] | length)"
+        "harness.economics.features_passing=\([.features[] | select(.passes == true)] | length)"
       end
     ' "$feature_list_file" 2>/dev/null || true
   fi
