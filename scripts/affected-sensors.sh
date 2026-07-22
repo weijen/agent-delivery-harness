@@ -66,6 +66,7 @@ if [ -n "$DIFF_BASE" ]; then
       git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null || true
       git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null || true
       git -C "$REPO_ROOT" diff --name-only 2>/dev/null || true
+      git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
     } | sort -u
   )
 fi
