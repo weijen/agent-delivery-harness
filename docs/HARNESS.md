@@ -414,14 +414,13 @@ review identity coverage is incomplete, while the two coverage keys explain why.
 tracing it warns-and-continues and never blocks teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
-conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the
-derived Action Log line in the worktree `progress.md` — single-source from the same arguments, so the machine-readable
-trace and the human-readable Action Log stay in step by construction. (Tracing can still degrade by design — trace-lib
-is warn-never-fail, so a span may be dropped while the Action Log line lands; the helper warns when that happens, and
-the trace ↔ Action Log consistency sensor catches any divergence post-hoc.) Never hand-author the span/log-line pair
-separately. Full
-conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule) live in
-[harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
+conductor runs it once per decision or handback (single-source), and that single invocation writes the agent span to
+`trace.jsonl` — the canonical record. The `## Action Log` section in `progress.md` is **rendered** from those
+spans by `scripts/render-action-log.sh` (which log-handback.sh calls after span emission), so the trace is the
+single source of truth and the Action Log is a human-readable view derived from it. Never hand-author the span or
+the Action Log line separately; always use `scripts/log-handback.sh` so the canonical span and the rendered view
+stay in step. Full conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule)
+live in [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
 Tool and model spans from an agent runtime (per-tool-call arguments, latency, token usage) are contributed by the
 optional runtime adapters under `docs/runtime-adapters/` — GitHub Copilot is the primary runtime target
@@ -438,11 +437,13 @@ and the omit-never-fake honesty answer are documented in
 
 The trace record is itself audited by the two-phase **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only checkers `validate-trace.sh` (schema/type/redaction) and `check-trace-consistency.sh` (trace ↔
-progress.md ↔ feature list ↔ review-gate marker honesty) and emits one `review-gate.trace` tool span per run with
-numeric aggregated finding counts. The consistency half is live on real runs: in issue-number mode the checker reads
-the main-root trace and falls back to the invoking worktree's toplevel tracking dir for `progress.md` /
-`feature_list.json` (where `log-handback.sh` and the start-issue scaffold actually write them) when the main-root
-copies are absent.
+feature list ↔ review-gate marker honesty; the retired log_without_span / span_without_log reconciliation check
+was removed in issue #332) and emits one `review-gate.trace` tool span per run with numeric aggregated finding
+counts. The consistency half is live on real runs: in issue-number mode the checker reads the main-root trace and
+falls back to the invoking worktree's toplevel tracking dir for `progress.md` and `feature_list.json` (where the
+start-issue scaffold writes them) when the main-root copies are absent. Only the Action Log reconciliation
+(log_without_span / span_without_log) was retired in issue #332; `progress.md` is still read for the retained
+`pr_mismatch` and `finished_with_inflight_status` gates.
 
 ## Review Gate
 

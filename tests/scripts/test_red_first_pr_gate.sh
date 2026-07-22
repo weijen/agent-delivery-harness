@@ -33,7 +33,7 @@
 #     role-correct triple ALLOWS approve/check (subject to the other existing
 #     gate conditions).
 #   * red_first_ordering_absent stays warn-only when teeth_proof is present.
-#   * An UNRELATED consistency finding (e.g. log_without_span) does NOT block
+#   * An UNRELATED consistency finding (e.g. role_attribution_gap) does NOT block
 #     by default — only the teeth_proof_missing and feature_start_missing
 #     violations block (issue #291 widened the gate to the latter token; see
 #     tests/scripts/test_feature_start_pr_gate.sh).
@@ -74,8 +74,8 @@
 #   6 triple_allows_approve               real ordered role-correct triple, no
 #       teeth_proof/waiver -> approve exits 0 and writes approved-head==HEAD.
 #   7 warn_only_unrelated_trace_finding_does_not_block  valid triple PLUS an
-#       unrelated log_without_span finding -> approve still exits 0 (only
-#       teeth_proof_missing blocks by default).
+#       unrelated role_attribution_gap finding (rogue-role span) -> approve
+#       still exits 0 (only teeth_proof_missing blocks by default).
 #
 # RED status at authoring time: review-gate.sh still greps retired
 # red_first_* violation tokens, so cases 1/2/3 currently let the PR path
@@ -209,12 +209,14 @@ add_span() {
     "$role" "$step" "$fid" "$outcome" >> "${idir}/progress.md"
 }
 
-# add_bullet_only <idir> <role> <step> <fid> <outcome>: an Action Log bullet
-# with NO matching agent span -> an unrelated log_without_span consistency
-# finding (used to prove the gate blocks ONLY on red-first by default).
-add_bullet_only() {
-  printf -- '- [%s] %s %s %s — hand claim, no span\n' \
-    "$2" "$3" "$4" "$5" >> "${1}/progress.md"
+# add_gap_span <idir>: append one agent span with an out-of-enum
+# gen_ai.agent.name -> an unrelated role_attribution_gap consistency finding
+# (used to prove the gate blocks ONLY on teeth_proof_missing by default).
+# No matching bullet needed: reconciliation is retired (issue #332), so no
+# span_without_log fires.
+add_gap_span() {
+  printf '{"schema_version":1,"timestamp":"2026-07-06T12:10:00Z","span":"agent","harness.issue":%s,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"rogue-role","harness.lifecycle_step":"deviation","harness.feature_id":"-","harness.outcome":"blocked"}\n' \
+    "$2" >> "${1}/trace.jsonl"
 }
 
 # commit_docs <worktree> <line>: change docs/PROGRESS.md on the branch and
@@ -385,16 +387,14 @@ add_span "$ID7" 76 test-subagent red_handback feat-a pass
 add_span "$ID7" 76 implementation-subagent impl_handback feat-a pass
 add_span "$ID7" 76 test-subagent green_handback feat-a pass
 add_span "$ID7" 76 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
-# An unrelated consistency finding: a SECOND hand-written feature_start
-# bullet with no matching span of its own (the real feature_start span
-# above already satisfies feature_start_missing, so this extra bullet
-# is purely an unmatched log_without_span — it does not double as the
-# required evidence).
-add_bullet_only "$ID7" conductor feature_start feat-a pass
+# An unrelated consistency finding: a span with an out-of-enum gen_ai.agent.name
+# triggers role_attribution_gap (issue #332: reconciliation retired, so no
+# span_without_log fires for the unmatched span). The gate must NOT block on it.
+add_gap_span "$ID7" 76
 commit_docs "$WT7" "issue-76 warn-only guard leg"
 rc="$(run_in "$WT7" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] \
-  || fail "warn_only_unrelated_trace_finding_does_not_block: an ordered triple is present, so an unrelated consistency finding (log_without_span) must NOT block approve by default — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "warn_only_unrelated_trace_finding_does_not_block: an ordered triple is present, so an unrelated consistency finding (role_attribution_gap) must NOT block approve by default — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$WT7")" ] \
   || fail "warn_only_unrelated_trace_finding_does_not_block: approve must write the approved-head marker (neither hard evidence violation is present)"
 

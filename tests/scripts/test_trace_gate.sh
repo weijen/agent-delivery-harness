@@ -46,7 +46,8 @@
 # artifact set (progress.md, feature_list.json) is planted at the MAIN root
 # issue dir (the plan's "main-root artifact set"). Dirty fixtures plant one
 # validator-only finding (a non-JSON trace line → invalid_json) AND one
-# consistency-only finding (a hand bullet → log_without_span) so the output
+# consistency-only finding (a rogue-role agent span → role_attribution_gap;
+# log_without_span / span_without_log are retired, issue #332) so the output
 # proves BOTH checkers ran.
 #
 # RED status at authoring time: `review-gate.sh trace` does not exist
@@ -58,11 +59,10 @@
 # layout, where progress.md/feature_list.json live only in the WORKTREE
 # tracking dir (start-issue scaffolds them there; the main root holds only
 # trace.jsonl). The gate's consistency half must be LIVE there: findings
-# from the worktree-local progress.md are surfaced and the output carries
-# NO "consistency half skipped" note. RED against the shipped gate (the
-# checker's issue mode exited 2 on the real layout, so the gate skipped
-# the consistency half — exactly what the F1/F2/F3 main-root fixtures
-# masked).
+# are surfaced and the output carries NO "consistency half skipped" note.
+# RED against the shipped gate (the checker's issue mode exited 2 on the
+# real layout, so the gate skipped the consistency half — exactly what the
+# F1/F2/F3 main-root fixtures masked).
 #
 # Exit codes: 0 trace-gate contract honored · 1 a contract obligation regressed.
 
@@ -165,15 +165,16 @@ make_gate_fixture() {
 }
 
 # dirty_gate_fixture <dir> <issue>: ONE validator finding (non-JSON trace
-# line → invalid_json) + ONE consistency finding (hand bullet with no agent
-# span → log_without_span).
+# line → invalid_json) + ONE consistency finding (rogue-role agent span →
+# role_attribution_gap). log_without_span / span_without_log are retired
+# (issue #332).
 dirty_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
   printf 'GATE_FIXTURE_NOT_JSON {\n' \
     >> "${dir}/.copilot-tracking/issues/issue-${pad}/trace.jsonl"
-  printf -- '- [conductor] feature_start feat-a pass — hand-written claim, no span\n' \
-    >> "${dir}/.copilot-tracking/issues/issue-${pad}/progress.md"
+  printf '{"schema_version":1,"timestamp":"2026-07-06T12:00:00Z","span":"agent","harness.issue":%s,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"rogue-role","harness.lifecycle_step":"deviation","harness.feature_id":"-","harness.outcome":"blocked"}\n' \
+    "$issue" >> "${dir}/.copilot-tracking/issues/issue-${pad}/trace.jsonl"
 }
 
 # last review-gate.trace tool span in a trace file (tolerates the planted
@@ -227,8 +228,8 @@ rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh trace)"
   || fail "dirty trace, default: warn-only — exit must stay 0 with findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'invalid_json' "$OUT" \
   || fail "dirty trace, default: validator finding (invalid_json) must be printed — validate-trace.sh not run/surfaced (output: $(tr '\n' '|' < "$OUT"))"
-grep -q 'log_without_span' "$OUT" \
-  || fail "dirty trace, default: consistency finding (log_without_span) must be printed — check-trace-consistency.sh not run/surfaced (output: $(tr '\n' '|' < "$OUT"))"
+grep -q 'role_attribution_gap' "$OUT" \
+  || fail "dirty trace, default: consistency finding (role_attribution_gap) must be printed — check-trace-consistency.sh not run/surfaced (output: $(tr '\n' '|' < "$OUT"))"
 grep -Eiq 'warn|⚠' "$OUT" \
   || fail "dirty trace, default: a warning summary is required (warn-only phase must SAY it is warning; output: $(tr '\n' '|' < "$OUT"))"
 
@@ -250,7 +251,7 @@ fi
 rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh trace)"
 [ "$rc" = "1" ] \
   || fail "dirty trace, blocking flag: exit must be 1, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-grep -q 'log_without_span' "$OUT" \
+grep -q 'role_attribution_gap' "$OUT" \
   || fail "dirty trace, blocking flag: findings must still be printed when blocking (output: $(tr '\n' '|' < "$OUT"))"
 span="$(last_gate_span "$TRACE1")"
 if [ -n "$span" ]; then
@@ -273,7 +274,7 @@ rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh approve)"
 rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh check)"
 [ "$rc" = "0" ] \
   || fail "check, default: trace findings must NOT change check's exit semantics (approval + status-doc pass), got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-grep -q 'log_without_span' "$OUT" \
+grep -q 'role_attribution_gap' "$OUT" \
   || fail "check, default: the warn-only trace gate must run inside check and surface its findings (output: $(tr '\n' '|' < "$OUT"))"
 rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh check)"
 [ "$rc" != "0" ] \
@@ -288,7 +289,7 @@ dirty_gate_fixture "$F2" 81
 rc="$(run_in "$F2" "$OUT" ABANDONED=1 -- ./scripts/finish-issue.sh 81 SLUG=fixture)"
 [ "$rc" = "0" ] \
   || fail "finish, default: warn-only — finish-issue.sh must still exit 0 with trace findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-grep -q 'log_without_span' "$OUT" \
+grep -q 'role_attribution_gap' "$OUT" \
   || fail "finish, default: the trace gate must run before teardown and surface findings (output: $(tr '\n' '|' < "$OUT"))"
 [ ! -e "${F2}-worktrees/issue-81" ] \
   || fail "finish, default: worktree must still be removed in warn-only mode (REQUIRE_FEATURES_COMPLETE precedent)"
@@ -319,17 +320,20 @@ rm "${F4}/.copilot-tracking/issues/issue-83/progress.md" \
    "${F4}/.copilot-tracking/issues/issue-83/feature_list.json"
 [ -f "${WT4}/.copilot-tracking/issues/issue-83/progress.md" ] \
   || hard_fail "F4 setup: start-issue did not scaffold the worktree progress.md"
-# Consistency-only finding in the WORKTREE progress.md.
-printf -- '- [conductor] feature_start feat-a pass — hand-written claim, no span\n' \
-  >> "${WT4}/.copilot-tracking/issues/issue-83/progress.md"
+# Consistency-only finding via main-root trace: a rogue-role span →
+# role_attribution_gap (log_without_span retired, issue #332). The checker
+# still reads the worktree-local feature_list.json via the real-layout
+# fallback path, proving the consistency half is LIVE.
+printf '{"schema_version":1,"timestamp":"2026-07-06T12:10:00Z","span":"agent","harness.issue":83,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"rogue-role","harness.lifecycle_step":"deviation","harness.feature_id":"-","harness.outcome":"blocked"}\n' \
+  >> "${F4}/.copilot-tracking/issues/issue-83/trace.jsonl"
 rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh trace)"
 [ "$rc" = "0" ] \
   || fail "real layout: warn-only default must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 if grep -q 'consistency half skipped' "$OUT"; then
   fail "real layout: the consistency half must be LIVE when artifacts are worktree-local — 'consistency half skipped' means the checker never saw the real layout (output: $(tr '\n' '|' < "$OUT"))"
 fi
-grep -q 'log_without_span' "$OUT" \
-  || fail "real layout: the worktree-local progress.md finding (log_without_span) must be surfaced by the gate (output: $(tr '\n' '|' < "$OUT"))"
+grep -q 'role_attribution_gap' "$OUT" \
+  || fail "real layout: the consistency finding (role_attribution_gap) must be surfaced by the gate (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
 # 4. Contract presence backstop (docs/harness-contract.yml)

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Regression sensor (issue #273, feature deletions-executed): the DELETE-class
-# phrase-pinning / doc-snapshot meta-tests must be gone, and no surviving test,
-# lib helper, or fixture may still reference a removed test. This is a machine
-# guard (no prose), consistent with the triage rubric.
+# Regression sensor (issue #273, feature deletions-executed; issue #332 adds
+# test_trace_action_log_consistency): the DELETE-class phrase-pinning /
+# doc-snapshot meta-tests must be gone, and no surviving test, lib helper, or
+# fixture may still reference a removed test. This is a machine guard (no
+# prose), consistent with the triage rubric.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -23,6 +24,7 @@ deleted_meta=(
   test_docs_health_check_superseded
   test_failure_review_template
   test_scripts_language_policy_doc
+  test_trace_action_log_consistency
 )
 deleted_scripts=(
   test_trace_scorecard_docs
@@ -35,7 +37,7 @@ deleted_scripts=(
 
 # 1. The files themselves must be absent.
 for b in "${deleted_meta[@]}"; do
-  [ -e "tests/meta/${b}.sh" ] && note "tests/meta/${b}.sh must be deleted (#273)"
+  [ -e "tests/meta/${b}.sh" ] && note "tests/meta/${b}.sh must be deleted (#273 / #332)"
 done
 for b in "${deleted_scripts[@]}"; do
   [ -e "tests/scripts/${b}.sh" ] && note "tests/scripts/${b}.sh must be deleted (#273)"
@@ -57,4 +59,4 @@ if [ "$fail" -ne 0 ]; then
   echo "deleted-meta-tests sensor FAILED"
   exit 1
 fi
-echo "deleted-meta-tests sensor passed (16 DELETE-class files absent, no stale refs)"
+echo "deleted-meta-tests sensor passed (17 DELETE-class files absent, no stale refs)"

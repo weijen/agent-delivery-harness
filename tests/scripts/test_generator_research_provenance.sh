@@ -65,8 +65,9 @@ if run_handback "${TMP_DIR}/missing-pair.out" "" "" research \
   fail "performed research without URL and summary must be rejected"
 fi
 
-# A performed generator research handback records the same validated pair in
-# its span and the single Action Log row produced by this invocation.
+# A performed generator research handback records the validated pair in its
+# canonical span; the Action Log row carries only the five core fields (no
+# research provenance annotation — trace.jsonl is the sole audit record).
 run_handback "${TMP_DIR}/valid.out" "$URL" "$SUMMARY" research \
   generator-subagent impl_handback generator-research-provenance pass \
   "researched ${URL} — ${SUMMARY}" \
@@ -78,8 +79,8 @@ jq -e --arg url "$URL" --arg summary "$SUMMARY" '
 ' "$TRACE" >/dev/null || fail "trace must carry separate validated URL and summary fields"
 [ "$(grep -Fc -- "- [generator-subagent] impl_handback generator-research-provenance pass" "$PROGRESS")" = "1" ] \
   || fail "the helper invocation must append exactly one Action Log row"
-tail -n 1 "$PROGRESS" | grep -Fq "research: ${URL} — ${SUMMARY}" \
-  || fail "the same Action Log row must make validated research provenance auditable"
+! grep -Fq "research: ${URL}" "$PROGRESS" \
+  || fail "Action Log must not carry a research provenance annotation (canonical trace.jsonl is the audit record)"
 
 expect_rejected() {
   local name="$1" url="$2" summary="$3" disposition="$4"

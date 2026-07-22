@@ -29,8 +29,8 @@
 #       file carries BOTH the real Action Log bullets AND the delivery
 #       economics block — proof the stamp ran against the migrated file, not
 #       a hollow stub it would otherwise leave behind), and the post-teardown
-#       `check-trace-consistency.sh <N>` run succeeds with no
-#       span_without_log findings.
+#       `check-trace-consistency.sh <N>` run succeeds (reconciliation is
+#       retired, issue #332, so no span_without_log is possible).
 #   M1b. Ordering, isolated: calling the migration helper BY ITSELF (no
 #       economics stamp call at all) already deposits the real worktree
 #       Action Log at main root with NO economics block — proof migration is
@@ -432,20 +432,16 @@ assert_happy_path_ordering_and_consistency() {
   assert_marker_count "$main_progress" '- [test-subagent] red_handback progress-migration pass — authored red sensor' 1
 
   # REQUIREMENT 4: post-teardown check-trace-consistency.sh by issue number
-  # must succeed — no missing-progress, no false span_without_log — now
-  # that the Action Log migrated with the trace. TRACE_ALLOW_DARK_RUN=1
-  # scopes this leg to the migration contract: this fixture's spans come
-  # only from log-handback.sh (no real runtime tool spans), so the
-  # unrelated issue #243 dark_run rule would otherwise fire and is not
-  # this feature's concern (see tests/scripts/test_trace_consistency_dark_run.sh).
+  # must succeed — reconciliation is retired (issue #332) so no span_without_log
+  # can fire; the consistency check is clean once progress.md migrated.
+  # TRACE_ALLOW_DARK_RUN=1 scopes this leg to the migration contract: this
+  # fixture's spans come only from log-handback.sh (no real runtime tool
+  # spans), so the unrelated issue #243 dark_run rule would otherwise fire
+  # and is not this feature's concern (see test_trace_consistency_dark_run.sh).
   check_rc=0
   check_out="$(cd "$main" && PATH="$BIN" TRACE_ALLOW_DARK_RUN=1 ./scripts/check-trace-consistency.sh "$issue" 2>&1)" || check_rc=$?
   [ "$check_rc" -eq 0 ] \
     || { printf '%s\n' "$check_out"; fail "check-trace-consistency.sh ${issue} must succeed after teardown once the Action Log has migrated (got exit ${check_rc})"; }
-  if printf '%s\n' "$check_out" | grep -F -q 'span_without_log'; then
-    printf '%s\n' "$check_out"
-    fail "check-trace-consistency.sh must not report span_without_log once the Action Log survives teardown"
-  fi
 }
 
 # ============================================================================
