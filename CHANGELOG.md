@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.23.0 (2026-07-22)
+
+### Bug Fixes
+
+- **#310**: Fail closed on unresolved main marker
+  ([`0d7eca2`](https://github.com/weijen/agent-delivery-harness/commit/0d7eca2486eb7db7a163c9b2d3e98bdd00478644))
+
+- **#310**: Update both worktree and main-root markers on linked-worktree carry
+  ([`4e2db48`](https://github.com/weijen/agent-delivery-harness/commit/4e2db48d01a16457d0b51aa7d096ca94a61316a2))
+
+### Documentation
+
+- **#310**: Record approval carry delivery
+  ([`4af9198`](https://github.com/weijen/agent-delivery-harness/commit/4af9198740d1e6289e26ca68ac07c6107687a09d))
+
+### Features
+
+- **#310**: Carry review across stable rebases
+  ([`6b95dd0`](https://github.com/weijen/agent-delivery-harness/commit/6b95dd097d329a8d39874b448f100190b2d4d567))
+
+- **#310**: Store stable review patch identity
+  ([`f7e1ecd`](https://github.com/weijen/agent-delivery-harness/commit/f7e1ecd5a73b5f7b7be487fa6c2a889513614c86))
+
+
 ## v0.22.0 (2026-07-21)
 
 ### Bug Fixes
