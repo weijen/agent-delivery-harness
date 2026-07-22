@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 LOG_HANDBACK="${ROOT}/scripts/log-handback.sh"
-GENERATOR="${ROOT}/.copilot/agents/generator-subagent.agent.md"
+GENERATOR="${ROOT}/.copilot/instructions/harness.instructions.md"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 

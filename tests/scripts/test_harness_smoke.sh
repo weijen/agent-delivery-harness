@@ -116,8 +116,8 @@ require_text ".copilot/instructions/harness.instructions.md" 'override.*personal
 require_text ".copilot/instructions/harness.instructions.md" 'override.*generic coding-agent behavior|generic coding-agent behavior.*override' \
   "generic coding-agent override wording"
 
-require_text ".copilot/prompts/session-ritual.prompt.md" 'Conductor.*generator-subagent' \
-  "conductor/generator role separation wording in the prompt path"
+require_text ".copilot/prompts/session-ritual.prompt.md" 'One agent owns the issue end-to-end' \
+  "single-agent ownership wording in the prompt path (#352)"
 require_text ".copilot/prompts/session-ritual.prompt.md" 'code-review-subagent.*review' \
   "independent reviewer role wording in the prompt path"
 
@@ -128,15 +128,11 @@ require_text ".copilot/prompts/session-ritual.prompt.md" 'deviat(e|es|ed|ion).*s
 
 require_text ".copilot/instructions/harness.instructions.md" 'Action Log' \
   "progress Action Log requirement"
-require_text ".copilot/instructions/harness.instructions.md" 'Conductor.*Action Log|Action Log.*Conductor' \
-  "conductor Action Log requirement"
-require_text ".copilot/instructions/harness.instructions.md" 'subagents?.*Action Log|Action Log.*subagents?' \
-  "subagent Action Log requirement"
+require_text ".copilot/instructions/harness.instructions.md" 'Action Log.*rendered|rendered.*Action Log' \
+  "rendered Action Log requirement (#332/#352)"
 require_text "docs/HARNESS.md" 'Action Log' \
   "issue workflow Action Log wording"
 
-require_text ".copilot/agents/planning-subagent.agent.md" 'Action Log' \
-  "planning-subagent Action Log handback instruction"
 require_text "scripts/start-issue.sh" '^##[[:space:]]+Action Log' \
   "progress.md Action Log scaffold heading"
 require_text ".copilot/agents/code-review-subagent.agent.md" '\*\*Action Log:\*\*' \

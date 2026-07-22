@@ -18,8 +18,7 @@ Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model
 - **OpenAI/Codex** — repo as system of record, AGENTS.md as a map, enforce invariants not
   implementations, garbage collection of drift.
 
-If you deviate from the harness path, stop, and
-record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
+If you deviate from the harness path: stop, report, recover — record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
 conventions in §3) so the agent span and the Action Log entry are written together, then recover by returning to the
 required lifecycle step before continuing.
 
@@ -126,13 +125,29 @@ Workflow per issue:
 3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,
    then invoke the `code-review-subagent` in `full` mode over the whole branch diff. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
-   Repair findings yourself in this same context; re-reviews are `repair`-mode and scoped to the
-   revised features. Same-class escalation (#317/#327) applies to your own repairs: on the second
+   A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
+   re-reviews are `repair`-mode and scoped to the revised features. Same-class escalation (#317/#327) applies to your own repairs: on the second
    same-class failure stop point-fixing and fix the class.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323, economics #329, teardown
    gated on live merge evidence #316).
+
+**Claims are audited against tool output.** Before reporting any step, feature, or issue as
+complete, verify the claim against an actual tool result (test output, gh state query, file
+content) — never from memory of intending to run it. A status line that names a check must be
+backed by that check's real output in this session; the merge gate (#328) enforces this for
+merges, and the same standard applies to every completion claim.
+
+**Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
+runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
+sweep (check #7, `public-exposure-audit`); the five quality skills run only in audit-sweep
+(#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
+runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair (the third rejection
+of one feature — three or more `review_verdict/fail` spans — trips `review_reject_cap_exceeded`
+and stops the issue; `review-gate.sh` remains its deterministic enforcer);
+post-repair re-reviews run the **`repair` review profile** scoped to the revised features only
+and defer the exposure sweep to the pre-PR review (§6).
 
 #### Required per-feature handoff sequence
 

@@ -18,10 +18,6 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 converted=(
-  test_role_separation
-  test_revision_loops
-  test_agent_span_doctrine
-  test_blocking_criteria
   test_impl_usefulness_grading
 )
 

@@ -161,7 +161,9 @@ authors the breakdown, implements with TDD, runs scoped sensors, records its own
 invocation** is `code-review-subagent` — invoked once, pre-PR, over the whole branch diff, in a
 fresh context with no visibility into the delivery conversation (that independence is what made
 it the harness's most effective defect catcher). `repair`-mode re-reviews after a
-`NEEDS_REVISION` are scoped to the revised features.
+`NEEDS_REVISION` are scoped to the revised features. If the runner does not register the
+`code-review-subagent` agent name from its `.agent.md` file, the fallback is unchanged: invoke a
+fresh (blank/current) subagent and paste the full role contract from the agent file.
 
 The retired conductor/generator/planning role choreography (late-2025 pattern) and its handback
 payload protocol are documented in git history; historical traces carrying those role names

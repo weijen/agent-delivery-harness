@@ -178,7 +178,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
 | **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
 | **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
-| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, pre-PR, over the whole branch diff (#352: the only other model invocation in the lifecycle) |
+| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, at issue completion (pre-PR), over the whole branch diff (#352: the only other model invocation in the lifecycle) |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
 

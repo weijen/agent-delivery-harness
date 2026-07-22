@@ -70,8 +70,8 @@ printf '%s\n' "${opening_flat}" \
   | grep -qiE 'not invoked per feature|not .* per feature mid-stream' \
   || fail "opening contract must state it is NOT invoked per feature mid-stream"
 printf '%s\n' "${opening_flat}" \
-  | grep -qiE 'per-feature verification .*(owned by|belongs to) .*generator-subagent|generator-subagent .*owns .*per-feature verification' \
-  || fail "opening contract must state per-feature verification is owned by generator-subagent"
+  | grep -qiE 'per-feature verification .*(owned by|belongs to) .*(delivering agent|one agent)' \
+  || fail "opening contract must state per-feature verification is owned by the delivering agent (#352)"
 
 # 2. Issues per-feature verdicts.
 printf '%s\n' "${opening_flat}" \

@@ -18,10 +18,10 @@ REQUIRED_FILES=(
 	scripts/issue-lib.sh
 	profiles/python.profile.sh
 	tests/scripts/test_install_harness.sh
-	tests/meta/test_role_separation.sh
+	tests/meta/test_skill_references_resolve.sh
 	.copilot/instructions/harness.instructions.md
 	.copilot/instructions/python.instructions.md
-	.copilot/agents/planning-subagent.agent.md
+	.copilot/agents/code-review-subagent.agent.md
 	.copilot/skills/code-review/SKILL.md
 	.copilot/prompts/session-ritual.prompt.md
 	.github/workflows/harness-smoke.yml
@@ -63,9 +63,10 @@ done
 for rel in "${REQUIRED_FILES[@]}"; do
 	cmp -s "$ROOT/$rel" "$c/$rel" || { echo "case-c: installed asset differs from source: $rel"; exit 1; }
 done
-# The REAL subagent file, not a skeleton TODO placeholder.
-grep -qiF "skeleton" "$c/.copilot/agents/planning-subagent.agent.md" \
-	&& { echo "case-c: agent file looks like a skeleton, expected the real asset"; exit 1; }
+# The REAL subagent file, not a placeholder (nb: the doctrine legitimately
+# contains the word "skeleton" post-#352, so key on a required contract line).
+grep -qF "CODE REVIEW SUBAGENT" "$c/.copilot/agents/code-review-subagent.agent.md" \
+	|| { echo "case-c: agent file missing its role contract, expected the real asset"; exit 1; }
 # __pycache__ / compiled artifacts must not be dragged along.
 if find "$c" -name '*.pyc' -o -name '__pycache__' | grep -q .; then
 	echo "case-c: copied python bytecode/__pycache__ artifacts"; exit 1
