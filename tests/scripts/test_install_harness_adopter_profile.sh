@@ -70,4 +70,21 @@ grep -qF "preserving modified harness-dev sensor tests/scripts/test_commit_conve
 	exit 1
 }
 
+# --update must remove the modified excluded sensor after showing its diff,
+# mirroring the existing --update behaviour for modified retired assets.
+"$INSTALL" "$upgrade_target" --update >"$OUT" 2>&1 || {
+	cat "$OUT"
+	echo "--update on a modified excluded sensor should succeed"
+	exit 1
+}
+grep -qF "removing modified harness-dev sensor tests/scripts/test_commit_convention_doc.sh" "$OUT" || {
+	cat "$OUT"
+	echo "--update did not report removing the modified harness-dev sensor"
+	exit 1
+}
+[ ! -e "${upgrade_target}/tests/scripts/test_commit_convention_doc.sh" ] || {
+	echo "--update left the modified harness-dev sensor in place"
+	exit 1
+}
+
 printf 'install-harness adopter profile sensor passed\n'
