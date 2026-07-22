@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.26.0 (2026-07-22)
+
+### Features
+
+- **#350**: Review diet — five quality skills run only in audit-sweep
+  ([`15e37d4`](https://github.com/weijen/agent-delivery-harness/commit/15e37d4a0d8bafc51470ee22ac1ec8f8a1f8e978))
+
+
 ## v0.25.0 (2026-07-22)
 
 ### Documentation
