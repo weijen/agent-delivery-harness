@@ -308,11 +308,31 @@ the issue trace and `feature_list.json` — no hand-entered numbers. The block r
 first→last elapsed time and active time (the sum of chronologically adjacent gaps up to and including 30 minutes;
 gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
 teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
-measured renders `n/a` and is never fabricated as `0` — in particular token rows read `n/a` unless a runtime adapter
-reported `gen_ai.usage.*` on model spans, and model runs without token data are counted honestly in the coverage
-denominator rather than invented as zero-token runs. Acquiring those Copilot-side token counts (so the token rows can
-read a real number instead of `n/a` in the GitHub Copilot runtime) is the deep-trace work tracked in **#163**; until
-it lands, `n/a` token rows are the honest state, not a defect.
+measured is **omitted entirely** and never fabricated as `0` or a half-present `n/a` placeholder. In particular the
+trace-derived token row appears only when a runtime adapter reported `gen_ai.usage.*` on model spans; otherwise it is
+omitted — issue #329 retired the old `- Tokens: n/a` line, because a half-present field is worse than an absent one.
+
+**Native-record economics join (issue #329).** Because the GitHub Copilot runtime does not carry `gen_ai.usage.*` on
+model spans, closeout ALSO joins real token/model economics from the local Copilot **native session records** at
+`${COPILOT_CLI_STATE_ROOT:-~/.copilot/session-state}/<COPILOT_AGENT_SESSION_ID>/events.jsonl`, rendered as a clearly
+labelled second economics block. Only honest derived aggregates cross into the record, never raw event content: a
+**subagent-only** token total (the single `totalTokens` per `subagent.completed` event — never split into a fabricated
+input/output pair, and excluding the top-level session), the distinct subagent **model** names with per-model
+counts/tokens, and the subagent tool-call and duration sums. A `subagent.completed` record is aggregated **only** when
+all four required economics fields are genuinely present with correct types (a non-empty string `model` and
+non-negative numeric `totalTokens`/`totalToolCalls`/`durationMs`); an incomplete or malformed record is **excluded
+whole**, never mapped to an `unknown` model or a fabricated `0`. The join is **windowed** by the issue trace's own
+first→last timestamp, so events from other issues in a long shared session are excluded. **AIU** is a windowed delta
+of the cumulative `session.usage_checkpoint` / `session.compaction_complete` `totalNanoAiu` counter, emitted **only**
+when a checkpoint at/before the window start gives a baseline, at least one checkpoint inside the window shows
+movement, AND the window-end value has not decreased below the baseline; a decrease (session reset/rollback) omits the
+field entirely (never a negative, never a masked `0`), while an equal value is a genuinely measured zero. When the
+session id, the events file, `jq`, the window, or a
+field is unavailable (CI, adopter machines), every native field/row **fails open and is omitted** — never zeroed,
+never `n/a`. This native-record join **supersedes** the cloud token-capture approach tracked in **#163** (per the #305
+direction): #163 is no longer the prerequisite for non-`n/a` token rows but the complementary cloud-side path the local
+join now stands in for. The frozen `trace-summary.json` `tokens` field stays `null` (no model spans carry usage);
+folding the native economics into the fleet scorecard is #335's scope.
 
 A review round is a distinct logical review event, not a per-feature `review_verdict` span. Events are keyed by
 `harness.review_event_id` when present; historical spans without an explicit ID fall back to
@@ -373,12 +393,18 @@ numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, 
 `harness.economics.deviations`,
 `harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
 `harness.economics.wall_clock_ms` / `harness.economics.active_ms` elapsed/active time), typed via the
-`harness.economics.` numeric-key prefix. It obeys the same
-omit-never-fake rule as the block: the token-usage keys are **absent** (never `0`) when no model span carried usage,
-so a `n/a` token row and an omitted token key are the same honest signal — see **#163** for the Copilot-side token
-capture that makes those keys present. Likewise, `review_rounds` is absent when review identity coverage is
-incomplete, while the two coverage keys explain why. The span is advisory: like all tracing it
-warns-and-continues and never blocks teardown.
+`harness.economics.` numeric-key prefix. Issue #329 adds the **native-record** economics keys from the local Copilot
+session join — `harness.economics.native_subagent_tokens`, `harness.economics.native_subagent_count`,
+`harness.economics.native_tool_calls`, `harness.economics.native_duration_ms`,
+`harness.economics.native_models_distinct`, and (only when checkpoints bracket the window)
+`harness.economics.native_aiu_nano_delta` — each numeric via the same `harness.economics.` prefix and **omitted**
+(never `0`) when the native records are unavailable. The subagent **model names** ride the operator-facing markdown
+block only, never the span, because a string value under the numeric prefix would be invalid. It obeys the same
+omit-never-fake rule as the block: the trace `gen_ai.usage.*` token keys are **absent** (never `0`) when no model span
+carried usage. The cloud token-capture path once tracked in **#163** is now **superseded** by the native-record join
+above (per #305) — #163 is no longer a prerequisite for present token keys. Likewise, `review_rounds` is absent when
+review identity coverage is incomplete, while the two coverage keys explain why. The span is advisory: like all
+tracing it warns-and-continues and never blocks teardown.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 conductor runs it once per decision or handback, and that single invocation writes the agent span first, then the

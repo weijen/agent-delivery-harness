@@ -349,6 +349,31 @@ but remains unanswered as of 2026-07-21. Nothing below is a stable contract; fie
   documented in v1; on that surface the adapter never emits `model` spans —
   an honest gap, stated rather than papered over.
 
+### Closeout economics join (issue #329)
+
+`finish-issue.sh` closeout consumes these native records directly as a **derived, omit-on-absence** economics
+aggregate — the sanctioned replacement for the #305-deprecated runtime `model`-span reconstruction, not a revival of
+it. It reads `${COPILOT_CLI_STATE_ROOT:-~/.copilot/session-state}/<COPILOT_AGENT_SESSION_ID>/events.jsonl` and joins,
+**windowed** by the issue trace's own first→last timestamp (so a long session spanning many issues does not bleed
+across):
+
+- `subagent.completed` → a **subagent-only** `totalTokens` sum (a single total per subagent — never split into a
+  fabricated input/output pair), the distinct `model` names with per-model counts/tokens, and the `totalToolCalls` /
+  `durationMs` sums. A record is aggregated **only** when all four required fields are genuinely present with correct
+  types (non-empty string `model`, non-negative numeric `totalTokens`/`totalToolCalls`/`durationMs`); an incomplete or
+  malformed record is excluded whole, never mapped to an `unknown` model or a fabricated `0`.
+- `session.usage_checkpoint` (`data.totalNanoAiu`) / `session.compaction_complete`
+  (`data.copilotUsage.tokenDetails.totalNanoAiu`) → a **windowed AIU delta**, emitted only when a cumulative
+  checkpoint at/before the window start gives a baseline, at least one checkpoint inside the window shows movement, AND
+  the window-end value has not decreased below the baseline. Because the counter is cumulative, a decrease
+  (session reset/rollback) omits the delta entirely — never a negative or masked `0` — while an equal value is a
+  measured zero.
+
+Only derived aggregates enter the harness record (never raw event content), and every field **fails open** — omitted,
+never `0` or `n/a` — when the session id, events file, `jq`, window, or field is unavailable. See
+[../HARNESS.md](../HARNESS.md) (Local Tracking / Trace emission) for the operator-facing block and the
+`harness.economics.native_*` span keys.
+
 ## Cross-surface record enumeration
 
 A single issue/review window may generate Copilot records on **two independent

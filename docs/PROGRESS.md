@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#330)_
+_Last updated: 2026-07-22 (#329)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-22 (#330)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 219 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 221 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,22 @@ _Last updated: 2026-07-22 (#330)_
 ---
 
 ## Delivered (newest first)
+
+### closeout: final summaries and native Copilot economics (#329): delivery complete
+
+- **Closeout now requires a fresh summary.** Before teardown,
+  `finish-issue.sh` verifies the canonical trace reporter can regenerate
+  `trace-summary.json`; failure leaves the worktree intact. The shared terminal
+  trap refreshes it again after the `finish` span so final counts survive.
+- **Native records supply honest per-issue economics.** Closeout window-joins
+  `subagent.completed` and cumulative usage checkpoints from the active
+  Copilot session, recording only complete in-window token/model/tool/duration
+  aggregates and a bracketed, non-decreasing AIU delta. Missing or malformed
+  data is omitted rather than rendered as zero, `unknown`, or `n/a`.
+- **Two new mutation-backed sensors bring the shell suite to 221.**
+  They cover missing/stale summary regeneration, mandatory failure behavior,
+  multi-model window isolation, incomplete records, AIU rollback, absent native
+  state, and full teardown survival.
 
 ### trace consistency: preserve pre-attribution fail spans (#330): delivery complete
 

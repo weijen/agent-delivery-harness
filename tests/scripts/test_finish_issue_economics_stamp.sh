@@ -213,6 +213,13 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep 
   mktemp mv
 write_fake_gh "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
+# Hermeticity (issue #329): the finish-issue.sh closeout now joins native
+# Copilot economics from ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin
+# the root to an isolated empty dir and unset the ambient session id so this
+# fixture's token assertions read only its planted MAIN-root trace, never the
+# real developer session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 export ABANDONED=1
 assert_behavioral_finish_stamps_before_remove "${TMP_DIR}/r86" 86
 

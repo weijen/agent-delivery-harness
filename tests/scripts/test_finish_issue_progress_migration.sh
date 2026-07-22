@@ -182,6 +182,13 @@ fail() {
 
 mkdir -p "$TMP_DIR"
 export ABANDONED=1
+# Hermeticity (issue #329): closeout now joins native Copilot economics from
+# ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin the root to an isolated
+# empty dir and unset the ambient session id so every finish-issue.sh run and
+# direct best_effort_economics_stamp call in this test reads only its planted
+# fixtures, never the real developer session state.
+unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
+export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 assert_marker_count() {
   local file="$1" marker="$2" expected="$3" actual

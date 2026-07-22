@@ -523,7 +523,12 @@ economics_time_summary() {
 # function of its two explicit file arguments: callers resolve paths before
 # invoking it. Metric honesty follows the trace-report omit-never-fake /
 # null-never-0 rule: absent measurements render n/a, and model spans without
-# token usage do not fabricate zero-token runs.
+# token usage do not fabricate zero-token runs. Issue #329 sharpens the token
+# row specifically: rather than a half-present "- Tokens: n/a" placeholder, the
+# token row is OMITTED entirely when no model span carried usage — the honest
+# subagent-only native token surface (joined by best_effort_economics_stamp) is
+# the operator's token source when the runtime carries no gen_ai.usage.* on
+# model spans, and a contradictory n/a line next to it is worse than absence.
 compute_delivery_economics() {
   local trace_file="${1:-}"
   local feature_list_file="${2:-}"
@@ -534,7 +539,6 @@ compute_delivery_economics() {
   if ! command -v jq >/dev/null 2>&1; then
     printf '%s\n' \
       '- Wall-clock span: n/a' \
-      '- Tokens: n/a' \
       '- Review rounds: n/a' \
       '- Deviations logged: n/a' \
       '- Features: n/a'
@@ -563,7 +567,8 @@ compute_delivery_economics() {
                "- Wall-clock span: \($time.first) → \($time.last) (elapsed \($time.elapsed_ms / 3600000 | one_decimal)h / active \($time.active_ms / 3600000 | one_decimal)h; gaps >30min excluded)"
              end),
             (if ($tok_models | length) == 0 then
-               "- Tokens: n/a (no run carried token data)"
+               # Omit the token row entirely (issue #329): no half-present n/a.
+               empty
              else
                "- Tokens: in \(([$tok_models[] | .["gen_ai.usage.input_tokens"]? | numbers] | add // 0)) / out \(([$tok_models[] | .["gen_ai.usage.output_tokens"]? | numbers] | add // 0)) (coverage: \($tok_models | length)/\($model_spans | length) runs)"
              end),
@@ -585,7 +590,6 @@ compute_delivery_economics() {
   else
     printf '%s\n' \
       '- Wall-clock span: n/a' \
-      '- Tokens: n/a (no run carried token data)' \
       '- Review rounds: 0' \
       '- Deviations logged: 0'
   fi
@@ -613,6 +617,181 @@ compute_delivery_economics() {
   fi
 
   return 0
+}
+
+# --- Native-record economics join (issue #329, native-record-economics-join) --
+# GitHub Copilot writes per-session native records at
+# ${COPILOT_CLI_STATE_ROOT:-~/.copilot/session-state}/<sessionId>/events.jsonl.
+# Each `subagent.completed` event carries a SINGLE `totalTokens` (no
+# input/output split), a `model`, `durationMs`, and `totalToolCalls`; cumulative
+# AIU lives on `session.usage_checkpoint` (`data.totalNanoAiu`) and
+# `session.compaction_complete` (`data.copilotUsage.tokenDetails.totalNanoAiu`).
+# The harness joins ONLY honest derived aggregates from these fields, windowed by
+# the issue trace's own first→last timestamp so events from other issues in a
+# long shared session are excluded. Every helper here is PURE (functions of its
+# explicit arguments), fails open (prints nothing) on any missing input, and
+# never copies raw event content or free text into a repo record.
+
+# native_economics_window <trace_file> — prints "<start_epoch> <end_epoch>"
+# (integer UTC seconds) from the issue trace's earliest→latest span timestamp,
+# or nothing when jq/the file/timestamps are unavailable. The window is what
+# scopes the native join to THIS issue.
+native_economics_window() {
+  local trace_file="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$trace_file" ] && [ -s "$trace_file" ] && [ -r "$trace_file" ] || return 0
+  jq -nRr '
+    def norm_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+    [inputs | fromjson? | objects | .timestamp? | strings
+     | (try norm_ts catch empty)] as $epochs
+    | if ($epochs | length) < 1 then empty
+      else "\($epochs | min) \($epochs | max)" end
+  ' < "$trace_file" 2>/dev/null || true
+}
+
+# compute_native_economics <events_file> <start_epoch> <end_epoch> — prints a
+# compact derived JSON object built ONLY from in-window `subagent.completed`
+# events, or nothing when there is no such event (or any input is missing):
+#   {subagent_tokens, subagent_count, tool_calls, duration_ms,
+#    models:[{model,n,tokens}…] (, aiu_nano_delta)}
+# A record is aggregated ONLY when all four required economics fields are
+# genuinely present with correct types (non-empty string model and non-negative
+# numeric totalTokens/totalToolCalls/durationMs); an incomplete/malformed record
+# is excluded whole (never mapped to `unknown`/`0`). subagent_tokens is the
+# honest single-total sum (never split). aiu_nano_delta is a WINDOWED delta of
+# the cumulative counter, emitted ONLY when a candidate at or before start gives
+# a baseline, at least one candidate inside (start,end] moves, AND the
+# window-end value has not decreased below the baseline; a decrease (session
+# reset/rollback) omits the field, and an equal value yields a measured zero.
+compute_native_economics() {
+  local events_file="${1:-}" start_epoch="${2:-}" end_epoch="${3:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$events_file" ] && [ -s "$events_file" ] && [ -r "$events_file" ] || return 0
+  case "$start_epoch" in '' | *[!0-9.]*) return 0 ;; esac
+  case "$end_epoch" in '' | *[!0-9.]*) return 0 ;; esac
+
+  jq -nRc --argjson start "$start_epoch" --argjson end "$end_epoch" '
+    def norm_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+    def ev_epoch: (.timestamp? // "" | strings | (try norm_ts catch null));
+
+    [inputs | fromjson? | objects] as $events
+
+    # In-window subagent.completed events, reduced to their honest fields.
+    # HONESTY POLICY (issue #329): aggregate a record ONLY when all four required
+    # economics fields are genuinely present with correct types — a NON-EMPTY
+    # string model and non-negative NUMERIC totalTokens/totalToolCalls/durationMs.
+    # An incomplete/malformed record is EXCLUDED whole (never mapped to an
+    # "unknown" model or a fabricated 0), so its values cannot corrupt any total.
+    # A genuinely measured numeric 0 stays valid.
+    | [ $events[]
+        | select(.type == "subagent.completed")
+        | (ev_epoch) as $ts
+        | select($ts != null and $ts >= $start and $ts <= $end)
+        | (.data | if type == "object" then . else {} end) as $d
+        | select(
+            ($d.model | type) == "string" and (($d.model | length) > 0)
+            and ($d.totalTokens | type) == "number" and ($d.totalTokens >= 0)
+            and ($d.totalToolCalls | type) == "number" and ($d.totalToolCalls >= 0)
+            and ($d.durationMs | type) == "number" and ($d.durationMs >= 0)
+          )
+        | {
+            model: $d.model,
+            tokens: $d.totalTokens,
+            tool_calls: $d.totalToolCalls,
+            duration_ms: $d.durationMs
+          }
+      ] as $subs
+
+    | if ($subs | length) < 1 then empty
+      else
+        # Cumulative AIU candidates, from either checkpoint or compaction shape.
+        ([ $events[]
+           | select(.type == "session.usage_checkpoint" or .type == "session.compaction_complete")
+           | {
+               ts: (ev_epoch),
+               aiu: (if .type == "session.compaction_complete"
+                     then .data.copilotUsage.tokenDetails.totalNanoAiu
+                     else .data.totalNanoAiu end)
+             }
+           | select((.ts != null) and ((.aiu | type) == "number"))
+         ]) as $cands
+        | ([ $cands[] | select(.ts <= $start) ] | sort_by(.ts) | last | .aiu) as $baseline
+        | ([ $cands[] | select(.ts > $start and .ts <= $end) ] | length) as $inwin_moves
+        | ([ $cands[] | select(.ts <= $end) ] | sort_by(.ts) | last | .aiu) as $endval
+        | ($subs | group_by(.model)
+           | map({ model: .[0].model, n: length, tokens: (map(.tokens) | add) })
+           | sort_by(.model)) as $models
+        | {
+            subagent_tokens: ($subs | map(.tokens) | add),
+            subagent_count: ($subs | length),
+            tool_calls: ($subs | map(.tool_calls) | add),
+            duration_ms: ($subs | map(.duration_ms) | add),
+            models: $models
+          }
+        # AIU is CUMULATIVE. Emit the windowed delta ONLY when a baseline exists
+        # at/before window start, a checkpoint moved inside (start,end], AND the
+        # window-end value did NOT decrease below the baseline. A decrease means a
+        # session reset/rollback, never real in-window consumption, so the field
+        # is OMITTED entirely (never a negative, never a masked zero). An equal
+        # end value is a genuinely measured zero and stays valid.
+        + (if ($baseline != null) and ($inwin_moves > 0) and ($endval != null)
+              and ($endval >= $baseline)
+           then { aiu_nano_delta: (($endval - $baseline) | floor) }
+           else {} end)
+      end
+  ' < "$events_file" 2>/dev/null || true
+}
+
+# render_native_economics <native_json> — prints the operator-facing markdown
+# block for a non-empty native-economics JSON (≥1 in-window subagent), or
+# nothing. The section is CLEARLY labelled subagent-only and excludes the
+# top-level session; model NAMES and per-model counts/tokens render here (never
+# an n/a line). The AIU line appears only when aiu_nano_delta is present.
+render_native_economics() {
+  local native_json="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$native_json" ] || return 0
+  printf '%s' "$native_json" | jq -r '
+    objects
+    | select((.subagent_count // 0) >= 1)
+    | (.models | map("\(.model) ×\(.n) (\(.tokens) tok)") | join(", ")) as $models_line
+    | [
+        "## Delivery economics — native Copilot records (subagent-only, derived)",
+        "- Subagent tokens: \(.subagent_tokens) across \(.subagent_count) subagent run(s) — subagent-only; excludes the top-level session; single total, no input/output split",
+        "- Subagent models: \($models_line)",
+        "- Subagent tool calls: \(.tool_calls)",
+        "- Subagent wall-clock: \(.duration_ms) ms"
+      ]
+      + (if has("aiu_nano_delta")
+         then ["- AIU (nano) in-window delta: \(.aiu_nano_delta) (from cumulative checkpoints bracketing the issue window)"]
+         else [] end)
+    | .[]
+  ' 2>/dev/null || true
+}
+
+# native_economics_numeric <native_json> — prints the numeric `key=value` lines
+# for the finish-issue.economics span from a non-empty native-economics JSON, or
+# nothing. Model NAMES stay out of the span (strings under the numeric
+# harness.economics. prefix are invalid); only counts/sums/deltas are emitted,
+# each typed numeric by that prefix and omitted when absent.
+native_economics_numeric() {
+  local native_json="${1:-}"
+  command -v jq >/dev/null 2>&1 || return 0
+  [ -n "$native_json" ] || return 0
+  printf '%s' "$native_json" | jq -r '
+    objects
+    | select((.subagent_count // 0) >= 1)
+    | (
+        "harness.economics.native_subagent_tokens=\(.subagent_tokens)",
+        "harness.economics.native_subagent_count=\(.subagent_count)",
+        "harness.economics.native_tool_calls=\(.tool_calls)",
+        "harness.economics.native_duration_ms=\(.duration_ms)",
+        "harness.economics.native_models_distinct=\(.models | length)"
+      ),
+      (if has("aiu_nano_delta")
+       then "harness.economics.native_aiu_nano_delta=\(.aiu_nano_delta)"
+       else empty end)
+  ' 2>/dev/null || true
 }
 
 finish__warn() {
@@ -1064,6 +1243,35 @@ best_effort_economics_stamp() {
     return 0
   fi
 
+  # Native-record economics join (issue #329). Resolve the local Copilot session
+  # events ONLY through COPILOT_CLI_STATE_ROOT (default ~/.copilot/session-state)
+  # + COPILOT_AGENT_SESSION_ID, window it by THIS issue's trace first→last
+  # timestamp, and append a clearly-labelled subagent-only block. Fail-open at
+  # every step: a missing session id, events file, jq, window, or in-window
+  # subagent omits the surface entirely — never a fabricated 0 or n/a.
+  local native_json="" native_block=""
+  local native_state_root="${COPILOT_CLI_STATE_ROOT:-${HOME}/.copilot/session-state}"
+  local native_sid="${COPILOT_AGENT_SESSION_ID:-}"
+  # Guard the session id to a plausible session-directory name (no path
+  # traversal / separators) before using it to build a filesystem path.
+  case "$native_sid" in '' | *[!A-Za-z0-9_-]*) native_sid="" ;; esac
+  if [ -n "$native_sid" ] && declare -F compute_native_economics >/dev/null 2>&1; then
+    local native_events="${native_state_root}/${native_sid}/events.jsonl"
+    local native_window="" native_start="" native_end=""
+    native_window="$(native_economics_window "$trace_file")"
+    if [ -n "$native_window" ]; then
+      native_start="${native_window%% *}"
+      native_end="${native_window##* }"
+      native_json="$(compute_native_economics "$native_events" "$native_start" "$native_end")"
+    fi
+  fi
+  if [ -n "$native_json" ]; then
+    native_block="$(render_native_economics "$native_json")"
+    if [ -n "$native_block" ]; then
+      block="${block}"$'\n'"${native_block}"
+    fi
+  fi
+
   printf '%s\n' "$block"
   # Stamp the human-readable block into the migrated MAIN-checkout progress.md
   # — the tracking dir SURVIVES `git worktree remove` (issue #285). trace.jsonl
@@ -1096,6 +1304,14 @@ best_effort_economics_stamp() {
     while IFS= read -r agg_line; do
       [ -n "$agg_line" ] && econ_agg+=("$agg_line")
     done < <(economics_numeric_aggregates "$trace_file" "$feature_list")
+    # Fold in the native subagent-only numerics (issue #329) when they resolved;
+    # each is typed numeric by the harness.economics. prefix and omitted
+    # otherwise. Model names are intentionally NOT emitted on the span.
+    if [ -n "$native_json" ] && declare -F native_economics_numeric >/dev/null 2>&1; then
+      while IFS= read -r agg_line; do
+        [ -n "$agg_line" ] && econ_agg+=("$agg_line")
+      done < <(native_economics_numeric "$native_json")
+    fi
     TRACE_ISSUE="$stamp_issue" trace_span tool \
       "gen_ai.tool.name=finish-issue.economics" \
       "harness.outcome=pass" \
