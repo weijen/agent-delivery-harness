@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#337)_
+_Last updated: 2026-07-22 (#332)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-22 (#337)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 221 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 223 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,15 @@ _Last updated: 2026-07-22 (#337)_
 ---
 
 ## Delivered (newest first)
+
+### Canonical trace record and rendered Action Log (#332): delivery complete
+
+- `trace.jsonl` is now the sole event record; `log-handback.sh` emits spans and
+  regenerates the human-readable Action Log from those canonical spans.
+- Closeout renders the migrated `progress.md`, while legacy dual-write records
+  remain tolerated and unrelated lifecycle/closeout consistency gates remain.
+- Action-Log reconciliation code and its obsolete sensors were retired. The
+  branch is net-negative, and the 223-sensor pre-review gate is green.
 
 ### Archive dormant docs/evaluation content (#337): delivery complete
 
