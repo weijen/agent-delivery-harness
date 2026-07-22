@@ -36,6 +36,13 @@
 #      post-finish-span refresh hook stays best-effort per case 3, because by
 #      the time it runs the process has already exited — case 5 is what
 #      makes the REGENERATION ITSELF mandatory, ahead of teardown.)
+#   6. Teeth (negative fixture, security review fingerprint
+#      summary-regeneration-symlink-overwrite): the destination
+#      trace-summary.json path preplanted as a symlink to an unrelated
+#      writable "victim" file MUST block the finish (non-zero exit), leave
+#      the worktree INTACT, leave the victim byte-for-byte unchanged, and
+#      leave the symlink itself unreplaced — `cp` must never be given the
+#      chance to follow or overwrite it.
 #
 # Fixture style follows test_trace_finish_issue.sh / test_finish_issue_economics_stamp.sh:
 # temp main repo, worktree created via start-issue.sh SKIP_INIT=1, pinned
@@ -305,5 +312,45 @@ out5="$(cd "$R5" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3295 SLUG=fixt
   || fail "broken-regenerator: worktree must be left INTACT when the mandatory pre-teardown summary-regeneration gate blocks the finish"
 printf '%s\n' "$out5" | grep -qF 'trace-summary regeneration' \
   || { printf '%s\n' "$out5"; fail "broken-regenerator: finish-issue.sh must explain the refusal (mandatory trace-summary regeneration failure), got:\n${out5}"; }
+
+# ============================================================================
+# 6. Teeth (negative fixture, security review fingerprint
+#    summary-regeneration-symlink-overwrite): a local same-user actor can
+#    preplant the trace-summary.json destination path as a symlink pointing
+#    at an unrelated writable "victim" file BEFORE finish runs. The canonical
+#    regenerator (scripts/trace-report.sh's emit_summary_file) MUST refuse to
+#    write through — or replace — that symlink: the closeout must FAIL
+#    (non-zero exit), the worktree must stay INTACT, the victim file must
+#    stay byte-for-byte unchanged, and the symlink itself must survive
+#    unreplaced (still a symlink, same target) — proving `cp` is never given
+#    the chance to follow it.
+# ============================================================================
+R6="${TMP_DIR}/r329f"
+make_finish_fixture "$R6" 3296 "$COMPLETE_LIST"
+write_rich_trace "$R6" 3296
+VICTIM6="${TMP_DIR}/victim-3296.txt"
+printf 'VICTIM-DATA-DO-NOT-OVERWRITE-3296\n' > "$VICTIM6"
+victim6_before="$(cat "$VICTIM6")"
+victim6_sum_before="$(cksum "$VICTIM6")"
+SUMMARY6="$(summary_path "$R6" 3296)"
+ln -s "$VICTIM6" "$SUMMARY6"
+[ -L "$SUMMARY6" ] \
+  || fail "symlink-overwrite setup: expected ${SUMMARY6} to be a symlink before finish"
+rc6=0
+out6="$(cd "$R6" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3296 SLUG=fixture 2>&1)" || rc6=$?
+[ "$rc6" -ne 0 ] \
+  || { printf '%s\n' "$out6"; fail "symlink-overwrite: finish-issue.sh must FAIL (non-zero exit) when trace-summary.json's destination path is a pre-planted symlink"; }
+[ -d "${R6}-worktrees/issue-3296" ] \
+  || fail "symlink-overwrite: worktree must be left INTACT when the symlink destination blocks the mandatory summary-regeneration gate"
+[ -L "$SUMMARY6" ] \
+  || fail "symlink-overwrite: ${SUMMARY6} must remain a symlink (never replaced by a regular file — the gate must refuse before any write, not swap the symlink for a fresh one)"
+[ "$(readlink "$SUMMARY6")" = "$VICTIM6" ] \
+  || fail "symlink-overwrite: ${SUMMARY6} symlink target must be unchanged"
+victim6_after="$(cat "$VICTIM6")"
+victim6_sum_after="$(cksum "$VICTIM6")"
+[ "$victim6_before" = "$victim6_after" ] && [ "$victim6_sum_before" = "$victim6_sum_after" ] \
+  || fail "symlink-overwrite: victim file ${VICTIM6} must be byte-for-byte unchanged, got before=[${victim6_before}] after=[${victim6_after}]"
+printf '%s\n' "$out6" | grep -qi 'symlink' \
+  || { printf '%s\n' "$out6"; fail "symlink-overwrite: finish-issue.sh must explain the refusal names the symlink destination, got:\n${out6}"; }
 
 printf 'finish-issue trace-summary regeneration contract honored\n'

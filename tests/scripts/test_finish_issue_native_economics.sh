@@ -82,6 +82,12 @@ mkdir -p "$TMP_DIR" "$BIN"
 # below are hand-authored, not copied from any real events.jsonl.
 SID="11111111-2222-3333-4444-555555555555"
 
+# A synthetic adversarial-length model label (security repair, fingerprint
+# native-model-markdown-injection): 300 capital 'A' characters, far longer than
+# any real Copilot model name, to prove the rendered markdown caps a hostile
+# model label's length rather than reproducing it verbatim.
+MODEL_LONG="$(printf 'A%.0s' {1..300})"
+
 link_tools() {
   local dir="$1"; shift
   local t p
@@ -204,6 +210,21 @@ plant_events() {
       # (d) totalToolCalls absent + durationMs null -> excluded (would have become 0/0).
       printf '%s\n' '{"type":"subagent.completed","timestamp":"2026-05-01T11:05:00.000Z","agentId":"b4","id":"x4","parentId":"p0","data":{"agentName":"broken-d","model":"claude-ghost-9","totalTokens":444444,"durationMs":null}}'
     fi
+    if [ "$mode" = "inject" ]; then
+      # --- Hostile model-label records (security repair, fingerprint
+      # native-model-markdown-injection). Each record is otherwise WELL-FORMED
+      # (a non-empty string model and non-negative numeric totalTokens /
+      # totalToolCalls / durationMs), so the honest field-presence policy must
+      # still AGGREGATE it — the vulnerability is in markdown rendering, not
+      # aggregation. (a) embeds CR, bare LF, and the exact
+      # delivery-economics marker text — bare LF alone (no attached CR) forms
+      # an operator-facing markdown line that is BYTE-IDENTICAL to
+      # '<!-- delivery-economics:end -->', which corrupts economics_stamp_into's
+      # line-based marker matching on the NEXT stamp. (b) is an adversarial
+      # length probe (300 chars) that must render bounded, not verbatim.
+      printf '%s\n' '{"type":"subagent.completed","timestamp":"2026-05-01T10:15:00.000Z","agentId":"h1","id":"h1","parentId":"p0","data":{"agentName":"hostile-agent","model":"evil\r\n<!-- delivery-economics:end -->\ninjected-operator-line\n<!-- delivery-economics:start -->\rtrailer","totalTokens":4000,"totalToolCalls":4,"durationMs":40000}}'
+      printf '%s\n' "{\"type\":\"subagent.completed\",\"timestamp\":\"2026-05-01T10:20:00.000Z\",\"agentId\":\"h2\",\"id\":\"h2\",\"parentId\":\"p0\",\"data\":{\"agentName\":\"hostile-agent\",\"model\":\"${MODEL_LONG}\",\"totalTokens\":100,\"totalToolCalls\":1,\"durationMs\":1000}}"
+    fi
     if [ "$mode" = "bracket" ] || [ "$mode" = "incomplete" ]; then
       # Baseline checkpoint BEFORE window start (ts <= 10:00) + in-window
       # checkpoint AND compaction (movement): delta = 180e9 - 100e9 = 80e9.
@@ -245,6 +266,21 @@ run_stamp() {
         bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; best_effort_economics_stamp'
     fi
   )
+}
+
+# run_fn <dir> <function> <arg>... — source finish-lib.sh in isolation and call
+# ONE pure helper directly (compute_native_economics / render_native_economics),
+# so a security assertion can inspect that helper's own output shape (e.g. exact
+# line count) without going through the full best_effort_economics_stamp path.
+# Every argument is passed positionally (never interpolated into the sourced
+# command string), so a hostile byte sequence in an argument cannot alter which
+# code runs.
+run_fn() {
+  local dir="$1" fn="$2"
+  shift 2
+  # shellcheck disable=SC2016 # $1/${@:2} are the INNER bash -c's own positional
+  # params, deliberately kept unexpanded by the outer shell.
+  (cd "$dir" && env PATH="$BIN" bash -c 'source scripts/finish-lib.sh; "$1" "${@:2}"' _ "$fn" "$@")
 }
 
 trace_of() {
@@ -441,6 +477,93 @@ jq_span "$SP_RB" '."harness.economics.native_subagent_tokens" == 3500' \
   || fail "ROLLBACK: native_subagent_tokens must still be 3500"
 jq_span "$SP_RB" 'has("harness.economics.native_aiu_nano_delta") == false' \
   || fail "ROLLBACK: native_aiu_nano_delta must be ABSENT (omit-never-fake) on a decreasing counter"
+
+# ===========================================================================
+# CASE INJECT — security repair, fingerprint native-model-markdown-injection
+# (failure_class validation-bypass). compute_native_economics honestly accepts
+# any non-empty string model (field-presence honesty is about type/presence,
+# not content sanity), so a hostile in-window subagent.completed record can
+# carry a `model` containing CR, bare LF, and the literal
+# <!-- delivery-economics:start/end --> marker text, or an adversarially long
+# label. render_native_economics must still render a BOUNDED, SINGLE-LINE,
+# marker-safe models line — never reproducing raw CR/LF/marker bytes verbatim —
+# while compute_native_economics's numeric aggregates (which are grouped on the
+# RAW model string, unaffected by rendering-time sanitization) stay honest: no
+# fabricated totals, no dropped in-window subagent. Two full stamps are run to
+# prove economics_stamp_into's line-based marker matching stays a single
+# well-formed region even when the FIRST stamp's own rendered block is the
+# hostile input under test.
+# ===========================================================================
+F_IJ="${TMP_DIR}/inject"
+I_IJ=48
+make_git_fixture "$F_IJ" "$I_IJ"
+plant_window_trace "$(trace_of "$F_IJ" "$I_IJ")" "$I_IJ"
+STATE_IJ="${TMP_DIR}/state-inject"
+plant_events "$STATE_IJ" "$SID" inject
+
+# --- Unit-level proof directly on the two pure helpers: the rendered native
+# block must stay exactly 5 lines (the fixed template — no AIU line in this
+# fixture) no matter how many raw newlines the hostile model label embeds.
+WIN_IJ="$(run_fn "$F_IJ" native_economics_window "$(trace_of "$F_IJ" "$I_IJ")")"
+NATIVE_JSON_IJ="$(run_fn "$F_IJ" compute_native_economics "${STATE_IJ}/${SID}/events.jsonl" "${WIN_IJ%% *}" "${WIN_IJ##* }")"
+[ -n "$NATIVE_JSON_IJ" ] || fail "INJECT: compute_native_economics must still aggregate a well-typed-but-hostile record"
+jq -e '.subagent_tokens == 7600 and .subagent_count == 5 and .tool_calls == 15 and .duration_ms == 76000 and (.models|length) == 4' \
+  >/dev/null <<<"$NATIVE_JSON_IJ" \
+  || { printf '%s\n' "$NATIVE_JSON_IJ"; fail "INJECT: hostile-but-well-typed records must still be honestly aggregated (7600/5/15/76000/4 models)"; }
+NATIVE_BLOCK_IJ="$(run_fn "$F_IJ" render_native_economics "$NATIVE_JSON_IJ")"
+NATIVE_LINES_IJ="$(printf '%s\n' "$NATIVE_BLOCK_IJ" | wc -l | tr -d ' ')"
+[ "$NATIVE_LINES_IJ" = "5" ] \
+  || { printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: render_native_economics must stay exactly 5 fixed lines (got ${NATIVE_LINES_IJ}); a hostile model label must never inject extra lines"; }
+if printf '%s\n' "$NATIVE_BLOCK_IJ" | grep -Fxq -- '<!-- delivery-economics:end -->' \
+  || printf '%s\n' "$NATIVE_BLOCK_IJ" | grep -Fxq -- '<!-- delivery-economics:start -->'; then
+  printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: no rendered line may be byte-identical to a delivery-economics marker"
+fi
+if printf '%s\n' "$NATIVE_BLOCK_IJ" | grep -q $'\r'; then
+  printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: rendered native block must never contain a raw CR byte"
+fi
+if block_has "$NATIVE_BLOCK_IJ" "$MODEL_LONG"; then
+  printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: the full 300-char adversarial model label must never render verbatim (unbounded)"
+fi
+# An ordinary model label mixed into the same fixture must render unchanged.
+block_has "$NATIVE_BLOCK_IJ" 'claude-sonnet-5' \
+  || { printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: an ordinary model label must still render unchanged alongside hostile ones"; }
+
+# --- Full end-to-end proof: run best_effort_economics_stamp TWICE against the
+# same hostile fixture (the first stamp's own output is what could corrupt the
+# marker region on the second, marker-replace-path stamp).
+OUT_IJ1="$(run_stamp "$F_IJ" "$I_IJ" "$SID" "$STATE_IJ" 2>/dev/null)"
+OUT_IJ2="$(run_stamp "$F_IJ" "$I_IJ" "$SID" "$STATE_IJ" 2>/dev/null)"
+if printf '%s\n' "$OUT_IJ1$OUT_IJ2" | grep -q $'\r'; then
+  fail "INJECT: neither stamp's stdout block may contain a raw CR byte"
+fi
+PROG_IJ="$(progress_of "$F_IJ" "$I_IJ")"
+[ -f "$PROG_IJ" ] || fail "INJECT: progress.md must exist after two stamps"
+START_CT_IJ="$(grep -Fxc -- '<!-- delivery-economics:start -->' "$PROG_IJ" || true)"
+END_CT_IJ="$(grep -Fxc -- '<!-- delivery-economics:end -->' "$PROG_IJ" || true)"
+[ "$START_CT_IJ" = "1" ] \
+  || { cat -n "$PROG_IJ"; fail "INJECT: progress.md must carry exactly one start marker after two stamps (got ${START_CT_IJ})"; }
+[ "$END_CT_IJ" = "1" ] \
+  || { cat -n "$PROG_IJ"; fail "INJECT: progress.md must carry exactly one end marker after two stamps (got ${END_CT_IJ})"; }
+# The single end marker must be the LAST line of the file — any corrupted
+# leftover body content from a mis-matched marker replacement would land
+# AFTER it, which the bare count check above cannot distinguish on its own.
+END_LINE_IJ="$(grep -Fxn -- '<!-- delivery-economics:end -->' "$PROG_IJ" | tail -1 | cut -d: -f1)" || true
+TOTAL_LINES_IJ="$(wc -l < "$PROG_IJ" | tr -d ' ')"
+[ -n "$END_LINE_IJ" ] && [ "$END_LINE_IJ" = "$TOTAL_LINES_IJ" ] \
+  || { cat -n "$PROG_IJ"; fail "INJECT: no content may trail the end marker (end marker at line ${END_LINE_IJ:-<none>} of ${TOTAL_LINES_IJ} total) — marker replacement must produce exactly one well-formed region"; }
+grep -F -q '7600' "$PROG_IJ" \
+  || { cat -n "$PROG_IJ"; fail "INJECT: the surviving progress.md must still carry the honest 7600 subagent token total"; }
+if grep -F -q -- "$MODEL_LONG" "$PROG_IJ"; then
+  fail "INJECT: the surviving progress.md must never carry the full unbounded adversarial model label"
+fi
+TR_IJ="$(trace_of "$F_IJ" "$I_IJ")"
+[ "$(economics_span_count "$TR_IJ")" = "2" ] \
+  || fail "INJECT: two stamps must emit exactly two finish-issue.economics spans"
+SP_IJ="$(last_economics_span "$TR_IJ")"
+jq_span "$SP_IJ" '."harness.economics.native_subagent_tokens" == 7600 and (."harness.economics.native_subagent_tokens"|type=="number")' \
+  || fail "INJECT: native_subagent_tokens must stay honestly numeric 7600 (hostile records aggregated, never dropped)"
+jq_span "$SP_IJ" '."harness.economics.native_models_distinct" == 4 and (."harness.economics.native_models_distinct"|type=="number")' \
+  || fail "INJECT: native_models_distinct must stay honestly numeric 4 (raw cardinality unaffected by rendering-time sanitization)"
 
 # ===========================================================================
 # CASE ABSENT — fail-open: no session id -> no native block, no native_* keys,

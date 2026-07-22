@@ -747,14 +747,45 @@ compute_native_economics() {
 # nothing. The section is CLEARLY labelled subagent-only and excludes the
 # top-level session; model NAMES and per-model counts/tokens render here (never
 # an n/a line). The AIU line appears only when aiu_nano_delta is present.
+#
+# Model-label sanitization (security repair, fingerprint
+# native-model-markdown-injection, failure_class validation-bypass):
+# compute_native_economics honestly accepts ANY non-empty string `model` — that
+# field-presence check is about type/presence, not content sanity, so a local
+# native record's `model` string is untrusted operator-facing text by the time
+# it reaches this function. jq's `-r` string interpolation (`\(...)`) inserts a
+# string value's raw bytes verbatim (no JSON escaping), so an unsanitized model
+# containing CR/LF could splinter this function's single "- Subagent models: …"
+# line into several raw lines — one of which could land byte-identical to the
+# `<!-- delivery-economics:start/end -->` markers that `economics_stamp_into`
+# matches by exact line equality, corrupting that (and every later) marker
+# replacement. `sanitize_model` is applied at this narrowest boundary —
+# immediately before markdown interpolation, never upstream in
+# compute_native_economics — so the honest join/grouping in that PURE data
+# stage keeps grouping on the RAW model string (model cardinality/counts stay
+# unaffected by a display-only transform). The policy: strip every C0 control
+# character (0x00–0x1F, 0x7F — this covers CR/LF and stray ANSI/terminal
+# control bytes) to a space, collapse the resulting whitespace runs, trim the
+# ends, and cap the visible length to 60 characters (comfortably longer than
+# any real Copilot model name) with a `…` marker — bounding adversarial length
+# without touching any numeric aggregate.
 render_native_economics() {
   local native_json="${1:-}"
   command -v jq >/dev/null 2>&1 || return 0
   [ -n "$native_json" ] || return 0
   printf '%s' "$native_json" | jq -r '
+    def sanitize_model:
+      if type != "string" then "(unlabeled)" else
+        gsub("[\u0000-\u001f\u007f]"; " ")
+        | gsub(" +"; " ")
+        | sub("^ +"; "") | sub(" +$"; "")
+        | if . == "" then "(unlabeled)"
+          elif length > 60 then (.[0:60] + "…")
+          else . end
+      end;
     objects
     | select((.subagent_count // 0) >= 1)
-    | (.models | map("\(.model) ×\(.n) (\(.tokens) tok)") | join(", ")) as $models_line
+    | (.models | map("\(.model|sanitize_model) ×\(.n) (\(.tokens) tok)") | join(", ")) as $models_line
     | [
         "## Delivery economics — native Copilot records (subagent-only, derived)",
         "- Subagent tokens: \(.subagent_tokens) across \(.subagent_count) subagent run(s) — subagent-only; excludes the top-level session; single total, no input/output split",
@@ -1399,9 +1430,14 @@ finish_summary_regen_gate() {
   issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
   summary_path="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace-summary.json"
 
-  if ! "${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" >/dev/null 2>&1; then
+  local regen_out=""
+  if ! regen_out="$("${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" 2>&1 >/dev/null)"; then
     red "✗ required trace-summary regeneration failed (issue #329): scripts/trace-report.sh could not run for issue ${ISSUE_NUM}."
     echo "  trace-summary.json is a mandatory closeout artifact, not best-effort."
+    # Surface the reporter's own diagnosis (e.g. a refused symlink
+    # destination — security review fingerprint
+    # summary-regeneration-symlink-overwrite) rather than swallowing it.
+    [ -z "$regen_out" ] || printf '%s\n' "$regen_out" | sed 's/^/  /'
     echo "  Fix the reporter (or its trace.jsonl input), then re-run:"
     echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
     echo "  The worktree is left intact."

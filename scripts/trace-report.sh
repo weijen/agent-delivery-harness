@@ -448,10 +448,28 @@ fi
 # overwritten whole on every run, never appended (exactly one JSON
 # document). Local-only: the trace dir is covered by the
 # .copilot-tracking/issues/issue-*/ gitignore rule.
+#
+# Security (issue #329 review, fingerprint
+# summary-regeneration-symlink-overwrite): `cp` follows a destination
+# symlink and writes through it into whatever file it points at. Because
+# this write is now MANDATORY and automatic on every closeout (both the
+# pre-teardown finish_summary_regen_gate and the post-finish-span
+# finish__regenerate_summary refresh call this same script), a local
+# same-user actor could preplant $out_file as a symlink to an unrelated
+# writable file and have closeout silently overwrite it while reporting
+# success. Refuse — never follow, never replace — whenever $out_file
+# already exists as a symlink; this is the single canonical write boundary
+# both callers share, so the refusal covers both automatic invocations.
 emit_summary_file() {
   local summary_json="$1" trace_file="$2"
   local out_file
   out_file="$(dirname "$trace_file")/trace-summary.json"
+  if [ -L "$out_file" ]; then
+    red "✗ refusing to write ${out_file}: it is a symlink." >&2
+    echo "  Writing trace-summary.json through a preexisting symlink could redirect the write to an" >&2
+    echo "  unrelated file. Remove or replace the symlink with a regular file (or nothing), then re-run." >&2
+    return 2
+  fi
   cp "$summary_json" "$out_file"
 }
 emit_summary_file "$SUMMARY_JSON" "$TRACE_FILE"

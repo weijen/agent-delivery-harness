@@ -361,7 +361,11 @@ across):
   fabricated input/output pair), the distinct `model` names with per-model counts/tokens, and the `totalToolCalls` /
   `durationMs` sums. A record is aggregated **only** when all four required fields are genuinely present with correct
   types (non-empty string `model`, non-negative numeric `totalTokens`/`totalToolCalls`/`durationMs`); an incomplete or
-  malformed record is excluded whole, never mapped to an `unknown` model or a fabricated `0`.
+  malformed record is excluded whole, never mapped to an `unknown` model or a fabricated `0`. That check is on
+  type/presence only, not content — a local `model` label is untrusted text, so `render_native_economics` sanitizes it
+  before markdown interpolation (strip C0 control bytes incl. CR/LF to a space, collapse/trim, cap at 60 chars with
+  `…`), bounding it to a single safe line without touching the honest raw-model grouping/totals in
+  `compute_native_economics`.
 - `session.usage_checkpoint` (`data.totalNanoAiu`) / `session.compaction_complete`
   (`data.copilotUsage.tokenDetails.totalNanoAiu`) → a **windowed AIU delta**, emitted only when a cumulative
   checkpoint at/before the window start gives a baseline, at least one checkpoint inside the window shows movement, AND

@@ -321,7 +321,14 @@ input/output pair, and excluding the top-level session), the distinct subagent *
 counts/tokens, and the subagent tool-call and duration sums. A `subagent.completed` record is aggregated **only** when
 all four required economics fields are genuinely present with correct types (a non-empty string `model` and
 non-negative numeric `totalTokens`/`totalToolCalls`/`durationMs`); an incomplete or malformed record is **excluded
-whole**, never mapped to an `unknown` model or a fabricated `0`. The join is **windowed** by the issue trace's own
+whole**, never mapped to an `unknown` model or a fabricated `0`. The field-presence check is about type/presence, not
+content sanity, so a `model` label — untrusted local text — is rendered through a display-only **sanitization**
+boundary (`sanitize_model` inside `render_native_economics`): every C0 control character (including CR/LF) is
+stripped to a space, runs collapse, ends trim, and the visible label is capped at 60 characters with a `…` marker.
+This keeps the markdown block bounded, single-line, and safe against the `<!-- delivery-economics:start/end -->`
+markers `economics_stamp_into` matches by exact line equality, while the honest join/grouping in
+`compute_native_economics` keeps aggregating on the **raw** model string — cardinality and totals are unaffected by
+this rendering-time transform. The join is **windowed** by the issue trace's own
 first→last timestamp, so events from other issues in a long shared session are excluded. **AIU** is a windowed delta
 of the cumulative `session.usage_checkpoint` / `session.compaction_complete` `totalNanoAiu` counter, emitted **only**
 when a checkpoint at/before the window start gives a baseline, at least one checkpoint inside the window shows
