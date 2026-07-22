@@ -1,0 +1,36 @@
+# Sensor paths/globs omitted from adopter installs by default.
+# These enforce this harness repository's own release, documentation,
+# infrastructure, archive, evaluation-authoring, or test-portfolio obligations.
+tests/meta/test_*.sh
+tests/scripts/test_boundary_gates_research_inventory.sh
+tests/scripts/test_commit_convention_doc.sh
+tests/scripts/test_converted_meta_structural.sh
+tests/scripts/test_deleted_meta_tests_absent.sh
+tests/scripts/test_demoted_profile_tests_absent.sh
+tests/scripts/test_docs_shipped_profiles.sh
+tests/scripts/test_eval_dir_contract.sh
+tests/scripts/test_eval_manifest_validator.sh
+tests/scripts/test_evaluation_archive_layout.sh
+tests/scripts/test_export_docs_removed.sh
+tests/scripts/test_export_leg_removed.sh
+tests/scripts/test_harness_smoke.sh
+tests/scripts/test_init_gates.sh
+tests/scripts/test_l0_manifests.sh
+tests/scripts/test_launch_topology_docs.sh
+tests/scripts/test_meta_test_rubric_doctrine.sh
+tests/scripts/test_meta_triage_record.sh
+tests/scripts/test_no_archived_evaluation_content_gates.sh
+tests/scripts/test_no_runtime_refs_to_archived_evaluation_docs.sh
+tests/scripts/test_release_policy_doc.sh
+tests/scripts/test_release_workflow.sh
+tests/scripts/test_release_zero_version.sh
+tests/scripts/test_reviewer_end_of_issue_contract.sh
+tests/scripts/test_run_evals_not_run.sh
+tests/scripts/test_run_evals_redaction.sh
+tests/scripts/test_run_evals_scorecard.sh
+tests/scripts/test_terraform_docs.sh
+tests/scripts/test_terraform_hygiene.sh
+tests/scripts/test_terraform_sink.sh
+tests/scripts/test_terraform_skeleton.sh
+tests/scripts/test_trace_schema.sh
+tests/scripts/test_version_no_drift.sh
