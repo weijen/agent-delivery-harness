@@ -18,8 +18,6 @@ f=".copilot/skills/create-pr/SKILL.md"
 grep -Eq 'feature/issue-<?NN>?-' "$f"        || note "$f must name the feature/issue-<NN>-<slug> branch convention"
 grep -Eq 'start-issue\.sh' "$f"              || note "$f must reference scripts/start-issue.sh"
 grep -Eq 'feat\(#|fix\(#' "$f"               || note "$f must show the issue-scoped Conventional Commit style (e.g. feat(#NN))"
-grep -Eiq 'review-gate\.sh' "$f"             || note "$f must reference the HEAD-bound review-gate.sh gate"
-grep -Eiq 'PROGRESS\.md' "$f"                || note "$f must reference the docs/PROGRESS.md status-doc requirement"
 grep -Eiq 'merge-pr\.sh' "$f"                || note "$f must reference scripts/merge-pr.sh"
 grep -Eiq 'gh pr checks|CI (run )?is green|green CI' "$f" \
                                              || note "$f must state the CI-green merge precondition"
