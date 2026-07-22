@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.32.0 (2026-07-22)
+
+### Bug Fixes
+
+- **#314**: Make installer guards explicit
+  ([#366](https://github.com/weijen/agent-delivery-harness/pull/366),
+  [`d389562`](https://github.com/weijen/agent-delivery-harness/commit/d389562c79b0936cf7a8afc1c53ffafb3326ed2b))
+
+### Features
+
+- Preserve adopter installer customizations
+  ([#366](https://github.com/weijen/agent-delivery-harness/pull/366),
+  [`d389562`](https://github.com/weijen/agent-delivery-harness/commit/d389562c79b0936cf7a8afc1c53ffafb3326ed2b))
+
+- **#314**: Preserve adopter installer customizations
+  ([#366](https://github.com/weijen/agent-delivery-harness/pull/366),
+  [`d389562`](https://github.com/weijen/agent-delivery-harness/commit/d389562c79b0936cf7a8afc1c53ffafb3326ed2b))
+
+
 ## v0.31.0 (2026-07-22)
 
 ### Bug Fixes
