@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.30.0 (2026-07-22)
+
+### Documentation
+
+- **#312**: Keep retired progress archive frozen
+  ([`fa999ef`](https://github.com/weijen/agent-delivery-harness/commit/fa999ef9bf146ed69cfe19d5901d8cee51205d5b))
+
+### Features
+
+- **#312**: Add adopter-safe installer profile
+  ([`1ac7261`](https://github.com/weijen/agent-delivery-harness/commit/1ac72614b9b872346d29a82855038fd8f31cc2ba))
+
+- **#312**: Classify harness development sensors
+  ([`3aeacbc`](https://github.com/weijen/agent-delivery-harness/commit/3aeacbcc2928a4f72765c2c813405acb40e41d25))
+
+- **#312**: Prove adopter sensor profile is neutral
+  ([`616691a`](https://github.com/weijen/agent-delivery-harness/commit/616691a2cbf4879f0d0fe15b6959e7024f85dbc3))
+
+### Testing
+
+- **#312**: Cover explicit dev-sensor removal
+  ([`312aa24`](https://github.com/weijen/agent-delivery-harness/commit/312aa248ba48849837b53a94d104b8fda98eb974))
+
+
 ## v0.29.0 (2026-07-22)
 
 ### Features
