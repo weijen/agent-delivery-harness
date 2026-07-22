@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.27.1 (2026-07-22)
+
+### Bug Fixes
+
+- Convert SC2015 patterns in render-action-log sensor
+  ([`33a8ca3`](https://github.com/weijen/agent-delivery-harness/commit/33a8ca37e67a670c327c43a5c1da0025dede93cb))
+
+### Documentation
+
+- **#86**: Boundary-gates research — evidence predicates over trace.jsonl
+  ([`5a9bec3`](https://github.com/weijen/agent-delivery-harness/commit/5a9bec3bb4dfec8827ba474a26568a6f1fa9f759))
+
+
 ## v0.27.0 (2026-07-22)
 
 ### Documentation
