@@ -447,8 +447,14 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    a fresh approval.
 2. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
   `./scripts/create-pr.sh`, which checks the current HEAD approval, then `git fetch origin main`
-  + rebases your branch onto `origin/main`, then checks approval again for the final post-sync HEAD
-  before pushing and opening the PR. `main` moves while
+  + rebases your branch onto `origin/main`. After a successful default rebase,
+  `create-pr.sh` attempts to carry the prior approval forward by patch-id identity (issue #310):
+  if the branch's ordered patch stream is unchanged, the approval carries automatically to the
+  post-rebase HEAD with no second approve needed. Any content-changing commit or sync still
+  requires fresh review — carry applies only when the actual successful default rebase produced
+  exactly the pre-approved HEAD, the stored identity is a valid merge-free stable hex identity,
+  and the post-rebase identity is unchanged. The authoritative check always runs after carry;
+  merge/non-rewrite/fallback/legacy-marker paths all require fresh approval. `main` moves while
   you work, so a branch cut from a stale base can pass local gates yet break against current
   `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
   (re-run them if the rebase pulled in new commits) so they verify the merged result.
@@ -505,9 +511,10 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, checks approval
-  again for the final post-sync HEAD, pushes, and runs `gh pr create`. Do not hand-run `gh pr create`
-  against a stale base.
+  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, attempts to
+  carry the prior approval by patch-id identity (issue #310) when the rebase is content-preserving,
+  then runs the authoritative check for the final post-sync HEAD, pushes, and runs `gh pr create`.
+  Do not hand-run `gh pr create` against a stale base.
 - **A green remote CI run is a hard precondition for merge.** After the PR is open and local
   gates/reviews are complete, do **not** merge until the harness CI run
   (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through

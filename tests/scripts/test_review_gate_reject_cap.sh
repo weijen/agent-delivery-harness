@@ -214,7 +214,7 @@ rc="$(run_in "$C3" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$C3")" ] \
   || fail "no_block_below_cap: approve must write the approved-head marker when the reject cap is not exceeded"
 if [ -f "$(marker_path "$C3")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$C3")")" = "$(git -C "$C3" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$C3")" | tr -d '[:space:]')" = "$(git -C "$C3" rev-parse HEAD)" ] \
     || fail "no_block_below_cap: the approved-head marker must equal the current HEAD"
 fi
 if grep -Eiq 'reject.{0,20}cap|rejection cap' "$OUT"; then

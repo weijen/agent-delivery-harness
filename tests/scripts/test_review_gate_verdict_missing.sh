@@ -243,7 +243,7 @@ rc="$(run_in "$C3" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$C3")" ] \
   || fail "no_block_with_verdict: approve must write the approved-head marker when the per-feature verdict is present"
 if [ -f "$(marker_path "$C3")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$C3")")" = "$(git -C "$C3" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$C3")" | tr -d '[:space:]')" = "$(git -C "$C3" rev-parse HEAD)" ] \
     || fail "no_block_with_verdict: the approved-head marker must equal the current HEAD"
 fi
 if grep -Eiq 'review_verdict_missing|missing.{0,20}verdict|verdict.{0,20}missing' "$OUT"; then

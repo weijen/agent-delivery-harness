@@ -20,9 +20,17 @@
 #      unless CREATE_PR_NO_REWRITE=1, which skips rebase entirely: open from the
 #      current tip when origin/main is already an ancestor of HEAD, or merge
 #      origin/main in (abort cleanly on conflict) when a sync is needed.
-#   4. Require review approval for the final post-sync HEAD, but only when the
-#      sync actually moved HEAD (CREATE_PR_NO_REWRITE=1 with nothing to merge
-#      never re-checks — HEAD never changed since the pre-sync approval).
+#   4. After a successful default rebase, attempt to carry the pre-rebase approval
+#      forward by patch-id identity (issue #310): if the branch diff is unchanged
+#      (same ordered patch stream), the prior approval is still valid and no second
+#      approve is needed. Carry requires: exact pre-rebase HEAD match, a valid
+#      non-blank stored identity, and an identical post-rebase identity. Any
+#      content-changing commit/sync still needs fresh review — carry applies only
+#      when the actual default rebase produced exactly the pre-approved HEAD, the
+#      stored identity is a valid merge-free stable hex identity, and the
+#      post-rebase identity is unchanged. After carry (or when carry is inapplicable),
+#      the authoritative check always runs: merge/non-rewrite/fallback/legacy-marker
+#      paths all require fresh approval. Carry is best-effort, not a guarantee.
 #   5. Push the branch — --force-with-lease after a rebase (the issue branch is
 #      yours alone), or a plain push after CREATE_PR_NO_REWRITE=1 (fast-forward-safe
 #      by construction: a merge's first parent is the remote's own prior tip).
@@ -198,6 +206,16 @@ TRACE_STAGE="review_gate"
 CREATE_PR_NO_REWRITE="${CREATE_PR_NO_REWRITE:-0}"
 TRACE_STAGE="rebase"
 sync_mode="rebase"
+# did_rebase: tracks whether THIS invocation actually executed a successful
+# default rebase (not inferred from sync_mode, since no-op ancestor cases
+# deliberately retain sync_mode=rebase for push behavior). Only a successful
+# git rebase call sets this to 1. Carry (issue #310) is attempted only when
+# did_rebase=1 so it never fires on no-op, retry, CREATE_PR_NO_REWRITE merge,
+# fallback merge, rebase conflict, or any other path.
+did_rebase=0
+# pre_rebase_head: captured immediately before the actual rebase runs. Used by
+# the carry subcommand to verify the expected pre-rebase HEAD (issue #310).
+pre_rebase_head=""
 # owned_ref: this script's OWN branch-scoped, cross-invocation persistent
 # marker for the true pre-rebase local tip — never git's own ORIG_HEAD.
 # ORIG_HEAD is a single, repo-wide, unnamespaced pointer that ANY git command
@@ -277,6 +295,7 @@ else
     git update-ref "$owned_ref" "$pre_rebase_head"
     if git rebase origin/main; then
       pre_sync_tip="$pre_rebase_head"
+      did_rebase=1
       green "✓ ${branch} is now on top of origin/main ($(git rev-parse --short origin/main))"
     else
       git rebase --abort || true
@@ -298,6 +317,23 @@ fi
 # above still covers it — re-checking would just repeat the same comparison.
 TRACE_STAGE="post_sync_gate"
 if [ "$sync_mode" != "none" ]; then
+  # For a successful default rebase (did_rebase=1), attempt to carry the
+  # pre-rebase approval forward by patch-id identity (issue #310). The carry
+  # subcommand verifies marker line 1 matches the captured pre-rebase HEAD,
+  # reads the stored patch-id, recomputes the current patch-id, and on an
+  # exact match: updates the marker's line 1 to the post-rebase SHA and emits
+  # a carry-annotated review_gate_approve span. Carry is best-effort only:
+  # a nonzero exit (any mismatch or failure) leaves the marker unchanged;
+  # the authoritative check runs immediately after regardless of carry outcome.
+  # Never called on CREATE_PR_NO_REWRITE merge, fallback merge, no-op/retry,
+  # or rebase conflict paths — did_rebase=1 is the sole trigger (issue #310).
+  if [ "$did_rebase" = "1" ]; then
+    _carry_rc=0
+    "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" carry-rebase-approval "$pre_rebase_head" \
+      || _carry_rc=$?
+    # Nonzero _carry_rc: carry inapplicable or impossible; diagnostic printed above.
+    # Falls through to the authoritative check below.
+  fi
   "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 fi
 

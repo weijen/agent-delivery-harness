@@ -371,7 +371,7 @@ rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT4")" ] \
   || fail "feature_start_span_allows_full_pr_path: approve must write the approved-head marker when feature_start evidence is present"
 if [ -f "$(marker_path "$WT4")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT4")")" = "$(git -C "$WT4" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT4")" | tr -d '[:space:]')" = "$(git -C "$WT4" rev-parse HEAD)" ] \
     || fail "feature_start_span_allows_full_pr_path: the approved-head marker must equal the current HEAD"
 fi
 rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh check)"
@@ -400,7 +400,7 @@ rc="$(run_in "$WT5" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT5")" ] \
   || fail "canonical_waiver_allows_approve: approve must write the approved-head marker when a valid canonical waiver is present"
 if [ -f "$(marker_path "$WT5")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT5")")" = "$(git -C "$WT5" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT5")" | tr -d '[:space:]')" = "$(git -C "$WT5" rev-parse HEAD)" ] \
     || fail "canonical_waiver_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 
@@ -419,7 +419,7 @@ rc="$(run_in "$WT6" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ -f "$(marker_path "$WT6")" ] \
   || fail "legacy_waiver_allows_approve: approve must write the approved-head marker when a valid legacy waiver is present"
 if [ -f "$(marker_path "$WT6")" ]; then
-  [ "$(tr -d '[:space:]' < "$(marker_path "$WT6")")" = "$(git -C "$WT6" rev-parse HEAD)" ] \
+  [ "$(head -n1 "$(marker_path "$WT6")" | tr -d '[:space:]')" = "$(git -C "$WT6" rev-parse HEAD)" ] \
     || fail "legacy_waiver_allows_approve: the approved-head marker must equal the current HEAD"
 fi
 
