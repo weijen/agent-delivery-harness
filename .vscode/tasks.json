@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "issue-65-tier2-focused-validation",
+			"type": "shell",
+			"command": "cd '/Users/weijen/Personal/agent-delivery-harness/agent-delivery-harness-public-worktrees/issue-65' && bash tests/scripts/test_customization_frontmatter_validator.sh && bash tests/scripts/test_customization_frontmatter_wiring.sh && bash tests/scripts/test_harness_smoke.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}
