@@ -228,11 +228,15 @@ if [ "$DELETE_BRANCH_REQUESTED" = "1" ]; then
     # `main`, so it cannot collide with the primary worktree that owns `main`.
     # The worktree is left in a safe detached state (finish-issue removes it).
     if git checkout --detach --quiet 2>/dev/null; then
-      if git branch -D "$branch" >/dev/null 2>&1; then
+      # Safe delete only (#352 hardening): -d refuses to drop unmerged history.
+      # After a squash/rebase merge -d can refuse even though the CONTENT is on
+      # main; that refusal is the honest signal to double-check, not to force.
+      if git branch -d "$branch" >/dev/null 2>&1; then
         green "✓ Deleted local branch ${branch} (worktree now detached)"
       else
-        yellow "! Could not delete local branch ${branch}."
-        echo "  Delete it from the main checkout with: git branch -D ${branch}"
+        yellow "! Local branch ${branch} not deleted (unmerged history or squash-merge mismatch)."
+        echo "  Verify the content is on main, then remove it manually: git branch -D ${branch}"
+        echo "  Delete it from the main checkout with: git branch -d ${branch}"
       fi
     else
       yellow "! Could not detach HEAD to delete local branch ${branch} safely."
