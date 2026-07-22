@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v0.27.3 (2026-07-22)
+
+### Bug Fixes
+
+- **#352**: Merge-pr local cleanup uses safe branch delete only
+  ([`368eb47`](https://github.com/weijen/agent-delivery-harness/commit/368eb47c94ff8c40516e3e4656443d658f7181db))
+
+### Documentation
+
+- **#352**: Align escalation/durable-lesson doctrine with the #327 sensor contract
+  ([`1fab790`](https://github.com/weijen/agent-delivery-harness/commit/1fab790bf2464da78b9d12ff21acff9b9194f976))
+
+### Refactoring
+
+- **#334**: Retire red-first/teeth evidence gating — keep TDD, review owns test quality
+  ([`10c271f`](https://github.com/weijen/agent-delivery-harness/commit/10c271f77391c5ff818a1169bfcc15964ef51a51))
+
+- **#352**: Absorb #335 remainder — retire copilot capture hook, claude-code hook to optional
+  ([`785d952`](https://github.com/weijen/agent-delivery-harness/commit/785d95245ecf0b1d3b6dc0e1586d62cbefc646a8))
+
+- **#352**: Retire role choreography — one agent, one reviewer, four gates
+  ([`3d1d8fc`](https://github.com/weijen/agent-delivery-harness/commit/3d1d8fc6af21adb4e8acc575af0736db0a487037))
+
+- **#352**: Sync harness contract and doctrine anchors to the skeleton
+  ([`eecad32`](https://github.com/weijen/agent-delivery-harness/commit/eecad3218a19b3636c9155a5b9597b1c841c4482))
+
+### Testing
+
+- **#334**: Retarget economics line and waiver-kind docs
+  ([`77769cd`](https://github.com/weijen/agent-delivery-harness/commit/77769cde878410727978c60bdaae805a57d74264))
+
+- **#336**: Remove role-choreography and prose-pinning meta sensors with their subjects
+  ([`9b6a52a`](https://github.com/weijen/agent-delivery-harness/commit/9b6a52aae31e0cbf86f1ee7a00af486c0d4ee15d))
+
+- **#336**: Retarget surviving sensors to the skeleton contract
+  ([`0563938`](https://github.com/weijen/agent-delivery-harness/commit/056393804f98460240254bb645fd50665c985116))
+
+
 ## v0.27.2 (2026-07-22)
 
 ### Bug Fixes
