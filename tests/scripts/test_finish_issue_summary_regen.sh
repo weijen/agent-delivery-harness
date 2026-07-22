@@ -348,7 +348,7 @@ out6="$(cd "$R6" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3296 SLUG=fixt
   || fail "symlink-overwrite: ${SUMMARY6} symlink target must be unchanged"
 victim6_after="$(cat "$VICTIM6")"
 victim6_sum_after="$(cksum "$VICTIM6")"
-[ "$victim6_before" = "$victim6_after" ] && [ "$victim6_sum_before" = "$victim6_sum_after" ] \
+{ [ "$victim6_before" = "$victim6_after" ] && [ "$victim6_sum_before" = "$victim6_sum_after" ]; } \
   || fail "symlink-overwrite: victim file ${VICTIM6} must be byte-for-byte unchanged, got before=[${victim6_before}] after=[${victim6_after}]"
 printf '%s\n' "$out6" | grep -qi 'symlink' \
   || { printf '%s\n' "$out6"; fail "symlink-overwrite: finish-issue.sh must explain the refusal names the symlink destination, got:\n${out6}"; }
