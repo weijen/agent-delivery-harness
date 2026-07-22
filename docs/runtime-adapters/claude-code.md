@@ -125,7 +125,7 @@ uniformly.
    worktree (branch `feature/issue-NN-*` or an `issue-NN` worktree) and check
    that `.copilot-tracking/issues/issue-NN/trace.jsonl` gained a `tool` span.
 
-The template registers `scripts/claude-code-trace-hook.sh` for all four
+The template registers `optional/runtime-adapters/claude-code-trace-hook.sh` for all four
 events; the empty/omitted `matcher` means it observes every tool. The hook is
 session-safe by contract: on every path it exits `0` and writes nothing to
 stdout, so it cannot disturb a live session. Outside a harness issue run

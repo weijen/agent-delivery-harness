@@ -171,22 +171,6 @@ else
 fi
 green "✓ Worktree created at ${WORKTREE_DIR} (base: ${base_ref})"
 
-# --- 3b. Active-issue marker (issue #216, P-5) ------------------------------
-# Record this issue as the sole live window in a tiny per-issue marker file the
-# copilot trace hook reads directly, so span attribution no longer depends on
-# the O(N) interval scan for the common single-issue case. Content is the
-# whole-second UTC window-start ISO timestamp (comparable to the hook's
-# normalized payload timestamps). Best-effort: a marker-write failure must never
-# break the lifecycle. finish-issue.sh sweeps our own marker at closeout.
-if marker_ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)" && [ -n "$marker_ts" ]; then
-  if mkdir -p "${ROOT}/.copilot-tracking/active-issues" 2>/dev/null \
-      && printf '%s' "$marker_ts" > "${ROOT}/.copilot-tracking/active-issues/${ISSUE_NUM}" 2>/dev/null; then
-    green "✓ Recorded active-issue marker for issue ${ISSUE_NUM}"
-  else
-    yellow "⚠ could not record active-issue marker — continuing (hook falls back to interval scan)"
-  fi
-fi
-
 # --- 4. Scaffold per-issue tracking (gitignored) ----------------------------
 if [ ! -d "$TRACKING_DIR" ]; then
   SCAFFOLDED=true

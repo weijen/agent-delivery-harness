@@ -6,13 +6,12 @@
 # Contract under test:
 #
 #   finish-issue.sh, at closeout, runs a BEST-EFFORT state hygiene sweep that
-#   removes issue-scoped orphaned duration-correlation hook state from the MAIN
-#   checkout and expires only session binding files whose content equals the
-#   finished issue number. Other issue bindings must survive. The sweep is
-#   warn-only: teardown still exits 0 and removes the worktree.
+#   removes issue-scoped orphaned Claude duration-correlation hook state from
+#   the MAIN checkout. The sweep is warn-only: teardown still exits 0 and
+#   removes the worktree.
 #
 # RED until finish-issue.sh wires that hygiene step: the finish exits 0, but the
-# issue .hook-state directory and same-issue session binding remain.
+# issue .hook-state directory remains.
 #
 # Exit codes: 0 closeout state hygiene contract honored · 1 an obligation regressed.
 
@@ -75,7 +74,7 @@ export ABANDONED=1
 COMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}'
 
 make_state_hygiene_fixture() {
-  local dir="$1" issue="$2" other_issue="$3" pad
+  local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
 
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
@@ -101,36 +100,18 @@ make_state_hygiene_fixture() {
   printf '%s\n' "$COMPLETE_LIST" \
     > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 
-  # start-issue.sh must have recorded this issue's active-issue marker (#216).
-  [ -f "${dir}/.copilot-tracking/active-issues/${issue}" ] \
-    || fail "setup: start-issue must record an active-issue marker at .copilot-tracking/active-issues/${issue}"
-  # Seed a CONCURRENT issue's marker to prove the sweep is scoped, not blanket.
-  mkdir -p "${dir}/.copilot-tracking/active-issues"
-  printf '2026-01-01T00:00:00Z' \
-    > "${dir}/.copilot-tracking/active-issues/${other_issue}"
-
-  mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state" \
-    "${dir}/.copilot-tracking/sessions"
+  mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state"
   printf 'orphan\n' \
     > "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state/session-a-tool-b"
-  printf '%s\n' "$issue" \
-    > "${dir}/.copilot-tracking/sessions/same-issue.binding"
-  printf '%s\n' "$other_issue" \
-    > "${dir}/.copilot-tracking/sessions/other-issue.binding"
 
   [ -e "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state/session-a-tool-b" ] \
     || fail "setup: orphaned hook-state file must exist before finish"
-  [ -e "${dir}/.copilot-tracking/sessions/same-issue.binding" ] \
-    || fail "setup: same-issue binding must exist before finish"
-  [ -e "${dir}/.copilot-tracking/sessions/other-issue.binding" ] \
-    || fail "setup: other-issue binding must exist before finish"
 }
 
 ISSUE=57
-OTHER_ISSUE=58
 PAD="$(printf '%02d' "$ISSUE")"
 MAIN="${TMP_DIR}/main"
-make_state_hygiene_fixture "$MAIN" "$ISSUE" "$OTHER_ISSUE"
+make_state_hygiene_fixture "$MAIN" "$ISSUE"
 
 (cd "$MAIN" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$ISSUE" SLUG=fixture) \
   > "${TMP_DIR}/finish.out" 2>&1 \
@@ -138,22 +119,10 @@ make_state_hygiene_fixture "$MAIN" "$ISSUE" "$OTHER_ISSUE"
 
 [ ! -e "${MAIN}-worktrees/issue-${PAD}" ] \
   || fail "state hygiene: worktree must still be removed"
-[ -e "${MAIN}/.copilot-tracking/sessions/other-issue.binding" ] \
-  || fail "state hygiene: other-issue binding must survive (sweep must be scoped, not blanket rm)"
-[ -e "${MAIN}/.copilot-tracking/active-issues/${OTHER_ISSUE}" ] \
-  || fail "state hygiene: a concurrent issue's active-issue marker must survive (marker sweep must be scoped to our own issue)"
-
 defects=()
 if [ -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ]; then
   defects+=("orphaned issue hook-state directory still exists")
 fi
-if [ -e "${MAIN}/.copilot-tracking/sessions/same-issue.binding" ]; then
-  defects+=("same-issue session binding still exists")
-fi
-if [ -e "${MAIN}/.copilot-tracking/active-issues/${ISSUE}" ]; then
-  defects+=("own active-issue marker still exists (finish must sweep it)")
-fi
-
 if [ "${#defects[@]}" -ne 0 ]; then
   printf 'FAIL: state hygiene sweep did not clean expected issue-scoped state after finish exited 0:\n' >&2
   printf '  - %s\n' "${defects[@]}" >&2

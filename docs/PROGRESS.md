@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#332)_
+_Last updated: 2026-07-22 (#337)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-22 (#332)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 223 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 202 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -51,8 +51,8 @@ _Last updated: 2026-07-22 (#332)_
   (`review-gate.sh approve`/`check`, inherited by `create-pr.sh`) hard-blocks by
   default when a `passes:true` feature lacks either a matching `feature_start`
   span or a role-correct ordered `red_handback → impl_handback → green_handback`
-  triple and has no governed teeth-proof waiver; `start-issue.sh` seeds the
-  local Copilot hook into new worktrees.
+  triple and has no governed teeth-proof waiver; the semantic spine comes
+  directly from lifecycle and handback emitters.
 - **Frozen contract:** `docs/harness-contract.yml` + `test_harness_contract.sh`
   guard the lifecycle against silent regression.
 - **Trace schema contract:** `docs/evaluation/trace-schema.v1.json` +
@@ -69,6 +69,9 @@ _Last updated: 2026-07-22 (#332)_
 
 ## Next up
 
+- **Trace-tool consolidation (#335) — in flight:** retired Copilot runtime
+  reconstruction while retaining lifecycle, handback, review, and closeout
+  gates; `test_semantic_spine_without_copilot_hook.sh` protects the boundary.
 - **Conductor class-closure escalation (#298):** use consecutive same-class
   review verdicts to stop repeated point repairs and route a class-level fix,
   consistent with the generator failure taxonomy delivered by #317.
@@ -94,12 +97,10 @@ _Last updated: 2026-07-22 (#332)_
   worktree, `terraform -chdir=.../infra/terraform`, az on the personal sub).
   Core-workstream follow-ups still recorded: trace-gate promotion flag;
   trace-summary v1.x; VS Code Copilot token telemetry when a source appears.
-- **Deep-trace tool-call + skill observability (open: #121, partial):** the
-  hooks-absence warning + Spike-Static write-up are delivered (see below); the
-  first-class `skill` span (features 3/4) is **gated on a human Spike-Live
-  capture** — one real Copilot CLI session to measure whether a skill
-  invocation surfaces as an observable tool call. The `TODO(human)` recipe +
-  A/B/documented-gap decision live in `docs/runtime-adapters/github-copilot.skill-spike.md`.
+- **Deep-trace tool-call + skill observability (#121 retired):** runtime
+  reconstruction and its human Spike-Live capture task are retired. Deep tool,
+  skill, model, and subagent analysis now reads Copilot native records through
+  [docs/runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md).
 - **In flight:** post-#113 hotfix — the workbook resource argument was
   `serialized_data` (wrong: fails `terraform validate`); corrected to
   `data_json`. The workbook is now DEPLOYED to the live sink (apply: 1 added,
@@ -111,15 +112,6 @@ _Last updated: 2026-07-22 (#332)_
 ---
 
 ## Delivered (newest first)
-
-### Canonical trace record and rendered Action Log (#332): delivery complete
-
-- `trace.jsonl` is now the sole event record; `log-handback.sh` emits spans and
-  regenerates the human-readable Action Log from those canonical spans.
-- Closeout renders the migrated `progress.md`, while legacy dual-write records
-  remain tolerated and unrelated lifecycle/closeout consistency gates remain.
-- Action-Log reconciliation code and its obsolete sensors were retired. The
-  branch is net-negative, and the 223-sensor pre-review gate is green.
 
 ### Archive dormant docs/evaluation content (#337): delivery complete
 

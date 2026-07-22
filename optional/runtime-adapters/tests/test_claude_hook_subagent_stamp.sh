@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_claude_hook_subagent_stamp.sh — regression sensor for
-# scripts/claude-code-trace-hook.sh subagent identity stamping on PostToolUse
+# optional/runtime-adapters/claude-code-trace-hook.sh subagent identity stamping on PostToolUse
 # tool spans (issue #228, feature claude-subagent-stamp, Task 1).
 #
 # Per the official Claude Code hooks contract, PreToolUse/PostToolUse ALSO fire
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOOK="${ROOT}/scripts/claude-code-trace-hook.sh"
+HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
@@ -34,7 +34,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v git >/dev/null 2>&1 || fail "git is required"
 [ -f "$CONTRACT" ] || fail "trace schema contract not found (${CONTRACT})"
 [ -f "$LIB" ] || fail "scripts/trace-lib.sh not found (${LIB})"
-[ -f "$HOOK" ] || fail "scripts/claude-code-trace-hook.sh not found (${HOOK})"
+[ -f "$HOOK" ] || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK})"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 
 FILTER="${TMP_DIR}/validate-span.jq"
@@ -53,7 +53,7 @@ nth_line() { sed -n "${2}p" "$1"; }
 
 REPO="${TMP_DIR}/issuerepo"
 mkdir -p "${REPO}/scripts"
-cp "$HOOK" "${REPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 (
   cd "$REPO" || exit 1
@@ -64,7 +64,7 @@ cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 ) || fail "could not build the issue-context fixture"
 
 TRACE_FILE="${REPO}/.copilot-tracking/issues/issue-71/trace.jsonl"
-FIXTURE_HOOK="${REPO}/scripts/claude-code-trace-hook.sh"
+FIXTURE_HOOK="${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 
 # post_payload <tool> <tool_input-json> <tool_response-json|null> <tool_use_id> <agent_id|""> <agent_type|"">
 post_payload() {

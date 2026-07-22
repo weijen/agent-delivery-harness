@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "description": "Bidirectional consistency contract: fixture files, SKILL.md jq recipes, and adapter token-metrics matrix claims.",
+  "description": "Bidirectional consistency contract for native-record fixtures and SKILL.md jq recipes.",
   "fixtures": [
     {
       "id": "sample-transcript",
@@ -55,41 +55,6 @@
       "ordinal": 1,
       "fixture_id": "sample-transcript",
       "expectation": "(length >= 1) and (.[0].timestamp != null) and (.[0].reasoningText != null) and (.[0].reasoningText | length > 0)"
-    }
-  ],
-  "adapter_claims": [
-    {
-      "id": "legacy-shutdown-model-metrics",
-      "selectors": {
-        "version": "≤1.0.54",
-        "matrix_version_cell": "≤1.0.54",
-        "event_type": "session.shutdown",
-        "payload_path": "modelMetrics.<model>.usage",
-        "provenance": "community/empirical"
-      },
-      "fixture_backed": false
-    },
-    {
-      "id": "checkpoint-nano-aiu",
-      "selectors": {
-        "version": "1.0.72-1",
-        "matrix_version_cell": "1.0.72-1 (issue #319 observation)",
-        "event_type": "session.usage_checkpoint",
-        "payload_path": "data.totalNanoAiu",
-        "provenance": "adopter observation"
-      },
-      "fixture_backed": true
-    },
-    {
-      "id": "live-rpc-get-metrics",
-      "selectors": {
-        "version": "copilot-cli-cost",
-        "matrix_version_cell": "Observed in copilot-cli-cost (live process)",
-        "event_type": "RPC call",
-        "payload_path": "getMetrics() response",
-        "provenance": "community tool snapshot"
-      },
-      "fixture_backed": false
     }
   ]
 }

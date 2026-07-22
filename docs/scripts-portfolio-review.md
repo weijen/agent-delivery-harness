@@ -8,6 +8,11 @@ language before maintenance gets hard? (2) does the portfolio need re-planning/c
 > **2026-07-10 note:** The trace_tools/export pilot described in this
 > historical rationale record was reverted by issue #272. The rest of this
 > document is preserved as the original review context.
+>
+> **2026-07-22 note:** The Copilot runtime reconstruction and interval
+> attribution described below were retired. The kept semantic spine comes from
+> `trace-lib.sh` and `log-handback.sh`; see
+> [runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md).
 
 ---
 
@@ -208,16 +213,6 @@ fastest-growing lifecycle script (churn 9). Keep it an orchestrator: its best-ef
 (`best_effort_trace_export`, `_reconstruct`, `_state_hygiene`) already have clean seams — split
 them into a sourced `finish-lib.sh` (or fold into trace-lib) before the next feature lands
 there, keeping `finish-issue.sh` under ~150 lines of sequence.
-
-### P-5: copilot-trace-hook interval fallback — fix the architecture, not the code
-
-The hook's O(N)-scan interval attribution (lexicographic ISO-timestamp comparison over every
-issue's trace windows) is the most fragile logic in the portfolio, and it exists because the
-hook must *discover* the active issue after the fact. The lifecycle already knows the answer:
-`start-issue.sh` could write an active-issue marker (issue + window start) that the hook reads
-directly, demoting the interval scan to a last resort. This also shrinks the undocumented
-`events.jsonl` surface the hook currently leans on. Worth an issue of its own; it reduces
-576 lines of the second-most-churned script.
 
 ### P-6: review-gate.sh — split threshold, not split now
 

@@ -246,7 +246,6 @@ end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contra
 # If any YAML record is deleted, this scenario fails before the generic
 # check_owner_present scans can silently shrink their worklist.
 require_contract_record scripts path scripts/check-trace-consistency.sh
-require_contract_record lifecycle id interval-attribution scripts/copilot-trace-hook.sh
 require_contract_record failure_modes id missing-teeth-proof-evidence scripts/review-gate.sh
 require_contract_record failure_modes id red-first-ordering-absent scripts/check-trace-consistency.sh
 require_contract_record lifecycle id pr-path-red-first-gate scripts/review-gate.sh

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_claude_hook_tool_span.sh — regression sensor for
-# scripts/claude-code-trace-hook.sh PostToolUse tool-span emission
+# optional/runtime-adapters/claude-code-trace-hook.sh PostToolUse tool-span emission
 # (issue #96, feature claude-hook-tool-spans, plan Phase 2 / D3+D5).
 #
 # Builds an issue-worktree-shaped fixture repo (branch feature/issue-07-*,
@@ -74,7 +74,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOOK="${ROOT}/scripts/claude-code-trace-hook.sh"
+HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
@@ -92,7 +92,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$LIB" ] \
   || fail "scripts/trace-lib.sh not found (${LIB})"
 [ -f "$HOOK" ] \
-  || fail "scripts/claude-code-trace-hook.sh not found (${HOOK}) — feature claude-hook-tool-spans (issue #96) has no hook to test"
+  || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK}) — feature claude-hook-tool-spans (issue #96) has no hook to test"
 
 # --- Contract-driven span validation ------------------------------------------
 # ============================================================================
@@ -127,7 +127,7 @@ nth_line() { sed -n "${2}p" "$1"; }
 # --- Fixture: issue-worktree-shaped repo ----------------------------------------
 REPO="${TMP_DIR}/issuerepo"
 mkdir -p "${REPO}/scripts"
-cp "$HOOK" "${REPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 (
   cd "$REPO" || exit 1
@@ -142,7 +142,7 @@ cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 
 TRACE_FILE="${REPO}/.copilot-tracking/issues/issue-07/trace.jsonl"
 STATE_DIR="${REPO}/.copilot-tracking/issues/issue-07/.hook-state"
-FIXTURE_HOOK="${REPO}/scripts/claude-code-trace-hook.sh"
+FIXTURE_HOOK="${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 

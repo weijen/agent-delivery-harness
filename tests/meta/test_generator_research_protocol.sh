@@ -10,8 +10,6 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 
 generator=".copilot/agents/generator-subagent.agent.md"
-copilot_adapter="docs/runtime-adapters/github-copilot.md"
-claude_adapter="docs/runtime-adapters/claude-code.md"
 
 section="$(
 	awk '
@@ -60,26 +58,6 @@ printf '%s\n' "$frontmatter" | grep -Eq "(^|[[:space:],[])['\"]?web/fetch['\"]?(
 	|| note "$generator custom-agent tools must include the verified web/fetch binding"
 printf '%s\n' "$frontmatter" | grep -Eq "(^|[[:space:],[])['\"]?web/githubRepo['\"]?([][:space:],]|$)" \
 	|| note "$generator custom-agent tools must include the verified web/githubRepo binding"
-
-for adapter in "$copilot_adapter" "$claude_adapter"; do
-	grep -Eq '^## Generator research capability$' "$adapter" \
-		|| note "$adapter must define a Generator research capability section"
-	grep -Eqi 'verified|unavailable|unknown' "$adapter" \
-		|| note "$adapter must label its research capability as verified, unavailable, or unknown"
-	grep -Fq '5 minutes' "$adapter" \
-		|| note "$adapter must state the five-minute research budget"
-	grep -Fq 'one fetched document' "$adapter" \
-		|| note "$adapter must state the one-document fetch budget"
-done
-
-grep -Fq 'web/fetch' "$copilot_adapter" \
-	|| note "$copilot_adapter must name the verified custom-agent fetch binding"
-grep -Fq 'web/githubRepo' "$copilot_adapter" \
-	|| note "$copilot_adapter must name the verified custom-agent repository binding"
-grep -Eqi 'unavailable|unknown|not verified' "$claude_adapter" \
-	|| note "$claude_adapter must fail closed instead of assuming a Claude web binding"
-grep -Fq 'research-requested' "$claude_adapter" \
-	|| note "$claude_adapter must document the no-web research-requested route"
 
 if [ "$fail" -ne 0 ]; then
 	exit 1

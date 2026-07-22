@@ -49,7 +49,7 @@ Schema 本身是機器可驗證的 contract（`docs/evaluation/trace-schema.v1.j
 
 TDD 的 handback 也寫成 agent span，讓 `red_handback → impl_handback → green_handback` 的順序變成機器可檢查的 evidence。如果一個 feature 標了 `passes: true` 但 trace 裡找不到 red-first 證據，review gate 可以直接擋下來。
 
-Runtime 那一側，`scripts/copilot-trace-hook.sh` 掛在 Copilot 的 `postToolUse` / `agentStop` 等 hook 上，捕捉工具呼叫、skill 載入（`toolName == "skill"` 時提取 `harness.skill.name`）、subagent 歸屬。另外有一個 Claude Code 的 reference adapter，那邊因為 hook payload 有 token usage，可以 emit 完整的 model span。
+Runtime 那一側不再把 Copilot 原生紀錄重建成 span。深層的工具、skill、model 與 subagent 分析直接讀 Copilot native records；trace 保留由 lifecycle scripts、`trace-lib.sh` 與 `log-handback.sh` 自己 emit 的 semantic spine。入口見 [`runtime-adapters/github-copilot.md`](runtime-adapters/github-copilot.md)。
 
 ### 第二層：匯出到 Application Insights
 

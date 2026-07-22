@@ -24,10 +24,10 @@ depends on them staying interpreter-free:
   (`issue-lib.sh`, `reconcile-lib.sh`), the installer (`install-harness.sh`) and
   the scaffolder (`scaffold-language.sh`).
 - **Trace emission:** `trace-lib.sh` and `log-handback.sh`.
-- **Both runtime hooks** (`copilot-trace-hook.sh`, `claude-code-trace-hook.sh`).
-  Their session-safety contract — **exit 0 with empty stdout on every path, no
-  interpreter startup per tool call** — makes an interpreted rewrite a
-  non-starter.
+- **Optional runtime adapter examples:** when present, their session-safety
+  contract remains exit 0 with empty stdout on every path. Copilot deep
+  analysis reads native records; see
+  [`runtime-adapters/github-copilot.md`](runtime-adapters/github-copilot.md).
 
 ## 2. May become Python — trigger-based, never wholesale
 

@@ -422,18 +422,11 @@ the Action Log line separately; always use `scripts/log-handback.sh` so the cano
 stay in step. Full conventions (roles, lifecycle steps, deviation recording, token-usage omit-never-fake rule)
 live in [harness.instructions.md §3](../.copilot/instructions/harness.instructions.md).
 
-Tool and model spans from an agent runtime (per-tool-call arguments, latency, token usage) are contributed by the
-optional runtime adapters under `docs/runtime-adapters/` — GitHub Copilot is the primary runtime target
-([runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md)), with the Claude Code adapter
-([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md)) kept as the labeled reference example of the
-pattern; without one installed the trace simply lacks those spans and everything else is unchanged.
-
-A frequent misread is expecting `harness.skill.name` skill spans (proof that a named audit skill fired) to always
-appear in an issue's trace. They exist only under two preconditions — the fixed hook installed on `main` and seeded
-into the worktree, and a *fresh* runtime session that surfaces the skill as a `toolName="skill"` tool span — and they
-**cannot be backfilled** into an already-run session. The exact rules, the `review_verdict`-vs-skill-span distinction,
-and the omit-never-fake honesty answer are documented in
-[runtime-adapters/github-copilot.md §"When a `harness.skill.name` skill span exists (and when it cannot)"](runtime-adapters/github-copilot.md#when-a-harnessskillname-skill-span-exists-and-when-it-cannot).
+The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
+tool/model/skill analysis reads native records through the path documented in
+[runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md); the
+Claude Code adapter ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md))
+remains a labeled reference example.
 
 The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
 report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation

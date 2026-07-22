@@ -62,9 +62,6 @@ scripts:
   - id: finish-lib
     path: scripts/finish-lib.sh
     role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
-  - id: copilot-trace-hook
-    path: scripts/copilot-trace-hook.sh
-    role: GitHub Copilot runtime adapter hook; emits tool/agent spans with git-first, interval-fallback issue attribution (#146). Exit-0/stdout-clean on every path.
 
 # ---------------------------------------------------------------------------
 # Lifecycle order. The harness must continue to perform these actions in this
@@ -108,9 +105,6 @@ lifecycle:
   - id: closeout-worktree-cleanup
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
-  - id: interval-attribution
-    owner: scripts/copilot-trace-hook.sh
-    present: hook__resolve_issue_by_interval
   - id: pr-path-red-first-gate
     owner: scripts/review-gate.sh
     present: red_first_evidence_gate

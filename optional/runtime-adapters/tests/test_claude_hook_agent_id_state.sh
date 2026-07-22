@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_claude_hook_agent_id_state.sh — regression sensor for
-# scripts/claude-code-trace-hook.sh duration-correlation state keying
+# optional/runtime-adapters/claude-code-trace-hook.sh duration-correlation state keying
 # (issue #228, feature agent-id-state-keying, Task 4).
 #
 # A subagent runs concurrently with the conductor and both can drive the same
@@ -23,7 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-HOOK="${ROOT}/scripts/claude-code-trace-hook.sh"
+HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -32,7 +32,7 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v git >/dev/null 2>&1 || fail "git is required"
 [ -f "$LIB" ] || fail "scripts/trace-lib.sh not found (${LIB})"
-[ -f "$HOOK" ] || fail "scripts/claude-code-trace-hook.sh not found (${HOOK})"
+[ -f "$HOOK" ] || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK})"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 
 line_count() { if [ -f "$1" ]; then wc -l < "$1" | tr -d '[:space:]'; else printf '0'; fi; }
@@ -40,7 +40,7 @@ nth_line() { sed -n "${2}p" "$1"; }
 
 REPO="${TMP_DIR}/issuerepo"
 mkdir -p "${REPO}/scripts"
-cp "$HOOK" "${REPO}/scripts/claude-code-trace-hook.sh"
+cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 (
   cd "$REPO" || exit 1
@@ -52,7 +52,7 @@ cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 
 TRACE_FILE="${REPO}/.copilot-tracking/issues/issue-74/trace.jsonl"
 STATE_DIR="${REPO}/.copilot-tracking/issues/issue-74/.hook-state"
-FIXTURE_HOOK="${REPO}/scripts/claude-code-trace-hook.sh"
+FIXTURE_HOOK="${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 
 # pre_payload <tool_use_id> <agent_id|"">
 pre_payload() {
