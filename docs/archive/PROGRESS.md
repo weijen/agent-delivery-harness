@@ -1,3 +1,8 @@
+> **RETIRED 2026-07-22.** This repo-wide journal duplicated git log, GitHub issues, and the
+> per-issue trace; its update-before-PR obligation produced recurring late-stage failures with
+> zero defect catches. Frozen here as history. The per-issue Action Log
+> (`.copilot-tracking/issues/issue-NN/progress.md`, rendered from trace spans) is unaffected.
+
 # Repo Progress — agent-delivery-harness
 
 > **What this file is.** A single, repo-wide, running status log for the harness

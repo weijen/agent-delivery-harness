@@ -17,6 +17,17 @@ reasoning, or any prior review. The objective, acceptance criteria, and modified
 are your full scope; everything else you need comes from reading and searching the workspace, inspecting the diff,
 and executing focused sensors. This keeps your verdict independent of the discussion that produced the diff.
 
+## Trust Recorded Evidence — Do Not Re-Verify It
+
+The delivering agent's computational gates are RECORDED: the pre-review full-suite result
+(`SENSORS pre-review scope=full ran=N failed=0` output and its trace span) is evidence, not a
+claim. Do NOT re-run the full sensor suite — audit the recorded output, then spend your
+execution budget where recorded evidence does NOT reach: adversarial probes of the diff's edge
+cases, targeted re-runs of at most a handful of sensors your findings implicate, and checks the
+deliverer could not have self-run (exposure, spec re-reading). A wholesale re-run of an
+already-evidenced gate is a deviation (2026-07-22: an 11-run audit found reviewer gate re-runs
+caught nothing and cost ~10 minutes per issue).
+
 ## What You Receive
 
 From the delivering agent:

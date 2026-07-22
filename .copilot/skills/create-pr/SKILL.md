@@ -23,11 +23,9 @@ CI-green merge through the harness scripts. Prefer the scripts (`scripts/start-i
    - **`security-audit`** — scan the diff for injection, secrets, workflow-permission and pinning gaps.
    - **`scripts/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
    Stage only the files you intend to publish (respect public-exposure hygiene); never blanket-stage with `git add -A`.
-4. **Update `docs/PROGRESS.md`** — add/extend the *Delivered* entry for this issue and bump *Last updated*. The
-   `review-gate.sh status-doc` gate blocks a PR whose branch did not change this file — there is no opt-out.
-5. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` re-syncs onto latest `main`, re-checks the review
+4. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` re-syncs onto latest `main`, re-checks the review
    approval, pushes, and opens the PR. Use the template below and link the issue with `Closes #<NN>`.
-6. **Merge** — only after the `Harness smoke` CI run is green. `scripts/merge-pr.sh --squash` verifies `gh pr checks`
+5. **Merge** — only after the `Harness smoke` CI run is green. `scripts/merge-pr.sh --squash` verifies `gh pr checks`
    is green, then squash-merges (the PR number is appended to the subject automatically). A green CI run is a hard
    precondition; do **not** enable GitHub auto-merge as a standing practice.
 
@@ -43,7 +41,6 @@ Brief description of what this PR does and why.
 ## Quality Checks
 - [x] Code review: no critical/warning issues
 - [x] Security: no findings
-- [x] docs/PROGRESS.md updated
 
 ## Testing
 - How the changes were verified (name the sensor(s) run)
