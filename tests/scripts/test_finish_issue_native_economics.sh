@@ -549,7 +549,7 @@ END_CT_IJ="$(grep -Fxc -- '<!-- delivery-economics:end -->' "$PROG_IJ" || true)"
 # AFTER it, which the bare count check above cannot distinguish on its own.
 END_LINE_IJ="$(grep -Fxn -- '<!-- delivery-economics:end -->' "$PROG_IJ" | tail -1 | cut -d: -f1)" || true
 TOTAL_LINES_IJ="$(wc -l < "$PROG_IJ" | tr -d ' ')"
-[ -n "$END_LINE_IJ" ] && [ "$END_LINE_IJ" = "$TOTAL_LINES_IJ" ] \
+{ [ -n "$END_LINE_IJ" ] && [ "$END_LINE_IJ" = "$TOTAL_LINES_IJ" ]; } \
   || { cat -n "$PROG_IJ"; fail "INJECT: no content may trail the end marker (end marker at line ${END_LINE_IJ:-<none>} of ${TOTAL_LINES_IJ} total) — marker replacement must produce exactly one well-formed region"; }
 grep -F -q '7600' "$PROG_IJ" \
   || { cat -n "$PROG_IJ"; fail "INJECT: the surviving progress.md must still carry the honest 7600 subagent token total"; }
