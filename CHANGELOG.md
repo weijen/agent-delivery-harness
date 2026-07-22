@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v0.27.2 (2026-07-22)
+
+### Bug Fixes
+
+- **#333**: Remove trace_log calls inside the lifecycle trap
+  ([`ba847b3`](https://github.com/weijen/agent-delivery-harness/commit/ba847b3c291811d26c1d335e72a239ef28a494f6))
+
+### Chores
+
+- **#335**: Drop generated lockfile delta
+  ([`f2b95ee`](https://github.com/weijen/agent-delivery-harness/commit/f2b95ee29abf80f43f66465508648c2115fa53ad))
+
+### Refactoring
+
+- **#333**: Retire the log.jsonl detail stream
+  ([`93b6942`](https://github.com/weijen/agent-delivery-harness/commit/93b6942d4b81958cfe5784d9ff0d5a6d78acb8fa))
+
+- **#335**: Fold cross-run trace report
+  ([`ddb58c4`](https://github.com/weijen/agent-delivery-harness/commit/ddb58c4c9432df200cb9bed82a85019c275393dd))
+
+- **#335**: Fold trace validation gate
+  ([`1c996ef`](https://github.com/weijen/agent-delivery-harness/commit/1c996ef84d84746f8d01e7fc4bc2e142a8bec23d))
+
+### Testing
+
+- **#333**: Remove log.jsonl sensors with their subject
+  ([`29fab35`](https://github.com/weijen/agent-delivery-harness/commit/29fab356e249c13d7c33b322665eab085b42c032))
+
+- **#333**: Retire trace_log sensor family; retarget archived log-schema links
+  ([`e1fb9cd`](https://github.com/weijen/agent-delivery-harness/commit/e1fb9cd2c7ef610b711dc9465d62a77821f03bbe))
+
+- **#335**: Add consolidated trace sensor
+  ([`9d88876`](https://github.com/weijen/agent-delivery-harness/commit/9d88876566ffd999e56dafd2ca9ce345755c8496))
+
+- **#335**: Drop retired trace-scorecard schema from archive keep-list
+  ([`3f5592a`](https://github.com/weijen/agent-delivery-harness/commit/3f5592abbff8e9ec5fb0ba0909c4a9ae1adfcca8))
+
+
 ## v0.27.1 (2026-07-22)
 
 ### Bug Fixes
