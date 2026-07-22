@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.29.0 (2026-07-22)
+
+### Features
+
+- Docs-only approval carry + retire docs/PROGRESS.md and its status-doc gate
+  ([`85a9c5b`](https://github.com/weijen/agent-delivery-harness/commit/85a9c5bc11aeaf3ce87281f89275944701348e0f))
+
+- Reviewer trusts recorded gate evidence; docs-only carry sensor
+  ([`043f9c1`](https://github.com/weijen/agent-delivery-harness/commit/043f9c1a79640253b9d8a95e8b87951241ca3872))
+
+### Testing
+
+- Retarget gate sensors to status-doc retirement and docs-only carry
+  ([`be5cf5e`](https://github.com/weijen/agent-delivery-harness/commit/be5cf5e0079d26370ae0aee8003fb621809dd8d3))
+
+
 ## v0.28.0 (2026-07-22)
 
 ### Bug Fixes
