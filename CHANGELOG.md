@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.31.0 (2026-07-22)
+
+### Bug Fixes
+
+- **#348**: Pass identity root explicitly
+  ([#365](https://github.com/weijen/agent-delivery-harness/pull/365),
+  [`fb1c387`](https://github.com/weijen/agent-delivery-harness/commit/fb1c3876310f52448df8096bda8eb68b42685cb3))
+
+### Features
+
+- Bind GitHub identity per repository
+  ([#365](https://github.com/weijen/agent-delivery-harness/pull/365),
+  [`fb1c387`](https://github.com/weijen/agent-delivery-harness/commit/fb1c3876310f52448df8096bda8eb68b42685cb3))
+
+- **#348**: Bind GitHub identity per repository
+  ([#365](https://github.com/weijen/agent-delivery-harness/pull/365),
+  [`fb1c387`](https://github.com/weijen/agent-delivery-harness/commit/fb1c3876310f52448df8096bda8eb68b42685cb3))
+
+
 ## v0.30.0 (2026-07-22)
 
 ### Documentation
