@@ -64,8 +64,8 @@ export APPLICATIONINSIGHTS_CONNECTION_STRING="$(terraform output -raw connection
 ## Security boundary
 
 Telemetry must stay within the evaluation data boundary: see
-[docs/evaluation/dataset-governance.md](../../docs/evaluation/dataset-governance.md)
-and [docs/evaluation/security-evals.md](../../docs/evaluation/security-evals.md)
+[docs/archive/evaluation/dataset-governance.md](../../docs/archive/evaluation/dataset-governance.md)
+and [docs/archive/evaluation/security-evals.md](../../docs/archive/evaluation/security-evals.md)
 for what may and may not be exported as trace/telemetry content.
 
 ## Notes

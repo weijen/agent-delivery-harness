@@ -174,8 +174,8 @@
   "redaction": {
     "rule": "Redact secrets, tokens, .env content, and customer-supplied sensitive data before a span is written.",
     "authorities": [
-      "docs/evaluation/security-evals.md",
-      "docs/evaluation/dataset-governance.md"
+      "docs/archive/evaluation/security-evals.md",
+      "docs/archive/evaluation/dataset-governance.md"
     ]
   },
   "failure_classes": [

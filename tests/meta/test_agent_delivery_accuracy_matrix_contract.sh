@@ -6,7 +6,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-CONTRACT="$ROOT/docs/evaluation/agent-delivery-accuracy-matrix.v1.json"
+CONTRACT="$ROOT/docs/archive/evaluation/agent-delivery-accuracy-matrix.v1.json"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 note() { printf 'NOTE: %s\n' "$*" >&2; }

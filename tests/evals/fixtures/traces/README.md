@@ -6,7 +6,7 @@ contract (`.copilot-tracking/issues/issue-*/` is gitignored); these fixtures
 are the only trace data that may live in the repo, and every one must pass
 through `scripts/sanitize-trace.sh` and a human review before commit
 (governance: [failure-mode-taxonomy.md](../../../../docs/evaluation/failure-mode-taxonomy.md),
-provenance rules: [dataset-governance.md](../../../../docs/evaluation/dataset-governance.md)).
+provenance rules: [dataset-governance.md](../../../../docs/archive/evaluation/dataset-governance.md)).
 
 Consumers: the existing validator in path mode
 (`./scripts/validate-trace.sh <fixture>`), exercised by

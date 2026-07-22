@@ -34,7 +34,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DOC="${ROOT}/docs/evaluation/telemetry-retention-pii.md"
+DOC="${ROOT}/docs/archive/evaluation/telemetry-retention-pii.md"
 VARIABLES_TF="${ROOT}/infra/terraform/variables.tf"
 
 fails=0
@@ -135,8 +135,8 @@ grep -qiE 'delet(e|ion)|purge|scrub|rollback' <<<"$FLAT" \
 # D4. Cross-links to the four sibling governance docs.
 # ==============================================================================
 for link in \
-  'docs/evaluation/dataset-governance.md' \
-  'docs/evaluation/security-evals.md' \
+  'docs/archive/evaluation/dataset-governance.md' \
+  'docs/archive/evaluation/security-evals.md' \
   'docs/runtime-adapters/otlp-azure-monitor.md' \
   'infra/terraform/README.md'; do
   grep -qF -- "$link" "$DOC" \

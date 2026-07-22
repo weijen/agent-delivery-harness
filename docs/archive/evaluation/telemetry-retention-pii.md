@@ -9,12 +9,12 @@ exporter, and there is no in-loop consumer that ships them to a remote sink.
 This page now preserves the retention, PII, allowlist, and deletion posture as
 the **exit-ramp contract** any future re-introduced exporter must honor. It sits
 alongside the retained attribute-name mapping
-([docs/runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md)),
+([docs/runtime-adapters/otlp-azure-monitor.md](../../runtime-adapters/otlp-azure-monitor.md)),
 the sink provisioning stack
-([infra/terraform/README.md](../../infra/terraform/README.md)), and the two
+([infra/terraform/README.md](../../../infra/terraform/README.md)), and the two
 sibling governance pages:
-[docs/evaluation/dataset-governance.md](dataset-governance.md) and
-[docs/evaluation/security-evals.md](security-evals.md).
+[docs/archive/evaluation/dataset-governance.md](dataset-governance.md) and
+[docs/archive/evaluation/security-evals.md](security-evals.md).
 
 ## Scope
 
@@ -30,7 +30,7 @@ retention window while the export leg remains removed.
 Telemetry retention is a single Terraform-governed knob, not a documented
 convention that can drift from the deployed reality. The retention window is
 the `retention_in_days` variable in
-[infra/terraform/variables.tf](../../infra/terraform/variables.tf), which
+[infra/terraform/variables.tf](../../../infra/terraform/variables.tf), which
 defaults to **30 days** and is applied to both the Log Analytics workspace
 and the workspace-based Application Insights component (a single value so the
 two cannot diverge). Its Terraform validation constrains it to the Log
@@ -174,7 +174,7 @@ free-text log fields are the highest-sensitivity surface on the page:
 | `payload` | **Excluded/redacted local detail.** It remains in the local log only after redact-before-cap handling and is not exported while the export leg is removed. |
 
 Both fields obey the **redact-before-cap** discipline pinned in
-[log-schema.v1.json](log-schema.v1.json): secret-shaped input is redacted
+[log-schema.v1.json](../../evaluation/log-schema.v1.json): secret-shaped input is redacted
 **before** any length cap runs, so a truncation boundary can never bisect and
 leak a partially-redacted secret. If a future exporter is re-introduced, it must
 start from this local-only baseline and explicitly prove that `message` and
@@ -197,7 +197,7 @@ demand**, not merely expiring on a timer.
   irreversible.
 - **Full rollback / re-provision** — because the sink stack sets no
   `prevent_destroy` guard while it is a POC (see
-  [infra/terraform/README.md](../../infra/terraform/README.md)), the
+  [infra/terraform/README.md](../../../infra/terraform/README.md)), the
   strongest scrub is to `terraform destroy` and re-provision the sink, which
   removes the workspace and component along with all telemetry they held.
 - **Stop the source** — while issue #272's removal stands, there is no in-repo
@@ -215,20 +215,20 @@ Consistent with the retained sink and mapping docs, this page carries **no** sec
 connection strings, instrumentation keys, or real resource ids. The
 connection string must live only in an operator's environment if a future
 exporter is re-introduced (see
-[otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md) and
-[infra/terraform/README.md](../../infra/terraform/README.md)); resource
+[otlp-azure-monitor.md](../../runtime-adapters/otlp-azure-monitor.md) and
+[infra/terraform/README.md](../../../infra/terraform/README.md)); resource
 names in Terraform are non-secret placeholders. Any concrete subscription,
 key, or endpoint value belongs in a deployment's untracked configuration,
 never here.
 
 ## Related
 
-- [docs/evaluation/dataset-governance.md](dataset-governance.md) — dataset and
+- [docs/archive/evaluation/dataset-governance.md](dataset-governance.md) — dataset and
   fixture governance; the sensitivity rule this page extends to telemetry.
-- [docs/evaluation/security-evals.md](security-evals.md) — the adversarial
+- [docs/archive/evaluation/security-evals.md](security-evals.md) — the adversarial
   threat model (secret leakage, injection) the redaction gates defend against.
-- [docs/runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md)
+- [docs/runtime-adapters/otlp-azure-monitor.md](../../runtime-adapters/otlp-azure-monitor.md)
   — retained OTel/App Insights attribute-name mapping and exit-ramp contract.
-- [infra/terraform/README.md](../../infra/terraform/README.md) — the sink
+- [infra/terraform/README.md](../../../infra/terraform/README.md) — the sink
   stack and the `retention_in_days` / `daily_cap_gb` / `sampling_percentage`
   knobs governed here.

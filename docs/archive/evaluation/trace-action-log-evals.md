@@ -76,7 +76,7 @@ Use sanitized fixture Action Logs:
 ```
 
 The structured event vocabulary these fixtures assert against is defined once in
-[observability-and-trace-schema.md](observability-and-trace-schema.md) so that
+[observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md) so that
 trajectory evals and Action Log evals read the same schema.
 
 ## Public Dataset Seeds

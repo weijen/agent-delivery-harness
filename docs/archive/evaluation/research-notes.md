@@ -30,7 +30,7 @@ remain. It is a reference, not a contract; the per-page docs are authoritative.
   end-to-end output.
 - Supports targeted graders attached to specific parts of a trace.
 - Motivates the span-aware approach in
-  [observability-and-trace-schema.md](observability-and-trace-schema.md).
+  [observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md).
 
 ### LangSmith AgentEvals — Trajectory Match Modes
 
@@ -77,7 +77,7 @@ remain. It is a reference, not a contract; the per-page docs are authoritative.
   `gen_ai.tool.name`).
 - Aligning the harness trace with these conventions gives shared tooling across
   trajectory, trace, and cost evals.
-- Applied in [observability-and-trace-schema.md](observability-and-trace-schema.md).
+- Applied in [observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md).
 
 ## Dataset Quality And Contamination
 
@@ -100,9 +100,9 @@ remain. It is a reference, not a contract; the per-page docs are authoritative.
 
 | Public source | What it contributes | Applied pages |
 | --- | --- | --- |
-| [SWE-bench](https://github.com/SWE-bench/SWE-bench), SWE-bench Lite, SWE-bench Verified | Real GitHub issue-to-patch tasks and human-filtered solvable subsets | [outcome-evals.md](outcome-evals.md), [subagent-role-evals.md](subagent-role-evals.md), [cost-efficiency-evals.md](cost-efficiency-evals.md), [statistical-methodology.md](statistical-methodology.md) |
-| [Terminal-Bench](https://www.tbench.ai/) | Terminal-native software, security, system, and data tasks with verifiers | [script-lifecycle-evals.md](script-lifecycle-evals.md), [trajectory-evals.md](trajectory-evals.md), [outcome-evals.md](outcome-evals.md), [cost-efficiency-evals.md](cost-efficiency-evals.md) |
-| [tau-bench](https://github.com/sierra-research/tau-bench) and [tau2/tau3-bench](https://github.com/sierra-research/tau2-bench) | Tool-agent-user interactions, historical trajectories, and fault labels | [trajectory-evals.md](trajectory-evals.md), [trace-action-log-evals.md](trace-action-log-evals.md), [observability-and-trace-schema.md](observability-and-trace-schema.md) |
+| [SWE-bench](https://github.com/SWE-bench/SWE-bench), SWE-bench Lite, SWE-bench Verified | Real GitHub issue-to-patch tasks and human-filtered solvable subsets | [outcome-evals.md](outcome-evals.md), [subagent-role-evals.md](subagent-role-evals.md), [cost-efficiency-evals.md](../../evaluation/cost-efficiency-evals.md), [statistical-methodology.md](statistical-methodology.md) |
+| [Terminal-Bench](https://www.tbench.ai/) | Terminal-native software, security, system, and data tasks with verifiers | [script-lifecycle-evals.md](script-lifecycle-evals.md), [trajectory-evals.md](trajectory-evals.md), [outcome-evals.md](outcome-evals.md), [cost-efficiency-evals.md](../../evaluation/cost-efficiency-evals.md) |
+| [tau-bench](https://github.com/sierra-research/tau-bench) and [tau2/tau3-bench](https://github.com/sierra-research/tau2-bench) | Tool-agent-user interactions, historical trajectories, and fault labels | [trajectory-evals.md](trajectory-evals.md), [trace-action-log-evals.md](trace-action-log-evals.md), [observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md) |
 | [AgentDojo](https://github.com/ethz-spylab/agentdojo) and [InjecAgent](https://github.com/uiuc-kang-lab/InjecAgent) | Prompt-injection and tool-integrated-agent attack cases | [security-evals.md](security-evals.md), [skill-evals.md](skill-evals.md), [trajectory-evals.md](trajectory-evals.md) |
 | [HumanEval](https://github.com/openai/human-eval), [MBPP](https://github.com/google-research/google-research/tree/master/mbpp), [BigCodeBench](https://huggingface.co/datasets/bigcode/bigcodebench) | Executable code-generation tasks with tests | [skill-evals.md](skill-evals.md), [subagent-role-evals.md](subagent-role-evals.md), [mutation-evals.md](mutation-evals.md), [outcome-evals.md](outcome-evals.md) |
 | [CodeSearchNet](https://github.com/github/CodeSearchNet) | Code/docstring pairs and human relevance judgments | [skill-evals.md](skill-evals.md), [judge-evaluation.md](judge-evaluation.md), [dataset-governance.md](dataset-governance.md) |
@@ -141,7 +141,7 @@ remain. It is a reference, not a contract; the per-page docs are authoritative.
   on model change. See [judge-evaluation.md](judge-evaluation.md).
 - **One trace format or many?** Resolved direction: a single GenAI-aligned trace
   consumed by trajectory, trace, and cost evals. See
-  [observability-and-trace-schema.md](observability-and-trace-schema.md).
+  [observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md).
 - **Use public benchmarks as gates?** Resolved: no; use them as context only and
   gate on harness fixtures.
 - **Does the language surface (Bash vs Python vs Node) change the strategy?**

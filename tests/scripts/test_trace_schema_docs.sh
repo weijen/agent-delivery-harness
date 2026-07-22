@@ -31,7 +31,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
-POINTER_DOC="${ROOT}/docs/evaluation/trace-action-log-evals.md"
+POINTER_DOC="${ROOT}/docs/archive/evaluation/trace-action-log-evals.md"
 
 fails=0
 fail() {

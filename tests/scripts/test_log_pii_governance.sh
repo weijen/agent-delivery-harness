@@ -26,7 +26,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DOC="${ROOT}/docs/evaluation/telemetry-retention-pii.md"
+DOC="${ROOT}/docs/archive/evaluation/telemetry-retention-pii.md"
 
 fails=0
 fail() {

@@ -10,7 +10,7 @@ breakdown-flow doctrine. Neither checks **decomposition quality**: whether each 
 sensor-addressable concern. This page makes that quality evaluable.
 
 The granularity rule under test is the single source of truth in
-[../../.copilot/instructions/harness.instructions.md](../../.copilot/instructions/harness.instructions.md)
+[../../../.copilot/instructions/harness.instructions.md](../../../.copilot/instructions/harness.instructions.md)
 (*What counts as one feature*):
 
 > A feature is one externally observable acceptance criterion provable by **exactly one**
