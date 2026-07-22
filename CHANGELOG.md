@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v0.25.0 (2026-07-22)
+
+### Documentation
+
+- **#337**: Archive dormant evaluation plans
+  ([`0e26d4d`](https://github.com/weijen/agent-delivery-harness/commit/0e26d4defdcaf45dbb5d4805174e2141c056a298))
+
+- **#337**: Record evaluation archive delivery
+  ([`fa9eaac`](https://github.com/weijen/agent-delivery-harness/commit/fa9eaacb19a94b64d95f3335e567e9341124cc43))
+
+### Features
+
+- **#347**: Tiered sensor runner — green is scoped by construction, full only at gates
+  ([`049d80f`](https://github.com/weijen/agent-delivery-harness/commit/049d80fc01338a8b9a9d3dae33c9543eeeeb319f))
+
+### Testing
+
+- **#337**: Audit archived evaluation contracts
+  ([`66ef8c1`](https://github.com/weijen/agent-delivery-harness/commit/66ef8c1bb2469098ec07722b7b2897f4dfedd5e7))
+
+- **#337**: Block live archive references
+  ([`b88af8e`](https://github.com/weijen/agent-delivery-harness/commit/b88af8ef64959353854cabbe408f57c603774fcc))
+
+- **#337**: Drop retired installed sensor
+  ([`b45bef7`](https://github.com/weijen/agent-delivery-harness/commit/b45bef72e081b2bc9558f21bf6ca99db1eb48789))
+
+- **#337**: Retire archived content gates
+  ([`e918e74`](https://github.com/weijen/agent-delivery-harness/commit/e918e74e25125bef5577a1f3405be40e59682293))
+
+
 ## v0.24.1 (2026-07-22)
 
 ### Bug Fixes
