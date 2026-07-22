@@ -30,6 +30,7 @@ deleted_scripts=(
   test_copilot_adapter_docs
   test_ci_coverage_docs
   test_docs_profile_boundaries
+  test_log_handback_redaction_parity
 )
 
 # 1. The files themselves must be absent.
@@ -56,4 +57,4 @@ if [ "$fail" -ne 0 ]; then
   echo "deleted-meta-tests sensor FAILED"
   exit 1
 fi
-echo "deleted-meta-tests sensor passed (15 DELETE-class files absent, no stale refs)"
+echo "deleted-meta-tests sensor passed (16 DELETE-class files absent, no stale refs)"

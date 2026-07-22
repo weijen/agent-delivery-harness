@@ -163,9 +163,10 @@ if [ -f "$finish_lib" ]; then
 fi
 
 # Composed ordering part 1: within the bounded finish_closeout_orchestrate body
-# in finish-lib.sh, progress_migrate stage precedes economics_stamp stage.
-# This proves migrate < economics without requiring either to live directly in
-# the entrypoint.
+# in finish-lib.sh, progress_migrate stage precedes action_log_render stage,
+# and both precede economics_stamp stage.
+# This proves migrate < render < economics without requiring any to live
+# directly in the entrypoint.
 if [ -f "$finish_lib" ]; then
 	orch_start="$(grep -n '^finish_closeout_orchestrate[[:space:]]*()' "$finish_lib" | head -1 | cut -d: -f1 || true)"
 	if [ -z "$orch_start" ]; then
@@ -180,15 +181,20 @@ if [ -f "$finish_lib" ]; then
 			'NR >= s && NR <= e && /TRACE_STAGE="progress_migrate"/ { print NR; exit }' "$finish_lib")"
 		migrate_call_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
 			'NR >= s && NR <= e && /^[[:space:]]*best_effort_progress_migrate[[:space:]]*$/ { print NR; exit }' "$finish_lib")"
+		render_stage_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
+			'NR >= s && NR <= e && /TRACE_STAGE="action_log_render"/ { print NR; exit }' "$finish_lib")"
 		economics_stage_in_orch="$(awk -v s="$orch_start" -v e="$orch_end" \
 			'NR >= s && NR <= e && /TRACE_STAGE="economics_stamp"/ { print NR; exit }' "$finish_lib")"
 
-		if [ -z "$migrate_stage_in_orch" ] || [ -z "$migrate_call_in_orch" ] || [ -z "$economics_stage_in_orch" ]; then
-			note "$finish_lib finish_closeout_orchestrate() body must contain TRACE_STAGE=\"progress_migrate\", a best_effort_progress_migrate call, and TRACE_STAGE=\"economics_stamp\" — one or more missing"
-		elif [ "$migrate_stage_in_orch" -ge "$economics_stage_in_orch" ]; then
-			note "$finish_lib finish_closeout_orchestrate(): progress_migrate stage (line $migrate_stage_in_orch) must precede economics_stamp stage (line $economics_stage_in_orch)"
+		if [ -z "$migrate_stage_in_orch" ] || [ -z "$migrate_call_in_orch" ] || \
+		   [ -z "$render_stage_in_orch" ] || [ -z "$economics_stage_in_orch" ]; then
+			note "$finish_lib finish_closeout_orchestrate() body must contain TRACE_STAGE=\"progress_migrate\", a best_effort_progress_migrate call, TRACE_STAGE=\"action_log_render\", and TRACE_STAGE=\"economics_stamp\" — one or more missing"
+		elif [ "$migrate_stage_in_orch" -ge "$render_stage_in_orch" ]; then
+			note "$finish_lib finish_closeout_orchestrate(): progress_migrate stage (line $migrate_stage_in_orch) must precede action_log_render stage (line $render_stage_in_orch)"
+		elif [ "$render_stage_in_orch" -ge "$economics_stage_in_orch" ]; then
+			note "$finish_lib finish_closeout_orchestrate(): action_log_render stage (line $render_stage_in_orch) must precede economics_stamp stage (line $economics_stage_in_orch)"
 		else
-			ok "$finish_lib finish_closeout_orchestrate() orders progress_migrate (line $migrate_stage_in_orch) before economics_stamp (line $economics_stage_in_orch)"
+			ok "$finish_lib finish_closeout_orchestrate() orders progress_migrate (line $migrate_stage_in_orch) before action_log_render (line $render_stage_in_orch) before economics_stamp (line $economics_stage_in_orch)"
 		fi
 	fi
 fi

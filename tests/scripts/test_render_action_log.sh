@@ -31,6 +31,8 @@
 #      (current -L "$TRACE_DIR" only checks the final component, not ancestors)
 #  16. Mode fault injection: stat failure or chmod failure → warn + exit 0 + unchanged
 #      (deterministic via fakebin; proves current || true swallowing causes wrong-mode publish)
+#  17. Research-field span → renders exactly the core five-field line with NO research suffix
+#      (harness.research_url present in span must not add a second 'research:' line in progress.md)
 #
 # Exit codes: 0 all legs pass · 1 a contract obligation regressed.
 
@@ -805,6 +807,39 @@ AFTER16B="$(cat "${LEG16B}/progress.md")"
 
 printf '%s\n' "$STDERR16B" | grep -qi 'warn\|perm\|chmod\|mode\|fail\|apply' \
   || fail "leg16b: renderer must warn to stderr when chmod fails"
+
+# ============================================================================
+# Leg 17: Research-field span → core five-field line ONLY (no research suffix)
+# A handback span carrying harness.research_url must render as exactly one
+# bullet with the five core fields [role] step feature outcome — summary.
+# The renderer must NOT append a 'research:' annotation line under the bullet.
+# RED against the unapproved renderer (which appended '\n  research: URL — …');
+# GREEN after removing the research suffix from the jq query.
+# ============================================================================
+LEG17="${TMP_DIR}/leg17"
+mkdir -p "$LEG17"
+# Span that includes harness.research_url + harness.research_summary.
+printf '%s\n' \
+  '{"schema_version":1,"span":"agent","span_id":"res1","timestamp":"2026-07-01T00:00:00Z","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"generator-subagent","harness.lifecycle_step":"green_handback","harness.feature_id":"some-research-feature","harness.outcome":"pass","harness.summary":"completed with research","harness.issue":332,"harness.research_url":"https://example.com/doc","harness.research_summary":"consulted docs page"}' \
+  > "${LEG17}/trace.jsonl"
+scaffold_progress "$LEG17"
+
+RC17=0
+bash "$RENDERER" "${LEG17}/trace.jsonl" 2>/dev/null || RC17=$?
+[ "$RC17" -eq 0 ] \
+  || fail "leg17: renderer must exit 0 for a research-field span; got exit ${RC17}"
+
+grep -q '^## Action Log' "${LEG17}/progress.md" \
+  || fail "leg17: ## Action Log heading must survive rendering"
+
+EXPECTED_BULLET='- [generator-subagent] green_handback some-research-feature pass — completed with research'
+grep -qF -- "$EXPECTED_BULLET" "${LEG17}/progress.md" \
+  || fail "leg17: research-field span must render as the core five-field bullet: '${EXPECTED_BULLET}'"
+
+# The renderer MUST NOT produce a 'research:' annotation line.
+if grep -q 'research:' "${LEG17}/progress.md"; then
+  fail "leg17: renderer must not add a 'research:' annotation line — Action Log is CORE FIVE FIELDS ONLY; found research suffix in progress.md"
+fi
 
 printf 'ok - all legs passed\n'
 exit 0

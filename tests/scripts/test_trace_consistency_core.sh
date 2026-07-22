@@ -142,6 +142,7 @@ MAIN="${TMP_DIR}/main-repo"
 mkdir -p "${MAIN}/scripts"
 cp "$HELPER" "${MAIN}/scripts/log-handback.sh"
 cp "$LIB" "${MAIN}/scripts/trace-lib.sh"
+cp "${ROOT}/scripts/render-action-log.sh" "${MAIN}/scripts/render-action-log.sh"
 git -C "$MAIN" init -q -b main
 git -C "$MAIN" config user.name "Harness Test"
 git -C "$MAIN" config user.email "harness-test@example.invalid"
