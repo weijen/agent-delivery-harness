@@ -52,8 +52,8 @@ sanitized, commit-safe fixture or specification.
    independent sensor or mixes more than one concern, merge when two share one.
 9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
    coding-agent habits and personal workflow shortcuts.
-10. **Keep the issue Action Log current** in `.copilot-tracking/issues/issue-NN/progress.md` with conductor handbacks,
-   subagent actions, review verdicts, and any stop/report/recover notes.
+10. **Keep the trace current** — the Action Log in `.copilot-tracking/issues/issue-NN/progress.md` is rendered
+   from spans (#332): record `feature_start`, `deviation`, and review verdicts as they happen.
 11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
 
 → The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
@@ -178,9 +178,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
 | **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
 | **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
-| **Subagent** `planning-subagent` | Tier 3 planning pass; produces `.copilot-tracking/plans/<issue>.md` | Conductor invokes at the start of any Tier 3 issue |
-| **Subagent** `generator-subagent` | Owns RED, minimal implementation, GREEN, product-quality evidence, teeth proof, and pass state for one `feature_list` item | Conductor invokes after selecting one `passes:false` feature |
-| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | Conductor invokes once, at issue completion, issuing per-feature verdicts |
+| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, pre-PR, over the whole branch diff (#352: the only other model invocation in the lifecycle) |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
 
