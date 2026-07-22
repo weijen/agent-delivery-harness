@@ -351,6 +351,36 @@ cat > "$STATE_FILTER" <<'JQ'
 ["conductor", "planning-subagent", "generator-subagent", "implementation-subagent",
  "test-subagent", "code-review-subagent"] as $roles
 # <<< trace-schema:roles
+# >>> issue-330: legacy-fail-span era boundary. PR #324 merge instant
+# (verified via `gh pr view 324 --json mergedAt,mergeCommit`), merge commit
+# 05477a1093ecdf59aea5a6ba8da281ce5272af23. Deliberately NOT harness.version:
+# that field is agent/build-managed free text and documented to drift (up to
+# four different strings, including the "0.0.0-dev" placeholder, inside a
+# single trace), so it cannot serve as a monotonic emission-time boundary.
+# The span's own `timestamp` is the one field every span is contractually
+# required to carry and is stamped once, deterministically, by trace-lib.sh's
+# own `date -u +%Y-%m-%dT%H:%M:%SZ` call at write time — reuse it instead.
+# ts_secs mirrors scripts/finish-lib.sh's economics_time_summary idiom
+# (fromdateiso8601 with an optional fractional-second suffix) so mixed-
+# precision timestamps still compare correctly; do not invent a new parser.
+# def and the $pr324_merge_epoch binding below are chained with `|` (no
+# closing paren) so both stay in scope for the entire rest of this filter,
+# including the ::failattr signal block further down.
+| def ts_secs:
+    ([capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]+))?Z$")] | first // null) as $match
+    | if $match == null then
+        null
+      else
+        try (
+          (($match.base + "Z") | fromdateiso8601)
+          + (if ($match.fraction // "") == ""
+             then 0
+             else ("0." + $match.fraction | tonumber)
+             end)
+        ) catch null
+      end;
+  ("2026-07-21T00:31:35Z" | fromdateiso8601) as $pr324_merge_epoch
+# <<< issue-330: legacy-fail-span era boundary
 | [inputs] as $lines
 | range(0; $lines | length) as $i
 | ($i + 1) as $n
@@ -541,7 +571,16 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.actionable"] // "") | if . == "" then "__EMPTY__" else . end) as $act
         | (($span["harness.finding_reproduction"] // "") | if . == "" then "__EMPTY__" else . end) as $repro
         | (($span["harness.finding_proposed_fix"] // "") | if . == "" then "__EMPTY__" else . end) as $fix
-        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)"
+        # Provably legacy (issue #330): the span's OWN mandatory timestamp
+        # parses AND is strictly before the PR #324 merge instant. Any
+        # unparseable/absent timestamp or a timestamp at/after the boundary
+        # is fail-closed to "0" (current, still enforced).
+        | (if ($span.timestamp | type) == "string"
+           then ($span.timestamp | ts_secs)
+           else null
+           end) as $fa_ts_secs
+        | (if $fa_ts_secs != null and $fa_ts_secs < $pr324_merge_epoch then "1" else "0" end) as $fa_legacy
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)\t\($fa_legacy)"
       else empty
       end ),
     # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
@@ -774,11 +813,17 @@ if [ "$durable_lines" != $'\n' ]; then
   done < <(printf '%s' "$durable_lines" | grep -v '^$')
 fi
 
-# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>
+# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>\t<legacy>
+# <legacy> ("1"|"0", issue #330): "1" only when the span's own mandatory
+# timestamp parsed AND is strictly before the PR #324 merge instant
+# (2026-07-21T00:31:35Z) — see the STATE_FILTER era-boundary comment above.
+# Gates ONLY the three named checks below (failure_class_missing,
+# finding_fingerprint_missing, finding_baseline_state_missing) to a WARNING
+# instead of a VIOLATION; every other failattr rule is unaffected.
 if [ "$failattr_lines" != $'\n' ]; then
   while IFS= read -r fa_line; do
     [ -n "$fa_line" ] || continue
-    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix <<< "$fa_line"
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix fa_legacy <<< "$fa_line"
     # review_fail_unattributed: fail verdict must carry non-empty feature_id
     # (excluding "-" placeholder) or the literal "unmapped"
     if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
@@ -791,10 +836,16 @@ if [ "$failattr_lines" != $'\n' ]; then
         violations=$((violations + 1))
       fi
     fi
-    # failure_class_missing: fail verdict must carry failure_class
+    # failure_class_missing: fail verdict must carry failure_class.
+    # Legacy carve-out (issue #330): a provably pre-#324 span (fa_legacy=1)
+    # downgrades to a WARNING instead — it predates the field's existence.
     if [ "$fa_fc" = "__EMPTY__" ]; then
-      printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
-      violations=$((violations + 1))
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_failure_class_missing line %s\n' "$fa_n"
+      else
+        printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
     elif ! failure_class_valid "$fa_fc"; then
       # failure_class_invalid: not in closed enum
       printf 'VIOLATION consistency: failure_class_invalid line %s\n' "$fa_n"
@@ -812,13 +863,27 @@ if [ "$failattr_lines" != $'\n' ]; then
     # two distinct violations.  The unmapped_without_fingerprint rule above
     # names the degraded-state contract specifically for unmapped findings;
     # the rules here are universal across all fail verdicts.
+    # Legacy carve-out (issue #330): a provably pre-#324 span (fa_legacy=1)
+    # downgrades finding_fingerprint_missing to a WARNING — it predates the
+    # field's existence. finding_baseline_missing_fingerprint below is a
+    # DIFFERENT, cross-field-coherence rule and stays unconditional.
     if [ "$fa_fp" = "__EMPTY__" ]; then
-      printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
-      violations=$((violations + 1))
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_finding_fingerprint_missing line %s\n' "$fa_n"
+      else
+        printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
     fi
+    # finding_baseline_state_missing legacy carve-out (issue #330): same
+    # provably-pre-#324 downgrade as failure_class_missing above.
     if [ "${fa_bs:-}" = "__EMPTY__" ] || [ -z "${fa_bs:-}" ]; then
-      printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
-      violations=$((violations + 1))
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_finding_baseline_state_missing line %s\n' "$fa_n"
+      else
+        printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
     else
       # finding_baseline_state_invalid: not in closed enum {new,unchanged,updated,resolved}
       case "$fa_bs" in

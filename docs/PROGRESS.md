@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-21 (#310)_
+_Last updated: 2026-07-22 (#330)_
 
 ---
 
@@ -42,7 +42,7 @@ _Last updated: 2026-07-21 (#310)_
   harness contract + AGENTS.md conventions).
 - **Subagents:** planning, generator, code-review under
   `.copilot/agents/`.
-- **Sensor suite:** 218 shell sensors (`tests/scripts/` + `tests/meta/`), run by
+- **Sensor suite:** 219 shell sensors (`tests/scripts/` + `tests/meta/`), run by
   the `harness-smoke.yml` CI workflow (which also installs `uv` and runs the
   Python profile gates — after the #272 export-leg removal these collect no
   tests and are handled honestly as a SKIP);
@@ -111,6 +111,19 @@ _Last updated: 2026-07-21 (#310)_
 ---
 
 ## Delivered (newest first)
+
+### trace consistency: preserve pre-attribution fail spans (#330): delivery complete
+
+- **Historical failures no longer invalidate old traces.**
+  `check-trace-consistency.sh` downgrades missing failure class, finding
+  fingerprint, and baseline state to warnings only when the span timestamp is
+  provably earlier than PR #324's merge instant.
+- **Current enforcement stays fail-closed.** Spans at or after the boundary,
+  and spans with absent or malformed timestamps, retain the three violations.
+  The boundary deliberately does not use the drifting `harness.version`.
+- **A new mutation-proven sensor brings the shell suite to 219.**
+  `test_trace_consistency_legacy_fail_span.sh` covers legacy, current, exact
+  boundary, malformed timestamp, complete-field, and disabled-carve-out cases.
 
 ### create-pr: carry approval across content-preserving rebases (#310): delivery complete
 
