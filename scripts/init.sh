@@ -101,6 +101,7 @@ fi
 
 # 1. Required CLIs ------------------------------------------------------------
 echo "[1/6] Required tools"
+gh_identity_ready=1
 for tool in git gh; do
   if command -v "$tool" >/dev/null 2>&1; then
     note_ok "$tool found"
@@ -108,6 +109,16 @@ for tool in git gh; do
     note_fail "$tool not found" "install it before continuing"
   fi
 done
+if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ] && command -v gh >/dev/null 2>&1; then
+  # shellcheck source=scripts/github-identity-lib.sh
+  source "${SCRIPT_DIR}/github-identity-lib.sh"
+  if ! harness_identity_activate "$(harness_identity_repo_root)"; then
+    gh_identity_ready=0
+    note_fail \
+      "repository-bound GitHub account is unavailable" \
+      "authenticate the account named in .github/harness-identity.env"
+  fi
+fi
 # uv / az are soft until the project needs them.
 for tool in uv az; do
   if command -v "$tool" >/dev/null 2>&1; then
@@ -119,7 +130,9 @@ done
 
 # 2. GitHub auth (HARD-FAIL) --------------------------------------------------
 echo "[2/6] GitHub authentication"
-if gh auth status >/dev/null 2>&1; then
+if [ "$gh_identity_ready" -eq 0 ]; then
+  :
+elif gh auth status >/dev/null 2>&1; then
   note_ok "gh authenticated ($(gh api user --jq .login 2>/dev/null || echo '?'))"
 elif [ "${ALLOW_GH_UNAUTH:-0}" = "1" ]; then
   note_warn "gh not authenticated (allowed for devcontainer bootstrap)" "run: gh auth login"

@@ -18,6 +18,12 @@
 
 set -euo pipefail
 
+ISSUE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "${ISSUE_LIB_DIR}/github-identity-lib.sh" ]; then
+  # shellcheck source=scripts/github-identity-lib.sh
+  source "${ISSUE_LIB_DIR}/github-identity-lib.sh"
+fi
+
 # Exact start-issue progress.md scaffold cruft. These renderers are shared with
 # closeout so generated text and safely removable text cannot drift.
 progress_scaffold_placeholder_bullet() {

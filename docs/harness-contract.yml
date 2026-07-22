@@ -32,6 +32,9 @@ scripts:
   - id: issue-lib
     path: scripts/issue-lib.sh
     role: Shared issue naming library (sourced, not executed).
+  - id: github-identity-lib
+    path: scripts/github-identity-lib.sh
+    role: Sourceable repository-bound GitHub token and local Git identity resolver.
   - id: trace-lib
     path: scripts/trace-lib.sh
     role: Sourceable trace-span emitter for deep tracing; schema authority docs/evaluation/trace-schema.v1.json.
@@ -177,6 +180,10 @@ state_transitions:
 # same message text — tightening that is intentionally left to a later revision.
 # ---------------------------------------------------------------------------
 failure_modes:
+  - id: bound-github-account-unavailable
+    kind: hard
+    owner: scripts/init.sh
+    present: repository-bound GitHub account is unavailable
   - id: github-auth-failure
     kind: hard
     owner: scripts/init.sh

@@ -62,6 +62,28 @@ Before anything else, make sure the hard requirements from the
   example [uv](https://docs.astral.sh/uv/) for Python). Until then preflight
   warns and carries on.
 
+### Bind the repository's GitHub identity
+
+When more than one GitHub account is authenticated on a machine, copy the
+installed template and bind the account this repository must use:
+
+```sh
+cp .github/harness-identity.env.example .github/harness-identity.env
+# Fill HARNESS_GH_ACCOUNT, HARNESS_GIT_NAME, and HARNESS_GIT_EMAIL.
+gh auth login --hostname github.com # authenticate that account if needed
+```
+
+The binding is repository configuration and may be tracked when it contains
+only a public account, author name, and GitHub noreply address. Never put a
+token in it. Lifecycle scripts mint the bound account's token with
+`gh auth token --user` and inject it only into their own process. The harness
+never runs `gh auth switch`; another repository can therefore use a different
+account without changing global state. `start-issue.sh` (and an installer rerun when a
+binding already exists) also sets repository-local Git author values and
+account-qualified HTTPS origin routing. A missing binding warns once and keeps
+the legacy active-account behavior; a present binding whose account is not
+authenticated is a hard preflight failure.
+
 ## 3. Choose a language
 
 Pick the language for your project's first surface. The harness ships profiles

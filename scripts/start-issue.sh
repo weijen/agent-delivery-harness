@@ -111,6 +111,9 @@ if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   red "✗ run start-issue.sh from the main checkout, not from a worktree."
   exit 1
 fi
+if declare -F harness_identity_activate >/dev/null 2>&1; then
+  harness_identity_activate "$ROOT"
+fi
 
 # --- 1. Preflight (init.sh) -------------------------------------------------
 TRACE_T0="$(trace_now_ms)"
@@ -143,6 +146,9 @@ else
 fi
 
 # --- 2. Resolve naming ------------------------------------------------------
+if declare -F harness_identity_configure_git >/dev/null 2>&1; then
+  harness_identity_configure_git "$ROOT"
+fi
 resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
 bold "==> Issue ${ISSUE_NUM}"
 echo "  branch:   ${BRANCH}"
