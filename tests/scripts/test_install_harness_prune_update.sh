@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Regression and e2e sensor (issue #313): --update explicitly removes a
-# modified tombstoned file, but only after displaying its digest diff.
+# Regression and e2e sensor (issues #313, #314): --update preserves a modified
+# tombstoned file as a three-way conflict and emits a rejected deletion patch.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,22 +24,26 @@ grep -qF "modified retired" "$OUT" || {
 target="${TMP_DIR}/target"
 mkdir -p "${target}/scripts"
 printf 'adopter content\n' >"${target}/scripts/.gitkeep"
-"$INSTALL" "$target" --update >"$OUT" 2>&1
-
-diff_line="$(grep -n -m1 '^--- retired/scripts/.gitkeep' "$OUT" | cut -d: -f1)"
-remove_line="$(grep -n -m1 'removed retired scripts/.gitkeep' "$OUT" | cut -d: -f1)"
-if [ -z "$diff_line" ] || [ -z "$remove_line" ]; then
+if "$INSTALL" "$target" --update >"$OUT" 2>&1; then
 	cat "$OUT"
-	echo "--update must show both the retired-file diff and removal"
+	echo "--update must fail visibly on a modified retired conflict"
 	exit 1
 fi
-if [ "$diff_line" -ge "$remove_line" ]; then
+grep -qF 'conflict scripts/.gitkeep' "$OUT" || {
 	cat "$OUT"
-	echo "--update must show the retired-file diff before removal"
+	echo "--update did not report the retired-file conflict"
 	exit 1
-fi
-[ ! -e "${target}/scripts/.gitkeep" ] || {
-	echo "--update left the modified retired file"
+}
+[ -f "${target}/scripts/.gitkeep" ] || {
+	echo "--update removed the modified retired file"
+	exit 1
+}
+[ -f "${target}/scripts/.gitkeep.rej" ] || {
+	echo "--update did not emit a rejected deletion patch"
+	exit 1
+}
+grep -qF 'adopter content' "${target}/scripts/.gitkeep.rej" || {
+	echo "retired-file rejection patch does not contain adopter content"
 	exit 1
 }
 
@@ -54,9 +58,9 @@ fi
 	echo "--update removed a replacement directory"
 	exit 1
 }
-grep -qF "failed to remove modified retired scripts/.gitkeep" "$OUT" || {
+grep -qF "conflict scripts/.gitkeep" "$OUT" || {
 	cat "$OUT"
-	echo "--update did not explain the non-file removal failure"
+	echo "--update did not explain the non-file conflict"
 	exit 1
 }
 

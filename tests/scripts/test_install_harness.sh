@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Regression sensor (issue #76): scripts/install-harness.sh must copy the REAL
 # harness assets verbatim into a target directory, default to a dry run, apply
-# with --write, refuse to clobber a differing target file without --update (while
-# printing the diff), and never touch the target project's own non-harness files.
+# with --write, preserve an untracked-base adopter file as an update conflict,
+# and never touch the target project's own non-harness files.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -105,10 +105,17 @@ grep -qE '^@@|^\+\+\+ |^--- ' "$OUT" || { cat "$OUT"; echo "case-e: did not prin
 # New harness files are still installed alongside the refused one.
 [ -f "$e/profiles/python.profile.sh" ] || { echo "case-e: new assets were not installed when one file was refused"; exit 1; }
 
-# --- Case (f): --update overwrites the differing file after showing the diff ---
-"$INSTALL" "$e" --update >"$OUT" 2>&1 || { cat "$OUT"; echo "case-f: --update failed"; exit 1; }
-grep -qE '^@@|^\+\+\+ |^--- ' "$OUT" || { cat "$OUT"; echo "case-f: --update did not show a diff before overwriting"; exit 1; }
-cmp -s "$ROOT/scripts/init.sh" "$sentinel" || { echo "case-f: --update did not bring init.sh up to date"; exit 1; }
+# --- Case (f): no known base means --update preserves + emits a rejection -----
+if "$INSTALL" "$e" --update >"$OUT" 2>&1; then
+	cat "$OUT"; echo "case-f: unknown-base conflict must exit non-zero"; exit 1
+fi
+grep -qF 'conflict scripts/init.sh' "$OUT" || { cat "$OUT"; echo "case-f: conflict was not reported"; exit 1; }
+[ "$(cat "$sentinel")" = "$sentinel_before" ] || { echo "case-f: --update overwrote unknown-base adopter content"; exit 1; }
+if ! grep -qF 'PROJECT LOCAL EDIT' "${sentinel}.rej" \
+	|| ! grep -qF 'init.sh — preflight' "${sentinel}.rej"; then
+	echo "case-f: rejection patch does not describe the upstream replacement"
+	exit 1
+fi
 [ "$(cat "$e/src/app.py")" = "$app_before" ] || { echo "case-f: --update touched a non-harness project file"; exit 1; }
 
 printf 'install-harness sensor passed\n'

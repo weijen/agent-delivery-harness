@@ -26,15 +26,35 @@ descriptor. There are two common ways to start:
   ```sh
   ./scripts/install-harness.sh /path/to/project            # dry run — prints copies and retired-asset removals
   ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
-  ./scripts/install-harness.sh /path/to/project --update   # overwrite or prune modified assets after a diff
+  ./scripts/install-harness.sh /path/to/project --update   # apply safe changes; preserve adopter work; emit conflicts
   ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # full harness-repository sensor suite
   ```
 
-  It defaults to a dry run, never overwrites or removes a modified target file
-  without `--update`, and leaves your project's own code in place. A tombstone
-  ledger lets upgrades remove retired harness assets that remain byte-identical
-  to their final upstream version; modified retired files are preserved with a
-  digest diff unless `--update` explicitly authorizes removal. All
+  It defaults to a dry run and leaves your project's own code in place. Each
+  successful install writes a trackable `.harness-lock` containing the upstream
+  SHA-256 installed for every managed path. On `--update`, that base classifies
+  differences before any per-file output: upstream-only changes are safe to
+  apply, adopter-only changes are kept, and both-changed files are preserved
+  with the rejected upstream diff beside them as `<path>.rej`. Conflicts exit
+  nonzero; once a rejection has been captured, the lock advances so an
+  unchanged repeat is adopter-only rather than reporting the same conflict.
+  A first upgrade from an older install with no lock conservatively treats every
+  differing managed file as a conflict.
+
+  Commit `.harness-lock` with the project. To permanently reserve paths for the
+  adopter, commit a `.harness-keep` file containing one shell-style path glob per
+  line (blank lines and `#` comments are ignored), for example:
+
+  ```text
+  scripts/init.sh
+  docs/*.md
+  ```
+
+  Matching paths are never created, overwritten, or pruned in any mode. Review
+  each `.rej`, merge any wanted upstream changes manually, then keep or remove
+  the rejection artifact according to the project's review policy. A tombstone
+  ledger removes retired harness assets only when they are proven unmodified;
+  modified retired files are preserved as rejected deletion conflicts. All
   `.copilot/instructions/*` are installed, including the language-specific ones
   (`python`, `terraform-azure`) — delete whichever you do not need.
 
