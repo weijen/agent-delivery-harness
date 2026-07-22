@@ -68,7 +68,7 @@ These concrete orderings are the highest-value trajectory checks:
 
 For subagent workflows, the trace may be an Action Log or structured event log
 rather than raw tool telemetry. The event schema these checks read is defined in
-[observability-and-trace-schema.md](observability-and-trace-schema.md).
+[observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md).
 
 ## Public Dataset Seeds
 

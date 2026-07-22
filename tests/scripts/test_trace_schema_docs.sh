@@ -17,8 +17,6 @@
 #          of a contract attribute, e.g. `gen_ai.usage.*`);
 #        - the doc mentions the new mandatory fields `schema_version` and
 #          `harness.version`, so the prose is not stale relative to v1.
-#   3. docs/evaluation/trace-action-log-evals.md still points at the
-#      observability page (pointer chain doc -> contract stays single).
 #
 # Deliberately NOT asserted (prose wording is free): section titles, table
 # layout, example spans, or how the doc phrases the pointer to the contract.
@@ -31,7 +29,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
 DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
-POINTER_DOC="${ROOT}/docs/evaluation/trace-action-log-evals.md"
 
 fails=0
 fail() {
@@ -48,8 +45,6 @@ command -v jq >/dev/null 2>&1 \
   || { printf 'FAIL: contract not found at docs/evaluation/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
 [ -f "$DOC" ] \
   || { printf 'FAIL: prose doc not found at docs/evaluation/observability-and-trace-schema.md\n' >&2; exit 1; }
-[ -f "$POINTER_DOC" ] \
-  || { printf 'FAIL: docs/evaluation/trace-action-log-evals.md not found\n' >&2; exit 1; }
 
 # --- 1. Prose doc defers to the frozen contract ------------------------------
 grep -qF 'trace-schema.v1.json' "$DOC" \
@@ -100,10 +95,6 @@ grep -qF 'schema_version' "$DOC" \
   || fail "prose doc must mention the mandatory field schema_version introduced by trace schema v1"
 grep -qF 'harness.version' "$DOC" \
   || fail "prose doc must mention the mandatory field harness.version introduced by trace schema v1"
-
-# --- 3. Pointer chain: trace-action-log-evals.md -> observability page -------
-grep -qF 'observability-and-trace-schema.md' "$POINTER_DOC" \
-  || fail "trace-action-log-evals.md no longer points at observability-and-trace-schema.md — pointer chain to the contract is broken"
 
 # --- Result ------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

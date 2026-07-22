@@ -2,7 +2,7 @@
 
 The recurring, human-run failure-review ritual: cluster recent failure spans
 by the frozen taxonomy in
-[failure-mode-taxonomy.md](failure-mode-taxonomy.md) (the vocabulary
+[failure-mode-taxonomy.md](../../evaluation/failure-mode-taxonomy.md) (the vocabulary
 authority — spellings and membership live in the contract it defers to) and
 turn observations into issue-ready diagnoses. This is the human-in-the-loop
 version of the evolution loop's observe→diagnose: the template produces
@@ -70,7 +70,7 @@ behind it, and travels the standard PEV path like any other issue.
 ## Non-Goals
 
 Restating the governance stance from
-[failure-mode-taxonomy.md](failure-mode-taxonomy.md), which travels with
+[failure-mode-taxonomy.md](../../evaluation/failure-mode-taxonomy.md), which travels with
 this ritual:
 
 - **No automated harness mutation** — no script, agent, or threshold may

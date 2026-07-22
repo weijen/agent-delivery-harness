@@ -249,8 +249,8 @@ per-span required and optional field sets are in the contract):
 | `harness.session_id` | `sess-2f9c1a7b` | Harness-specific |
 
 Sensitive values (secrets, tokens, customer data) must be redacted before a span
-is written; see [security-evals.md](security-evals.md) and
-[dataset-governance.md](dataset-governance.md).
+is written; see [security-evals.md](../archive/evaluation/security-evals.md) and
+[dataset-governance.md](../archive/evaluation/dataset-governance.md).
 
 Runtime spans may additionally carry the optional `harness.session_id` string,
 the runtime session / conversation identity of the GitHub Copilot session that
@@ -271,9 +271,9 @@ authority for the enum membership.
 
 ## How The Evals Consume This Schema
 
-- [trajectory-evals.md](trajectory-evals.md) match on the ordered sequence of
+- [trajectory-evals.md](../archive/evaluation/trajectory-evals.md) match on the ordered sequence of
   tool and lifecycle span names.
-- [trace-action-log-evals.md](trace-action-log-evals.md) check that required
+- [trace-action-log-evals.md](../archive/evaluation/trace-action-log-evals.md) check that required
   agent and lifecycle spans (handbacks, review verdict, approval SHA) are
   present and attributed to the right role.
 - [cost-efficiency-evals.md](cost-efficiency-evals.md) sum `gen_ai.usage.*`

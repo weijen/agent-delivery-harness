@@ -19,7 +19,7 @@
 > file changed on the branch before a PR opens — **every change must update it,
 > there is no opt-out** (it is what the next agent reads first).
 
-_Last updated: 2026-07-22 (#311)_
+_Last updated: 2026-07-22 (#337)_
 
 ---
 
@@ -111,6 +111,25 @@ _Last updated: 2026-07-22 (#311)_
 ---
 
 ## Delivered (newest first)
+
+### Archive dormant docs/evaluation content (#337): delivery complete
+
+- **21 zero-runtime-reference evaluation docs archived.** Moved under
+  `docs/archive/evaluation/` (statistical-methodology, dataset-governance,
+  mutation-evals, judge-evaluation, and kin) with a tombstone pointing at
+  epic #331; runtime-referenced files were left in place — `trace-schema.v1.json`
+  and `cost-efficiency-evals.md` (kept in `docs/evaluation/` because
+  `scripts/trace-report.sh` depends on them) and `product-quality-rubric.md`
+  (kept because agent doctrine references it, not `trace-report.sh`) — plus
+  all L0 assets and `docs/evaluation/l1-solution/`, along with the #333/#335
+  transitional schemas pending those children landing.
+- **Four archive-content/audit sensors retired** (they gated on now-archived
+  prose) and **one dynamic archived-reference sensor added** that scans
+  `scripts/`, `.copilot/`, and `AGENTS.md` for stale runtime/doctrine
+  references still using the old `docs/evaluation/<moved-path>` locations and
+  fails on a hit.
+- **Human-approved #337-only sensed-tree metric:** net -15 lines with pure
+  file moves counted zero; full shell sensor suite 223/223 green.
 
 ### installer runtime dependency closure (#311): delivery complete
 

@@ -26,7 +26,6 @@ INSTALLED_SENSORS=(
 	tests/scripts/test_eval_manifest_validator.sh
 	tests/scripts/test_run_evals_scorecard.sh
 	tests/evals/bin/run-l0-suite.sh
-	tests/meta/test_agent_delivery_accuracy_matrix_contract.sh
 	tests/scripts/test_meta_triage_record.sh
 )
 

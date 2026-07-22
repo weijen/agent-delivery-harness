@@ -144,7 +144,7 @@ changes. Treat cost as a first-class regression dimension:
 
 - Record per-fixture token and turn baselines with the model version attached.
 - For same-model changes, compare against the recorded baseline using the trial
-  and variance-band rules in [statistical-methodology.md](statistical-methodology.md).
+  and variance-band rules in [statistical-methodology.md](../archive/evaluation/statistical-methodology.md).
 - For model or tool upgrades, run a shadow comparison against the old baseline,
   then establish a new baseline before treating future results as ordinary
   regressions.
@@ -307,10 +307,10 @@ steps.
   — the cross-run metrics artifact, under the versioned contract in
   [trace-scorecard.v1.json](trace-scorecard.v1.json).
 - Cost baselines follow the trial and baseline rules in
-  [statistical-methodology.md](statistical-methodology.md).
+  [statistical-methodology.md](../archive/evaluation/statistical-methodology.md).
 - Azure Machine Learning is the preferred managed runtime for scheduled cost,
   latency, and baseline-distribution runs; see
-  [azure-evaluation-runtime.md](azure-evaluation-runtime.md).
+  [azure-evaluation-runtime.md](../archive/evaluation/azure-evaluation-runtime.md).
 
 ## Initial Issues To Create Later
 

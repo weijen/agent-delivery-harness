@@ -32,8 +32,8 @@
     "payload_cap_env": "HARNESS_LOG_PAYLOAD_CAP",
     "payload_cap_note": "per-record payload is truncated to a default 4096-byte cap (override via HARNESS_LOG_PAYLOAD_CAP) only AFTER redaction has run.",
     "authorities": [
-      "docs/evaluation/security-evals.md",
-      "docs/evaluation/dataset-governance.md"
+      "docs/archive/evaluation/security-evals.md",
+      "docs/archive/evaluation/dataset-governance.md"
     ]
   }
 }

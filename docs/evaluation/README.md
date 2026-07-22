@@ -11,9 +11,12 @@ we never want to see again.
 
 ## How To Read This Directory
 
-Start with the roadmap below, then read [evaluation-matrix.md](evaluation-matrix.md)
-for the shared eval schema and [research-notes.md](research-notes.md) for the
-external grounding behind these choices.
+Start with the roadmap below, then read
+[evaluation-matrix.md](../archive/evaluation/evaluation-matrix.md) for the
+shared eval schema and [research-notes.md](../archive/evaluation/research-notes.md)
+for the external grounding behind these choices — both archived by #337 (epic
+#331); see [the archive index](../archive/evaluation/README.md) for the full
+set.
 
 For the first executable slice, read
 [l0-solution/README.md](l0-solution/README.md). It narrows the broad strategy in
@@ -45,26 +48,12 @@ and have their own pages below.
 
 | Page | Layer | Focus |
 | --- | --- | --- |
-| [script-lifecycle-evals.md](script-lifecycle-evals.md) | L0 | Deterministic shell and lifecycle checks |
-| [skill-evals.md](skill-evals.md) | L1 | Skill trigger, artifact, and behavior checks |
-| [subagent-role-evals.md](subagent-role-evals.md) | L2 | Planner, implementer, tester, reviewer roles |
-| [feature-breakdown-evals.md](feature-breakdown-evals.md) | L2 | Feature decomposition granularity and sensor-addressability |
-| [trajectory-evals.md](trajectory-evals.md) | L3 | Tool path and lifecycle ordering |
-| [trace-action-log-evals.md](trace-action-log-evals.md) | L3 | Audit evidence and role attribution |
-| [outcome-evals.md](outcome-evals.md) | L4 | End-to-end issue fixtures |
-| [mutation-evals.md](mutation-evals.md) | L5 | Known-bad regression tripwires |
-| [judge-evaluation.md](judge-evaluation.md) | Cross-cutting | Calibrating LLM-as-judge graders |
-| [security-evals.md](security-evals.md) | Cross-cutting | Prompt injection, secrets, least privilege |
 | [cost-efficiency-evals.md](cost-efficiency-evals.md) | Cross-cutting | Tokens, turns, latency, thrash |
-| [azure-evaluation-runtime.md](azure-evaluation-runtime.md) | Cross-cutting | Azure ML and Azure AI Foundry runtime strategy |
-| [dataset-governance.md](dataset-governance.md) | Cross-cutting | Golden datasets, versioning, contamination |
 | [observability-and-trace-schema.md](observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
-| [statistical-methodology.md](statistical-methodology.md) | Cross-cutting | Trials, pass@k vs pass^k, noise vs regression |
-| [evaluation-matrix.md](evaluation-matrix.md) | Cross-cutting | Shared eval schema and grader types |
 | [product-quality-rubric.md](product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
-| [research-notes.md](research-notes.md) | Cross-cutting | External grounding and open questions |
 | [l0-solution/](l0-solution/) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
 | [l1-solution/](l1-solution/) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
+| [archived prose set](../archive/evaluation/README.md) | — | Archived L1+ strategy prose with zero runtime/doctrine reference (decision 3a, epic #331): script/skill/subagent-role/feature-breakdown/trajectory/trace-action-log/outcome/mutation evals, judge evaluation, security evals, azure runtime, dataset governance, statistical methodology, evaluation matrix, research notes, telemetry retention, and the accuracy matrix |
 
 ## Scorecard Model
 
@@ -72,9 +61,12 @@ Every eval, regardless of layer, is described by the same core fields: a target,
 a capability, a boundary, a fixture, an expected outcome, one or more graders,
 and a blocking policy. Trials, thresholds, source-dataset metadata, and contract
 references are optional fields for cases that need them. The canonical schema lives in
-[evaluation-matrix.md](evaluation-matrix.md); the dataset lifecycle behind it
-lives in [dataset-governance.md](dataset-governance.md); the trial and threshold
-math lives in [statistical-methodology.md](statistical-methodology.md). The
+[evaluation-matrix.md](../archive/evaluation/evaluation-matrix.md) (archived by
+#337); the dataset lifecycle behind it lives in
+[dataset-governance.md](../archive/evaluation/dataset-governance.md) (archived
+by #337); the trial and threshold math lives in
+[statistical-methodology.md](../archive/evaluation/statistical-methodology.md)
+(archived by #337). The
 coding-agent functionality product quality rubric lives in
 [product-quality-rubric.md](product-quality-rubric.md), where it frames useful,
 complete, workflow-fit agent behavior; it is not a visual, aesthetic, or
