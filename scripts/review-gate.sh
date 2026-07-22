@@ -788,8 +788,12 @@ case "$command" in
     # In a plain repo the canonical path equals marker_file (write once). In a
     # linked worktree the canonical marker lives in the main checkout root;
     # check-trace-consistency reads it there, so carry must update it too.
+    # Fail-closed: unresolvable main-root is a hard error (not a fallback to repo_root).
     _carry_main_root=""
-    _carry_main_root="$(_main_root_from_common_dir 2>/dev/null)" || _carry_main_root="$repo_root"
+    _carry_main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
+      yellow "⚠ carry-rebase-approval: cannot resolve main-root via git common-dir — is this a valid worktree or plain repo?"
+      exit 1
+    }
     canonical_marker_file="${_carry_main_root}/.copilot-tracking/review-gate/approved-head"
 
     if [ "$canonical_marker_file" != "$marker_file" ]; then

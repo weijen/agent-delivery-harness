@@ -585,27 +585,33 @@ MAIN_LINE1_W="$(sed -n '1p' "$MAIN_MARKER_W" | tr -d '[:space:]')"
 [ "$MAIN_LINE1_W" = "$POST_REBASE_HEAD_W" ] \
   || fail "(W) main-root marker line 1 must be post-rebase HEAD ${POST_REBASE_HEAD_W}, got ${MAIN_LINE1_W} — carry must update BOTH markers in a linked-worktree"
 
-# Exactly one carry span in the main-root trace (the trace target in a worktree).
+# Scenario W: main-root trace file and check-trace-consistency.sh are REQUIRED
+# (hard-fail if missing or if checker doesn't exit 0).
 TRACE_W="${RW_MAIN}/.copilot-tracking/issues/issue-310/trace.jsonl"
-if [ -f "$TRACE_W" ] && command -v jq >/dev/null 2>&1; then
-  CARRY_COUNT_W="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_W" | wc -l | tr -d ' ')"
-  [ "$CARRY_COUNT_W" = "1" ] \
-    || fail "(W) main-root trace must have exactly 1 carry span, got ${CARRY_COUNT_W}"
+if [ ! -f "$TRACE_W" ]; then
+  fail "(W) main-root trace file REQUIRED but not found at ${TRACE_W}"
 fi
+if ! command -v jq >/dev/null 2>&1; then
+  fail "(W) jq REQUIRED to verify carry span in trace"
+fi
+CARRY_COUNT_W="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_W" | wc -l | tr -d ' ')"
+[ "$CARRY_COUNT_W" = "1" ] \
+  || fail "(W) main-root trace must have exactly 1 carry span, got ${CARRY_COUNT_W}"
 
-# check-trace-consistency.sh run from the linked worktree must exit 0.
-if [ -x "${RW_WT}/scripts/check-trace-consistency.sh" ]; then
-  CONS_OUT_W="${TMP_DIR}/w-cons.out"
-  CONS_RC_W=0
-  (cd "$RW_WT" && PATH="${BIN}:${PATH}" TRACE_ISSUE=310 ./scripts/check-trace-consistency.sh 310) \
-    > "$CONS_OUT_W" 2>&1 || CONS_RC_W=$?
-  if [ "$CONS_RC_W" != "0" ]; then
-    cat "$CONS_OUT_W"
-    fail "(W) check-trace-consistency.sh must exit 0 after linked-worktree carry; got exit ${CONS_RC_W}"
-  fi
-  grep -q "review_sha_mismatch" "$CONS_OUT_W" \
-    && { cat "$CONS_OUT_W"; fail "(W) consistency must not report review_sha_mismatch after linked-worktree carry"; }
+# check-trace-consistency.sh REQUIRED and must be executable.
+if [ ! -x "${RW_WT}/scripts/check-trace-consistency.sh" ]; then
+  fail "(W) check-trace-consistency.sh REQUIRED but missing or not executable at ${RW_WT}/scripts/check-trace-consistency.sh"
 fi
+CONS_OUT_W="${TMP_DIR}/w-cons.out"
+CONS_RC_W=0
+(cd "$RW_WT" && PATH="${BIN}:${PATH}" TRACE_ISSUE=310 ./scripts/check-trace-consistency.sh 310) \
+  > "$CONS_OUT_W" 2>&1 || CONS_RC_W=$?
+if [ "$CONS_RC_W" != "0" ]; then
+  cat "$CONS_OUT_W"
+  fail "(W) check-trace-consistency.sh MUST exit 0 after linked-worktree carry; got exit ${CONS_RC_W}"
+fi
+grep -q "review_sha_mismatch" "$CONS_OUT_W" \
+  && { cat "$CONS_OUT_W"; fail "(W) consistency must not report review_sha_mismatch after linked-worktree carry"; }
 
 printf 'ok - (W) linked-worktree carry: both markers updated, consistency passes\n'
 
@@ -669,4 +675,82 @@ fi
 
 printf 'ok - (Wm) canonical marker mismatch: carry refused, neither marker updated, no carry span\n'
 
-printf '\n1..10\nall carry-approval scenarios passed\n'
+# ============================================================================
+# (X) Main-root resolution failure: git rev-parse --git-common-dir fails.
+# Carry must fail-closed (exit non-zero) without updating any markers and
+# without emitting a carry span. Tests fail-closed fallback removal.
+#
+# Setup: create a git wrapper that intercepts rev-parse --git-common-dir
+# and returns error; other git commands pass through to real git.
+# ============================================================================
+RX_MAIN="${TMP_DIR}/rx_main"
+RX_WT="${TMP_DIR}/rx_wt"
+RX_BIN="${TMP_DIR}/rx_bin"
+
+make_pr_repo "$RX_MAIN" 310
+git -C "$RX_MAIN" checkout -q main
+git -C "$RX_MAIN" worktree add -q "$RX_WT" "feature/issue-310-fixture"
+ln -sf "${RX_MAIN}-origin.git" "${RX_WT}-origin.git"
+mkdir -p "${RX_WT}/.copilot-tracking/issues/issue-310"
+printf '# Progress\n\nwork\n' > "${RX_WT}/.copilot-tracking/issues/issue-310/progress.md"
+
+# Create git wrapper that fails on --git-common-dir.
+mkdir -p "$RX_BIN"
+cat > "$RX_BIN/git" <<'EOF'
+#!/bin/bash
+if [ "$1" = "rev-parse" ] && [ "$2" = "--git-common-dir" ]; then
+  echo "error: could not determine --git-common-dir (test injected failure)" >&2
+  exit 1
+fi
+exec /usr/bin/git "$@"
+EOF
+chmod +x "$RX_BIN/git"
+
+# Approve with real git (BIN doesn't override real git yet).
+(cd "$RX_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(X) setup: approve from linked worktree failed"
+PRE_REBASE_HEAD_X="$(git -C "$RX_WT" rev-parse HEAD)"
+WT_MARKER_X="${RX_WT}/.copilot-tracking/review-gate/approved-head"
+MAIN_MARKER_X="${RX_MAIN}/.copilot-tracking/review-gate/approved-head"
+
+# Mirror marker to main.
+mkdir -p "$(dirname "$MAIN_MARKER_X")"
+cp "$WT_MARKER_X" "$MAIN_MARKER_X"
+
+# Advance origin/main and rebase.
+advance_origin_main_unrelated "$RX_WT"
+(cd "$RX_WT" && git rebase origin/main -q) || fail "(X) setup: rebase failed"
+
+# Direct carry call with git wrapper that breaks --git-common-dir.
+# Carry must fail (exit non-zero).
+CARRY_OUT_X="${TMP_DIR}/x-carry.out"
+CARRY_RC_X=0
+(cd "$RX_WT" && PATH="${RX_BIN}:${PATH}" ./scripts/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_X") \
+  > "$CARRY_OUT_X" 2>&1 || CARRY_RC_X=$?
+[ "$CARRY_RC_X" -ne 0 ] \
+  || { cat "$CARRY_OUT_X"; fail "(X) carry must fail-closed when main-root resolution fails"; }
+
+grep -q "cannot resolve main-root via git common-dir" "$CARRY_OUT_X" \
+  || { cat "$CARRY_OUT_X"; fail "(X) carry must emit diagnostic about main-root resolution failure"; }
+
+# Worktree marker must be unchanged (fail-closed: no marker write).
+WT_LINE1_X="$(sed -n '1p' "$WT_MARKER_X" | tr -d '[:space:]')"
+[ "$WT_LINE1_X" = "$PRE_REBASE_HEAD_X" ] \
+  || fail "(X) worktree marker must remain pre-rebase SHA ${PRE_REBASE_HEAD_X} after resolution failure, got ${WT_LINE1_X}"
+
+# Main-root marker must be unchanged.
+MAIN_LINE1_X="$(sed -n '1p' "$MAIN_MARKER_X" | tr -d '[:space:]')"
+[ "$MAIN_LINE1_X" = "$PRE_REBASE_HEAD_X" ] \
+  || fail "(X) main-root marker must remain pre-rebase SHA ${PRE_REBASE_HEAD_X} after resolution failure, got ${MAIN_LINE1_X}"
+
+# No carry span must have been emitted.
+TRACE_X="${RX_MAIN}/.copilot-tracking/issues/issue-310/trace.jsonl"
+if [ -f "$TRACE_X" ] && command -v jq >/dev/null 2>&1; then
+  CARRY_COUNT_X="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_X" | wc -l | tr -d ' ')"
+  [ "$CARRY_COUNT_X" = "0" ] \
+    || fail "(X) no carry span must be emitted when main-root resolution fails, got ${CARRY_COUNT_X}"
+fi
+
+printf 'ok - (X) main-root resolution failure: carry fails-closed, markers unchanged, no span\n'
+
+printf '\n1..11\nall carry-approval scenarios passed\n'
