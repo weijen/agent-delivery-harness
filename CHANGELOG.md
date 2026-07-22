@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.23.1 (2026-07-22)
+
+### Bug Fixes
+
+- **#330**: Preserve legacy fail traces
+  ([`3352220`](https://github.com/weijen/agent-delivery-harness/commit/3352220bd3d162ad81c9f1b602452fac3aa322cf))
+
+
 ## v0.23.0 (2026-07-22)
 
 ### Bug Fixes
