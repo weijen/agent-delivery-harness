@@ -271,37 +271,37 @@ git -C "$WTB" add feature.txt
 git -C "$WTB" commit -q -m "issue-08: no progress update"
 TRACE_B="${MAIN}/.copilot-tracking/issues/issue-08/trace.jsonl"
 
-if run_gate "$WTB" "${TMP_DIR}/b-statusdoc.out" status-doc; then
-  cat "${TMP_DIR}/b-statusdoc.out"; fail "unsatisfied status-doc must still exit 1 (behavior unchanged)"
-fi
-grep -q "was not updated on this branch" "${TMP_DIR}/b-statusdoc.out" \
-  || { cat "${TMP_DIR}/b-statusdoc.out"; fail "status-doc failure message must be unchanged"; }
-expect_lines "status-doc/fail" "$TRACE_B" 1
+# status-doc gate RETIRED (2026-07-22): it is now an accepted no-op that
+# exits 0 with a retirement notice, and emits no fail span.
+run_gate "$WTB" "${TMP_DIR}/b-statusdoc.out" status-doc \
+  || { cat "${TMP_DIR}/b-statusdoc.out"; fail "retired status-doc must exit 0 (accepted no-op)"; }
+grep -qi "retired" "${TMP_DIR}/b-statusdoc.out" \
+  || { cat "${TMP_DIR}/b-statusdoc.out"; fail "retired status-doc must say so"; }
 b1="$(nth_line "$TRACE_B" 1)"
-check_metrics "status-doc/fail" "$b1" fail
+check_metrics "status-doc/retired-pass" "$b1" pass
 printf '%s\n' "$b1" | jq -e '
     (.span == "tool")
     and (.["gen_ai.tool.name"] == "review-gate.status-doc")
     and (.["harness.issue"] == 8)
   ' >/dev/null \
-  || fail "status-doc/fail: must be a fail tool span gen_ai.tool.name=review-gate.status-doc for issue 8: ${b1}"
+  || fail "status-doc/retired-pass: retired gate still emits a pass tool span for observability: ${b1}"
 
 run_gate "$WTB" "${TMP_DIR}/b-approve.out" approve \
   || { cat "${TMP_DIR}/b-approve.out"; fail "approve in worktree B must still exit 0"; }
 expect_lines "approve (B)" "$TRACE_B" 2
 
-if run_gate "$WTB" "${TMP_DIR}/b-check.out" check; then
-  cat "${TMP_DIR}/b-check.out"; fail "approved check must still exit 1 when the status-doc gate fails (behavior unchanged)"
-fi
-expect_lines "check/status-doc-fail" "$TRACE_B" 3
+# status-doc retired (2026-07-22): an approved check no longer fails on the
+# absent journal — it proceeds through the remaining gates and passes here.
+run_gate "$WTB" "${TMP_DIR}/b-check.out" check \
+  || { cat "${TMP_DIR}/b-check.out"; fail "approved check must pass now that status-doc is retired"; }
+expect_lines "check/pass-post-retirement" "$TRACE_B" 3
 b3="$(nth_line "$TRACE_B" 3)"
-check_metrics "check/status-doc-fail" "$b3" fail
+check_metrics "check/pass-post-retirement" "$b3" pass
 printf '%s\n' "$b3" | jq -e '
     (.span == "tool")
     and (.["gen_ai.tool.name"] == "review-gate.check")
-    and (.["harness.stage"] == "status_doc")
   ' >/dev/null \
-  || fail "check/status-doc-fail: fail tool span must carry harness.stage=status_doc: ${b3}"
+  || fail "check/pass-post-retirement: pass tool span expected: ${b3}"
 
 # ============================================================================
 # 8. Guarded sourcing: trace-lib.sh absent — behavior identical, no emission

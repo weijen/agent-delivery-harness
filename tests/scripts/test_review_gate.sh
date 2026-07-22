@@ -129,8 +129,10 @@ emit "review-gate check fails on an unapproved HEAD"
 grep -q "review approved for current HEAD" /tmp/review-gate-check.out || fail "approval check did not pass"
 emit "review-gate check passes after approving the current HEAD"
 
-printf 'changed\n' > README.md
-git add README.md
+# NB: root *.md would now legitimately carry the approval (docs-only carry,
+# 2026-07-22) — move HEAD with a SCRIPT change so stale-head still triggers.
+printf '# changed\n' >> scripts/probe.sh 2>/dev/null || printf '#!/usr/bin/env bash\n' > scripts/probe.sh
+git add scripts/probe.sh
 make_commit "change head"
 
 if ./scripts/review-gate.sh check >/tmp/review-gate-stale.out 2>&1; then

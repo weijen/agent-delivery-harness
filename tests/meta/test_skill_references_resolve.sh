@@ -37,7 +37,7 @@ done < <(git grep -l 'skills/general' -- '*.md' '*.sh' 2>/dev/null || true)
 # shellcheck disable=SC2016  # `general` is a literal grep pattern, not a command substitution
 while IFS= read -r f; do
   case "$f" in
-    docs/PROGRESS.md) continue ;;
+    docs/PROGRESS.md|docs/archive/*) continue ;;
     docs/copilot-health-check.md) continue ;;
     docs/skill-prompt-modernization-review.md) continue ;;
     docs/subagent-prompt-modernization-review.md) continue ;;
