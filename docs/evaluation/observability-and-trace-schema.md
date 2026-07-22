@@ -359,7 +359,7 @@ to the local schema and recording the mapping version.
 The trace is the **shape** stream; it is not the whole story. Alongside
 `trace.jsonl` the harness writes a second, separately-governed **detail** stream,
 `log.jsonl`, whose closed vocabulary lives in its own machine-readable contract,
-[log-schema.v1.json](log-schema.v1.json). This is the classic OpenTelemetry
+[log-schema.v1.json](../archive/evaluation/log-schema.v1.json) (retired with the log.jsonl stream, #333). This is the classic OpenTelemetry
 two-stream split: **traces carry shape** (the span vocabulary, closed enums, one
 line per span) and **logs carry detail** (a free-form `message` plus an optional
 structured `payload`, one line per step-level event). Keeping detail out of the

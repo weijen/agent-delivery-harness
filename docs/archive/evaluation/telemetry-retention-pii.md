@@ -174,7 +174,7 @@ free-text log fields are the highest-sensitivity surface on the page:
 | `payload` | **Excluded/redacted local detail.** It remains in the local log only after redact-before-cap handling and is not exported while the export leg is removed. |
 
 Both fields obey the **redact-before-cap** discipline pinned in
-[log-schema.v1.json](../../evaluation/log-schema.v1.json): secret-shaped input is redacted
+[log-schema.v1.json](log-schema.v1.json): secret-shaped input is redacted
 **before** any length cap runs, so a truncation boundary can never bisect and
 leak a partially-redacted secret. If a future exporter is re-introduced, it must
 start from this local-only baseline and explicitly prove that `message` and
