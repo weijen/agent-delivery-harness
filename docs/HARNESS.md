@@ -495,7 +495,9 @@ from the independent end-of-issue review), while the ceremony taxed every green.
 discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof` /
 `teeth_proof_waiver` (or the deprecated `red_first_waiver` alias) stay valid: `check-feature-list.sh` still
 shape-validates them warn-only, and governed waivers still satisfy the retained `feature_start` selection-evidence
-gate (#291), which is the only per-feature hard evidence obligation left on the PR path.
+gate (#291), which is the only per-feature hard evidence obligation left on the PR path. Waiver kinds stay
+`bootstrap`, `visual-only`, `doc-only`, or `justified` with a non-empty `reason`; `teeth_proof_waiver` remains the
+canonical key and `red_first_waiver` the deprecated alias (canonical wins when both are present).
 
 ## CI Boundary
 
