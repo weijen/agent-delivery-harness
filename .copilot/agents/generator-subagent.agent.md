@@ -57,8 +57,14 @@ from nearby context.
    Preserve the changed production paths and concise rationale for the `impl_handback` payload. Do not change the
    sensor merely to accommodate the implementation.
 3. **GREEN:** Run the declared `regression_sensor`, then the `e2e_sensor` when the feature crosses a real runtime
-  boundary. Check the four blocking gates in `docs/evaluation/product-quality-rubric.md`: spec fidelity,
-  executable verification, main workflow works, and no known critical breakage. Record evidence for each gate.
+  boundary, then the affected set reported by `scripts/affected-sensors.sh --declared <sensors> --diff <base>`
+  (a `FULL` report means run the whole suite). Do NOT run the full sensor suite at GREEN otherwise — the full
+  suite runs once pre-review and once at the pre-PR verify gate, not per feature. Export
+  `TRACE_SENSOR_SCOPE=scoped|full` and `TRACE_SENSOR_COUNT=<n>` so the `green_handback` span records which tier
+  ran. Check the four blocking gates in `docs/evaluation/product-quality-rubric.md`: spec fidelity,
+  executable verification, main workflow works, and no known critical breakage — the scoped sensor set plus
+  syntax/`shellcheck` on touched scripts is sufficient evidence for the no-known-critical-breakage gate at GREEN.
+  Record evidence for each gate.
   Any failed gate is a BLOCKING handback. Include the gate that failed and its evidence, the expected fix direction,
   and the sensor or review to rerun.
 4. When every required check is GREEN, update only the selected feature's factual completion fields. Set

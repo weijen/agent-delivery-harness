@@ -363,8 +363,10 @@ is recorded alongside the generator's.
 
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
+| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + the `scripts/affected-sensors.sh` set (`FULL` report → whole suite) — **never the full suite by default** | — | **BLOCKING** for the feature's `passes:true` |
 | Pre-commit (docs-only era) | `shellcheck` on the harness scripts | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
 | Pre-commit (code era) | `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` · `uv run pytest` | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
+| Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
 | **Pre-PR verify gate** | full suite + coverage (or the docs-era equivalent) | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
 
 Prefer the cheap deterministic sensors on every change; reserve the expensive inferential sensor
