@@ -436,10 +436,7 @@ trace_lifecycle_init() {
 trace_lifecycle_arm() {
   TRACE_LIFECYCLE_ARMED=1
   TRACE_LIFECYCLE_T0="$(trace_now_ms)"
-  if [ -n "${TRACE_LIFECYCLE_STEP:-}" ]; then
-    trace_log info "lifecycle ${TRACE_LIFECYCLE_STEP} start" \
-      "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}"
-  fi
+  # (log.jsonl start line removed — issue #333; the lifecycle span is the record)
 }
 
 __trace_lifecycle_exit() {
@@ -461,10 +458,7 @@ __trace_lifecycle_exit() {
       done < <("${TRACE_LIFECYCLE_ATTR_FN}")
     fi
     trace_span lifecycle "${attrs[@]}"
-    trace_log info "lifecycle ${TRACE_LIFECYCLE_STEP} end" \
-      "harness.lifecycle_step=${TRACE_LIFECYCLE_STEP}" \
-      "harness.outcome=${outcome}" \
-      "harness.exit_status=${rc}"
+    # (log.jsonl end line removed — issue #333; the span above is the record)
     # Post-emission hook (issue #329, plan Phase A): runs AFTER the terminal
     # span above is already on disk, on every armed exit regardless of
     # outcome. Best-effort — a failing/absent post_fn must never change the
