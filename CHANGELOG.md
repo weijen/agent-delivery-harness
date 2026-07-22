@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.27.0 (2026-07-22)
+
+### Documentation
+
+- **#332**: Record single-source trace delivery
+  ([`9a5837e`](https://github.com/weijen/agent-delivery-harness/commit/9a5837e2808f5963a569876093ebb51b54375d66))
+
+### Features
+
+- **#332**: Render action log from trace
+  ([`774854e`](https://github.com/weijen/agent-delivery-harness/commit/774854e3c56054608c7811159c3a43fc5e4252f3))
+
+### Refactoring
+
+- **#332**: Consolidate action log sensor
+  ([`e46337d`](https://github.com/weijen/agent-delivery-harness/commit/e46337d451c0ac12e385e7ab62859f25b42840f6))
+
+- **#332**: Make handbacks trace-only
+  ([`97c7e16`](https://github.com/weijen/agent-delivery-harness/commit/97c7e1640464a30a9da127e6510d4454a4731954))
+
+- **#332**: Retire action log reconciliation
+  ([`8259602`](https://github.com/weijen/agent-delivery-harness/commit/82596028a6079636338d86e51b105d4496b14627))
+
+
 ## v0.26.0 (2026-07-22)
 
 ### Features
