@@ -88,7 +88,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in review-gate.sh check-trace-consistency.sh validate-trace.sh \
+for s in review-gate.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the verdict PR-gate fixture"
@@ -122,12 +122,13 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
 make_repo() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/docs"
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
-  for s in review-gate.sh check-trace-consistency.sh validate-trace.sh \
+  for s in review-gate.sh check-trace-consistency.sh \
            trace-lib.sh issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"

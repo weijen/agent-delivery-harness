@@ -8,10 +8,10 @@
 # whole-run first-to-last timestamp elapsed, and the final outcome from the
 # finish lifecycle span.
 #
-# Division of labor (plan D1): validation is validate-trace.sh's job. This
+# Division of labor (plan D1): validation is check-trace-consistency.sh's job. This
 # report never re-implements schema/type/redaction/completeness checks.
 # Unparseable lines (non-JSON, or JSON-non-object) are skipped and COUNTED
-# (`invalid lines: <N>`), with a pointer to ./scripts/validate-trace.sh.
+# (`invalid lines: <N>`), with a pointer to ./scripts/check-trace-consistency.sh.
 # A type-violating-but-parseable span still aggregates — the report is not
 # a validator.
 #
@@ -117,7 +117,7 @@ if ! FAILURE_CLASSES="$(
   exit 2
 fi
 
-# --- Resolve the trace file (CLI parity with validate-trace.sh, plan D7) -----
+# --- Resolve the trace file (CLI parity with check-trace-consistency.sh, plan D7) -----
 TRACE_FILE=""
 case "$ARG" in
   */* | *.jsonl)
@@ -485,7 +485,7 @@ def na: if . == null then "n/a" else tostring end;
     "# Trace report: \($s.trace_file)",
     "",
     "- spans aggregated: \($s.span_counts.total)\($by_type)",
-    "- invalid lines: \($s.span_counts.invalid_lines) (skipped, not aggregated — run ./scripts/validate-trace.sh for details)",
+    "- invalid lines: \($s.span_counts.invalid_lines) (skipped, not aggregated — run ./scripts/check-trace-consistency.sh for details)",
     (if $s.wall_clock == null
      then "- first-to-last timestamp elapsed: n/a (no timestamps)"
      else "- first-to-last timestamp elapsed: \($s.wall_clock.elapsed_seconds | na) seconds (\($s.wall_clock.first_timestamp) → \($s.wall_clock.last_timestamp); wall clock, includes agent thinking time between spans)"

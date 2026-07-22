@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # review-gate.sh — local HEAD-bound review approval marker, plus the
-# two-phase trace gate (issue #103, feature trace-gate-two-phase): the
-# `trace` subcommand wraps the report-only trace checkers
-# (validate-trace.sh + check-trace-consistency.sh) warn-only by default;
+# trace gate (issue #103, feature trace-gate-two-phase): the `trace`
+# subcommand wraps the report-only check-trace-consistency.sh checker,
+# warn-only by default;
 # REQUIRE_TRACE_CONSISTENCY=1 is the documented promotion flag that turns
 # findings into a hard failure (REQUIRE_FEATURES_COMPLETE precedent).
 
@@ -138,7 +138,7 @@ Commands:
   ci-gate     Fail closed when a code surface is present but no
               .github/workflows/*.y*ml (other than harness-smoke.yml) runs its
               gates. Bypass with SKIP_CI_GATE=1 (logged).
-  trace       Run the trace checkers (validate-trace.sh + check-trace-consistency.sh)
+  trace       Run check-trace-consistency.sh
               for the current issue. Warn-only by default: findings are printed
               with a warning summary and the exit code stays 0. Set
               REQUIRE_TRACE_CONSISTENCY=1 to make findings a hard failure.
@@ -225,10 +225,8 @@ ci_gate() {
 
 # trace_gate — two-phase trace gate (issue #103, feature trace-gate-two-phase).
 #
-# Runs the two report-only trace checkers for the current issue and passes
-# their findings through so the operator sees rule names from BOTH:
-#   1. validate-trace.sh <issue>          (schema/type/redaction, #97)
-#   2. check-trace-consistency.sh <issue> (cross-artifact honesty, #103)
+# Runs the report-only trace checker for the current issue and passes through
+# schema/type/redaction and cross-artifact findings.
 # Phase one is WARN-ONLY (#84 status-doc rollout precedent): findings print a
 # ⚠ summary and the gate returns 0. REQUIRE_TRACE_CONSISTENCY=1 — the
 # documented promotion flag, mirroring REQUIRE_FEATURES_COMPLETE exactly —
@@ -275,9 +273,8 @@ trace_gate() {
   local t0 issue_num=""
   t0="$(trace_now_ms)"
 
-  if [ ! -x "${SCRIPT_DIR}/validate-trace.sh" ] \
-    || [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
-    yellow "⚠ trace gate skipped: validate-trace.sh / check-trace-consistency.sh not found"
+  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+    yellow "⚠ trace gate skipped: check-trace-consistency.sh not found"
     return 0
   fi
 
@@ -287,30 +284,17 @@ trace_gate() {
     return 0
   fi
 
-  local vout="" cout="" vrc=0 crc=0
-  vout="$("${SCRIPT_DIR}/validate-trace.sh" "$issue_num" 2>&1)" || vrc=$?
-  if [ "$vrc" -eq 2 ]; then
-    yellow "⚠ trace gate skipped: validate-trace.sh could not run for issue ${issue_num} (no trace yet?)"
+  local cout="" crc=0
+  cout="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || crc=$?
+  printf '%s\n' "$cout"
+
+  local v_cnt=0 w_cnt=0
+  v_cnt="$(printf '%s\n' "$cout" | grep -c '^VIOLATION ' || true)"
+  w_cnt="$(printf '%s\n' "$cout" | grep -c '^WARNING' || true)"
+  if [ "$crc" -eq 2 ] && [ "$v_cnt" -eq 0 ] && [ "$w_cnt" -eq 0 ]; then
+    yellow "⚠ trace gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
     return 0
   fi
-  printf '%s\n' "$vout"
-  cout="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || crc=$?
-  if [ "$crc" -eq 2 ]; then
-    yellow "⚠ trace gate: check-trace-consistency.sh could not run for issue ${issue_num} — consistency half skipped"
-    cout=""
-  else
-    printf '%s\n' "$cout"
-  fi
-
-  # Aggregate finding counts across both checkers (findings start their
-  # lines with VIOLATION / WARNING in both report formats).
-  local v_cnt=0 w_cnt=0 a b
-  a="$(printf '%s\n' "$vout" | grep -c '^VIOLATION ' || true)"
-  b="$(printf '%s\n' "$cout" | grep -c '^VIOLATION ' || true)"
-  v_cnt=$((a + b))
-  a="$(printf '%s\n' "$vout" | grep -c '^WARNING' || true)"
-  b="$(printf '%s\n' "$cout" | grep -c '^WARNING' || true)"
-  w_cnt=$((a + b))
 
   local outcome="pass" gate_rc=0
   if [ "$v_cnt" -gt 0 ] && [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then

@@ -44,7 +44,7 @@
 #               every harness.economics.native_* key are OMITTED and exactly one
 #               finish-issue.economics span is still emitted (fail-open).
 #   E2E       — a real FORCE=1 finish-issue.sh run: the native block SURVIVES in
-#               the main-root progress.md, the span is present, validate-trace.sh
+#               the main-root progress.md, the span is present, check-trace-consistency.sh
 #               accepts the trace, and no `- Tokens: n/a` line is printed.
 #
 # Hermeticity: COPILOT_CLI_STATE_ROOT is pinned to an isolated fixture dir and
@@ -115,7 +115,7 @@ write_fake_gh "${BIN}/gh"
 copy_fixture_scripts() {
   local dir="$1" s
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for s in finish-lib.sh trace-lib.sh log-handback.sh validate-trace.sh trace-report.sh \
+  for s in finish-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh \
     issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by native economics fixture"
@@ -364,9 +364,13 @@ jq_span "$SP_BR" '."harness.economics.native_aiu_nano_delta" == 80000000000 and 
 # The span carries NO raw model-name string (numeric prefix stays numeric-only).
 jq_span "$SP_BR" '[to_entries[] | select(.key|startswith("harness.economics.native_")) | .value | type] | all(. == "number")' \
   || fail "BRACKET: every harness.economics.native_* span value must be numeric"
-# validate-trace.sh must accept the resulting trace with the new native keys.
-if ! (cd "$F_BR" && env PATH="$BIN" ./scripts/validate-trace.sh "$I_BR") >"${TMP_DIR}/vt-br.out" 2>&1; then
-  fail "BRACKET: validate-trace.sh must accept the trace (out: $(tr '\n' '|' < "${TMP_DIR}/vt-br.out"))"
+# The consolidated checker must accept the resulting span's schema and types;
+# unrelated feature-state findings in this focused fixture are ignored.
+(cd "$F_BR" && env PATH="$BIN" ./scripts/check-trace-consistency.sh "$I_BR") \
+  >"${TMP_DIR}/vt-br.out" 2>&1 || true
+if grep -Eq 'schema_violation|type_violation|invalid_json|failure_mode_violation' \
+    "${TMP_DIR}/vt-br.out"; then
+  fail "BRACKET: consolidated checker rejected the native economics schema/types (out: $(tr '\n' '|' < "${TMP_DIR}/vt-br.out"))"
 fi
 
 # ===========================================================================
@@ -644,7 +648,7 @@ jq_span "$SP_E2E" '."harness.economics.native_subagent_tokens" == 3500' \
   || fail "E2E: span native_subagent_tokens must be 3500 after a real finish"
 jq_span "$SP_E2E" '."harness.economics.native_aiu_nano_delta" == 80000000000' \
   || fail "E2E: span native_aiu_nano_delta must be 80000000000 after a real finish"
-# NOTE: validate-trace.sh is exercised on the BRACKET direct trace above; the
+# NOTE: check-trace-consistency.sh is exercised on the BRACKET direct trace above; the
 # minimal E2E fixture trace intentionally lacks the full lifecycle-step set, so
 # its completeness check is out of scope for THIS feature's native-keys contract.
 

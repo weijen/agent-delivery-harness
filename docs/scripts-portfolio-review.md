@@ -62,8 +62,7 @@ script with one justified mini-CLI (`review-gate.sh` subcommands).
 | --- | --- | --- | --- | --- |
 | `trace-export.sh` | 900 | Map spans → App Insights / OTLP envelopes, fail-closed gates, curl ship | **114 + 114 lines** | 6 |
 | `copilot-trace-hook.sh` | 576 | Copilot runtime hook: tool/agent/model spans, interval attribution | 31 jq call sites | 8 |
-| `check-trace-consistency.sh` | 470 | Trace ↔ progress.md ↔ feature_list cross-checks, red-first evidence | 36 + 36 lines | – |
-| `validate-trace.sh` | 403 | Schema/type/enum/redaction validation | **109 lines** | 4 |
+| `check-trace-consistency.sh` | 1,608 | Schema/type/redaction + trace ↔ progress.md ↔ feature_list cross-checks | 145 lines | – |
 | `trace-report.sh` | 396 | Per-issue aggregation → summary JSON + markdown | **141 lines** | 5 |
 | `trace-lib.sh` | 388 | `trace_span` emission, redaction, portable clock, main-root pinning | 37 lines | 8 |
 | `trace-scorecard.sh` | 368 | Cross-run aggregation by harness version | 90 lines | 4 |
@@ -115,7 +114,7 @@ The six trace analytics tools are **data programs, not orchestration**:
   definitions, TimeSpan arithmetic, hex trace-id derivation), a hand-wired HTTP transport, and
   a 4-layer fail-closed audit. The `allowlist`/`shippable_key` defs are **byte-duplicated**
   between the two programs because jq-in-heredoc has no import mechanism.
-- `validate-trace.sh` — a 109-line single-pass jq filter carrying schema + types + enums +
+- `check-trace-consistency.sh` — a 109-line single-pass jq filter carrying schema + types + enums +
   sanity flags, deliberately monolithic to avoid per-line process forks (a constraint Python
   simply doesn't have).
 - `trace-report.sh` — a 141-line jq aggregation (token bucketing with absence-vs-zero

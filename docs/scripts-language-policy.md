@@ -31,9 +31,9 @@ depends on them staying interpreter-free:
 
 ## 2. May become Python — trigger-based, never wholesale
 
-Only the **four surviving trace-analytics tools** are candidates:
-`validate-trace.sh`, `trace-report.sh`, `trace-scorecard.sh`, and
-`check-trace-consistency.sh`. They are already "Python programs wearing a bash
+Only the **three surviving trace-analytics tools** are candidates:
+`check-trace-consistency.sh`, `trace-report.sh`, and `trace-scorecard.sh`.
+They are already "Python programs wearing a bash
 costume" (~600 lines of jq in heredocs, no types, no debugger, no unit-test
 seams).
 

@@ -5,7 +5,7 @@
     "absence_semantics": "null means no data; 0 means measured zero; [] means the detector ran and found nothing. A metric is never fabricated from absent spans (e.g. no model spans => tokens is null, never 0).",
     "open_world": "Additive top-level keys are allowed in later v1.x revisions; existing keys and their semantics are frozen. Optional keys such as coverage, skills, bounded, and closed_by may be absent from older v1 summaries. Consumers reject unknown majors of summary_schema_version.",
     "single_source_of_numbers": "The markdown report on stdout is rendered FROM this object, so the human report and this machine summary can never disagree.",
-    "computed_only": "Every value is computed from spans on disk; nothing is self-reported. Lines that do not parse as a JSON object are excluded from every aggregate and counted in span_counts.invalid_lines (validation itself is scripts/validate-trace.sh's job).",
+    "computed_only": "Every value is computed from spans on disk; nothing is self-reported. Lines that do not parse as a JSON object are excluded from every aggregate and counted in span_counts.invalid_lines (validation itself is scripts/check-trace-consistency.sh's job).",
     "visibility": "Local-only, never committed; covered by the existing .gitignore rule .copilot-tracking/issues/issue-*/."
   },
   "required_top_level": [

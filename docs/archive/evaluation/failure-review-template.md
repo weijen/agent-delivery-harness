@@ -27,7 +27,7 @@ Use the existing tooling — never ad-hoc greps over raw traces:
    deviation span's `harness.summary` and, when present, its
    `harness.failure_mode` attribute (the closed-enum key the clustering
    below is keyed on).
-2. `./scripts/validate-trace.sh <issue>` per covered issue: violation
+2. `./scripts/check-trace-consistency.sh <issue>` per covered issue: violation
    findings (including `failure_mode_violation`) are review input too — a
    trace that cannot be trusted is itself a failure observation.
 3. Where a run's failure evidence should outlive the local-only trace,

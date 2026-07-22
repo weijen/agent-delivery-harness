@@ -428,7 +428,7 @@ lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
 
 ## Validating A Trace
 
-`scripts/validate-trace.sh` (issue #97) is the standalone, report-only
+`scripts/check-trace-consistency.sh` (issue #97) is the standalone, report-only
 validator for this contract. Run it locally with an issue number (it resolves
 the per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
 checks every span line against [trace-schema.v1.json](trace-schema.v1.json)
@@ -461,7 +461,7 @@ measured zero active time remains numeric `0`.
 Reporting never gates: exit codes are `0` whenever a report is produced and
 `2` on usage or environment errors; validation remains the validator's job —
 unparseable lines are skipped and counted, with a pointer to
-`validate-trace.sh`.
+`check-trace-consistency.sh`.
 
 Across runs, `scripts/trace-scorecard.sh` (issue #104) aggregates the emitted
 `trace-summary.json` files into a cross-run scorecard keyed by attributed

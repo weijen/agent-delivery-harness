@@ -658,8 +658,8 @@ _Last updated: 2026-07-22 (#332)_
   section that judges delivery discipline from the local trace, not just the diff.**
   `.copilot/agents/code-review-subagent.agent.md` gains a `## Trace / Process
   Evidence` section instructing the reviewer to locate `trace.jsonl` /
-  `trace-summary.json`, run `scripts/validate-trace.sh NN` +
-  `scripts/check-trace-consistency.sh NN` when a local trace exists, and report
+  `trace-summary.json`, run `scripts/check-trace-consistency.sh NN` when a local
+  trace exists, and report
   trace **coverage** separately from behavior (`has_tool_spans=false` = runtime
   instrumentation absent, not "no tools ran"; `tokens=null` = unavailable, not
   zero cost; schema pass/fail; run outcome). It encodes the evidence-authority
@@ -798,8 +798,8 @@ _Last updated: 2026-07-22 (#332)_
   log-handback/consistency roles) — as the single authority for values that
   were previously hand-copied into script bodies with "keep in step" comments.
   The script-local copies in `trace-lib.sh` (numeric typing + span-type case),
-  `validate-trace.sh` (`$numeric_keys`), `check-trace-consistency.sh`
-  (`$roles`), and `log-handback.sh` (role `case`) are wrapped in
+  `check-trace-consistency.sh` (`$numeric_keys` and `$roles`) and
+  `log-handback.sh` (role `case`) are wrapped in
   `# >>> trace-schema:<name> … # <<< trace-schema:<name>` sentinel markers and
   enforced by a new meta drift sensor
   `tests/meta/test_trace_schema_single_source.sh`, which fails set-equivalence

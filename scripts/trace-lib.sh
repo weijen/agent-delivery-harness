@@ -308,7 +308,7 @@ trace_span() {
   # harness.violation_count / harness.warning_count (#103 trace-gate counts)
   # become JSON numbers; everything else stays a string (harness.stage and
   # digits-only shas like harness.review_gate_sha remain strings). Keep this
-  # exact-key list in step with validate-trace.sh's known-key type map.
+  # exact-key list in step with check-trace-consistency.sh's known-key type map.
   local line=""
   line="$(jq -cn \
     --arg span "$span_type" \

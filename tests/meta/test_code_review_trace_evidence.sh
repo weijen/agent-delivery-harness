@@ -48,7 +48,6 @@ assert_section 'trace\.jsonl' "$review Trace / Process Evidence section must nam
 assert_section 'trace-summary\.json' "$review Trace / Process Evidence section must name trace-summary.json"
 
 # 3. Trace tooling to run when a local trace exists.
-assert_section 'validate-trace\.sh' "$review Trace / Process Evidence section must name validate-trace.sh"
 assert_section 'check-trace-consistency\.sh' "$review Trace / Process Evidence section must name check-trace-consistency.sh"
 
 # 4. Trace coverage reporting semantics.

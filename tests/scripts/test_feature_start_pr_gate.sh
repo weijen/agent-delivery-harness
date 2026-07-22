@@ -144,7 +144,7 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] \
   || hard_fail "trace schema contract not found (${SCHEMA})"
-for s in review-gate.sh create-pr.sh check-trace-consistency.sh validate-trace.sh \
+for s in review-gate.sh create-pr.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh start-issue.sh finish-issue.sh \
          check-feature-list.sh log-handback.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
@@ -207,7 +207,7 @@ make_fixture() {
   local s
   for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
            review-gate.sh create-pr.sh log-handback.sh trace-lib.sh \
-           validate-trace.sh check-trace-consistency.sh; do
+           check-trace-consistency.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"

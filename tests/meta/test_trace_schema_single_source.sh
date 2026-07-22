@@ -26,7 +26,6 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 CONTRACT="$ROOT/docs/evaluation/trace-schema.v1.json"
 TRACE_LIB="$ROOT/scripts/trace-lib.sh"
-VALIDATE="$ROOT/scripts/validate-trace.sh"
 CONSISTENCY="$ROOT/scripts/check-trace-consistency.sh"
 LOG_HANDBACK="$ROOT/scripts/log-handback.sh"
 
@@ -76,7 +75,7 @@ for fc_slug in validation-bypass knowledge-gap complexity known-flaky polling sp
     || fail "authority .failure_classes must retain cross-issue slug '${fc_slug}' (issue #318 cross-issue key model)"
 done
 
-# validate-trace.sh types both the trace-lib numeric keys and the structural
+# check-trace-consistency.sh types both the trace-lib numeric keys and the structural
 # numerics (harness.issue, schema_version), so its expected set is the union.
 AUTH_VALIDATE="$(printf '%s\n%s\n' "$AUTH_NUMERIC" "$AUTH_STRUCT" | LC_ALL=C sort -u)"
 
@@ -141,10 +140,10 @@ prefix_present_or_fail "trace-lib.sh numeric block" "$TRACE_LIB"
 tl_spans="$(region span_types "$TRACE_LIB" | tokens "$SPAN_RE")"
 diff_or_fail "trace-lib.sh span-type enum" "$AUTH_SPANS" "$tl_spans"
 
-# --- 2. validate-trace.sh numeric_keys array (numeric_keys + structural) -----
-vt_keys="$(region numeric_keys "$VALIDATE" | grep -oE "$KEY_RE" | tr -d '"' | LC_ALL=C sort -u)"
-diff_or_fail "validate-trace.sh \$numeric_keys" "$AUTH_VALIDATE" "$vt_keys"
-prefix_present_or_fail "validate-trace.sh types_valid" "$VALIDATE"
+# --- 2. check-trace-consistency.sh numeric_keys array (numeric_keys + structural) -----
+vt_keys="$(region numeric_keys "$CONSISTENCY" | grep -oE "$KEY_RE" | tr -d '"' | LC_ALL=C sort -u)"
+diff_or_fail "check-trace-consistency.sh \$numeric_keys" "$AUTH_VALIDATE" "$vt_keys"
+prefix_present_or_fail "check-trace-consistency.sh types_valid" "$CONSISTENCY"
 
 # --- 3. check-trace-consistency.sh role enum (quoted array) -----------------
 cc_roles="$(region roles "$CONSISTENCY" | grep -oE "$ROLEQ_RE" | tr -d '"' | LC_ALL=C sort -u)"

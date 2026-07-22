@@ -87,13 +87,13 @@ chmod +x "${BIN}/gh"
 # and adds feature.txt (no conflict with unrelated main changes).
 make_pr_repo() {
   local dir="$1" pad="$2"
-  mkdir -p "${dir}/scripts" "${dir}/docs"
+  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   cp "${ROOT}/scripts/create-pr.sh" "${dir}/scripts/"
   cp "${ROOT}/scripts/review-gate.sh" "${dir}/scripts/"
   cp "${ROOT}/scripts/trace-lib.sh" "${dir}/scripts/" 2>/dev/null || true
   cp "${ROOT}/scripts/check-trace-consistency.sh" "${dir}/scripts/" 2>/dev/null || true
-  cp "${ROOT}/scripts/validate-trace.sh" "${dir}/scripts/" 2>/dev/null || true
   cp "${ROOT}/scripts/issue-lib.sh" "${dir}/scripts/" 2>/dev/null || true
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
@@ -103,7 +103,7 @@ make_pr_repo() {
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"
   printf '# Progress\n\nbaseline\n' > "${dir}/.copilot-tracking/issues/issue-${pad}/progress.md"
-  git -C "$dir" add .gitignore README.md docs/PROGRESS.md scripts
+  git -C "$dir" add .gitignore README.md docs scripts
   git -C "$dir" commit -q -m initial
   git clone -q --bare "$dir" "${dir}-origin.git"
   git -C "$dir" remote add origin "${dir}-origin.git"

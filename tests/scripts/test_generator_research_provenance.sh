@@ -154,8 +154,9 @@ check_direct_trace() {
   fi
 }
 
+COMMON='"schema_version":1,"timestamp":"2026-07-22T10:00:00Z","span":"agent","harness.issue":42,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent"'
 for step in red_handback impl_handback green_handback; do
-  DIRECT_BASE="\"span\":\"agent\",\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"${step}\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\""
+  DIRECT_BASE="${COMMON},\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"${step}\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\""
   check_direct_trace "${step}-research-valid" pass \
     "{${DIRECT_BASE},\"harness.failure_disposition\":\"research\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
     generator-subagent "$step"
@@ -193,10 +194,10 @@ for step in red_handback impl_handback green_handback; do
 done
 
 check_direct_trace unrelated-role pass \
-  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+  "{${COMMON},\"gen_ai.agent.name\":\"conductor\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
   conductor deviation
 check_direct_trace unrelated-step pass \
-  "{\"span\":\"agent\",\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
+  "{${COMMON},\"gen_ai.agent.name\":\"generator-subagent\",\"harness.lifecycle_step\":\"deviation\",\"harness.feature_id\":\"fixture\",\"harness.outcome\":\"pass\",\"harness.failure_disposition\":\"research-requested\",\"harness.research_url\":\"${URL}\",\"harness.research_summary\":\"${SUMMARY}\"}" \
   generator-subagent deviation
 
 jq -e '
