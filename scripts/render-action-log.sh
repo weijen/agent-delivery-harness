@@ -50,9 +50,16 @@ TRACE_DIR="$(dirname "$TRACE_FILE")"
 TRACE_DIR_PHYS="" TRACE_DIR_LOGIC=""
 TRACE_DIR_PHYS="$(cd "$TRACE_DIR" && pwd -P 2>/dev/null)" || true
 TRACE_DIR_LOGIC="$(cd "$TRACE_DIR" && pwd -L 2>/dev/null)" || true
-case "$TRACE_DIR_LOGIC" in /var/*|/tmp/*) TRACE_DIR_LOGIC="/private${TRACE_DIR_LOGIC}" ;; esac
-[ -n "$TRACE_DIR_PHYS" ] && [ -n "$TRACE_DIR_LOGIC" ] && [ "$TRACE_DIR_PHYS" != "$TRACE_DIR_LOGIC" ] \
-  && { warn "trace directory logical path traverses symlink components — refusing: ${TRACE_DIR}"; exit 0; }
+if [ -n "$TRACE_DIR_PHYS" ] && [ -n "$TRACE_DIR_LOGIC" ] \
+    && [ "$TRACE_DIR_PHYS" != "$TRACE_DIR_LOGIC" ]; then
+  # The one benign divergence is the macOS /tmp,/var → /private/... OS symlink;
+  # never mutate the logical path (a hardcoded /private prefix broke Linux,
+  # where /tmp is a real directory and the paths already match).
+  case "$TRACE_DIR_PHYS" in
+    "/private${TRACE_DIR_LOGIC}") : ;;
+    *) warn "trace directory logical path traverses symlink components — refusing: ${TRACE_DIR}"; exit 0 ;;
+  esac
+fi
 
 [ -f "$PROGRESS_FILE" ] || { warn "progress.md not found: ${PROGRESS_FILE}"; exit 0; }
 [ -L "$PROGRESS_FILE" ] \
