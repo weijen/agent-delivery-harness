@@ -224,31 +224,26 @@ through the conductor, or route scope and planning decisions to the **conductor*
 4. **Error handling** — Do failures at system boundaries (user input, external APIs, IO) surface to the caller, while
    internal helpers trust their inputs without speculative validation?
 5. **Security** — No obvious vulnerabilities (injection, hardcoded secrets, etc.)?
-6. **Hidden failure modes** — Apply [`find-brute-force`](../skills/find-brute-force/SKILL.md) to the diff.
-   Read the skill for the pattern list and how each pattern maps to CRITICAL / MAJOR / MINOR.
-7. **Duplication introduced by this change** — Apply [`find-duplicates`](../skills/find-duplicates/SKILL.md)
-   to the diff. Read the skill for the clone-vs-coincidence judgement and when extraction is warranted.
-8. **Over-design introduced by this change** — Apply [`find-over-design`](../skills/find-over-design/SKILL.md)
-   to the diff. Read the skill for the YAGNI heuristics on premature abstractions and speculative parameters.
-9. **Dead-code risk introduced by this change** — Apply [`dead-code-detection`](../skills/dead-code-detection/SKILL.md)
-   to touched symbols and paths when the diff adds, renames, routes, or removes callable code, scripts, hooks, prompts,
-   agents, or config entries.
-10. **Docs drift introduced by this change** — Apply [`sync-docs`](../skills/sync-docs/SKILL.md) to touched
-    user-facing commands, paths, lifecycle rules, agent names, skill names, setup steps, and validation gates.
-11. **Public-repo exposure introduced by this change** — Apply
+6. **Egregious quality regressions (judgment only, #350)** — obvious duplication, over-engineering/bloat, dead
+   code, or doc drift the diff introduces may be raised as ordinary findings using plain reviewer judgment. Do
+   NOT execute the quality-skill protocols (`find-brute-force`, `find-duplicates`, `find-over-design`,
+   `dead-code-detection`, `sync-docs`): since #350 their only execution point is the periodic whole-repo
+   `audit-sweep` (`scripts/audit-sweep.sh`), whose findings follow the tech-debt flow. Quality-pattern findings
+   are reversible and therefore never gate a PR (the #299 irreversibility principle).
+7. **Public-repo exposure introduced by this change** — Apply
     [`public-exposure-audit`](../skills/public-exposure-audit/SKILL.md) to the diff when reviewing pre-commit/pre-PR
     changes, especially for public repos, docs, prompts, skills, agents, workflows, fixtures, logs, and generated
     artifacts. Read the skill for the exposure-vs-intentional classification and the tracked-files / Git-history /
     Git-metadata / ignored-untracked sweep. Customer-supplied raw media, screenshots, decks, exports, secrets, local
     environment files (`.env`), personal emails, tenant/subscription IDs, and resource endpoints found in pushed or
     soon-to-be-pushed content are **BLOCKING** (see the severity ladder).
-12. **Known false positives for syntax and version support** — Consult the
+8. **Known false positives for syntax and version support** — Consult the
     [`known-false-positive registry`](../skills/_review-known-false-positives.md) before raising any syntax or
     version-support finding, and do not repeat a refuted claim without disproving it on the reviewed HEAD.
 
-For all skill-based checks, flag only patterns the diff **introduces**; long-standing code is out of scope
-unless this change touches it. The skills themselves are whole-codebase tools — running them in full belongs outside
-this subagent.
+For the exposure check, flag only what the diff **introduces**; long-standing code is out of scope
+unless this change touches it. The quality skills themselves are whole-codebase tools — they run only in
+`audit-sweep`, outside this subagent (#350).
 
 ### Verdict 4 — Harness Lifecycle & Role-Boundary Compliance
 
@@ -395,15 +390,14 @@ lifecycle discipline are judged exactly as in `full`/`concise`.
 The verdict's `harness.feature_id` must be an exact member of that scope. If you discover a new finding outside the
 revised feature set, emit it as a separate finding for its own feature — do not expand or flip the repair scope.
 
-What `repair` mode **SKIPS** is the whole-diff skill battery — the numbered code-quality checks **#6-#11**
-(`find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs`, and
-`public-exposure-audit`). Those checks are **DEFERRED to the pre-PR review**, not permanently skipped: the pre-PR review
-(run in `full` or `concise`) runs the full battery #6-#11 over the whole branch diff. In particular, the
-security/exposure sweep (`public-exposure-audit`, check #11) is **deferred to pre-PR** in this mode — mid-loop safety
-relies on branch isolation plus that guaranteed pre-PR sweep, so nothing ships unaudited.
+What `repair` mode **SKIPS** is the whole-diff exposure sweep — check **#7** (`public-exposure-audit`). It is
+**DEFERRED to the pre-PR review**, not permanently skipped: the pre-PR review (run in `full` or `concise`) runs
+check #7 over the whole branch diff — mid-loop safety relies on branch isolation plus that guaranteed pre-PR
+sweep, so nothing ships unaudited. (The former quality-skill battery no longer runs in any review mode — see
+check #6 / #350: `audit-sweep` owns it.)
 
-`full` and `concise` (used at pre-PR and for standalone reviews) keep running the full skill battery #6-#11 as
-described above; only `repair` narrows it.
+`full` and `concise` (used at pre-PR and for standalone reviews) keep running check #7 as described above; only
+`repair` defers it.
 
 ## Output Format
 
