@@ -37,21 +37,26 @@ printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
 #!/usr/bin/env bash
 # exercises scripts/widget.sh
+printf 'widget\n' >>"${SENSOR_RUN_LOG:?}"
 exit 0
 SH
 cat > "${FIX}/tests/meta/test_always_green.sh" <<'SH'
 #!/usr/bin/env bash
+printf 'green\n' >>"${SENSOR_RUN_LOG:?}"
 exit 0
 SH
 cat > "${FIX}/tests/scripts/test_always_red.sh" <<'SH'
 #!/usr/bin/env bash
 # references scripts/broken.sh
+printf 'red\n' >>"${SENSOR_RUN_LOG:?}"
 exit 1
 SH
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
+export SENSOR_RUN_LOG="${TMP_DIR}/sensor-runs.log"
+: >"$SENSOR_RUN_LOG"
 
 run() { (cd "$FIX" && ./scripts/run-sensors.sh "$@"); }
 
@@ -105,14 +110,21 @@ grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=1$" <<<"$out" 
 # 6. --last reads rather than runs: it returns the saved gate summary, keeps a
 # failing gate non-zero, and a subsequent successful gate replaces the record.
 set +e
+run_count_before="$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')"
 last_out="$(run --last)"
 last_rc=$?
 set -e
 [ "$last_rc" = "1" ] || fail "--last must preserve a saved failing gate status"
 grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=1$" <<<"$last_out" \
   || fail "--last must print the saved summary without rerunning sensors (got: $last_out)"
+[ "$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')" = "$run_count_before" ] \
+  || fail "--last must not execute any sensor"
 
-printf '#!/usr/bin/env bash\nexit 0\n' >"${FIX}/tests/scripts/test_always_red.sh"
+cat >"${FIX}/tests/scripts/test_always_red.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'red-now-green\n' >>"${SENSOR_RUN_LOG:?}"
+exit 0
+SH
 git -C "$FIX" add tests/scripts/test_always_red.sh
 git -C "$FIX" commit -q -m "make fixture green"
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
@@ -122,6 +134,8 @@ grep -q "^SENSORS pre-review head=${head_sha} scope=full ran=3 failed=0$" <<<"$o
 last_out="$(run --last)" || fail "--last must return a saved successful gate"
 [ "$last_out" = "SENSORS pre-review head=${head_sha} scope=full ran=3 failed=0" ] \
   || fail "--last returned the wrong saved summary (got: $last_out)"
+[ "$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')" = "$((run_count_before + 3))" ] \
+  || fail "successful --last must not execute sensors after the three-sensor gate"
 
 # 7. HEAD binding: changing HEAD after a saved run makes --last refuse.
 git -C "$FIX" commit -q --allow-empty -m "advance head"
