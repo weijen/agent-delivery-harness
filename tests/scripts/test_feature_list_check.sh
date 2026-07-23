@@ -97,6 +97,13 @@ if ! run_check; then cat "$CHECK_OUT"; fail "incomplete feature should warn (exi
 grep -qi 'incomplete' "$CHECK_OUT" || fail "default mode should report incomplete features as a warning"
 emit "incomplete feature warns (exit 0) in default mode"
 
+# 7b. More than five features warns without becoming a hard failure.
+set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false},{"id":"b","title":"B","steps":[],"passes":false},{"id":"c","title":"C","steps":[],"passes":false},{"id":"d","title":"D","steps":[],"passes":false},{"id":"e","title":"E","steps":[],"passes":false},{"id":"f","title":"F","steps":[],"passes":false}]}'
+if ! run_check; then cat "$CHECK_OUT"; fail "oversized feature list should warn without failing"; fi
+grep -Fq '6 features exceeds the sizing guideline — consider splitting this issue.' "$CHECK_OUT" \
+  || fail "oversized feature list should report the sizing-guideline warning"
+emit "more than five features warns without failing"
+
 # 8. Incomplete in HARD mode (REQUIRE_FEATURES_COMPLETE=1) must fail.
 if run_check_hard; then cat "$CHECK_OUT"; fail "incomplete feature should fail under REQUIRE_FEATURES_COMPLETE=1"; fi
 grep -qi 'incomplete' "$CHECK_OUT" || fail "hard mode should report incomplete features"
