@@ -522,7 +522,7 @@ review_verdict_gate() {
 # git common dir (same pattern as issue_main_root in issue-lib.sh, self-
 # contained here for standalone use by carry-rebase-approval). In a plain repo
 # the result equals --show-toplevel; in a linked worktree it resolves to the
-# main checkout root where check-trace-consistency reads the canonical marker.
+# main checkout root where carry stores the canonical issue marker.
 # Prints the absolute path; returns 1 if unresolvable.
 _main_root_from_common_dir() {
   local common
@@ -576,10 +576,47 @@ _patch_id_for_branch() {
 }
 
 repo_root="$(git rev-parse --show-toplevel)"
-marker_dir="${repo_root}/.copilot-tracking/review-gate"
-marker_file="${marker_dir}/approved-head"
+legacy_marker_file="${repo_root}/.copilot-tracking/review-gate/approved-head"
+marker_issue="${REVIEW_GATE_ISSUE:-}"
+if [ -z "$marker_issue" ]; then
+  marker_issue="$(resolve_issue_number || true)"
+fi
+if [ -n "$marker_issue" ] \
+    && { [[ ! "$marker_issue" =~ ^[0-9]+$ ]] || [ "$((10#$marker_issue))" -lt 1 ]; }; then
+  red "✗ REVIEW_GATE_ISSUE must be a positive integer, got '${marker_issue}'."
+  exit 2
+fi
+if [ -n "$marker_issue" ]; then
+  marker_issue="$(printf '%02d' "$((10#$marker_issue))")"
+  marker_relative=".copilot-tracking/review-gate/issue-${marker_issue}/approved-head"
+else
+  marker_relative=".copilot-tracking/review-gate/approved-head"
+fi
+marker_file="${repo_root}/${marker_relative}"
+marker_main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
+  red "✗ cannot resolve the main checkout root for review approval state."
+  exit 2
+}
+canonical_marker_file="${marker_main_root}/${marker_relative}"
+canonical_legacy_marker="${marker_main_root}/.copilot-tracking/review-gate/approved-head"
+marker_read_file="$marker_file"
+if [ -n "$marker_issue" ] && [ ! -f "$marker_read_file" ]; then
+  if [ -f "$canonical_marker_file" ]; then
+    marker_read_file="$canonical_marker_file"
+  elif [ -f "$legacy_marker_file" ]; then
+    marker_read_file="$legacy_marker_file"
+  elif [ -f "$canonical_legacy_marker" ]; then
+    marker_read_file="$canonical_legacy_marker"
+  fi
+fi
 head_sha="$(git rev-parse HEAD)"
 command="${1:-}"
+
+write_marker() {
+  local path="$1" sha="$2" patch_id="$3"
+  mkdir -p "${path%/*}"
+  printf '%s\n%s\n' "$sha" "$patch_id" > "$path"
+}
 
 case "$command" in
   approve)
@@ -601,13 +638,16 @@ case "$command" in
       red "✗ approve refused: a completed feature lacks a per-feature review verdict (see above) — not recording approval."
       exit 1
     fi
-    mkdir -p "$marker_dir"
     # Compute stable branch patch identity (issue #310); see _patch_id_for_branch.
     # Returns blank when origin/main is unavailable: carry fails closed later.
     _patch_id=""
     _patch_id="$(_patch_id_for_branch 2>/dev/null)" || _patch_id=""
-    printf '%s\n' "$head_sha" > "$marker_file"
-    printf '%s\n' "$_patch_id" >> "$marker_file"
+    # Canonical first: a failed main-root write must not leave a local marker
+    # that closeout cannot observe.
+    write_marker "$canonical_marker_file" "$head_sha" "$_patch_id"
+    if [ "$marker_file" != "$canonical_marker_file" ]; then
+      write_marker "$marker_file" "$head_sha" "$_patch_id"
+    fi
     green "✓ review approved for current HEAD ${head_sha}"
     ;;
   carry-rebase-approval)
@@ -626,13 +666,13 @@ case "$command" in
     fi
 
     # Require: marker exists.
-    if [ ! -f "$marker_file" ]; then
+    if [ ! -f "$marker_read_file" ]; then
       yellow "⚠ carry-rebase-approval: no marker file — carry impossible (no prior approval)"
       exit 1
     fi
 
     # Require: marker line 1 exactly equals the provided expected pre-rebase HEAD.
-    marker_pre_sha="$(sed -n '1p' "$marker_file" | tr -d '[:space:]')"
+    marker_pre_sha="$(sed -n '1p' "$marker_read_file" | tr -d '[:space:]')"
     if [ "$marker_pre_sha" != "$expected_pre_rebase" ]; then
       yellow "⚠ carry-rebase-approval: marker line 1 (${marker_pre_sha}) != expected pre-rebase HEAD (${expected_pre_rebase}) — stale or wrong marker, carry impossible"
       exit 1
@@ -646,7 +686,7 @@ case "$command" in
 
     # Require: line 2 is a valid non-blank repository-object-format hex identity
     # (40 chars for SHA-1 repos, 64 chars for SHA-256 repos).
-    stored_patch_id="$(sed -n '2p' "$marker_file" | tr -d '[:space:]')"
+    stored_patch_id="$(sed -n '2p' "$marker_read_file" | tr -d '[:space:]')"
     if [ -z "$stored_patch_id" ]; then
       yellow "⚠ carry-rebase-approval: marker line 2 is blank — no stored patch identity, carry impossible (legacy or failed-identity marker)"
       exit 1
@@ -669,39 +709,35 @@ case "$command" in
       exit 1
     fi
 
-    # Resolve the canonical main-root marker for linked-worktree awareness.
-    # In a plain repo the canonical path equals marker_file (write once). In a
-    # linked worktree the canonical marker lives in the main checkout root;
-    # check-trace-consistency reads it there, so carry must update it too.
-    # Fail-closed: unresolvable main-root is a hard error (not a fallback to repo_root).
-    _carry_main_root=""
-    _carry_main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
-      yellow "⚠ carry-rebase-approval: cannot resolve main-root via git common-dir — is this a valid worktree or plain repo?"
-      exit 1
-    }
-    canonical_marker_file="${_carry_main_root}/.copilot-tracking/review-gate/approved-head"
+    # In a linked worktree the canonical marker lives in the main checkout
+    # root, so carry validates and updates both copies.
+    canonical_read_file="$canonical_marker_file"
+    if [ "$marker_read_file" = "$legacy_marker_file" ] \
+        && [ -n "$marker_issue" ] && [ ! -f "$canonical_read_file" ] \
+        && [ -f "$canonical_legacy_marker" ]; then
+      canonical_read_file="$canonical_legacy_marker"
+    fi
 
     if [ "$canonical_marker_file" != "$marker_file" ]; then
       # Linked worktree: canonical and local markers are distinct paths.
       # If the canonical marker exists, require its line 1 to equal the
       # expected pre-rebase SHA (fail-closed: refuse to overwrite an approval
       # that belongs to a different issue currently active in the main root).
-      if [ -f "$canonical_marker_file" ]; then
-        canonical_pre_sha="$(sed -n '1p' "$canonical_marker_file" | tr -d '[:space:]')"
+      if [ -f "$canonical_read_file" ]; then
+        canonical_pre_sha="$(sed -n '1p' "$canonical_read_file" | tr -d '[:space:]')"
         if [ "$canonical_pre_sha" != "$expected_pre_rebase" ]; then
-          yellow "⚠ carry-rebase-approval: canonical main-root marker (${canonical_marker_file}) line 1 '${canonical_pre_sha}' != expected pre-rebase SHA '${expected_pre_rebase}' — another issue may hold an active approval; carry refused to avoid overwriting it"
+          yellow "⚠ carry-rebase-approval: canonical main-root marker (${canonical_read_file}) line 1 '${canonical_pre_sha}' != expected pre-rebase SHA '${expected_pre_rebase}' — carry refused"
           exit 1
         fi
       fi
       # Write canonical marker FIRST (fail-closed: if this write fails the local
       # marker stays stale, so the authoritative check still gates correctly).
-      mkdir -p "$(dirname "$canonical_marker_file")"
-      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$canonical_marker_file"
+      write_marker "$canonical_marker_file" "$head_sha" "$stored_patch_id"
       # Write local worktree marker.
-      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$marker_file"
+      write_marker "$marker_file" "$head_sha" "$stored_patch_id"
     else
       # Plain repo or resolved to the same path: write once.
-      printf '%s\n%s\n' "$head_sha" "$stored_patch_id" > "$marker_file"
+      write_marker "$marker_file" "$head_sha" "$stored_patch_id"
     fi
     green "✓ carry-rebase-approval: patch-id unchanged — approval carried to ${head_sha}"
     # EXIT trap emits review_gate_approve lifecycle span with harness.review_gate_carry=patch-id.
@@ -709,13 +745,13 @@ case "$command" in
   check)
     TRACE_CMD="check"
     TRACE_T0="$(trace_now_ms)"
-    if [ ! -f "$marker_file" ]; then
+    if [ ! -f "$marker_read_file" ]; then
       TRACE_STAGE="no_marker"
       red "✗ current HEAD has not been approved by the review gate."
       echo "  Run review, resolve findings, then: ./scripts/review-gate.sh approve"
       exit 1
     fi
-    IFS= read -r approved_sha < "$marker_file" || true
+    IFS= read -r approved_sha < "$marker_read_file" || true
     approved_sha="$(printf '%s' "$approved_sha" | tr -d '[:space:]')"
     if [ "$approved_sha" != "$head_sha" ]; then
       # Docs-only carry (2026-07-22, extends the #310 identity carry): when the
@@ -742,8 +778,12 @@ case "$command" in
         fi
       fi
       if [ "$docs_only_carry" = "1" ]; then
-        printf '%s
-' "$head_sha" > "${marker_file}.next"           && { sed -n '2,$p' "$marker_file" >> "${marker_file}.next" 2>/dev/null || true; }           && mv "${marker_file}.next" "$marker_file"
+        docs_patch_id="$(sed -n '2p' "$marker_read_file" | tr -d '[:space:]')"
+        write_marker "$canonical_marker_file" "$head_sha" "$docs_patch_id"
+        if [ "$marker_file" != "$canonical_marker_file" ]; then
+          write_marker "$marker_file" "$head_sha" "$docs_patch_id"
+        fi
+        marker_read_file="$marker_file"
         approved_sha="$head_sha"
         trace_span lifecycle           "harness.lifecycle_step=review_gate_approve"           "harness.outcome=pass"           "harness.review_gate_sha=${head_sha}"           "harness.review_gate_carry=docs-only" 2>/dev/null || true
         green "✓ review approval carried to ${head_sha} (docs-only delta since approved SHA)"
