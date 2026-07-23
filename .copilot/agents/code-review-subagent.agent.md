@@ -20,13 +20,17 @@ and executing focused sensors. This keeps your verdict independent of the discus
 ## Trust Recorded Evidence — Do Not Re-Verify It
 
 The delivering agent's computational gates are RECORDED: the pre-review full-suite result
-(`SENSORS pre-review scope=full ran=N failed=0` output and its trace span) is evidence, not a
+(`SENSORS pre-review head=<reviewed-sha> scope=full ran=N failed=0` output and its trace span) is evidence, not a
 claim. Do NOT re-run the full sensor suite — audit the recorded output, then spend your
 execution budget where recorded evidence does NOT reach: adversarial probes of the diff's edge
 cases, targeted re-runs of at most a handful of sensors your findings implicate, and checks the
 deliverer could not have self-run (exposure, spec re-reading). A wholesale re-run of an
 already-evidenced gate is a deviation (2026-07-22: an 11-run audit found reviewer gate re-runs
 caught nothing and cost ~10 minutes per issue).
+Never accept a narrative claim that N test files passed without a matching
+HEAD-bound `SENSORS ... ran=N failed=0` line. Treat
+`bash tests/.../test_*.sh` as a deviation: Bash executes only the first glob
+match and passes the remaining paths as arguments.
 
 ## What You Receive
 

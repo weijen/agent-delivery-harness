@@ -118,7 +118,11 @@ Workflow per issue:
    deviation as a `deviation` span at the moment it happens. Verify each feature with
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
    — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
-   is the only exception). Commit and push after each completed feature.
+   is the only exception). These `green` and `--gate` forms are the only sensor
+   execution shapes; use `./scripts/run-sensors.sh --last` to read the saved
+   gate result for the unchanged current HEAD. A direct
+   `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
+   executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,
    then invoke the `code-review-subagent` in `full` mode over the whole branch diff. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
@@ -134,7 +138,9 @@ Workflow per issue:
 complete, verify the claim against an actual tool result (test output, gh state query, file
 content) — never from memory of intending to run it. A status line that names a check must be
 backed by that check's real output in this session; the merge gate (#328) enforces this for
-merges, and the same standard applies to every completion claim.
+merges, and the same standard applies to every completion claim. A claim that
+N test files passed requires the matching HEAD-bound
+`SENSORS ... ran=N failed=0` line; ad-hoc shell glob output is not evidence.
 
 **Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
 runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
