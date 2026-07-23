@@ -27,7 +27,9 @@ case "${1:-} ${2:-}" in
 esac
 exit 1
 SH
-  if [ "$version" = "probe-fails" ]; then
+  if [ "$version" = "absent" ]; then
+    :
+  elif [ "$version" = "probe-fails" ]; then
     cat >"${dir}/bin/shellcheck" <<'SH'
 #!/usr/bin/env bash
 exit 7
@@ -82,5 +84,16 @@ make_fixture "$BROKEN" "probe-fails"
 grep -Fq "ShellCheck version mismatch: local unknown, CI ${ci_version}" \
   "${TMP_DIR}/broken.out" \
   || fail "failed version probe must warn with an unknown local version"
+
+ABSENT="${TMP_DIR}/absent"
+make_fixture "$ABSENT" "absent"
+(
+  cd "$ABSENT"
+  PATH="${ABSENT}/bin:/usr/bin:/bin" ./scripts/init.sh
+) >"${TMP_DIR}/absent.out" 2>&1 \
+  || fail "missing ShellCheck must remain warn-only"
+grep -Fq "ShellCheck not installed; CI uses ${ci_version}" \
+  "${TMP_DIR}/absent.out" \
+  || fail "missing ShellCheck warning must name the CI version"
 
 printf 'ShellCheck version parity warning honored\n'
