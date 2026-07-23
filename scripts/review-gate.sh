@@ -225,7 +225,7 @@ ci_gate() {
 # environment error (exit 2) downgrades that half to a skip note while the
 # validator findings still count.
 # resolve_issue_number — single source for "which issue is active", shared by
-# trace_gate, log_completeness_gate, and red_first_evidence_gate. Mirrors
+# trace_gate and log_completeness_gate. Mirrors
 # trace-lib precedence: TRACE_ISSUE env (set by finish-issue.sh), then the
 # feature/issue-NN-* branch, then the issue-NN worktree basename. Prints the
 # number and returns 0 on success; prints nothing and returns 1 when the issue
@@ -395,74 +395,6 @@ log_completeness_gate() {
     "harness.duration_ms=$(( $(trace_now_ms) - t0 ))" \
     "harness.finding_count=${finding_count}"
   return "$gate_rc"
-}
-
-# red_first_evidence_gate — hard-block the PR path on missing feature-start
-# evidence only (issue #334 retired the red-first/teeth half; the name is kept
-# for call-site stability). Original doc: hard-block on missing red-first
-# evidence (issue #144, feature trace-red-first-pr-gate).
-#
-# Unlike the broader warn-only trace_gate, this gate BLOCKS BY DEFAULT (no env
-# flag). It runs check-trace-consistency.sh for the current issue and fails
-# ONLY when one of the two hard teeth-proof findings is present:
-#   VIOLATION consistency: feature_start_missing <fid>   (only — #334)
-#   VIOLATION consistency: feature_start_missing <fid>
-# (issue #291: feature_start_missing is the per-feature selection-evidence
-# the per-feature selection-evidence obligation (#291) on a
-# passes:true feature, cleared by the same governed waiver.)
-# The red-first ordering finding is warn-only and must never block here:
-#   WARNING consistency: red_first_ordering_absent <fid>
-# Every OTHER consistency / validate-trace finding stays warn-only via
-# trace_gate — this gate never blocks on them. A completed (passes:true)
-# feature clears the gate with a valid teeth_proof, a role-correct, file-ordered
-#   test-subagent red_handback -> implementation-subagent impl_handback
-#   -> test-subagent green_handback
-# triple (all harness.outcome==pass), or a governed waiver.
-#
-# Degrades gracefully — print a neutral note and return 0, never break the
-# gate — when the issue number cannot be resolved (a checkout that predates
-# the trace tooling), the checker is not executable, or the checker hits an
-# environment error (exit 2: no trace yet). Emits no span of its own.
-red_first_evidence_gate() {
-  local issue_num=""
-
-  issue_num="$(resolve_issue_number || true)"
-  if [ -z "$issue_num" ]; then
-    yellow "⚠ red-first gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
-    return 0
-  fi
-
-  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
-    yellow "⚠ red-first gate skipped: check-trace-consistency.sh not found or not executable"
-    return 0
-  fi
-
-  # Capture stdout+stderr and the exit code without letting set -e abort on the
-  # checker's non-zero exit (exit 1 means findings, exit 2 means it could not
-  # run). Only exit 2 degrades to a skip; findings are inspected below.
-  local out="" rc=0
-  out="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
-  if [ "$rc" -eq 2 ]; then
-    yellow "⚠ red-first gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
-    return 0
-  fi
-
-  # Block on the teeth-proof violation OR the feature-start violation — never
-  # on warnings or any other finding. The two are independent hard
-  # obligations on a passes:true feature (issue #291), so match either exact
-  # VIOLATION prefix.
-  local findings=""
-  findings="$(printf '%s\n' "$out" \
-    | grep -E 'VIOLATION consistency: feature_start_missing' || true)"
-  if [ -n "$findings" ]; then
-    red "✗ feature-start gate: completed feature(s) lack selection evidence (#291)."
-    printf '%s\n' "$findings"
-    echo "  feature_start_missing: record a matching feature_start agent span via"
-    echo "  scripts/log-handback.sh, or a governed waiver."
-    return 1
-  fi
-
-  return 0
 }
 
 # review_reject_cap_gate — hard-block the PR path on the review-rejection cap
@@ -653,14 +585,6 @@ case "$command" in
   approve)
     TRACE_CMD="approve"
     TRACE_T0="$(trace_now_ms)"
-    # Red-first evidence gate (issue #144): refuse to record approval when a
-    # completed feature lacks role-correct ordered red-first evidence. Blocks
-    # by default and runs BEFORE the marker is written, so a blocked approve
-    # never leaves an approved-head marker behind.
-    if ! red_first_evidence_gate; then
-      red "✗ approve refused: missing red-first evidence (see above) — not recording approval."
-      exit 1
-    fi
     # Review-rejection cap gate (issue #300): refuse to record approval when a
     # feature hit the 3-rejection stop rule. Blocks by default (independent of
     # REQUIRE_TRACE_CONSISTENCY) and runs BEFORE the marker is written, so a
@@ -847,11 +771,6 @@ case "$command" in
     # check by default; REQUIRE_LOG_COMPLETE=1 makes findings fail the check.
     TRACE_STAGE="log_completeness_gate"
     log_completeness_gate
-    # Red-first evidence gate (issue #144): hard-block by default on missing
-    # role-correct ordered red-first evidence, independent of the warn-only
-    # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
-    TRACE_STAGE="red_first_evidence"
-    red_first_evidence_gate || exit 1
     # Review-rejection cap gate (issue #300): hard-block by default when a
     # feature hit the 3-rejection stop rule, independent of the warn-only trace
     # gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).

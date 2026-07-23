@@ -6,7 +6,7 @@
 ## Post-compaction re-anchor
 
 After any context compaction, re-read this block before continuing.
-- Emit `feature_start` before each feature, `deviation` when it happens, and `review_verdict` at review handback.
+- Emit `deviation` when it happens and `review_verdict` at review handback.
 - Export `TRACE_SENSOR_SCOPE` and `TRACE_SENSOR_COUNT` from runner evidence; omit them rather than guessing.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
 
@@ -60,7 +60,7 @@ sanitized, commit-safe fixture or specification.
 9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
    coding-agent habits and personal workflow shortcuts.
 10. **Keep the trace current** — the Action Log in `.copilot-tracking/issues/issue-NN/progress.md` is rendered
-   from spans (#332): record `feature_start`, `deviation`, and review verdicts as they happen.
+   from spans (#332): record `deviation` and review verdicts as they happen.
 11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
 
 → The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable

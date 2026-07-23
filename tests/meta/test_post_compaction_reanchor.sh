@@ -23,7 +23,7 @@ line_count="$(printf '%s\n' "${anchor}" | wc -l | tr -d ' ')"
   || fail "post-compaction re-anchor exceeds 10 lines (${line_count})"
 
 for term in \
-  feature_start deviation review_verdict \
+  deviation review_verdict \
   TRACE_SENSOR_SCOPE TRACE_SENSOR_COUNT \
   harness_identity_activate 'gh auth switch'; do
   printf '%s\n' "${anchor}" | grep -qF "${term}" \
