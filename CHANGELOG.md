@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.34.0 (2026-07-23)
+
+### Documentation
+
+- **#399**: Define sandbox scratch directory
+  ([`ce24547`](https://github.com/weijen/agent-delivery-harness/commit/ce24547e3c1a392d25caaa4ef97331901f0c75fb))
+
+- **#400**: Require oversized issue split proposal
+  ([`e7c9bea`](https://github.com/weijen/agent-delivery-harness/commit/e7c9bea5bf21c31334ead6e0fd16abd12b54ba92))
+
+### Features
+
+- **#400**: Warn on oversized feature lists
+  ([`3e4188f`](https://github.com/weijen/agent-delivery-harness/commit/3e4188f2c7d352bcec40893d305a88c23e258a7a))
+
+
 ## v0.33.0 (2026-07-23)
 
 ### Bug Fixes
