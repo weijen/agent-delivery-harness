@@ -14,18 +14,18 @@ run_gate() {
 		uv run ruff format --check .
 		;;
 	lint)
-		uv run ruff check .
+		uv run ruff check
 		;;
 	typecheck)
 		set +e
-		uv run mypy .
+		uv run mypy
 		status=$?
 		set -e
 		return "$status"
 		;;
 	test)
 		set +e
-		uv run pytest
+		uv run pytest -q
 		status=$?
 		set -e
 		[ "$status" -eq 5 ] && return 2

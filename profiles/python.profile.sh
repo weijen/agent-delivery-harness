@@ -23,7 +23,7 @@ PROFILE_SURFACE_LABEL="Python surface detected (pyproject.toml)"
 # scripts/ci-coverage-lib.sh (issue #129) for the preflight WARN and Pre-PR
 # ci-gate. Kept here (a profile, not a language-neutral owner script) so the
 # gate scripts stay token-free.
-PROFILE_CI_SIGNATURES="pytest|ruff|mypy"
+PROFILE_CI_SIGNATURES="python-gates\\.sh"
 
 # --- Detection ---------------------------------------------------------------
 profile_detect() { [ -f "$PWD/pyproject.toml" ]; }

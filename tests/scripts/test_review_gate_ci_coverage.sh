@@ -28,7 +28,7 @@ fail() {
 }
 
 PY_SURFACE=$'[project]\nname = "fixture"\nversion = "0.0.0"\n'
-CI_WORKFLOW=$'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: uv run ruff check\n      - run: uv run mypy\n      - run: uv run pytest -q'
+CI_WORKFLOW=$'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
 SMOKE_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest -q'
 
 # ============================================================================
@@ -250,7 +250,7 @@ chmod +x "${BIN}/uv"
 
 # new_repo <name> — fresh git repo carrying a copy of init.sh + profiles + lib.
 new_repo() {
-  fixture_repo --with-scripts init.sh,ci-coverage-lib.sh
+  fixture_repo --with-scripts init.sh,ci-coverage-lib.sh,python-gates.sh
   local dir="$FIXTURE_REPO"
   cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" config commit.gpgsign true
@@ -304,7 +304,7 @@ grep -qi "$COVERAGE_WARN" "$OUT" || { cat "$OUT"; fail "harness-smoke.yml must n
 new_repo covered
 r="$NEW_REPO"
 python_surface "$r"
-add_workflow "$r" ci.yml $'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: uv run ruff check\n      - run: uv run mypy\n      - run: uv run pytest -q'
+add_workflow "$r" ci.yml $'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
 if ! run_init "$r"; then
   cat "$OUT"; fail "covered project must pass preflight (exit 0)"
 fi
