@@ -183,6 +183,11 @@ if [ -n "$problems" ]; then
 fi
 
 # --- Completion state -------------------------------------------------------
+feature_count="$(jq '(.features // []) | length' "$feature_list")"
+if [ "$feature_count" -gt 5 ]; then
+  yellow "  ! ${feature_count} features exceeds the sizing guideline — consider splitting this issue."
+fi
+
 teeth_proof_missing_lines="$(jq -r '
   def nonempty_trimmed_string:
     (type == "string") and ((gsub("\\s";"") | length) > 0);

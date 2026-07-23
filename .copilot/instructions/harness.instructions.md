@@ -115,7 +115,10 @@ Workflow per issue:
    identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
    (description AND comments), then break it into a `feature_list.json` of criterion-sized
    features (2–5 typical; each provable by one `regression_sensor`, plus an `e2e_sensor` when it
-   crosses a real runtime boundary).
+   crosses a real runtime boundary). If the derived list exceeds 5 features, **STOP before
+   implementation** and propose splitting it into 2–3+ issues for the human to decide; include
+   footprint analysis to distinguish serial execution from genuinely parallel-safe work, and
+   never silently accept or silently self-split an oversized issue.
 2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
