@@ -5,8 +5,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,review-gate.sh,trace-lib.sh,trace-report.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
+TEMPLATE_REPO="$FIXTURE_REPO"
+mkdir -p "${TEMPLATE_REPO}/docs/evaluation"
+cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${TEMPLATE_REPO}/docs/evaluation/trace-schema.v1.json"
+git -C "$TEMPLATE_REPO" add docs
+git -C "$TEMPLATE_REPO" commit -q -m "add trace schema"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -47,17 +55,9 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 make_fixture() {
   local name="$1" issue="$2" dir="${TMP_DIR}/$1" pad=""
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  cp "${ROOT}/scripts/"{issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,review-gate.sh,trace-lib.sh,trace-report.sh} \
-    "${dir}/scripts/"
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
-  git -C "$dir" init -q -b main
+  git clone -q "$TEMPLATE_REPO" "$dir"
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md scripts
-  git -C "$dir" commit -q -m initial
   (
     cd "$dir"
     PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture

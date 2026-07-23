@@ -10,8 +10,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts review-gate.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/tap.sh"
@@ -48,26 +51,21 @@ chmod +x "${TMP_DIR}/bin/gh"
 export PATH="${TMP_DIR}/bin:${PATH}"
 
 # Create a bare origin with a main branch that has docs/PROGRESS.md.
-mkdir -p "${TMP_DIR}/origin-work/docs"
-git init -q -b main "${TMP_DIR}/origin-work"
-git -C "${TMP_DIR}/origin-work" config user.name "Harness Test"
-git -C "${TMP_DIR}/origin-work" config user.email "harness-test@example.invalid"
-printf '# Progress\n\nbaseline\n' > "${TMP_DIR}/origin-work/docs/PROGRESS.md"
-printf 'initial\n' > "${TMP_DIR}/origin-work/README.md"
-git -C "${TMP_DIR}/origin-work" add docs/PROGRESS.md README.md
-git -C "${TMP_DIR}/origin-work" commit -q -m "initial"
-git clone -q --bare "${TMP_DIR}/origin-work" "${TMP_DIR}/origin.git"
+ORIGIN_WORK="$FIXTURE_REPO"
+mkdir -p "${ORIGIN_WORK}/docs"
+printf '# Progress\n\nbaseline\n' > "${ORIGIN_WORK}/docs/PROGRESS.md"
+git -C "$ORIGIN_WORK" add docs/PROGRESS.md
+git -C "$ORIGIN_WORK" commit -q -m "add progress baseline"
+git clone -q --bare "$ORIGIN_WORK" "${TMP_DIR}/origin.git"
+git -C "$ORIGIN_WORK" remote add origin "${TMP_DIR}/origin.git"
 
 # Feature repo on a feature/review-gate branch (no issue-NN slug →
 # resolve_issue_number skips gracefully → all trace-based gates skip).
-mkdir -p "${TMP_DIR}/repo/scripts" "${TMP_DIR}/repo/docs"
-cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/repo/scripts/review-gate.sh"
+fixture_repo --with-scripts review-gate.sh
+REPO="$FIXTURE_REPO"
+mkdir -p "${REPO}/docs"
 
-cd "${TMP_DIR}/repo"
-git init -q -b feature/review-gate
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+cd "$REPO"
 git remote add origin "${TMP_DIR}/origin.git"
 git fetch -q origin main
 
@@ -84,9 +82,9 @@ git add feature.txt
 make_commit "second feature commit"
 
 head_sha="$(git rev-parse HEAD)"
-marker_dir="${TMP_DIR}/repo/.copilot-tracking/review-gate"
+marker_dir="${REPO}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
-rg="${TMP_DIR}/repo/scripts/review-gate.sh"
+rg="${REPO}/scripts/review-gate.sh"
 
 # ── Scenario A: approve writes a 2-line marker ───────────────────────────────
 approve_rc=0
@@ -187,12 +185,12 @@ else
   fi
 
   # Add an unrelated commit to origin/main (touches a file not in the feature branch).
-  printf 'extra origin work\n' > "${TMP_DIR}/origin-work/docs/EXTRA.md"
-  git -C "${TMP_DIR}/origin-work" add docs/EXTRA.md
-  git -C "${TMP_DIR}/origin-work" -c user.name="Harness Test" \
+  printf 'extra origin work\n' > "${ORIGIN_WORK}/docs/EXTRA.md"
+  git -C "$ORIGIN_WORK" add docs/EXTRA.md
+  git -C "$ORIGIN_WORK" -c user.name="Harness Test" \
     -c user.email="harness-test@example.invalid" \
     commit -q -m "chore: add extra doc (unrelated to feature)"
-  git -C "${TMP_DIR}/origin-work" push -q "${TMP_DIR}/origin.git" main:main
+  git -C "$ORIGIN_WORK" push -q "${TMP_DIR}/origin.git" main:main
 
   git -C "${TMP_DIR}/repo" fetch -q origin main
 
@@ -229,22 +227,19 @@ emit "Scenario E: patch identity is unchanged across a content-preserving rebase
 # A branch with zero commits above origin/main must record the deterministic
 # empty-stream identity (git hash-object --stdin </dev/null), not a blank line.
 # This distinguishes it from the origin-unavailable case (Scenario G).
-mkdir -p "${TMP_DIR}/f-repo/scripts" "${TMP_DIR}/f-repo/docs"
-cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/f-repo/scripts/review-gate.sh"
+fixture_repo --with-scripts review-gate.sh
+F_REPO="$FIXTURE_REPO"
 _saved_dir="$(pwd)"
-cd "${TMP_DIR}/f-repo"
-git init -q -b feature/empty-test
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+cd "$F_REPO"
 git remote add origin "${TMP_DIR}/origin.git"
 git fetch -q origin main
 # Reset to exactly origin/main — zero commits above the base.
 git reset -q --hard origin/main
+git checkout -q -b feature/empty-test
 
 f_approve_rc=0
 ./scripts/review-gate.sh approve >"${TMP_DIR}/approve-f.out" 2>&1 || f_approve_rc=$?
-f_marker="${TMP_DIR}/f-repo/.copilot-tracking/review-gate/approved-head"
+f_marker="${F_REPO}/.copilot-tracking/review-gate/approved-head"
 
 if [ "$f_approve_rc" -ne 0 ]; then
   fail "Scenario F: approve failed for empty branch (rc=${f_approve_rc})"
@@ -274,15 +269,13 @@ emit "Scenario F: empty branch (zero commits above origin/main) gets determinist
 # succeed (approval is valid), write 2 lines, and record a blank line 2 so that
 # carry fails closed later. This case must not be confused with an empty branch
 # (Scenario F: empty branch with valid origin/main gets a specific non-blank hash).
-mkdir -p "${TMP_DIR}/g-repo/scripts" "${TMP_DIR}/g-repo/docs"
-cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/g-repo/scripts/review-gate.sh"
-cd "${TMP_DIR}/g-repo"
-git init -q -b feature/no-origin-test
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+fixture_repo --with-scripts review-gate.sh
+G_REPO="$FIXTURE_REPO"
+cd "$G_REPO"
+git checkout -q -b feature/no-origin-test
+mkdir -p docs
 printf '# Progress\n\nwork without origin\n' > docs/PROGRESS.md
-git add .gitignore docs/PROGRESS.md
+git add docs/PROGRESS.md
 git -c user.name="Harness Test" -c user.email="harness-test@example.invalid" \
   commit -q -m "initial commit (no origin configured)"
 printf 'more work\n' > work.txt
@@ -293,7 +286,7 @@ git -c user.name="Harness Test" -c user.email="harness-test@example.invalid" \
 
 g_approve_rc=0
 ./scripts/review-gate.sh approve >"${TMP_DIR}/approve-g.out" 2>&1 || g_approve_rc=$?
-g_marker="${TMP_DIR}/g-repo/.copilot-tracking/review-gate/approved-head"
+g_marker="${G_REPO}/.copilot-tracking/review-gate/approved-head"
 g_head_sha="$(git rev-parse HEAD)"
 
 if [ "$g_approve_rc" -ne 0 ]; then

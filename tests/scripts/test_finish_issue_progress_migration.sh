@@ -172,8 +172,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="${ROOT}/.copilot-tracking/test-runs/test_finish_issue_progress_migration.$$"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,review-gate.sh,trace-lib.sh,log-handback.sh,render-action-log.sh,check-trace-consistency.sh,trace-report.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
+TEMPLATE_REPO="$FIXTURE_REPO"
+mkdir -p "${TEMPLATE_REPO}/docs/evaluation"
+cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${TEMPLATE_REPO}/docs/evaluation/trace-schema.v1.json"
+git -C "$TEMPLATE_REPO" add docs
+git -C "$TEMPLATE_REPO" commit -q -m "add trace schema"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -264,15 +272,10 @@ FAKECP
 }
 
 copy_finish_fixture_scripts() {
-  local dir="$1" script
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for script in \
-    issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
-    trace-lib.sh log-handback.sh render-action-log.sh check-trace-consistency.sh trace-report.sh; do
-    cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
-  done
-  chmod +x "${dir}/scripts/"*.sh
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
+  local dir="$1"
+  git clone -q "$TEMPLATE_REPO" "$dir"
+  git -C "$dir" config user.name "Harness Test"
+  git -C "$dir" config user.email "harness-test@example.invalid"
 }
 
 # Build a throwaway MAIN repo + a real linked worktree for $issue via the
@@ -282,14 +285,6 @@ make_finish_fixture() {
   local dir="$1" issue="$2" pad start_out
   pad="$(printf '%02d' "$issue")"
   copy_finish_fixture_scripts "$dir"
-
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.name "Harness Test"
-  git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md scripts
-  git -C "$dir" commit -q -m initial
 
   if ! start_out="$(cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture 2>&1)"; then
     printf '%s\n' "$start_out"

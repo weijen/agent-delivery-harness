@@ -98,8 +98,11 @@ HELPER="${ROOT}/scripts/log-handback.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 RENDERER="${ROOT}/scripts/render-action-log.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts log-handback.sh,trace-lib.sh,render-action-log.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -207,18 +210,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID TRACE_INPUT_TOKENS TRACE_OUTPUT_TOKENS \
   TRACE_FAILURE_MODE TRACE_INSTRUCTION_FILES TRACE_REVIEW_MODE 2>/dev/null || true
 
 # --- Fixture: MAIN repo + linked issue worktrees ---------------------------------
-MAIN="${TMP_DIR}/main-repo"
-mkdir -p "${MAIN}/scripts"
-cp "$HELPER" "${MAIN}/scripts/log-handback.sh"
-cp "$LIB" "${MAIN}/scripts/trace-lib.sh"
-cp "$RENDERER" "${MAIN}/scripts/render-action-log.sh"
-git -C "$MAIN" init -q -b main
-git -C "$MAIN" config user.name "Harness Test"
-git -C "$MAIN" config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > "${MAIN}/.gitignore"
-printf 'fixture\n' > "${MAIN}/README.md"
-git -C "$MAIN" add .gitignore README.md scripts
-git -C "$MAIN" commit -q -m initial
+MAIN="$FIXTURE_REPO"
 
 # scaffold_progress <worktree> <NN>: minimal start-issue.sh-shaped progress.md
 # with an '## Action Log' section, in the WORKTREE's tracking dir.
@@ -456,14 +448,13 @@ grep -qi 'render-action-log' "${TMP_DIR}/c1.out" \
 #    log-handback must NOT directly append a bullet.
 # ============================================================================
 R2="${TMP_DIR}/r2-nolib"
-mkdir -p "${R2}/scripts"
-cp "$HELPER" "${R2}/scripts/log-handback.sh"
-git -C "$R2" init -q -b feature/issue-21-nolib
+git clone -q "$MAIN" "$R2"
 git -C "$R2" config user.name "Harness Test"
 git -C "$R2" config user.email "harness-test@example.invalid"
-printf 'fixture\n' > "${R2}/README.md"
-git -C "$R2" add README.md scripts
-git -C "$R2" commit -q -m initial
+git -C "$R2" checkout -q -b feature/issue-21-nolib
+rm -f "${R2}/scripts/trace-lib.sh" "${R2}/scripts/render-action-log.sh"
+git -C "$R2" add scripts
+git -C "$R2" commit -q -m "remove trace dependencies"
 scaffold_progress "$R2" 21
 [ ! -e "${R2}/scripts/trace-lib.sh" ] || fail "fixture bug: R2 must not contain trace-lib.sh"
 
