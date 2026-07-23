@@ -50,7 +50,7 @@ upgrade_target="${TMP_DIR}/upgrade"
 	echo "dev-sensor opt-in omitted meta sensors"
 	exit 1
 }
-printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/test_commit_convention_doc.sh"
+printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/test_eval_dir_contract.sh"
 if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "default upgrade must report a modified excluded sensor"
@@ -60,11 +60,11 @@ fi
 	echo "default upgrade left an unmodified harness-dev sensor"
 	exit 1
 }
-grep -qF "adopter customization" "${upgrade_target}/tests/scripts/test_commit_convention_doc.sh" || {
+grep -qF "adopter customization" "${upgrade_target}/tests/scripts/test_eval_dir_contract.sh" || {
 	echo "default upgrade removed a modified harness-dev sensor"
 	exit 1
 }
-grep -qF "preserving modified harness-dev sensor tests/scripts/test_commit_convention_doc.sh" "$OUT" || {
+grep -qF "preserving modified harness-dev sensor tests/scripts/test_eval_dir_contract.sh" "$OUT" || {
 	cat "$OUT"
 	echo "default upgrade did not report the preserved modified sensor"
 	exit 1
@@ -76,16 +76,16 @@ if "$INSTALL" "$upgrade_target" --update >"$OUT" 2>&1; then
 	echo "--update on a modified excluded sensor must fail visibly"
 	exit 1
 fi
-grep -qF "conflict tests/scripts/test_commit_convention_doc.sh" "$OUT" || {
+grep -qF "conflict tests/scripts/test_eval_dir_contract.sh" "$OUT" || {
 	cat "$OUT"
 	echo "--update did not report the modified harness-dev conflict"
 	exit 1
 }
-[ -e "${upgrade_target}/tests/scripts/test_commit_convention_doc.sh" ] || {
+[ -e "${upgrade_target}/tests/scripts/test_eval_dir_contract.sh" ] || {
 	echo "--update removed the modified harness-dev sensor"
 	exit 1
 }
-[ -f "${upgrade_target}/tests/scripts/test_commit_convention_doc.sh.rej" ] || {
+[ -f "${upgrade_target}/tests/scripts/test_eval_dir_contract.sh.rej" ] || {
 	echo "--update did not emit the rejected harness-dev deletion"
 	exit 1
 }
@@ -195,10 +195,10 @@ done <"${TMP_DIR}/entries"
 
 required=(
 	'tests/meta/test_*.sh'
-	tests/scripts/test_commit_convention_doc.sh
+	tests/scripts/test_eval_dir_contract.sh
 	tests/scripts/test_init_gates.sh
 	tests/scripts/test_release_workflow.sh
-	tests/scripts/test_version_no_drift.sh
+	tests/scripts/test_eval_manifest_validator.sh
 )
 for pattern in "${required[@]}"; do
 	grep -qxF "$pattern" "${TMP_DIR}/entries" || {
