@@ -2,6 +2,47 @@
 
 <!-- version list -->
 
+## v0.34.1 (2026-07-23)
+
+### Bug Fixes
+
+- **#375**: Keep verdict sensor executable
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+### Refactoring
+
+- **#375**: Consolidate trace consistency sensors
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+- **trace**: Consolidate sensor judgments
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+### Testing
+
+- **#375**: Consolidate lifecycle trace sensors
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+- **#375**: Consolidate trace report sensors
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+- **#375**: Consolidate verdict semantics sensors
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+- **#375**: Make permission assertion portable
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+- **#375**: Restore checker branch coverage
+  ([#403](https://github.com/weijen/agent-delivery-harness/pull/403),
+  [`9fb17e0`](https://github.com/weijen/agent-delivery-harness/commit/9fb17e09c7b5de24b336d0c5b185af7bf74112b6))
+
+
 ## v0.34.0 (2026-07-23)
 
 ### Documentation
