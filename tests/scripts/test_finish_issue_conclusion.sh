@@ -188,6 +188,31 @@ if run_finish "$MAIN" 45 "${TMP_DIR}/migration-refusal.out" env ABANDONED=1 FORC
 fi
 [ -d "${MAIN}/.worktrees/issue-45" ] || fail "migration-refusal: worktree must remain"
 
+# A symlink at the progress leaf must block migration without touching its target.
+new_fixture migration-leaf 49
+MAIN="$NEW_MAIN"
+OUTSIDE="${TMP_DIR}/progress-outside"
+printf 'do not overwrite\n' >"$OUTSIDE"
+ln -s "$OUTSIDE" "${MAIN}/.copilot-tracking/issues/issue-49/progress.md"
+if run_finish "$MAIN" 49 "${TMP_DIR}/migration-leaf.out" env ABANDONED=1 FORCE=1; then
+  fail "migration-leaf: symlink destination must block"
+fi
+[ -d "${MAIN}/.worktrees/issue-49" ] || fail "migration-leaf: worktree must remain"
+[ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
+  || fail "migration-leaf: unrelated destination was overwritten"
+
+# economics_stamp_into independently rejects symlinks even without migration.
+ECON_LINK="${TMP_DIR}/economics-progress"
+ln -s "$OUTSIDE" "$ECON_LINK"
+(
+  # shellcheck source=/dev/null
+  source "${ROOT}/scripts/finish-lib.sh"
+  economics_stamp_into "$ECON_LINK" 'unsafe block'
+) >"${TMP_DIR}/economics-symlink.out" 2>&1
+[ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
+  || fail "economics-symlink: unrelated destination was overwritten"
+assert_contains "${TMP_DIR}/economics-symlink.out" 'is a symlink'
+
 # #329: mandatory summary regeneration failure leaves the worktree intact.
 new_fixture summary-refusal 46
 MAIN="$NEW_MAIN"
