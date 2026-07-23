@@ -27,13 +27,20 @@ case "${1:-} ${2:-}" in
 esac
 exit 1
 SH
-  cat >"${dir}/bin/shellcheck" <<SH
+  if [ "$version" = "probe-fails" ]; then
+    cat >"${dir}/bin/shellcheck" <<'SH'
+#!/usr/bin/env bash
+exit 7
+SH
+  else
+    cat >"${dir}/bin/shellcheck" <<SH
 #!/usr/bin/env bash
 cat <<'EOF'
 ShellCheck - shell script analysis tool
 version: ${version}
 EOF
 SH
+  fi
   chmod +x "${dir}/bin/"*
   git -C "$dir" init -q -b main
   git -C "$dir" config commit.gpgsign false
@@ -64,5 +71,16 @@ make_fixture "$MISMATCH" "0.0.1"
 grep -Fq "ShellCheck version mismatch: local 0.0.1, CI ${ci_version}" \
   "${TMP_DIR}/mismatch.out" \
   || fail "mismatch warning must name both local and CI versions"
+
+BROKEN="${TMP_DIR}/broken"
+make_fixture "$BROKEN" "probe-fails"
+(
+  cd "$BROKEN"
+  PATH="${BROKEN}/bin:${PATH}" ./scripts/init.sh
+) >"${TMP_DIR}/broken.out" 2>&1 \
+  || fail "a failing ShellCheck version probe must remain warn-only"
+grep -Fq "ShellCheck version mismatch: local unknown, CI ${ci_version}" \
+  "${TMP_DIR}/broken.out" \
+  || fail "failed version probe must warn with an unknown local version"
 
 printf 'ShellCheck version parity warning honored\n'

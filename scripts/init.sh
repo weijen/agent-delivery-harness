@@ -135,8 +135,10 @@ if [ -f "$shellcheck_pin_file" ]; then
 fi
 if [ -n "$shellcheck_ci_version" ]; then
   if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck_local_version="$(shellcheck --version 2>/dev/null \
-      | awk -F ': ' '$1 == "version" { print $2; exit }')"
+    if ! shellcheck_local_version="$(shellcheck --version 2>/dev/null \
+      | awk -F ': ' '$1 == "version" { print $2; exit }')"; then
+      shellcheck_local_version=""
+    fi
     if [ "$shellcheck_local_version" = "$shellcheck_ci_version" ]; then
       note_ok "ShellCheck ${shellcheck_local_version} matches CI"
     else
