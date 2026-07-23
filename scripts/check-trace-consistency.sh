@@ -77,7 +77,8 @@
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
-#                     .copilot-tracking/review-gate/approved-head marker.
+#                     issue-scoped review-gate/issue-NN/approved-head marker,
+#                     with the legacy shared marker as a read fallback.
 #                     MARKER-ONLY (plan Open Question 2, resolved): no
 #                     live-HEAD git leg, no gh/network — the checker works
 #                     on a plain directory of artifacts.
@@ -115,7 +116,8 @@
 #   ./scripts/check-trace-consistency.sh <issue-number>
 #       trace.jsonl lives at <main root>/.copilot-tracking/issues/issue-NN/
 #       (main root resolved via the shared git common dir); marker at
-#       <main root>/.copilot-tracking/review-gate/approved-head.
+#       <main root>/.copilot-tracking/review-gate/issue-NN/approved-head,
+#       falling back to the legacy shared approved-head when absent.
 #       progress.md + feature_list.json resolve from the main-root issue dir
 #       when present, FALLING BACK to the invoking worktree's toplevel
 #       tracking dir otherwise (#103 loop-2 F1) — the real layout, where
@@ -125,8 +127,8 @@
 #       progress.md and feature_list.json are SIBLINGS of the named trace
 #       (hermetic L0 fixtures); when the trace lives at a contract-shaped
 #       path <root>/.copilot-tracking/issues/issue-NN/trace.jsonl the marker
-#       is <root>/.copilot-tracking/review-gate/approved-head, otherwise the
-#       marker is treated as absent (NOTE skip).
+#       is the matching issue-scoped approved-head with legacy fallback;
+#       otherwise the marker is treated as absent (NOTE skip).
 #
 # Fork budget: a handful of constant-count processes (three jq passes, the
 # lifted awk/sed/comm pipeline, one feature-list jq) — never per-line forks;
@@ -195,6 +197,7 @@ fi
 # --- Resolve the artifact set -------------------------------------------------
 TRACE_FILE=""
 MARKER_FILE=""
+LEGACY_MARKER_FILE=""
 PATH_MODE=0
 case "$ARG" in
   */* | *.jsonl)
@@ -215,7 +218,11 @@ case "$ARG" in
     fi
     ISSUE_PAD="$(printf '%02d' "$ISSUE_NUM")"
     TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-${ISSUE_PAD}/trace.jsonl"
-    MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/approved-head"
+    MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/issue-${ISSUE_PAD}/approved-head"
+    LEGACY_MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
     ;;
 esac
 
@@ -231,9 +238,15 @@ REPOSITORY_ROOT=""
 if [ -z "$MARKER_FILE" ]; then
   # Path mode: the marker is resolvable only when the trace sits at a
   # contract-shaped path; otherwise the rule skips with a NOTE below.
-  if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
-    MARKER_FILE="${BASH_REMATCH[1]}/.copilot-tracking/review-gate/approved-head"
-    REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
+  if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-([0-9][0-9]+)$ ]]; then
+    marker_root="${BASH_REMATCH[1]}"
+    marker_issue="${BASH_REMATCH[2]}"
+    MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/issue-${marker_issue}/approved-head"
+    LEGACY_MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
+    REPOSITORY_ROOT="$(cd "$marker_root" && pwd -P)"
   fi
 elif [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
   REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"

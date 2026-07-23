@@ -348,12 +348,23 @@ cat > "${state_dir}/trace.jsonl" <<'TRACE'
 TRACE
 rc="$(run_checker "${state_dir}/trace.jsonl")"
 [ "$rc" = "0" ] || fail "matching review marker and PR reference must pass"
+
+# Issue-scoped approval state wins over a stale legacy marker (#398).
+mkdir -p "${state_root}/review-gate/issue-77"
 printf '%s\n' 2222222222222222222222222222222222222222 \
   > "${state_root}/review-gate/approved-head"
+printf '%s\n' 1111111111111111111111111111111111111111 \
+  > "${state_root}/review-gate/issue-77/approved-head"
+rc="$(run_checker "${state_dir}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "issue-scoped review marker must override stale legacy state"
+
+printf '%s\n' 2222222222222222222222222222222222222222 \
+  > "${state_root}/review-gate/issue-77/approved-head"
 rc="$(run_checker "${state_dir}/trace.jsonl")"
 [ "$rc" = "1" ] || fail "mismatched review marker must fail"
 grep -Fq 'VIOLATION consistency: review_sha_mismatch' "$OUT" \
   || fail "review marker mismatch finding is missing"
+rm -rf "${state_root}/review-gate/issue-77"
 printf '%s\n' 1111111111111111111111111111111111111111 \
   > "${state_root}/review-gate/approved-head"
 printf '# Progress\n\nSplit from https://github.com/example/repo/pull/55\nPR: https://github.com/example/repo/pull/124\n\n## Action Log\n' \
