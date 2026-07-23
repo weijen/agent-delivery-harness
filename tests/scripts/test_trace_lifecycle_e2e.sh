@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# test_trace_lifecycle_e2e.sh — L0 ordered-span trajectory sensor (issue #94,
-# feature trace-lifecycle-e2e, plan Phase 8, decision D8).
+# test_trace_lifecycle_e2e.sh — table-driven lifecycle emission and ordered
+# trajectory sensor (issues #94 and #375).
 #
 # Drives one full scripted issue lifecycle against a temp main repo with a
 # bare local origin and a fake gh, then asserts the SINGLE main-root
@@ -11,13 +11,16 @@
 #        pr_merge → finish
 #      (D8: order by file position, never timestamps — second-granularity
 #      timestamps tie).
-#   2. Every lifecycle span carries harness.outcome=pass, NUMERIC
+#   2. A script × expected-span table verifies each lifecycle entrypoint's
+#      retained span and strongest script-specific attributes.
+#   3. Every lifecycle span carries harness.outcome=pass, NUMERIC
 #      harness.exit_status=0 and NUMERIC harness.duration_ms >= 0.
-#   3. A check-feature-list TOOL span appears between the worktree_create
+#   4. A check-feature-list TOOL span appears between the worktree_create
 #      and review_gate_approve lifecycle spans (the explicit validation step
 #      of the drive; finish-issue's child check appears later).
-#   4. Every line passes the #92 contract-driven jq filter.
-#   5. One file: no trace ever exists under the worktree path (plan D1), and
+#   5. Every line passes the #92 contract-driven jq filter.
+#   6. One file: no trace ever exists under the worktree path, proving the
+#      semantic spine is script-emitted and main-rooted without hook help; the
 #      the finish span survives worktree teardown.
 #
 # This trace is the first real trajectory fixture for
@@ -217,12 +220,75 @@ while IFS= read -r line; do
 done < "$TRACE"
 [ "$n" -gt 0 ] || fail "trace file is empty"
 
-# 2. Lifecycle subsequence in FILE ORDER is exactly the contract order (D8).
+# 2. Each lifecycle entrypoint emits its expected span exactly once. The
+# assertion key selects the strongest entrypoint-specific payload obligation.
+while IFS='|' read -r script step assertion_key; do
+  [ -n "$script" ] || continue
+  count="$(jq -r --arg step "$step" '
+    [select(.span == "lifecycle" and .["harness.lifecycle_step"] == $step)]
+    | length
+  ' "$TRACE" | awk '{sum += $1} END {print sum + 0}')"
+  [ "$count" = "1" ] \
+    || fail "${script}: expected exactly one ${step} lifecycle span, got ${count}"
+
+  case "$assertion_key" in
+    issue)
+      filter='.["harness.issue"] == 42'
+      ;;
+    branch)
+      filter='.["harness.branch"] == "feature/issue-42-e2e"'
+      ;;
+    pr)
+      filter='(.["harness.pr_number"] | tostring) == "123"'
+      ;;
+    merge)
+      filter='
+        (.["harness.pr_number"] | tostring) == "123"
+        and .["harness.merge_state"] == "MERGED"
+        and .["harness.merge_sha"] == "deadbeef0001cafe"'
+      ;;
+    finish)
+      filter='
+        .["harness.worktree_removed"] == "true"
+        and has("harness.economics.features_total")
+        and has("harness.economics.features_passing")'
+      ;;
+    *)
+      fail "unknown lifecycle matrix assertion key: ${assertion_key}"
+      ;;
+  esac
+  jq -e --arg step "$step" "
+    select(.span == \"lifecycle\" and .[\"harness.lifecycle_step\"] == \$step)
+    | ${filter}
+  " "$TRACE" >/dev/null \
+    || fail "${script}: ${step} span failed ${assertion_key} payload assertion"
+done <<'MATRIX'
+start-issue.sh|preflight|issue
+start-issue.sh|worktree_create|branch
+review-gate.sh|review_gate_approve|issue
+create-pr.sh|pr_create|pr
+merge-pr.sh|pr_merge|merge
+finish-issue.sh|finish|finish
+MATRIX
+
+# Collapsed create/finish internals must not reappear as child tool spans. The
+# explicit feature-list check and retained log-completeness gate are allowed.
+unexpected_tools="$(jq -r '
+  select(
+    .span == "tool"
+    and .["gen_ai.tool.name"] != "check-feature-list"
+    and .["gen_ai.tool.name"] != "review-gate.log-completeness")
+  | .["gen_ai.tool.name"]
+' "$TRACE")"
+[ -z "$unexpected_tools" ] \
+  || fail "collapsed lifecycle children reappeared as tool spans: ${unexpected_tools}"
+
+# 3. Lifecycle subsequence in FILE ORDER is exactly the contract order (D8).
 steps="$(jq -r 'select(.span == "lifecycle") | .["harness.lifecycle_step"]' "$TRACE" | paste -sd, -)"
 [ "$steps" = "preflight,worktree_create,review_gate_approve,pr_create,pr_merge,finish" ] \
   || fail "lifecycle spans out of order or incomplete: expected 'preflight,worktree_create,review_gate_approve,pr_create,pr_merge,finish' in append order, got '${steps}'"
 
-# 3. Every lifecycle span: outcome=pass, numeric exit_status=0, numeric duration.
+# 4. Every lifecycle span: outcome=pass, numeric exit_status=0, numeric duration.
 jq -e '
     select(.span == "lifecycle")
     | (.["harness.outcome"] == "pass")
@@ -234,7 +300,7 @@ jq -e '
   ' "$TRACE" >/dev/null \
   || fail "every lifecycle span must carry harness.outcome=pass, numeric harness.exit_status=0, numeric harness.duration_ms >= 0, harness.issue=42"
 
-# 4. The explicit check-feature-list TOOL span sits between worktree_create
+# 5. The explicit check-feature-list TOOL span sits between worktree_create
 #    and review_gate_approve (file positions).
 idx_wt="$(jq -n 'first(inputs | select(.value.span == "lifecycle" and .value["harness.lifecycle_step"] == "worktree_create") | .key)' \
   < <(jq -c '.' "$TRACE" | jq -c -n '[inputs] | to_entries[]'))"
@@ -255,4 +321,4 @@ if [ "$idx_check" -le "$idx_wt" ] || [ "$idx_check" -ge "$idx_approve" ]; then
   fail "the check-feature-list tool span must appear between worktree_create (line-idx ${idx_wt}) and review_gate_approve (line-idx ${idx_approve}); found at line-idx ${idx_check}"
 fi
 
-printf 'lifecycle e2e ordered-span trajectory honored\n'
+printf 'table-driven lifecycle emission and ordered trajectory honored\n'

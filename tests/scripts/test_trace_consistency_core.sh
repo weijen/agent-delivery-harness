@@ -21,9 +21,8 @@
 #     for any mismatch between spans and progress.md bullets.
 #
 #   role_attribution_gap — every span=="agent" line must carry a
-#     gen_ai.agent.name inside the closed log-handback role enum
-#     (conductor | planning-subagent | implementation-subagent |
-#     test-subagent | code-review-subagent). Pinned shape (line-numbered,
+#     gen_ai.agent.name inside the schema's historical reader enum. The writer
+#     itself accepts only the current conductor role. Pinned shape (line-numbered,
 #     value-free — an out-of-enum role is an attribute VALUE and is not
 #     echoed):
 #         VIOLATION consistency: role_attribution_gap line <N>
@@ -125,15 +124,25 @@ Status: in progress.
 - _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._
 MD
 
+if (cd "$WT" && ./scripts/log-handback.sh test-subagent red_handback demo-feature pass "legacy writer probe") \
+    >/dev/null 2>&1; then
+  hard_fail "writer must reject retired subagent/handback shapes"
+fi
 (cd "$WT" && ./scripts/log-handback.sh conductor feature_start demo-feature pass "selected demo-feature") \
   >/dev/null 2>&1 || hard_fail "fixture: helper call 1 (feature_start) failed"
-(cd "$WT" && ./scripts/log-handback.sh test-subagent red_handback demo-feature pass "RED sensor authored") \
-  >/dev/null 2>&1 || hard_fail "fixture: helper call 2 (red_handback) failed"
+(cd "$WT" && TRACE_FAILURE_MODE=weak-sensor \
+  TRACE_FAILURE_CLASS=regression TRACE_FAILURE_DISPOSITION=point-fix \
+  ./scripts/log-handback.sh conductor deviation demo-feature blocked "sensor gap found") \
+  >/dev/null 2>&1 || hard_fail "fixture: helper call 2 (deviation) failed"
 
 HELPER_TRACE="${MAIN}/.copilot-tracking/issues/issue-33/trace.jsonl"
 HELPER_PROG="${WT}/.copilot-tracking/issues/issue-33/progress.md"
-[ "$(jq -s '[.[] | select(.span == "agent")] | length' "$HELPER_TRACE")" = "2" ] \
-  || hard_fail "fixture: expected 2 helper-produced agent spans in ${HELPER_TRACE}"
+# Historical reader compatibility: the narrowed writer cannot create this
+# shape, but the checker must continue to accept existing traces that contain it.
+printf '%s\n' '{"schema_version":1,"timestamp":"2026-07-04T12:00:02Z","span":"agent","harness.issue":33,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"test-subagent","harness.lifecycle_step":"red_handback","harness.feature_id":"demo-feature","harness.outcome":"pass"}' \
+  >> "$HELPER_TRACE"
+[ "$(jq -s '[.[] | select(.span == "agent")] | length' "$HELPER_TRACE")" = "3" ] \
+  || hard_fail "fixture: expected 2 current writer spans plus one legacy reader span"
 [ "$(grep -c '^- \[' "$HELPER_PROG")" = "2" ] \
   || hard_fail "fixture: expected 2 helper-produced Action Log bullets in ${HELPER_PROG}"
 
@@ -150,7 +159,7 @@ mk_case case2
 printf -- '- [test-subagent] green_handback demo-feature pass — hand-written claim, no span emitted\n' \
   >> "${TMP_DIR}/case2/progress.md"
 mk_case case3
-grep -v 'red_handback' "$HELPER_PROG" > "${TMP_DIR}/case3/progress.md"
+grep -v 'deviation' "$HELPER_PROG" > "${TMP_DIR}/case3/progress.md"
 mk_case case4a
 printf '%s\n' '{"schema_version":1,"timestamp":"2026-07-04T12:00:09Z","span":"agent","harness.issue":33,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","harness.lifecycle_step":"impl_handback","harness.feature_id":"demo-feature","harness.outcome":"pass"}' \
   >> "${TMP_DIR}/case4a/trace.jsonl"
@@ -241,8 +250,8 @@ mkdir -p "${TMP_DIR}/case7"
   tail -n +2 "${TMP_DIR}/case1/trace.jsonl"
 } > "${TMP_DIR}/case7/trace.jsonl"
 cp "${TMP_DIR}/case1/progress.md" "${TMP_DIR}/case7/progress.md"
-[ "$(wc -l < "${TMP_DIR}/case7/trace.jsonl" | tr -d '[:space:]')" = "3" ] \
-  || hard_fail "case7 fixture: expected 3 lines (2 spans + 1 corrupt) — sensor bug"
+[ "$(wc -l < "${TMP_DIR}/case7/trace.jsonl" | tr -d '[:space:]')" = "4" ] \
+  || hard_fail "case7 fixture: expected 4 lines (3 spans + 1 corrupt) — sensor bug"
 
 rc="$(run_checker "${TMP_DIR}/case7/trace.jsonl")"
 [ "$rc" = "1" ] \
@@ -265,6 +274,94 @@ grep -q 'invalid_json' "$OUT" \
 if grep -Eq 'log_without_span|span_without_log' "$OUT"; then
   fail "corrupt tolerance: retired reconciliation findings must not fire (#332) (stdout: $(tr '\n' '|' < "$OUT"))"
 fi
+
+# --- 8. Folded schema/redaction judgments ------------------------------------
+expect_finding() {
+  local name="$1" expected="$2"
+  shift 2
+  local dir="${TMP_DIR}/${name}" finding_rc
+  mkdir -p "$dir"
+  printf '# Progress\n\n## Action Log\n' > "${dir}/progress.md"
+  printf '%s\n' "$@" > "${dir}/trace.jsonl"
+  finding_rc="$(run_checker "${dir}/trace.jsonl")"
+  [ "$finding_rc" = "1" ] \
+    || fail "${name}: expected findings exit 1, got ${finding_rc}"
+  grep -Fq "$expected" "$OUT" \
+    || fail "${name}: missing ${expected} (stdout: $(tr '\n' '|' < "$OUT"))"
+}
+
+VALID_TOOL='{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"tool","harness.issue":33,"harness.version":"abc1234","gen_ai.tool.name":"git"}'
+expect_finding folded-invalid-json 'VIOLATION line 2: invalid_json' \
+  "$VALID_TOOL" 'not json {'
+expect_finding folded-schema 'VIOLATION line 2: schema_violation' \
+  "$VALID_TOOL" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"banana","harness.issue":33,"harness.version":"abc1234"}'
+expect_finding folded-type 'VIOLATION line 2: type_violation' \
+  "$VALID_TOOL" \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"lifecycle","harness.issue":33,"harness.version":"abc1234","harness.lifecycle_step":"preflight","harness.duration_ms":"42"}'
+
+GHP_SECRET="ghp_SyntheticFixtureToken0123456789abcd"
+expect_finding folded-redaction 'VIOLATION line 1: redaction_leak' \
+  '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"tool","harness.issue":33,"harness.version":"abc1234","gen_ai.tool.name":"git","harness.summary":"'"${GHP_SECRET}"'"}'
+if grep -Fq "$GHP_SECRET" "$OUT" "$ERR"; then
+  fail "redaction finding echoed the planted secret"
+fi
+
+# --- 9. Finished completeness follows the current lifecycle, not retired
+# handback steps that remain schema-readable.
+complete_dir="${TMP_DIR}/current-complete"
+mkdir -p "$complete_dir"
+printf '# Progress\n\n## Action Log\n' > "${complete_dir}/progress.md"
+for step in preflight worktree_create review_gate_approve pr_create pr_merge finish; do
+  printf '{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"lifecycle","harness.issue":33,"harness.version":"abc1234","harness.lifecycle_step":"%s"}\n' \
+    "$step"
+done > "${complete_dir}/trace.jsonl"
+printf '%s\n' '{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"agent","harness.issue":33,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"f1","harness.outcome":"pass"}' \
+  >> "${complete_dir}/trace.jsonl"
+rc="$(run_checker "${complete_dir}/trace.jsonl")"
+[ "$rc" = "0" ] \
+  || fail "current six-step finished lifecycle must be complete ($(tr '\n' '|' < "$OUT"))"
+grep -v '"harness.lifecycle_step":"pr_merge"' "${complete_dir}/trace.jsonl" \
+  > "${complete_dir}/missing.jsonl"
+cp "${complete_dir}/progress.md" "${complete_dir}/progress.md.tmp"
+mv "${complete_dir}/progress.md.tmp" "${complete_dir}/progress.md"
+rc="$(run_checker "${complete_dir}/missing.jsonl")"
+[ "$rc" = "1" ] || fail "finished lifecycle missing pr_merge must fail"
+grep -Fq 'VIOLATION completeness: missing lifecycle step pr_merge' "$OUT" \
+  || fail "current lifecycle completeness did not report missing pr_merge"
+if grep -Eq 'missing lifecycle step (red_handback|impl_handback|green_handback|plan_handback)' "$OUT"; then
+  fail "retired handback steps still participate in completeness"
+fi
+
+# --- 10. Folded state judgments remain marker-only and scan the final PR ref.
+state_root="${TMP_DIR}/state/.copilot-tracking"
+state_dir="${state_root}/issues/issue-77"
+mkdir -p "$state_dir" "${state_root}/review-gate"
+printf '# Progress\n\nPR: https://github.com/example/repo/pull/123\n\n## Action Log\n' \
+  > "${state_dir}/progress.md"
+printf '{"features":[]}\n' > "${state_dir}/feature_list.json"
+printf '%s\n' 1111111111111111111111111111111111111111 \
+  > "${state_root}/review-gate/approved-head"
+cat > "${state_dir}/trace.jsonl" <<'TRACE'
+{"schema_version":1,"timestamp":"2026-07-04T12:00:00Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"review_gate_approve","harness.review_gate_sha":"1111111111111111111111111111111111111111"}
+{"schema_version":1,"timestamp":"2026-07-04T12:00:01Z","span":"lifecycle","harness.issue":77,"harness.version":"abc1234","harness.lifecycle_step":"pr_create","harness.pr_number":"123"}
+TRACE
+rc="$(run_checker "${state_dir}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "matching review marker and PR reference must pass"
+printf '%s\n' 2222222222222222222222222222222222222222 \
+  > "${state_root}/review-gate/approved-head"
+rc="$(run_checker "${state_dir}/trace.jsonl")"
+[ "$rc" = "1" ] || fail "mismatched review marker must fail"
+grep -Fq 'VIOLATION consistency: review_sha_mismatch' "$OUT" \
+  || fail "review marker mismatch finding is missing"
+printf '%s\n' 1111111111111111111111111111111111111111 \
+  > "${state_root}/review-gate/approved-head"
+printf '# Progress\n\nSplit from https://github.com/example/repo/pull/55\nPR: https://github.com/example/repo/pull/124\n\n## Action Log\n' \
+  > "${state_dir}/progress.md"
+rc="$(run_checker "${state_dir}/trace.jsonl")"
+[ "$rc" = "1" ] || fail "mismatched final PR reference must fail"
+grep -Fq 'VIOLATION consistency: pr_mismatch' "$OUT" \
+  || fail "PR mismatch finding is missing"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

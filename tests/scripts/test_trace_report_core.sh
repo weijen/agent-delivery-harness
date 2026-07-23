@@ -4,11 +4,9 @@
 #
 # Executable spec for `scripts/trace-report.sh <issue-number|trace-path>`, the
 # deterministic, report-only CLI that turns a per-issue trace.jsonl into a
-# markdown run report on STDOUT. Scope: CORE only — the summary JSON file
-# (feature trace-report-summary-json), loop indicators (feature
-# trace-report-loop-indicators), and robustness/token honesty (feature
-# trace-report-robustness-honesty) are covered by their own sensors and are
-# deliberately NOT asserted here.
+# markdown run report on STDOUT and a machine-readable trace-summary.json.
+# The consolidated scope includes core aggregation, bounded/open semantics,
+# summary JSON, robustness, and token honesty.
 #
 # Pinned report conventions (this sensor IS the spec — plan D1/D3/D7):
 #
@@ -55,6 +53,7 @@ REPORT_SH="${ROOT}/scripts/trace-report.sh"
 ISSUE_LIB="${ROOT}/scripts/issue-lib.sh"
 TRACE_LIB="${ROOT}/scripts/trace-lib.sh"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SUMMARY_CONTRACT="${ROOT}/docs/evaluation/trace-summary.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -266,6 +265,135 @@ rc="$(run_report "$REPORT_SH" "${TMP_DIR}/does-not-exist/trace.jsonl")"
   || fail "missing trace file (path mode): expected exit 2 (environment error), got ${rc}"
 grep -Eqi 'usage|not found|no such|missing' "$ERR" \
   || fail "missing trace file: expected a usage-ish message on stderr, got: $(tr '\n' '|' < "$ERR")"
+
+# --- 10. Machine-readable summary and markdown agreement ---------------------------
+SUMMARY="${TMP_DIR}/trace-summary.json"
+[ -f "$SUMMARY_CONTRACT" ] \
+  || hard_fail "trace summary contract is missing: ${SUMMARY_CONTRACT}"
+jq -e '
+  .summary_schema_version == 1
+  and (["summary_schema_version","trace_file","issue","harness_versions",
+        "finished","final_outcome","span_counts","wall_clock","stages",
+        "tools","tokens"]
+       | all(.[]; . as $key | $required | index($key) != null))
+' --argjson required "$(jq '.required_top_level' "$SUMMARY_CONTRACT")" \
+  "$SUMMARY_CONTRACT" >/dev/null \
+  || fail "trace-summary.v1 contract does not retain its required vocabulary"
+
+# Re-run the canonical fixture so later CLI error legs cannot obscure the
+# summary emitted beside it.
+rc="$(run_report "$REPORT_SH" "$TRACE")"
+[ "$rc" = "0" ] || fail "summary fixture re-run failed with ${rc}"
+if [ ! -f "$SUMMARY" ]; then
+  fail "trace-summary.json was not emitted beside the trace"
+else
+  jq -e '
+    .summary_schema_version == 1
+    and .issue == 98
+    and .finished == true
+    and .bounded == true
+    and .closed_by == "finish"
+    and .final_outcome == "pass"
+    and .span_counts.total == 15
+    and .span_counts.invalid_lines == 2
+    and .wall_clock.elapsed_seconds == 630
+    and ((.stages[] | select(.step == "pr_merge"))
+         | .spans == 2 and .duration_ms == 1000)
+    and ((.tools[] | select(.name == "git")) | .calls == 3)
+    and .tokens == null
+  ' "$SUMMARY" >/dev/null \
+    || fail "canonical trace summary lost exact core measurements"
+  before_summary="$(shasum -a 256 "$SUMMARY")"
+  rc="$(run_report "$REPORT_SH" "$TRACE")"
+  [ "$rc" = "0" ] || fail "idempotent summary re-run failed with ${rc}"
+  [ "$(shasum -a 256 "$SUMMARY")" = "$before_summary" ] \
+    || fail "identical report input did not produce identical summary JSON"
+  jq -es 'length == 1' "$SUMMARY" >/dev/null \
+    || fail "summary writer appended instead of atomically replacing"
+fi
+
+# --- 11. Terminal bounds are distinct from finished outcome ----------------------
+BOUND_DIR="${TMP_DIR}/bounds"
+mkdir -p "$BOUND_DIR"
+cat > "${BOUND_DIR}/trace.jsonl" <<'JSONL'
+{"schema_version":1,"timestamp":"2026-07-08T11:00:00Z","span":"lifecycle","harness.issue":170,"harness.version":"bounded1","harness.lifecycle_step":"preflight","harness.duration_ms":100}
+{"schema_version":1,"timestamp":"2026-07-08T11:01:00Z","span":"lifecycle","harness.issue":170,"harness.version":"bounded1","harness.lifecycle_step":"pr_merge","harness.duration_ms":200}
+JSONL
+rc="$(run_report "$REPORT_SH" "${BOUND_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "pr_merge-bounded report failed with ${rc}"
+jq -e '.finished == false and .bounded == true
+  and .closed_by == "pr_merge" and .final_outcome == null' \
+  "${BOUND_DIR}/trace-summary.json" >/dev/null \
+  || fail "pr_merge-only trace was not represented as bounded but unfinished"
+grep -Eiq 'bounded by.*pr_merge|pr_merge.*bounded by' "$OUT" \
+  || fail "pr_merge bound was not explained in markdown"
+
+OPEN_DIR="${TMP_DIR}/open"
+mkdir -p "$OPEN_DIR"
+cat > "${OPEN_DIR}/trace.jsonl" <<'JSONL'
+{"schema_version":1,"timestamp":"2026-07-08T12:00:00Z","span":"lifecycle","harness.issue":170,"harness.version":"bounded1","harness.lifecycle_step":"preflight","harness.duration_ms":100}
+{"schema_version":1,"timestamp":"2026-07-08T12:01:00Z","span":"lifecycle","harness.issue":170,"harness.version":"bounded1","harness.lifecycle_step":"feature_start","harness.feature_id":"open-run","harness.duration_ms":200}
+JSONL
+rc="$(run_report "$REPORT_SH" "${OPEN_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "open report failed with ${rc}"
+jq -e '.finished == false and .bounded == false
+  and .closed_by == null and .final_outcome == null' \
+  "${OPEN_DIR}/trace-summary.json" >/dev/null \
+  || fail "open trace fabricated a terminal bound or outcome"
+
+# --- 12. Robust absence semantics and large-line handling ------------------------
+EMPTY_DIR="${TMP_DIR}/empty"
+mkdir -p "$EMPTY_DIR"
+: > "${EMPTY_DIR}/trace.jsonl"
+rc="$(run_report "$REPORT_SH" "${EMPTY_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "empty trace crashed with ${rc}"
+jq -e '
+  .span_counts == {"total":0,"by_type":{},"invalid_lines":0}
+  and .stages == [] and .tools == [] and .tokens == null
+  and .wall_clock == null and .final_outcome == null
+' "${EMPTY_DIR}/trace-summary.json" >/dev/null \
+  || fail "empty trace fabricated measurements"
+
+GARBAGE_DIR="${TMP_DIR}/garbage"
+mkdir -p "$GARBAGE_DIR"
+printf '%s\n' 'not json' '"valid scalar"' > "${GARBAGE_DIR}/trace.jsonl"
+rc="$(run_report "$REPORT_SH" "${GARBAGE_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "garbage-only trace crashed with ${rc}"
+jq -e '.span_counts.total == 0 and .span_counts.invalid_lines == 2
+  and .wall_clock == null and .tokens == null' \
+  "${GARBAGE_DIR}/trace-summary.json" >/dev/null \
+  || fail "garbage-only trace was not skipped and counted honestly"
+
+BIG_DIR="${TMP_DIR}/big-line"
+mkdir -p "$BIG_DIR"
+jq -nc '{schema_version:1,timestamp:"2026-07-04T14:00:00Z",span:"tool",
+  "harness.issue":98,"harness.version":"fix1234",
+  "gen_ai.tool.name":"big-tool","harness.duration_ms":1,
+  "harness.note":("x" * 1048576)}' > "${BIG_DIR}/trace.jsonl"
+rc="$(run_report "$REPORT_SH" "${BIG_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "one-megabyte span line crashed with ${rc}"
+jq -e '(.tools[] | select(.name == "big-tool")) | .calls == 1' \
+  "${BIG_DIR}/trace-summary.json" >/dev/null \
+  || fail "large valid span did not aggregate"
+
+# --- 13. Tokens come only from measured model spans ------------------------------
+TOKEN_DIR="${TMP_DIR}/tokens"
+mkdir -p "$TOKEN_DIR"
+cat > "${TOKEN_DIR}/trace.jsonl" <<'JSONL'
+{"schema_version":1,"timestamp":"2026-07-04T15:00:00Z","span":"model","harness.issue":98,"harness.version":"fix1234","gen_ai.request.model":"example-model","gen_ai.usage.input_tokens":100,"gen_ai.usage.output_tokens":10,"gen_ai.agent.name":"planner","harness.feature_id":"feat-x"}
+{"schema_version":1,"timestamp":"2026-07-04T15:01:00Z","span":"model","harness.issue":98,"harness.version":"fix1234","gen_ai.request.model":"example-model","gen_ai.usage.input_tokens":200,"gen_ai.usage.output_tokens":20,"gen_ai.agent.name":"planner","harness.feature_id":"feat-y"}
+{"schema_version":1,"timestamp":"2026-07-04T15:02:00Z","span":"agent","harness.issue":98,"harness.version":"fix1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"deviation","harness.feature_id":"feat-x","harness.outcome":"blocked","gen_ai.usage.input_tokens":9999,"gen_ai.usage.output_tokens":9999}
+JSONL
+rc="$(run_report "$REPORT_SH" "${TOKEN_DIR}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "measured-token trace failed with ${rc}"
+jq -e '
+  .tokens.input_tokens == 300
+  and .tokens.output_tokens == 30
+  and .tokens.by_role.planner == {"input_tokens":300,"output_tokens":30}
+  and .tokens.by_feature["feat-x"] == {"input_tokens":100,"output_tokens":10}
+  and .tokens.by_feature["feat-y"] == {"input_tokens":200,"output_tokens":20}
+' "${TOKEN_DIR}/trace-summary.json" >/dev/null \
+  || fail "token totals included non-model passthrough or lost attribution"
 
 # --- Result ---------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
