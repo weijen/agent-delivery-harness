@@ -352,12 +352,21 @@ cross_run_report() {
       economics="null"
       if [ -r "$trace_file" ]; then
         economics="$(jq -nR '
-          [inputs | fromjson? | objects
-           | select(
-               (.span? == "lifecycle"
-                and .["harness.lifecycle_step"]? == "finish")
-               or .["gen_ai.tool.name"]? == "finish-issue.economics")]
-          | last // null
+          [inputs | fromjson? | objects] as $spans
+          | ([$spans[]
+              | select(
+                  .span? == "lifecycle"
+                  and .["harness.lifecycle_step"]? == "finish")
+              | select(
+                  [to_entries[]
+                   | select(.key | startswith("harness.economics."))]
+                  | length > 0)]
+             | last)
+            // ([$spans[]
+                 | select(
+                     .["gen_ai.tool.name"]? == "finish-issue.economics")]
+                | last)
+            // null
         ' < "$trace_file")"
       fi
       jq -c \
