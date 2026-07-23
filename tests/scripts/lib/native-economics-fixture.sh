@@ -122,9 +122,9 @@ plant_events() {
     # --- OUT-of-window subagents (MUST be excluded): one BEFORE the window
     # start (a prior issue in the long session) and one far AFTER the window
     # end. The "after" event is dated 2099 so it is excluded both for the tight
-    # DIRECT window [10:00, 12:00] AND for the E2E window [10:00, now] (a real
-    # finish extends the last trace timestamp to closeout-now via the
-    # check-feature-list span, so a same-day "after" event would fall inside it).
+    # DIRECT window [10:00, 12:00] AND for the E2E window [10:00, now] (finish
+    # explicitly extends the native join to closeout time, so a same-day
+    # "after" event would fall inside it).
     printf '%s\n' '{"type":"subagent.completed","timestamp":"2026-05-01T09:00:00.000Z","agentId":"a4","id":"e4","parentId":"p0","data":{"agentName":"other-issue-agent","agentDisplayName":"Other","model":"claude-haiku-4.5","toolCallId":"t4","totalTokens":8888,"totalToolCalls":8,"durationMs":88888}}'
     printf '%s\n' '{"type":"subagent.completed","timestamp":"2099-01-01T00:00:00.000Z","agentId":"a5","id":"e5","parentId":"p0","data":{"agentName":"other-issue-agent","agentDisplayName":"Other","model":"claude-haiku-4.5","toolCallId":"t5","totalTokens":9999,"totalToolCalls":9,"durationMs":99999}}'
     # --- Some unrelated noise events (must be ignored) ---

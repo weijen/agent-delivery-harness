@@ -134,9 +134,11 @@ jq -e '.finished == true and .final_outcome == "pass"' "$SUMMARY" >/dev/null \
 [ "$(jq -es 'length' "$SUMMARY")" -eq 1 ] \
   || fail "happy: summary must contain exactly one JSON document"
 TRACE="${MAIN}/.copilot-tracking/issues/issue-${PAD}/trace.jsonl"
-[ "$(economics_span_count "$TRACE")" -eq 1 ] \
-  || fail "happy: exactly one economics span must survive"
-jq -e 'select(.["gen_ai.tool.name"] == "finish-issue.economics") |
+[ "$(jq -nRr '[inputs | fromjson? | objects |
+  select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish")] |
+  length' < "$TRACE")" -eq 1 ] \
+  || fail "happy: exactly one terminal finish lifecycle span must survive"
+jq -e 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish") |
   ."harness.economics.native_subagent_tokens" == 3500 and
   ."harness.economics.native_aiu_nano_delta" == 80000000000' "$TRACE" >/dev/null \
   || fail "happy: native economics values were not joined into the finish span"

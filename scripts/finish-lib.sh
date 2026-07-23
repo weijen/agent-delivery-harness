@@ -1286,11 +1286,24 @@ best_effort_economics_stamp() {
   case "$native_sid" in '' | *[!A-Za-z0-9_-]*) native_sid="" ;; esac
   if [ -n "$native_sid" ] && declare -F compute_native_economics >/dev/null 2>&1; then
     local native_events="${native_state_root}/${native_sid}/events.jsonl"
-    local native_window="" native_start="" native_end=""
+    local native_window="" native_start="" native_end="" closeout_end=""
     native_window="$(native_economics_window "$trace_file")"
     if [ -n "$native_window" ]; then
       native_start="${native_window%% *}"
       native_end="${native_window##* }"
+      # Child lifecycle spans are collapsed during finish, so the trace's last
+      # pre-finish timestamp may precede native events produced later in the
+      # issue. Bound the join at closeout time, preserving a later synthetic
+      # trace timestamp if the clock or fixture lies ahead.
+      closeout_end="$(date -u +%s 2>/dev/null || true)"
+      case "$closeout_end" in
+        '' | *[!0-9]*) ;;
+        *)
+          if [ "$closeout_end" -gt "$native_end" ]; then
+            native_end="$closeout_end"
+          fi
+          ;;
+      esac
       native_json="$(compute_native_economics "$native_events" "$native_start" "$native_end")"
     fi
   fi
