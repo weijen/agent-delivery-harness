@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.34.2 (2026-07-23)
+
+### Bug Fixes
+
+- Adopter portability — EMU accounts, identity sensor guard, ledger duplicate prune
+  ([`5923e5c`](https://github.com/weijen/agent-delivery-harness/commit/5923e5cf9ce1d90d831771fa1102f700e9c5eb74))
+
+
 ## v0.34.1 (2026-07-23)
 
 ### Bug Fixes
