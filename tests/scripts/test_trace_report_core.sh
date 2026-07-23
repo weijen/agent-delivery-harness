@@ -4,11 +4,9 @@
 #
 # Executable spec for `scripts/trace-report.sh <issue-number|trace-path>`, the
 # deterministic, report-only CLI that turns a per-issue trace.jsonl into a
-# markdown run report on STDOUT. Scope: CORE only — the summary JSON file
-# (feature trace-report-summary-json), loop indicators (feature
-# trace-report-loop-indicators), and robustness/token honesty (feature
-# trace-report-robustness-honesty) are covered by their own sensors and are
-# deliberately NOT asserted here.
+# markdown run report on STDOUT and a machine-readable trace-summary.json.
+# The consolidated scope includes core aggregation, bounded/open semantics,
+# summary JSON, robustness, and token honesty.
 #
 # Pinned report conventions (this sensor IS the spec — plan D1/D3/D7):
 #

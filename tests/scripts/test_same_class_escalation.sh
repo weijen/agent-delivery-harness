@@ -164,6 +164,13 @@ add_span wrong-route conductor deviation fail complexity point-fix
 add_span wrong-route conductor deviation blocked complexity research-requested
 expect_violation wrong-route "generator_failure_route_mismatch line 2"
 
+# Occurrence two with no disposition at all must be flagged distinctly from a
+# repeated point-fix or a wrong route (reviewer-added coverage, issue #375).
+make_case disposition-missing
+add_span disposition-missing conductor deviation fail regression point-fix
+add_span disposition-missing conductor deviation blocked regression ""
+expect_violation disposition-missing "generator_failure_disposition_missing line 2"
+
 make_case other-no-detail
 add_span other-no-detail conductor deviation fail other point-fix
 expect_violation other-no-detail "generator_failure_class_other_no_detail line 1"

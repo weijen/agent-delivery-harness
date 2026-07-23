@@ -153,6 +153,14 @@ assert_has 'repair_scope_mismatch line 2'
 assert_has 'repair_scope_invalid line 3'
 assert_lacks 'repair_scope_mismatch line 1'
 
+# A repair verdict with no repair_scope at all must be flagged (reviewer-added
+# coverage, issue #375): the most basic repair-scope guard.
+prepare_case repair-scope-missing
+verdict 1 feat-a fail "$(valid_fail_extra repair-missing |
+  jq -c '. + {"harness.review_mode":"repair"}')" > "$TRACE"
+run_checker
+assert_has 'repair_scope_missing line 1'
+
 # 4. Failed verdicts require attributable features and a closed failure class;
 # unmapped findings retain a fingerprint so they can be repaired deterministically.
 prepare_case attribution
