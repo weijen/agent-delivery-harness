@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.32.1 (2026-07-23)
+
+### Bug Fixes
+
+- **#361**: Keep issue worktrees inside repositories
+  ([#367](https://github.com/weijen/agent-delivery-harness/pull/367),
+  [`f74f1c0`](https://github.com/weijen/agent-delivery-harness/commit/f74f1c0e19e63fc58eee7412c4f23c429ed3047e))
+
+
 ## v0.32.0 (2026-07-22)
 
 ### Bug Fixes
