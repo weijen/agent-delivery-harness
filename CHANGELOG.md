@@ -2,6 +2,96 @@
 
 <!-- version list -->
 
+## v0.32.8 (2026-07-23)
+
+### Bug Fixes
+
+- **#374**: Retain legacy installer tombstone
+  ([`f533b89`](https://github.com/weijen/agent-delivery-harness/commit/f533b8903550fcb41507f5e817e5896d3a508b97))
+
+### Chores
+
+- **#374**: Keep issue progress local
+  ([`6276f9c`](https://github.com/weijen/agent-delivery-harness/commit/6276f9c40643f1d0208ad361ebcbdda1a0fce1fc))
+
+- **#374**: Regenerate tombstones after rebase
+  ([`39a8dfc`](https://github.com/weijen/agent-delivery-harness/commit/39a8dfc81fdbcff0b12e1bf29a9b6a98bdcdfeb1))
+
+### Testing
+
+- **#374**: Consolidate CI coverage sensors
+  ([`ef1ee8c`](https://github.com/weijen/agent-delivery-harness/commit/ef1ee8c20bf658a4467a6c09a69799c426ac981c))
+
+- **#374**: Consolidate Copilot log sensors
+  ([`4e42b37`](https://github.com/weijen/agent-delivery-harness/commit/4e42b37e61b03480069aa88600cb289555939808))
+
+- **#374**: Consolidate create PR sensors
+  ([`de066cc`](https://github.com/weijen/agent-delivery-harness/commit/de066cc93f562a043d9569d5ae1e5928be65ab50))
+
+- **#374**: Consolidate economics unit sensors
+  ([`222d0f6`](https://github.com/weijen/agent-delivery-harness/commit/222d0f60cdcf4563ae6d98ac225e69214b137a75))
+
+- **#374**: Consolidate eval manifest sensors
+  ([`7325c58`](https://github.com/weijen/agent-delivery-harness/commit/7325c58949a71659a7d70afc5bfc5fd5ca1bc2f4))
+
+- **#374**: Consolidate feature list sensors
+  ([`9c97cfa`](https://github.com/weijen/agent-delivery-harness/commit/9c97cfa6307c735a69b49e85647e2d017209c1ac))
+
+- **#374**: Consolidate frontmatter sensors
+  ([`13fb32b`](https://github.com/weijen/agent-delivery-harness/commit/13fb32b8ac36ca4ba20e820d47e2ebddc2bde77b))
+
+- **#374**: Consolidate identity sensors
+  ([`3bf7be2`](https://github.com/weijen/agent-delivery-harness/commit/3bf7be2ad6443ef6ed5f08bac15a3565df301c71))
+
+- **#374**: Consolidate init sensors
+  ([`a0b5855`](https://github.com/weijen/agent-delivery-harness/commit/a0b5855aa2c843f3a97712795afe7fd185faa499))
+
+- **#374**: Consolidate install adopter sensors
+  ([`0b2541d`](https://github.com/weijen/agent-delivery-harness/commit/0b2541d7e0b1a5655b37be0f538590658c834fc8))
+
+- **#374**: Consolidate install update sensors
+  ([`2524d56`](https://github.com/weijen/agent-delivery-harness/commit/2524d5696d72cf60c5dd2aeb332e6254afe12fa7))
+
+- **#374**: Consolidate L0 gate sensors
+  ([`cc0792e`](https://github.com/weijen/agent-delivery-harness/commit/cc0792e785714d20869055875b7ac177f6650429))
+
+- **#374**: Consolidate log completeness sensors
+  ([`f4e9911`](https://github.com/weijen/agent-delivery-harness/commit/f4e99111554cfbda9639237ce5e8fe33f0659999))
+
+- **#374**: Consolidate log handback sensors
+  ([`fb15205`](https://github.com/weijen/agent-delivery-harness/commit/fb15205b4fa8f38b5bf578f42a65adfa28090c20))
+
+- **#374**: Consolidate merge PR sensors
+  ([`57f98e3`](https://github.com/weijen/agent-delivery-harness/commit/57f98e3ce2175c8e8565747307234aeb26728051))
+
+- **#374**: Consolidate release sensors
+  ([`b4adb3b`](https://github.com/weijen/agent-delivery-harness/commit/b4adb3b9881f7fb04fd66bffc7f7f5d3cebab9d3))
+
+- **#374**: Consolidate review gate sensors
+  ([`13d8f6e`](https://github.com/weijen/agent-delivery-harness/commit/13d8f6ef156c2d0c2ead06e10d62fb5ae6dd8bf0))
+
+- **#374**: Consolidate reviewer contract sensors
+  ([`d0a8af7`](https://github.com/weijen/agent-delivery-harness/commit/d0a8af7addc84ab03440914626cc4ecd19602785))
+
+- **#374**: Consolidate run eval sensors
+  ([`8a7fb6d`](https://github.com/weijen/agent-delivery-harness/commit/8a7fb6d235627f0e4dc05a0acaaacfe9ccfa32ae))
+
+- **#374**: Consolidate single-home drift sensors
+  ([`dc8eca6`](https://github.com/weijen/agent-delivery-harness/commit/dc8eca642ae1f70aa714a58131ed2942f1533ea4))
+
+- **#374**: Consolidate start issue sensors
+  ([`797eab9`](https://github.com/weijen/agent-delivery-harness/commit/797eab921a0ba2169631967ddb807891494f44aa))
+
+- **#374**: Consolidate trace library sensors
+  ([`18d87ca`](https://github.com/weijen/agent-delivery-harness/commit/18d87cabcbf4140ddebacaf5d066ea1cf4b807d1))
+
+- **#374**: Consolidate trace schema sensors
+  ([`fd86090`](https://github.com/weijen/agent-delivery-harness/commit/fd86090c496e9bc42b4c9b394f67f1361cbeadb8))
+
+- **#374**: Slim approval carry sensors
+  ([`715f964`](https://github.com/weijen/agent-delivery-harness/commit/715f9644cf7abb1ffc266aafaabe833f751a14fa))
+
+
 ## v0.32.7 (2026-07-23)
 
 ### Bug Fixes
