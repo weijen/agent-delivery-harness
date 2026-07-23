@@ -286,7 +286,7 @@ make_finish_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -295,7 +295,7 @@ make_finish_fixture() {
     printf '%s\n' "$start_out"
     fail "setup: start-issue for issue ${issue} failed"
   fi
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || fail "setup: worktree for issue ${issue} was not created"
 }
 
@@ -369,7 +369,7 @@ main_progress_path() {
 worktree_dir_path() {
   local main="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  printf '%s-worktrees/issue-%s' "$main" "$pad"
+  printf '%s/.worktrees/issue-%s' "$main" "$pad"
 }
 
 # --- Environment ---------------------------------------------------------

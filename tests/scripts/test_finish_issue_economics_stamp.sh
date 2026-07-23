@@ -91,7 +91,7 @@ make_finish_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -100,10 +100,10 @@ make_finish_fixture() {
     printf '%s\n' "$start_out"
     fail "setup: start-issue for issue ${issue} failed"
   fi
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || fail "setup: worktree for issue ${issue} was not created"
 
-  cat > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json" <<JSON
+  cat > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json" <<JSON
 {
   "features": [
     {
@@ -164,7 +164,7 @@ assert_behavioral_finish_stamps_before_remove() {
   local pad main_progress
   pad="$(printf '%02d' "$issue")"
   main_progress="${main}/.copilot-tracking/issues/issue-${pad}/progress.md"
-  [ ! -d "${main}-worktrees/issue-${pad}" ] \
+  [ ! -d "${main}/.worktrees/issue-${pad}" ] \
     || fail "worktree for issue ${issue} must be removed after finish"
   [ -f "$main_progress" ] \
     || fail "economics block must survive teardown in a MAIN-checkout progress.md (${main_progress} missing)"

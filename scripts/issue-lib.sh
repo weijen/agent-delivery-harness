@@ -7,7 +7,7 @@
 #   ISSUE_PAD      zero-padded to 2 digits, wider numbers untouched (e.g. 07, 31, 105)
 #   ISSUE_SLUG     lowercase-hyphenated slug derived from the GitHub issue title
 #   BRANCH         feature/issue-<PAD>-<SLUG>
-#   WORKTREE_DIR   <main-parent>/<main-name>-worktrees/issue-<PAD>
+#   WORKTREE_DIR   <main-root>/.worktrees/issue-<PAD>
 #   TRACKING_DIR   <WORKTREE_DIR>/.copilot-tracking/issues/issue-<PAD>
 #
 # All paths are anchored to the MAIN checkout (resolved via the shared git
@@ -97,7 +97,7 @@ issue_derive_slug() {
 # Usage: resolve_issue_env <number> [explicit-slug]
 resolve_issue_env() {
   local num="$1" explicit_slug="${2:-}"
-  local root parent reponame
+  local root parent reponame primary_worktree legacy_worktree
   root="$(issue_main_root)"
   parent="$(dirname "$root")"
   reponame="$(basename "$root")"
@@ -110,7 +110,13 @@ resolve_issue_env() {
     ISSUE_SLUG="$(issue_derive_slug "$num")"
   fi
   BRANCH="feature/issue-${ISSUE_PAD}-${ISSUE_SLUG}"
-  WORKTREE_DIR="${parent}/${reponame}-worktrees/issue-${ISSUE_PAD}"
+  primary_worktree="${root}/.worktrees/issue-${ISSUE_PAD}"
+  legacy_worktree="${parent}/${reponame}-worktrees/issue-${ISSUE_PAD}"
+  if [ ! -d "$primary_worktree" ] && [ -d "$legacy_worktree" ]; then
+    WORKTREE_DIR="$legacy_worktree"
+  else
+    WORKTREE_DIR="$primary_worktree"
+  fi
   TRACKING_DIR="${WORKTREE_DIR}/.copilot-tracking/issues/issue-${ISSUE_PAD}"
   export ISSUE_NUM ISSUE_PAD ISSUE_SLUG BRANCH WORKTREE_DIR TRACKING_DIR
 }

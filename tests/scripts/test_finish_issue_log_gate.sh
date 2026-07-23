@@ -71,7 +71,7 @@ make_finish_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -80,15 +80,15 @@ make_finish_fixture() {
     printf '%s\n' "$start_out"
     fail "setup: start-issue for issue ${issue} failed"
   fi
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || fail "setup: worktree for issue ${issue} was not created"
-  printf '%s\n' "$COMPLETE_LIST" > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+  printf '%s\n' "$COMPLETE_LIST" > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 }
 
 write_clean_progress() {
   local main="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  cat > "${main}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
+  cat > "${main}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
 # Issue ${issue} progress
 
 Status: complete.
@@ -102,7 +102,7 @@ MD
 write_placeholder_progress() {
   local main="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  cat > "${main}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
+  cat > "${main}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<MD
 # Issue ${issue} progress
 
 Status: in progress.
@@ -131,7 +131,7 @@ write_clean_progress "$R1" 80
 rc=0
 out="$(cd "$R1" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 80 SLUG=fixture 2>&1)" || rc=$?
 [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "clean_default: finish-issue.sh must exit 0"; }
-assert_removed "clean_default" "${R1}-worktrees/issue-80"
+assert_removed "clean_default" "${R1}/.worktrees/issue-80"
 
 # 3. placeholder_require_blocks: placeholders + REQUIRE_LOG_COMPLETE=1 must
 # block before worktree_remove. This is the RED failure until finish-issue.sh
@@ -145,7 +145,7 @@ if [ "$rc" -eq 0 ]; then
   printf '%s\n' "$out"
   fail "placeholder_require_blocks: expected non-zero exit under REQUIRE_LOG_COMPLETE=1"
 fi
-assert_intact "placeholder_require_blocks" "${R3}-worktrees/issue-82"
+assert_intact "placeholder_require_blocks" "${R3}/.worktrees/issue-82"
 
 # 2. placeholder_default_blocks: ordinary review-gate use remains warn-only,
 # but destructive finish always promotes residual placeholders to a hard gate.
@@ -159,7 +159,7 @@ printf '%s\n' "$out" | grep -q "log-completeness" \
   || { printf '%s\n' "$out"; fail "placeholder_default_blocks: output must mention log-completeness"; }
 printf '%s\n' "$out" | grep -q "Recorded on completion below" \
   || { printf '%s\n' "$out"; fail "placeholder_default_blocks: output must include placeholder finding text"; }
-assert_intact "placeholder_default_blocks" "${R2}-worktrees/issue-81"
+assert_intact "placeholder_default_blocks" "${R2}/.worktrees/issue-81"
 
 # 4. clean_require_ok: REQUIRE_LOG_COMPLETE=1 does not block a clean log.
 R4="${TMP_DIR}/r83"
@@ -168,6 +168,6 @@ write_clean_progress "$R4" 83
 rc=0
 out="$(cd "$R4" && PATH="$BIN" REQUIRE_LOG_COMPLETE=1 FORCE=1 ./scripts/finish-issue.sh 83 SLUG=fixture 2>&1)" || rc=$?
 [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "clean_require_ok: clean log must exit 0 under REQUIRE_LOG_COMPLETE=1"; }
-assert_removed "clean_require_ok" "${R4}-worktrees/issue-83"
+assert_removed "clean_require_ok" "${R4}/.worktrees/issue-83"
 
 printf 'finish-issue log-completeness gate wiring contract honored\n'

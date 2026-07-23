@@ -48,13 +48,13 @@ cd "${TMP_DIR}/repo"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial"
 
 SKIP_INIT=1 ./scripts/start-issue.sh 123 SLUG=scaffold-test >"${TMP_DIR}/start-issue.out"
-WORKTREE="${TMP_DIR}/repo-worktrees/issue-123"
+WORKTREE="${TMP_DIR}/repo/.worktrees/issue-123"
 FEATURE_LIST="${WORKTREE}/.copilot-tracking/issues/issue-123/feature_list.json"
 
 set +e
@@ -104,7 +104,7 @@ set +e
 (
   set -e
 SKIP_INIT=1 ./scripts/start-issue.sh 124 SLUG=warn-test >"${TMP_DIR}/start-warn.out"
-WORKTREE_WARN="${TMP_DIR}/repo-worktrees/issue-124"
+WORKTREE_WARN="${TMP_DIR}/repo/.worktrees/issue-124"
 FEATURE_LIST_WARN="${WORKTREE_WARN}/.copilot-tracking/issues/issue-124/feature_list.json"
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_WARN" >"${FEATURE_LIST_WARN}.tmp"
 mv "${FEATURE_LIST_WARN}.tmp" "$FEATURE_LIST_WARN"
@@ -127,7 +127,7 @@ set +e
 (
   set -e
 SKIP_INIT=1 ./scripts/start-issue.sh 125 SLUG=nojq-test >"${TMP_DIR}/start-nojq.out"
-WORKTREE_NOJQ="${TMP_DIR}/repo-worktrees/issue-125"
+WORKTREE_NOJQ="${TMP_DIR}/repo/.worktrees/issue-125"
 FEATURE_LIST_NOJQ="${WORKTREE_NOJQ}/.copilot-tracking/issues/issue-125/feature_list.json"
 jq '.features = [{"id":"fixture","title":"Fixture","steps":[],"passes":false,"regression_sensor":null,"e2e_sensor":null,"blocked_on":null,"verification":null}]' "$FEATURE_LIST_NOJQ" >"${FEATURE_LIST_NOJQ}.tmp"
 mv "${FEATURE_LIST_NOJQ}.tmp" "$FEATURE_LIST_NOJQ"

@@ -158,7 +158,10 @@ state_transitions:
     present: feature/issue-
   - id: worktree-naming
     owner: scripts/issue-lib.sh
-    present: -worktrees/issue-
+    present: \.worktrees/issue-
+  - id: legacy-worktree-fallback
+    owner: scripts/issue-lib.sh
+    present: legacy_worktree
   - id: feature-list-artifact
     owner: scripts/start-issue.sh
     present: \.copilot-tracking/issues/issue-|feature_list.json

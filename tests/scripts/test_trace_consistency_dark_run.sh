@@ -264,7 +264,7 @@ fi
 make_gate_fixture() {
   local dir="$1" issue="$2" pad wt tree commit
   pad="$(issue_pad "$issue")"
-  wt="${dir}-worktrees/issue-${pad}"
+  wt="${dir}/.worktrees/issue-${pad}"
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   local s
@@ -275,7 +275,7 @@ make_gate_fixture() {
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   git -C "$dir" config commit.gpgsign false
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md docs scripts
   tree="$(git -C "$dir" write-tree)"
@@ -290,7 +290,7 @@ make_gate_fixture() {
 GATE_ISSUE=248
 GATE_MAIN="${TMP_DIR}/gate-main"
 make_gate_fixture "$GATE_MAIN" "$GATE_ISSUE"
-GATE_WT="${GATE_MAIN}-worktrees/issue-$(issue_pad "$GATE_ISSUE")"
+GATE_WT="${GATE_MAIN}/.worktrees/issue-$(issue_pad "$GATE_ISSUE")"
 
 run_gate() {
   local rc=0

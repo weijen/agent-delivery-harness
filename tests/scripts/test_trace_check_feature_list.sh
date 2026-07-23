@@ -32,7 +32,7 @@
 # Fixture style follows test_lifecycle_order.sh: throwaway repos under
 # mktemp -d, scripts copied in individually, pinned PATH. The checked
 # feature_list.json lives at the worktree-shaped path issue-lib resolves
-# (<repo>-worktrees/issue-NN/.copilot-tracking/issues/issue-NN/) — no real
+# (<repo>/.worktrees/issue-NN/.copilot-tracking/issues/issue-NN/) — no real
 # git worktree is needed for the check itself.
 #
 # Exit codes: 0 emission contract honored · 1 a contract obligation regressed.
@@ -105,7 +105,7 @@ make_repo() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -115,7 +115,7 @@ make_repo() {
 # Places feature_list.json at the worktree-shaped path issue-lib resolves.
 write_feature_list() {
   local repo="$1" pad="$2" content="$3"
-  local dir="${repo}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}"
+  local dir="${repo}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}"
   mkdir -p "$dir"
   printf '%s\n' "$content" > "${dir}/feature_list.json"
 }
@@ -169,8 +169,8 @@ make_repo "$R1" 1
 write_feature_list "$R1" 50 "$COMPLETE_LIST"
 write_feature_list "$R1" 51 "$INCOMPLETE_LIST"
 write_feature_list "$R1" 52 "$INCOMPLETE_LIST"
-mkdir -p "${R1}-worktrees/issue-53/.copilot-tracking/issues/issue-53"
-printf '{ not json\n' > "${R1}-worktrees/issue-53/.copilot-tracking/issues/issue-53/feature_list.json"
+mkdir -p "${R1}/.worktrees/issue-53/.copilot-tracking/issues/issue-53"
+printf '{ not json\n' > "${R1}/.worktrees/issue-53/.copilot-tracking/issues/issue-53/feature_list.json"
 cd "$R1"
 
 # ============================================================================

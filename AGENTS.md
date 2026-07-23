@@ -122,8 +122,8 @@ an isolated branch + worktree so issues never collide in one checkout:
 ```sh
 ./scripts/start-issue.sh 1 # runs scripts/init.sh; on green, creates branch
                            # feature/issue-01-<slug> + worktree
-                           # ../<repo>-worktrees/issue-01, then cd into it
-cd ../<repo>-worktrees/issue-01
+                           # .worktrees/issue-01, then cd into it
+cd .worktrees/issue-01
 ```
 
 Keep harness shell entrypoints under `scripts/`. Do not create root-level `.sh` copies.

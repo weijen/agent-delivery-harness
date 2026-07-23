@@ -6,7 +6,7 @@
 #   ./scripts/finish-issue.sh ISSUE=1
 #   ./scripts/finish-issue.sh ISSUE=1 SLUG=custom-slug   # if the slug can't be derived
 #
-# Finalizes the durable progress record, removes <repo>-worktrees/issue-NN, and
+# Finalizes the durable progress record, removes <repo>/.worktrees/issue-NN, and
 # prunes worktree metadata. By default it
 # REFUSES when the worktree has uncommitted changes (override with FORCE=1) and
 # leaves the local branch in place (delete it with DELETE_BRANCH=1).

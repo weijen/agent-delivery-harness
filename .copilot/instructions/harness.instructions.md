@@ -59,7 +59,7 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
    - **Starting an issue:** run `./scripts/start-issue.sh <N>` from the **main checkout**. It runs
      `./scripts/init.sh` and, only on a green environment, creates branch
     `feature/issue-NN-<slug>` and an isolated worktree at
-    `../<repo>-worktrees/issue-NN`, scaffolds
+    `<repo>/.worktrees/issue-NN`, scaffolds
      `.copilot-tracking/issues/issue-NN/`, and prints the `cd` path. Work happens **in that
      worktree**, never directly on the main checkout. For cloud / infrastructure / deploy work
      (e.g. an Azure / Foundry project), run `REQUIRE_AZ=1 ./scripts/start-issue.sh <N>`.
@@ -262,7 +262,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 ## 6. Branching & commits
 
 - One branch per issue: `feature/issue-NN-<slug>`, created together with its worktree by
-  `./scripts/start-issue.sh <N>` (§2). Develop in `../<repo>-worktrees/issue-NN`, not the
+  `./scripts/start-issue.sh <N>` (§2). Develop in `.worktrees/issue-NN`, not the
   main checkout. After the PR merges, run `./scripts/finish-issue.sh <N>` (optionally
   `DELETE_BRANCH=1`) from the main checkout to remove the worktree and prune.
 

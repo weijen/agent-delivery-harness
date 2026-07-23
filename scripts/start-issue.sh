@@ -11,7 +11,7 @@
 #      created on top of a healthy environment. (Set SKIP_INIT=1 to bypass — for
 #      scripted tests only; it defeats the purpose otherwise.)
 #   2. Derive a slug from the issue title (gh) → branch feature/issue-NN-<slug>.
-#   3. Create a worktree at <repo>-worktrees/issue-NN on that branch (off main).
+#   3. Create a worktree at <repo>/.worktrees/issue-NN on that branch (off main).
 #   4. Scaffold .copilot-tracking/issues/issue-NN/ (feature_list.json, progress.md)
 #      if missing.
 #   5. Print the cd path + next steps. Idempotent: never clobbers an existing

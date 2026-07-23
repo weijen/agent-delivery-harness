@@ -76,19 +76,19 @@ make_finish_fixture() {
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   git -C "$dir" config commit.gpgsign false
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out"; fail "setup: start-issue for issue ${issue} failed"; }
-  [ -d "${dir}-worktrees/issue-${pad}" ] || fail "setup: worktree for issue ${issue} not created"
+  [ -d "${dir}/.worktrees/issue-${pad}" ] || fail "setup: worktree for issue ${issue} not created"
   printf '%s\n' "$COMPLETE_LIST" \
-    > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+    > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
   # A non-ignored untracked file makes a plain `git worktree remove` refuse
   # (gitignored files alone do not block removal).
-  printf 'uncommitted work\n' > "${dir}-worktrees/issue-${pad}/dirty.txt"
+  printf 'uncommitted work\n' > "${dir}/.worktrees/issue-${pad}/dirty.txt"
 }
 
 # ============================================================================
@@ -113,7 +113,7 @@ if grep -q 'Worktree has uncommitted changes (or is locked)' "$OUT1"; then
 fi
 grep -q 'FORCE=1' "$OUT1" \
   || { cat "$OUT1"; fail "(1) the FORCE=1 remediation hint must remain"; }
-[ -e "${R1}-worktrees/issue-91" ] \
+[ -e "${R1}/.worktrees/issue-91" ] \
   || fail "(1) the worktree must survive a refused removal"
 
 # ============================================================================
@@ -126,7 +126,7 @@ OUT2="${TMP_DIR}/fin-force.out"
   || { cat "$OUT2"; fail "(2) FORCE=1 finish must still exit 0 (behavior unchanged)"; }
 grep -q 'Removed worktree' "$OUT2" \
   || { cat "$OUT2"; fail "(2) FORCE=1 removal message must be unchanged"; }
-[ ! -e "${R2}-worktrees/issue-91" ] \
+[ ! -e "${R2}/.worktrees/issue-91" ] \
   || fail "(2) FORCE=1 must remove the worktree (behavior unchanged)"
 
 printf 'finish-issue worktree-error sensor passed\n'

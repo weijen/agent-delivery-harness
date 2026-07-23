@@ -214,7 +214,7 @@ make_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
   git -C "$dir" add .gitignore README.md docs scripts
@@ -229,7 +229,7 @@ make_fixture() {
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out" >&2; hard_fail "setup: start-issue for issue ${issue} failed"; }
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || hard_fail "setup: worktree for issue ${issue} was not created"
   [ -f "${dir}/.copilot-tracking/issues/issue-${pad}/trace.jsonl" ] \
     || hard_fail "setup: start-issue emitted no main-root trace for issue ${issue}"
@@ -300,7 +300,7 @@ FL_BOTH_WAIVERS_TRAP='{"issue":1,"features":[{"id":"feat-a","title":"A","passes"
 # Case 1: approve_blocks_missing_feature_start (issue 80)
 # ============================================================================
 C1="${TMP_DIR}/c80"; make_fixture "$C1" 80
-WT1="${C1}-worktrees/issue-80"; ID1="${C1}/.copilot-tracking/issues/issue-80"
+WT1="${C1}/.worktrees/issue-80"; ID1="${C1}/.copilot-tracking/issues/issue-80"
 set_fl "$ID1" "$FL_MISSING"
 add_span "$ID1" 80 test-subagent red_handback feat-a pass
 add_span "$ID1" 80 implementation-subagent impl_handback feat-a pass
@@ -322,7 +322,7 @@ grep -Fq 'scripts/log-handback.sh' "$OUT" \
 # Case 2: check_blocks_missing_feature_start (issue 81)
 # ============================================================================
 C2="${TMP_DIR}/c81"; make_fixture "$C2" 81
-WT2="${C2}-worktrees/issue-81"; ID2="${C2}/.copilot-tracking/issues/issue-81"
+WT2="${C2}/.worktrees/issue-81"; ID2="${C2}/.copilot-tracking/issues/issue-81"
 set_fl "$ID2" "$FL_MISSING"
 add_span "$ID2" 81 test-subagent red_handback feat-a pass
 add_span "$ID2" 81 implementation-subagent impl_handback feat-a pass
@@ -339,7 +339,7 @@ grep -Fq 'feature_start_missing feat-a' "$OUT" \
 # Case 3: create_pr_inherits_block (issue 82)
 # ============================================================================
 C3="${TMP_DIR}/c82"; make_fixture "$C3" 82
-WT3="${C3}-worktrees/issue-82"; ID3="${C3}/.copilot-tracking/issues/issue-82"
+WT3="${C3}/.worktrees/issue-82"; ID3="${C3}/.copilot-tracking/issues/issue-82"
 set_fl "$ID3" "$FL_MISSING"
 add_span "$ID3" 82 test-subagent red_handback feat-a pass
 add_span "$ID3" 82 implementation-subagent impl_handback feat-a pass
@@ -357,7 +357,7 @@ rc="$(run_in "$WT3" "$OUT" GH_LOG="$GH_LOG3" -- ./scripts/create-pr.sh --title t
 # Case 4: feature_start_span_allows_full_pr_path (issue 83)
 # ============================================================================
 C4="${TMP_DIR}/c83"; make_fixture "$C4" 83
-WT4="${C4}-worktrees/issue-83"; ID4="${C4}/.copilot-tracking/issues/issue-83"
+WT4="${C4}/.worktrees/issue-83"; ID4="${C4}/.copilot-tracking/issues/issue-83"
 set_fl "$ID4" "$FL_MISSING"
 add_span "$ID4" 83 conductor feature_start feat-a pass
 add_span "$ID4" 83 test-subagent red_handback feat-a pass
@@ -389,7 +389,7 @@ rc="$(run_in "$WT4" "$OUT" GH_LOG="$GH_LOG4" GH_STATE="$GH_STATE4" -- ./scripts/
 # Case 5: canonical_waiver_allows_approve (issue 84)
 # ============================================================================
 C5="${TMP_DIR}/c84"; make_fixture "$C5" 84
-WT5="${C5}-worktrees/issue-84"; ID5="${C5}/.copilot-tracking/issues/issue-84"
+WT5="${C5}/.worktrees/issue-84"; ID5="${C5}/.copilot-tracking/issues/issue-84"
 set_fl "$ID5" "$FL_CANON_WAIVER"
 add_span "$ID5" 84 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass
 add_span "$ID5" 84 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
@@ -408,7 +408,7 @@ fi
 # Case 6: legacy_waiver_allows_approve (issue 85)
 # ============================================================================
 C6="${TMP_DIR}/c85"; make_fixture "$C6" 85
-WT6="${C6}-worktrees/issue-85"; ID6="${C6}/.copilot-tracking/issues/issue-85"
+WT6="${C6}/.worktrees/issue-85"; ID6="${C6}/.copilot-tracking/issues/issue-85"
 set_fl "$ID6" "$FL_LEGACY_WAIVER"
 add_span "$ID6" 85 test-subagent green_handback feat-a pass  # satisfies unverified_feature_pass
 add_span "$ID6" 85 code-review-subagent review_verdict feat-a pass  # issue #303: verdict gate
@@ -427,7 +427,7 @@ fi
 # Case 7: malformed_canonical_shadows_legacy_blocks (issue 86)
 # ============================================================================
 C7="${TMP_DIR}/c86"; make_fixture "$C7" 86
-WT7="${C7}-worktrees/issue-86"; ID7="${C7}/.copilot-tracking/issues/issue-86"
+WT7="${C7}/.worktrees/issue-86"; ID7="${C7}/.copilot-tracking/issues/issue-86"
 set_fl "$ID7" "$FL_BOTH_WAIVERS_TRAP"
 add_span "$ID7" 86 test-subagent red_handback feat-a pass
 add_span "$ID7" 86 implementation-subagent impl_handback feat-a pass
@@ -445,7 +445,7 @@ grep -Fq 'feature_start_missing feat-a' "$OUT" \
 # Case 8: trace_subcommand_stays_warn_only_by_default (issue 87)
 # ============================================================================
 C8="${TMP_DIR}/c87"; make_fixture "$C8" 87
-WT8="${C8}-worktrees/issue-87"; ID8="${C8}/.copilot-tracking/issues/issue-87"
+WT8="${C8}/.worktrees/issue-87"; ID8="${C8}/.copilot-tracking/issues/issue-87"
 set_fl "$ID8" "$FL_MISSING"
 add_span "$ID8" 87 test-subagent red_handback feat-a pass
 add_span "$ID8" 87 implementation-subagent impl_handback feat-a pass

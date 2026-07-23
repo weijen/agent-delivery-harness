@@ -75,7 +75,7 @@ resolve_issue_env 7 demo-slug
 [ "$ISSUE_PAD" = "07" ]                                  || fail "pad: 7 should zero-pad to 07 (got '$ISSUE_PAD')"
 [ "$BRANCH" = "feature/issue-07-demo-slug" ]             || fail "branch: unexpected name '$BRANCH'"
 case "$WORKTREE_DIR" in
-  */myrepo-worktrees/issue-07) : ;;
+  */myrepo/.worktrees/issue-07) : ;;
   *) fail "worktree: unexpected path '$WORKTREE_DIR'" ;;
 esac
 case "$TRACKING_DIR" in
@@ -108,7 +108,7 @@ resolve_issue_env 42
 expected_main="$(canon "${REPO}")"
 [ "$(canon "$(issue_main_root)")" = "$expected_main" ] || fail "main-root: wrong from main checkout"
 
-WT="${TMP_DIR}/myrepo-worktrees/issue-99"
+WT="${TMP_DIR}/myrepo/.worktrees/issue-99"
 git worktree add -q -b feature/issue-99-x "$WT" main
 (
   cd "$WT"
@@ -120,7 +120,7 @@ git worktree add -q -b feature/issue-99-x "$WT" main
   resolve_issue_env 7 demo-slug
   [ "$BRANCH" = "feature/issue-07-demo-slug" ] || { printf 'FAIL: branch from worktree wrong %s\n' "$BRANCH" >&2; exit 1; }
   case "$WORKTREE_DIR" in
-    */myrepo-worktrees/issue-07) : ;;
+    */myrepo/.worktrees/issue-07) : ;;
     *) printf 'FAIL: worktree path from worktree wrong %s\n' "$WORKTREE_DIR" >&2; exit 1 ;;
   esac
 )
