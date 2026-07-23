@@ -104,7 +104,7 @@ cd "$R1"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial" main
@@ -114,7 +114,7 @@ if PATH="$R1BIN" ./scripts/start-issue.sh 300 SLUG=order >"${TMP_DIR}/order-star
   cat "${TMP_DIR}/order-start.out"; fail "start-issue must abort when preflight fails"
 fi
 grep -qi "Preflight failed" "${TMP_DIR}/order-start.out" || { cat "${TMP_DIR}/order-start.out"; fail "start-issue did not report the preflight failure"; }
-if [ -e "${TMP_DIR}/r1-worktrees/issue-300" ]; then
+if [ -e "${TMP_DIR}/r1/.worktrees/issue-300" ]; then
   fail "start-issue created a worktree despite a failed preflight (worktree created BEFORE preflight gate)"
 fi
 if git show-ref --verify --quiet refs/heads/feature/issue-300-order; then
@@ -139,7 +139,7 @@ cd "${TMP_DIR}/origin-seed"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'seed\n' > README.md
 git add .gitignore README.md scripts
 git commit -q -m initial
@@ -153,7 +153,7 @@ cd "$R2"
 git init -q -b feature/issue-301-order
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'work\n' > README.md
 git add .gitignore README.md scripts
 make_commit "feature commit" feature/issue-301-order
@@ -203,13 +203,13 @@ cd "$R3"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial" main
 
 PATH="$R3BIN" SKIP_INIT=1 ./scripts/start-issue.sh 302 SLUG=order >"${TMP_DIR}/order-finish-start.out"
-WT="${TMP_DIR}/r3-worktrees/issue-302"
+WT="${TMP_DIR}/r3/.worktrees/issue-302"
 FL="${WT}/.copilot-tracking/issues/issue-302/feature_list.json"
 [ -d "$WT" ] || fail "setup: worktree for issue 302 was not created"
 

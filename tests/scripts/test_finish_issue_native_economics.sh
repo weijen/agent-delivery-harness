@@ -138,7 +138,7 @@ make_git_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md docs scripts
   git -C "$dir" commit -q -m initial
@@ -606,15 +606,15 @@ copy_fixture_scripts "$F_E2E"
 git -C "$F_E2E" init -q -b main
 git -C "$F_E2E" config user.name "Harness Test"
 git -C "$F_E2E" config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > "${F_E2E}/.gitignore"
+printf '/.worktrees/\n.copilot-tracking/\n' > "${F_E2E}/.gitignore"
 printf 'fixture\n' > "${F_E2E}/README.md"
 git -C "$F_E2E" add .gitignore README.md scripts docs
 git -C "$F_E2E" commit -q -m initial
 if ! start_out="$(cd "$F_E2E" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$I_E2E" SLUG=fixture 2>&1)"; then
   printf '%s\n' "$start_out"; hard_fail "E2E setup: start-issue failed"
 fi
-[ -d "${F_E2E}-worktrees/issue-${PAD_E2E}" ] || hard_fail "E2E setup: worktree not created"
-cat > "${F_E2E}-worktrees/issue-${PAD_E2E}/.copilot-tracking/issues/issue-${PAD_E2E}/feature_list.json" <<JSON
+[ -d "${F_E2E}/.worktrees/issue-${PAD_E2E}" ] || hard_fail "E2E setup: worktree not created"
+cat > "${F_E2E}/.worktrees/issue-${PAD_E2E}/.copilot-tracking/issues/issue-${PAD_E2E}/feature_list.json" <<JSON
 {"features":[{"id":"native-record-economics-join","title":"native","steps":[],"passes":true,"verification":"done","teeth_proof":{"kind":"negative_fixture","evidence":"sensor"}}]}
 JSON
 # Overwrite the main-root trace with our fixed window (start-issue wrote its own

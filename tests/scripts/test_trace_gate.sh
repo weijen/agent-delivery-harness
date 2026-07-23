@@ -144,7 +144,7 @@ make_gate_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
   git -C "$dir" add .gitignore README.md docs scripts
@@ -152,7 +152,7 @@ make_gate_fixture() {
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out" >&2; hard_fail "setup: start-issue for issue ${issue} failed"; }
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || hard_fail "setup: worktree for issue ${issue} was not created"
   [ -f "${dir}/.copilot-tracking/issues/issue-${pad}/trace.jsonl" ] \
     || hard_fail "setup: start-issue emitted no main-root trace for issue ${issue}"
@@ -200,7 +200,7 @@ run_in() { # run_in <dir> <out> <env...> -- <cmd...>
 # ============================================================================
 F1="${TMP_DIR}/f80"
 make_gate_fixture "$F1" 80
-WT1="${F1}-worktrees/issue-80"
+WT1="${F1}/.worktrees/issue-80"
 TRACE1="${F1}/.copilot-tracking/issues/issue-80/trace.jsonl"
 
 # --- 1a. CLEAN trace: `trace` exits 0 in BOTH modes -------------------------------
@@ -290,7 +290,7 @@ rc="$(run_in "$F2" "$OUT" ABANDONED=1 -- ./scripts/finish-issue.sh 81 SLUG=fixtu
   || fail "finish, default: warn-only — finish-issue.sh must still exit 0 with trace findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'role_attribution_gap' "$OUT" \
   || fail "finish, default: the trace gate must run before teardown and surface findings (output: $(tr '\n' '|' < "$OUT"))"
-[ ! -e "${F2}-worktrees/issue-81" ] \
+[ ! -e "${F2}/.worktrees/issue-81" ] \
   || fail "finish, default: worktree must still be removed in warn-only mode (REQUIRE_FEATURES_COMPLETE precedent)"
 
 # ============================================================================
@@ -302,7 +302,7 @@ dirty_gate_fixture "$F3" 82
 rc="$(run_in "$F3" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/finish-issue.sh 82 SLUG=fixture)"
 [ "$rc" != "0" ] \
   || fail "finish, blocking flag: trace findings must refuse the finish under REQUIRE_TRACE_CONSISTENCY=1, got exit 0 (output: $(tr '\n' '|' < "$OUT"))"
-[ -d "${F3}-worktrees/issue-82" ] \
+[ -d "${F3}/.worktrees/issue-82" ] \
   || fail "finish, blocking flag: the worktree must be LEFT INTACT when the gate blocks (refusal happens before worktree_remove)"
 
 # ============================================================================
@@ -311,7 +311,7 @@ rc="$(run_in "$F3" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/finish-issue.
 # ============================================================================
 F4="${TMP_DIR}/f83"
 make_gate_fixture "$F4" 83
-WT4="${F4}-worktrees/issue-83"
+WT4="${F4}/.worktrees/issue-83"
 # Strip the main-root copies make_gate_fixture planted: live runs keep only
 # trace.jsonl at the main root; progress.md/feature_list.json are the
 # start-issue-scaffolded WORKTREE ones.
@@ -339,7 +339,7 @@ grep -q 'role_attribution_gap' "$OUT" \
 # ============================================================================
 F5="${TMP_DIR}/f84"
 make_gate_fixture "$F5" 84
-WT5="${F5}-worktrees/issue-84"
+WT5="${F5}/.worktrees/issue-84"
 TRACE5="${F5}/.copilot-tracking/issues/issue-84/trace.jsonl"
 rm "${F5}/.copilot-tracking/issues/issue-84/progress.md" \
   "${WT5}/.copilot-tracking/issues/issue-84/progress.md"

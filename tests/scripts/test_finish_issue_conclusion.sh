@@ -58,7 +58,7 @@ make_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -67,14 +67,14 @@ make_fixture() {
     PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture
   ) > "${TMP_DIR}/${name}-start.out" 2>&1 || fail "${name}: fixture start failed"
   printf '{"features":[{"id":"done","title":"Done","steps":[],"passes":true,"regression_sensor":"fixture","e2e_sensor":null,"blocked_on":null,"verification":"sensor","teeth_proof":{"kind":"red_first","evidence":"fixture"}}]}\n' \
-    > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+    > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
   printf '%s' "$dir"
 }
 
 write_progress() {
   local main="$1" issue="$2" status="$3" pad=""
   pad="$(printf '%02d' "$issue")"
-  cat > "${main}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<PROGRESS
+  cat > "${main}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/progress.md" <<PROGRESS
 # Issue ${issue} progress
 
 Status: ${status}.
@@ -133,7 +133,7 @@ write_verdict_trace "$MAIN" 41 "fail pass"
 FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-41-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":441}]' \
   run_finish "$MAIN" 41 "${TMP_DIR}/merged.out" env \
   || { cat "${TMP_DIR}/merged.out"; fail "merged: finish unexpectedly failed"; }
-[ ! -e "${MAIN}-worktrees/issue-41" ] || fail "merged: worktree must be removed"
+[ ! -e "${MAIN}/.worktrees/issue-41" ] || fail "merged: worktree must be removed"
 assert_contains "${MAIN}/.copilot-tracking/issues/issue-41/progress.md" \
   'Conclusion: merged; review verdict: APPROVED.'
 grep -q '^Status:' "${MAIN}/.copilot-tracking/issues/issue-41/progress.md" \
@@ -146,8 +146,8 @@ write_verdict_trace "$MAIN" 42 "pass"
 if FAKE_GH_PR_JSON='[]' run_finish "$MAIN" 42 "${TMP_DIR}/refused.out" env; then
   fail "refused: finish must reject absent authoritative merged-PR evidence"
 fi
-[ -d "${MAIN}-worktrees/issue-42" ] || fail "refused: worktree must remain intact"
-assert_contains "${MAIN}-worktrees/issue-42/.copilot-tracking/issues/issue-42/progress.md" \
+[ -d "${MAIN}/.worktrees/issue-42" ] || fail "refused: worktree must remain intact"
+assert_contains "${MAIN}/.worktrees/issue-42/.copilot-tracking/issues/issue-42/progress.md" \
   'Status: implementation complete.'
 
 # Explicit abandonment is the only non-merged closeout and missing review
@@ -156,7 +156,7 @@ MAIN="$(make_fixture abandoned 43)"
 write_progress "$MAIN" 43 "implementation stopped"
 write_verdict_trace "$MAIN" 43 ""
 FAKE_GH_PR_JSON='[]' run_finish "$MAIN" 43 "${TMP_DIR}/abandoned.out" env ABANDONED=1
-[ ! -e "${MAIN}-worktrees/issue-43" ] || fail "abandoned: worktree must be removed"
+[ ! -e "${MAIN}/.worktrees/issue-43" ] || fail "abandoned: worktree must be removed"
 assert_contains "${MAIN}/.copilot-tracking/issues/issue-43/progress.md" \
   'Conclusion: abandoned; review verdict: n-a.'
 
@@ -173,8 +173,8 @@ MAIN="$(make_fixture idempotent 44)"
 write_progress "$MAIN" 44 "implementation complete"
 write_verdict_trace "$MAIN" 44 "pass"
 sed -i.bak 's/^Status:.*$/Conclusion: merged; review verdict: APPROVED./' \
-  "${MAIN}-worktrees/issue-44/.copilot-tracking/issues/issue-44/progress.md"
-rm -f "${MAIN}-worktrees/issue-44/.copilot-tracking/issues/issue-44/progress.md.bak"
+  "${MAIN}/.worktrees/issue-44/.copilot-tracking/issues/issue-44/progress.md"
+rm -f "${MAIN}/.worktrees/issue-44/.copilot-tracking/issues/issue-44/progress.md.bak"
 FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-44-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":444}]' \
   run_finish "$MAIN" 44 "${TMP_DIR}/idempotent.out" env
 assert_contains "${MAIN}/.copilot-tracking/issues/issue-44/progress.md" \
@@ -184,24 +184,24 @@ MAIN="$(make_fixture conflict 45)"
 write_progress "$MAIN" 45 "implementation complete"
 write_verdict_trace "$MAIN" 45 "pass"
 sed -i.bak 's/^Status:.*$/Conclusion: abandoned; review verdict: NEEDS_REVISION./' \
-  "${MAIN}-worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md"
-rm -f "${MAIN}-worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md.bak"
+  "${MAIN}/.worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md"
+rm -f "${MAIN}/.worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md.bak"
 if FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-45-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":445}]' \
   run_finish "$MAIN" 45 "${TMP_DIR}/conflict.out" env; then
   fail "conflict: existing different conclusion must not be overwritten"
 fi
-[ -d "${MAIN}-worktrees/issue-45" ] || fail "conflict: worktree must remain intact"
-assert_contains "${MAIN}-worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md" \
+[ -d "${MAIN}/.worktrees/issue-45" ] || fail "conflict: worktree must remain intact"
+assert_contains "${MAIN}/.worktrees/issue-45/.copilot-tracking/issues/issue-45/progress.md" \
   'Conclusion: abandoned; review verdict: NEEDS_REVISION.'
 
 # Missing progress and unsafe migration destinations are hard pre-teardown
 # failures, rather than advisory data-loss warnings.
 MAIN="$(make_fixture missing 46)"
-rm -f "${MAIN}-worktrees/issue-46/.copilot-tracking/issues/issue-46/progress.md"
+rm -f "${MAIN}/.worktrees/issue-46/.copilot-tracking/issues/issue-46/progress.md"
 if FAKE_GH_PR_JSON='[]' run_finish "$MAIN" 46 "${TMP_DIR}/missing.out" env ABANDONED=1; then
   fail "missing: absent progress must block"
 fi
-[ -d "${MAIN}-worktrees/issue-46" ] || fail "missing: worktree must remain intact"
+[ -d "${MAIN}/.worktrees/issue-46" ] || fail "missing: worktree must remain intact"
 
 MAIN="$(make_fixture unsafe 47)"
 write_progress "$MAIN" 47 "implementation stopped"
@@ -212,7 +212,7 @@ mkdir -p "${TMP_DIR}/outside"
 if FAKE_GH_PR_JSON='[]' run_finish "$MAIN" 47 "${TMP_DIR}/unsafe.out" env ABANDONED=1; then
   fail "unsafe: unsafe migration destination must block"
 fi
-[ -d "${MAIN}-worktrees/issue-47" ] || fail "unsafe: worktree must remain intact"
+[ -d "${MAIN}/.worktrees/issue-47" ] || fail "unsafe: worktree must remain intact"
 
 MAIN="$(make_fixture unwritable 49)"
 write_progress "$MAIN" 49 "implementation stopped"
@@ -228,8 +228,8 @@ if FINISH_PATH="$MVFAIL_BIN" FAKE_GH_PR_JSON='[]' \
   run_finish "$MAIN" 49 "${TMP_DIR}/unwritable.out" env ABANDONED=1; then
   fail "unwritable: atomic finalization failure must block"
 fi
-[ -d "${MAIN}-worktrees/issue-49" ] || fail "unwritable: worktree must remain intact"
-assert_contains "${MAIN}-worktrees/issue-49/.copilot-tracking/issues/issue-49/progress.md" \
+[ -d "${MAIN}/.worktrees/issue-49" ] || fail "unwritable: worktree must remain intact"
+assert_contains "${MAIN}/.worktrees/issue-49/.copilot-tracking/issues/issue-49/progress.md" \
   'Status: implementation stopped.'
 
 # A present-but-authoritative-confirmed pr_merge span carrying full merge
@@ -242,7 +242,7 @@ append_pr_merge_span "$MAIN" 51 pass MERGED deadbeef0001
 FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-51-fixture","state":"MERGED","mergedAt":"2026-07-20T12:30:00Z","number":451}]' \
   run_finish "$MAIN" 51 "${TMP_DIR}/merged-evidence.out" env \
   || { cat "${TMP_DIR}/merged-evidence.out"; fail "merged-evidence: finish unexpectedly failed"; }
-[ ! -e "${MAIN}-worktrees/issue-51" ] || fail "merged-evidence: worktree must be removed"
+[ ! -e "${MAIN}/.worktrees/issue-51" ] || fail "merged-evidence: worktree must be removed"
 assert_contains "${MAIN}/.copilot-tracking/issues/issue-51/progress.md" \
   'Conclusion: merged; review verdict: APPROVED.'
 
@@ -257,8 +257,8 @@ if FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-52-fixture","state":"MERGED",
   run_finish "$MAIN" 52 "${TMP_DIR}/merged-missing-evidence.out" env; then
   fail "merged-missing-evidence: finish must reject a present successful pr_merge span with no merge evidence"
 fi
-[ -d "${MAIN}-worktrees/issue-52" ] || fail "merged-missing-evidence: worktree must remain intact"
-assert_contains "${MAIN}-worktrees/issue-52/.copilot-tracking/issues/issue-52/progress.md" \
+[ -d "${MAIN}/.worktrees/issue-52" ] || fail "merged-missing-evidence: worktree must remain intact"
+assert_contains "${MAIN}/.worktrees/issue-52/.copilot-tracking/issues/issue-52/progress.md" \
   'Status: implementation complete.'
 
 # A finished trace cannot coexist with a surviving in-flight Status.

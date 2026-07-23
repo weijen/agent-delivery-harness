@@ -159,7 +159,7 @@ SH
   git init -q -b main
   git config user.name "Harness Test"
   git config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > .gitignore
+  printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
   printf 'fixture\n' > README.md
   git add .gitignore README.md scripts
   make_commit "initial" main
@@ -181,7 +181,7 @@ make_repo "$R1" 1 0
 cd "$R1"
 PATH="$BIN" ./scripts/start-issue.sh 40 SLUG=trace >"${TMP_DIR}/start-ok.out" 2>&1 \
   || { cat "${TMP_DIR}/start-ok.out"; fail "start-issue.sh must exit 0 on the happy path (behavior unchanged)"; }
-[ -d "${TMP_DIR}/r1-worktrees/issue-40" ] \
+[ -d "${TMP_DIR}/r1/.worktrees/issue-40" ] \
   || fail "happy path: worktree for issue 40 was not created"
 
 TRACE1="${R1}/.copilot-tracking/issues/issue-40/trace.jsonl"
@@ -218,7 +218,7 @@ if PATH="$BIN" ./scripts/start-issue.sh 41 SLUG=trace >"${TMP_DIR}/start-fail.ou
 fi
 grep -qi "Preflight failed" "${TMP_DIR}/start-fail.out" \
   || { cat "${TMP_DIR}/start-fail.out"; fail "preflight-fail path: 'Preflight failed' message must be unchanged"; }
-[ ! -e "${TMP_DIR}/r2-worktrees/issue-41" ] \
+[ ! -e "${TMP_DIR}/r2/.worktrees/issue-41" ] \
   || fail "preflight-fail path: no worktree may be created (existing ordering invariant)"
 if git show-ref --verify --quiet refs/heads/feature/issue-41-trace; then
   fail "preflight-fail path: no issue branch may be created"
@@ -244,7 +244,7 @@ cd "$R3"
 [ ! -e "${R3}/scripts/trace-lib.sh" ] || fail "fixture bug: R3 must not contain trace-lib.sh"
 PATH="$BIN" ./scripts/start-issue.sh 42 SLUG=trace >"${TMP_DIR}/start-nolib.out" 2>&1 \
   || { cat "${TMP_DIR}/start-nolib.out"; fail "start-issue.sh must still succeed when trace-lib.sh is absent (guarded source / no-op fallback, plan D5)"; }
-[ -d "${TMP_DIR}/r3-worktrees/issue-42" ] \
+[ -d "${TMP_DIR}/r3/.worktrees/issue-42" ] \
   || fail "trace-lib-absent path: worktree for issue 42 was not created"
 
 printf 'start-issue trace emission contract honored\n'

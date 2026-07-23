@@ -127,7 +127,7 @@ make_finish_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts docs
   git -C "$dir" commit -q -m initial
@@ -136,10 +136,10 @@ make_finish_fixture() {
     printf '%s\n' "$start_out"
     fail "setup: start-issue for issue ${issue} failed"
   fi
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || fail "setup: worktree for issue ${issue} was not created"
 
-  printf '%s\n' "$list" > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+  printf '%s\n' "$list" > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 }
 
 # write_rich_trace <main> <issue> — plants a MAIN-root trace.jsonl with one
@@ -223,7 +223,7 @@ write_rich_trace "$R1" 3291
 write_stale_summary "$R1" 3291
 out1="$(cd "$R1" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3291 SLUG=fixture 2>&1)" \
   || { printf '%s\n' "$out1"; fail "stale-replace: finish-issue.sh must exit 0 for a complete feature list"; }
-[ ! -e "${R1}-worktrees/issue-3291" ] \
+[ ! -e "${R1}/.worktrees/issue-3291" ] \
   || fail "stale-replace: worktree must be removed (behavior unchanged)"
 assert_regenerated "stale-replace" "$R1" 3291 pass
 
@@ -253,7 +253,7 @@ rc3=0
 out3="$(cd "$R3" && PATH="$BIN" REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.sh 3293 SLUG=fixture 2>&1)" || rc3=$?
 [ "$rc3" -ne 0 ] \
   || { printf '%s\n' "$out3"; fail "hard-refusal: incomplete list must still hard-fail under REQUIRE_FEATURES_COMPLETE=1 (original exit code must be preserved, not swallowed by the regeneration hook)"; }
-[ -d "${R3}-worktrees/issue-3293" ] \
+[ -d "${R3}/.worktrees/issue-3293" ] \
   || fail "hard-refusal: worktree must be left INTACT on a failed completion check (existing ordering invariant; teardown safety must not weaken)"
 # Regeneration still ran on this armed-but-failing path: the finish (fail)
 # span reached the trace, so the surviving summary reflects it.
@@ -269,7 +269,7 @@ rm -f "${R4}/scripts/trace-lib.sh"
 git -C "$R4" init -q -b main
 git -C "$R4" config user.name "Harness Test"
 git -C "$R4" config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > "${R4}/.gitignore"
+printf '/.worktrees/\n.copilot-tracking/\n' > "${R4}/.gitignore"
 printf 'fixture\n' > "${R4}/README.md"
 git -C "$R4" add .gitignore README.md scripts docs
 git -C "$R4" commit -q -m initial
@@ -277,10 +277,10 @@ if ! start_out4="$(cd "$R4" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh 
   printf '%s\n' "$start_out4"
   fail "trace-lib-absent setup: start-issue for issue 3294 failed"
 fi
-printf '%s\n' "$COMPLETE_LIST" > "${R4}-worktrees/issue-3294/.copilot-tracking/issues/issue-3294/feature_list.json"
+printf '%s\n' "$COMPLETE_LIST" > "${R4}/.worktrees/issue-3294/.copilot-tracking/issues/issue-3294/feature_list.json"
 out4="$(cd "$R4" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3294 SLUG=fixture 2>&1)" \
   || { printf '%s\n' "$out4"; fail "trace-lib-absent: finish-issue.sh must still exit 0 (guarded source / no-op fallback)"; }
-[ ! -e "${R4}-worktrees/issue-3294" ] \
+[ ! -e "${R4}/.worktrees/issue-3294" ] \
   || fail "trace-lib-absent: worktree must still be removed (behavior unchanged)"
 [ ! -e "$(trace_path "$R4" 3294)" ] \
   || fail "trace-lib-absent: no trace file may be created (no-op fallback)"
@@ -308,7 +308,7 @@ rc5=0
 out5="$(cd "$R5" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3295 SLUG=fixture 2>&1)" || rc5=$?
 [ "$rc5" -ne 0 ] \
   || { printf '%s\n' "$out5"; fail "broken-regenerator: finish-issue.sh must FAIL (non-zero exit) when the canonical trace-report.sh cannot regenerate the mandatory trace-summary.json"; }
-[ -d "${R5}-worktrees/issue-3295" ] \
+[ -d "${R5}/.worktrees/issue-3295" ] \
   || fail "broken-regenerator: worktree must be left INTACT when the mandatory pre-teardown summary-regeneration gate blocks the finish"
 printf '%s\n' "$out5" | grep -qF 'trace-summary regeneration' \
   || { printf '%s\n' "$out5"; fail "broken-regenerator: finish-issue.sh must explain the refusal (mandatory trace-summary regeneration failure), got:\n${out5}"; }
@@ -340,7 +340,7 @@ rc6=0
 out6="$(cd "$R6" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 3296 SLUG=fixture 2>&1)" || rc6=$?
 [ "$rc6" -ne 0 ] \
   || { printf '%s\n' "$out6"; fail "symlink-overwrite: finish-issue.sh must FAIL (non-zero exit) when trace-summary.json's destination path is a pre-planted symlink"; }
-[ -d "${R6}-worktrees/issue-3296" ] \
+[ -d "${R6}/.worktrees/issue-3296" ] \
   || fail "symlink-overwrite: worktree must be left INTACT when the symlink destination blocks the mandatory summary-regeneration gate"
 [ -L "$SUMMARY6" ] \
   || fail "symlink-overwrite: ${SUMMARY6} must remain a symlink (never replaced by a regular file — the gate must refuse before any write, not swap the symlink for a fresh one)"

@@ -86,7 +86,7 @@ make_state_hygiene_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -95,10 +95,10 @@ make_state_hygiene_fixture() {
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out"; fail "setup: start-issue for issue ${issue} failed"; }
 
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || fail "setup: worktree for issue ${issue} was not created"
   printf '%s\n' "$COMPLETE_LIST" \
-    > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+    > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}/.hook-state"
   printf 'orphan\n' \
@@ -117,7 +117,7 @@ make_state_hygiene_fixture "$MAIN" "$ISSUE"
   > "${TMP_DIR}/finish.out" 2>&1 \
   || { cat "${TMP_DIR}/finish.out"; fail "state hygiene: finish-issue.sh must exit 0; hygiene is warn-only and must not block teardown"; }
 
-[ ! -e "${MAIN}-worktrees/issue-${PAD}" ] \
+[ ! -e "${MAIN}/.worktrees/issue-${PAD}" ] \
   || fail "state hygiene: worktree must still be removed"
 defects=()
 if [ -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ]; then

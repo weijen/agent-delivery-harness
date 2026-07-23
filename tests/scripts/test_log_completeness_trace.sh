@@ -79,7 +79,7 @@ make_gate_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
   git -C "$dir" add .gitignore README.md docs scripts
@@ -87,7 +87,7 @@ make_gate_fixture() {
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out" >&2; hard_fail "setup: start-issue for issue ${issue} failed"; }
-  [ -d "${dir}-worktrees/issue-${pad}" ] \
+  [ -d "${dir}/.worktrees/issue-${pad}" ] \
     || hard_fail "setup: worktree for issue ${issue} was not created"
   [ -f "${dir}/.copilot-tracking/issues/issue-${pad}/trace.jsonl" ] \
     || hard_fail "setup: start-issue emitted no main-root trace for issue ${issue}"
@@ -120,7 +120,7 @@ run_in() { # run_in <dir> <out> <env...> -- <cmd...>
 # ============================================================================
 F1="${TMP_DIR}/f80"
 make_gate_fixture "$F1" 80
-WT1="${F1}-worktrees/issue-80"
+WT1="${F1}/.worktrees/issue-80"
 TRACE1="${F1}/.copilot-tracking/issues/issue-80/trace.jsonl"
 # The gate scans repo_root (the worktree toplevel via git rev-parse
 # --show-toplevel) — exactly where log-handback.sh writes the live Action Log —
@@ -179,7 +179,7 @@ rc=0
 # ============================================================================
 F2="${TMP_DIR}/f81"
 make_gate_fixture "$F2" 81
-WT2="${F2}-worktrees/issue-81"
+WT2="${F2}/.worktrees/issue-81"
 TRACE2="${F2}/.copilot-tracking/issues/issue-81/trace.jsonl"
 # Clean Action Log in the worktree (no placeholder signatures) — the gate must
 # still emit a span carrying a numeric finding_count of 0.
@@ -222,7 +222,7 @@ grep -q 'REQUIRE_LOG_COMPLETE' "${ROOT}/docs/HARNESS.md" \
 # ============================================================================
 F3="${TMP_DIR}/f82"
 make_gate_fixture "$F3" 82
-WT3="${F3}-worktrees/issue-82"
+WT3="${F3}/.worktrees/issue-82"
 TRACE3="${F3}/.copilot-tracking/issues/issue-82/trace.jsonl"
 # start-issue.sh seeds a worktree progress.md; remove it so there is genuinely
 # nothing to scan (scanned_count == 0), the no-span skip path.

@@ -54,7 +54,7 @@ make_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
@@ -63,7 +63,7 @@ make_fixture() {
     PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture
   ) > "${TMP_DIR}/${name}-start.out" 2>&1 || fail "${name}: fixture start failed"
   printf '{"features":[{"id":"done","title":"Done","steps":[],"passes":true,"regression_sensor":"fixture","e2e_sensor":null,"blocked_on":null,"verification":"sensor","teeth_proof":{"kind":"red_first","evidence":"fixture"}}]}\n' \
-    > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+    > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
   printf '%s' "$dir"
 }
 
@@ -90,7 +90,7 @@ assert_not_contains() {
 # Exact generated cruft is removed, while authored text that merely resembles
 # it remains byte-for-byte and the sanitized record survives teardown.
 MAIN="$(make_fixture clean 61)"
-PROGRESS="${MAIN}-worktrees/issue-61/.copilot-tracking/issues/issue-61/progress.md"
+PROGRESS="${MAIN}/.worktrees/issue-61/.copilot-tracking/issues/issue-61/progress.md"
 cat >> "$PROGRESS" <<'AUTHORED'
 - Record conductor handbacks here after each meaningful decision.
 The conductor authors feature_list.json after planning in this project.
@@ -98,7 +98,7 @@ The conductor authors feature_list.json after planning in this project.
 AUTHORED
 run_finish "$MAIN" 61 "${TMP_DIR}/clean.out" \
   || { cat "${TMP_DIR}/clean.out"; fail "clean: finish unexpectedly failed"; }
-[ ! -e "${MAIN}-worktrees/issue-61" ] || fail "clean: worktree must be removed"
+[ ! -e "${MAIN}/.worktrees/issue-61" ] || fail "clean: worktree must be removed"
 MIGRATED="${MAIN}/.copilot-tracking/issues/issue-61/progress.md"
 assert_not_contains "$MIGRATED" \
   '- _Record conductor handbacks, subagent actions, review verdicts, and recovery notes here._'
@@ -147,12 +147,12 @@ for case_data in \
   issue=$((62 + issue_offset))
   issue_offset=$((issue_offset + 1))
   MAIN="$(make_fixture "$label" "$issue")"
-  PROGRESS="${MAIN}-worktrees/issue-${issue}/.copilot-tracking/issues/issue-${issue}/progress.md"
+  PROGRESS="${MAIN}/.worktrees/issue-${issue}/.copilot-tracking/issues/issue-${issue}/progress.md"
   printf '%s\n' "$placeholder" >> "$PROGRESS"
   if run_finish "$MAIN" "$issue" "${TMP_DIR}/${label}.out"; then
     fail "${label}: residual placeholder must block closeout by default"
   fi
-  [ -d "${MAIN}-worktrees/issue-${issue}" ] || fail "${label}: worktree must remain intact"
+  [ -d "${MAIN}/.worktrees/issue-${issue}" ] || fail "${label}: worktree must remain intact"
   if grep -q '^Conclusion:' "$PROGRESS"; then
     fail "${label}: blocked closeout must not write a conclusion"
   fi

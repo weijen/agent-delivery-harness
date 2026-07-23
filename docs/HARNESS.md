@@ -101,7 +101,10 @@ The normal path is:
 
 1. Create or pick a GitHub issue with concrete acceptance criteria and sensors.
 2. Run `./scripts/start-issue.sh <N>` from the main checkout.
-3. Work inside `../<repo>-worktrees/issue-NN`, not directly on the main checkout.
+3. Work inside `<repo>/.worktrees/issue-NN`, not directly on the main checkout.
+   Keeping worktrees under the repository trust boundary avoids sibling-path
+   sandbox denials. During migration, lifecycle scripts still resolve an
+   already-existing sibling `<repo>-worktrees/issue-NN` worktree.
 4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions to the
    **human-input gate**, then author `feature_list.json` from the confirmed plan (each feature
    carrying its `regression_sensor` / `e2e_sensor`). See

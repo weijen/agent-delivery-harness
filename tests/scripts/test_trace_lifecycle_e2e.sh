@@ -160,7 +160,7 @@ chmod +x "${R}/scripts/init.sh"
 git -C "$R" init -q -b main
 git -C "$R" config user.name "Harness Test"
 git -C "$R" config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > "${R}/.gitignore"
+printf '/.worktrees/\n.copilot-tracking/\n' > "${R}/.gitignore"
 printf 'fixture\n' > "${R}/README.md"
 printf '# Progress\n\nbaseline\n' > "${R}/docs/PROGRESS.md"
 git -C "$R" add .gitignore README.md docs/PROGRESS.md scripts
@@ -169,7 +169,7 @@ git clone -q --bare "$R" "${TMP_DIR}/origin.git"
 git -C "$R" remote add origin "${TMP_DIR}/origin.git"
 git -C "$R" fetch -q origin main
 
-WT="${R}-worktrees/issue-42"
+WT="${R}/.worktrees/issue-42"
 TRACE="${R}/.copilot-tracking/issues/issue-42/trace.jsonl"
 WT_TRACE="${WT}/.copilot-tracking/issues/issue-42/trace.jsonl"
 

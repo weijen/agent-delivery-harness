@@ -177,14 +177,14 @@ make_finish_fixture() {
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
+  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   git -C "$dir" add .gitignore README.md scripts
   git -C "$dir" commit -q -m initial
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) > "${TMP_DIR}/start-${issue}.out" 2>&1 \
     || { cat "${TMP_DIR}/start-${issue}.out"; fail "setup: start-issue for issue ${issue} failed"; }
-  [ -d "${dir}-worktrees/issue-${pad}" ] || fail "setup: worktree for issue ${issue} was not created"
-  printf '%s\n' "$list" > "${dir}-worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
+  [ -d "${dir}/.worktrees/issue-${pad}" ] || fail "setup: worktree for issue ${issue} was not created"
+  printf '%s\n' "$list" > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json"
 }
 
 # ============================================================================
@@ -196,7 +196,7 @@ make_finish_fixture "$R1" 70 1 "$COMPLETE_LIST"
   || { cat "${TMP_DIR}/fin-ok.out"; fail "complete finish: finish-issue.sh must still exit 0 (behavior unchanged)"; }
 grep -q "Removed worktree" "${TMP_DIR}/fin-ok.out" \
   || { cat "${TMP_DIR}/fin-ok.out"; fail "complete finish: removal message must be unchanged"; }
-[ ! -e "${R1}-worktrees/issue-70" ] \
+[ ! -e "${R1}/.worktrees/issue-70" ] \
   || fail "complete finish: worktree must be removed (behavior unchanged)"
 TRACE1="${R1}/.copilot-tracking/issues/issue-70/trace.jsonl"
 # THE SURVIVAL PROPERTY (plan D1): the worktree is gone, yet the finish span
@@ -214,7 +214,7 @@ make_finish_fixture "$R2" 71 1 "$INCOMPLETE_LIST"
   || { cat "${TMP_DIR}/fin-warn.out"; fail "warn finish: incomplete list must stay non-blocking by default (behavior unchanged)"; }
 grep -q "warning only" "${TMP_DIR}/fin-warn.out" \
   || { cat "${TMP_DIR}/fin-warn.out"; fail "warn finish: warning text must be unchanged"; }
-[ ! -e "${R2}-worktrees/issue-71" ] \
+[ ! -e "${R2}/.worktrees/issue-71" ] \
   || fail "warn finish: worktree must still be removed (warning is non-blocking)"
 TRACE2="${R2}/.copilot-tracking/issues/issue-71/trace.jsonl"
 f2="$(get_finish_span "warn finish" "$TRACE2")"
@@ -232,7 +232,7 @@ if (cd "$R3" && PATH="$BIN" REQUIRE_FEATURES_COMPLETE=1 ./scripts/finish-issue.s
 fi
 grep -qi "incomplete" "${TMP_DIR}/fin-hard.out" \
   || { cat "${TMP_DIR}/fin-hard.out"; fail "hard finish: incomplete message must be unchanged"; }
-[ -d "${R3}-worktrees/issue-72" ] \
+[ -d "${R3}/.worktrees/issue-72" ] \
   || fail "hard finish: worktree must be left INTACT on a failed completion check (existing ordering invariant)"
 TRACE3="${R3}/.copilot-tracking/issues/issue-72/trace.jsonl"
 f3="$(get_finish_span "hard finish" "$TRACE3")"
@@ -248,7 +248,7 @@ R4="${TMP_DIR}/r73"
 make_finish_fixture "$R4" 73 0 "$COMPLETE_LIST"
 (cd "$R4" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 73 SLUG=fixture) > "${TMP_DIR}/fin-nolib.out" 2>&1 \
   || { cat "${TMP_DIR}/fin-nolib.out"; fail "trace-lib absent: finish-issue.sh must still exit 0 (guarded source / no-op fallback, plan D5)"; }
-[ ! -e "${R4}-worktrees/issue-73" ] \
+[ ! -e "${R4}/.worktrees/issue-73" ] \
   || fail "trace-lib absent: worktree must still be removed (behavior unchanged)"
 [ ! -e "${R4}/.copilot-tracking/issues/issue-73/trace.jsonl" ] \
   || fail "trace-lib absent: no trace file may be created (no-op fallback)"

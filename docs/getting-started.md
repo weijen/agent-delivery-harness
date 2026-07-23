@@ -167,8 +167,13 @@ criteria, then start it from the **main checkout**:
 ```sh
 ./scripts/start-issue.sh 1    # runs preflight, then creates branch
                               # feature/issue-01-<slug> + an isolated worktree
-cd ../<repo>-worktrees/issue-01
+cd .worktrees/issue-01
 ```
+
+The root-anchored `/.worktrees/` ignore rule keeps these trusted, repo-local
+worktrees out of the main checkout's status. Existing in-flight worktrees in
+the historical sibling `<repo>-worktrees/issue-NN` layout remain discoverable
+for resume and teardown; only newly created worktrees use `.worktrees/`.
 
 From there, follow the lifecycle in [docs/HARNESS.md](HARNESS.md): populate
 `.copilot-tracking/issues/issue-NN/feature_list.json`, work one feature at a

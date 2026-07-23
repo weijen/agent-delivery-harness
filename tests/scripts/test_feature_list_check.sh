@@ -41,7 +41,7 @@ cd "${TMP_DIR}/repo"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 git commit -q -m initial
@@ -50,7 +50,7 @@ CHECK_START_OUT="${TMP_DIR}/check-start.out"
 CHECK_OUT="${TMP_DIR}/check.out"
 
 SKIP_INIT=1 ./scripts/start-issue.sh 200 SLUG=check-test >"$CHECK_START_OUT"
-FEATURE_LIST="${TMP_DIR}/repo-worktrees/issue-200/.copilot-tracking/issues/issue-200/feature_list.json"
+FEATURE_LIST="${TMP_DIR}/repo/.worktrees/issue-200/.copilot-tracking/issues/issue-200/feature_list.json"
 TRACE_FILE="${TMP_DIR}/repo/.copilot-tracking/issues/issue-200/trace.jsonl"
 [ -f "$FEATURE_LIST" ] || { printf '# BLOCKING: feature_list.json was not scaffolded\n' >&2; exit 1; }
 

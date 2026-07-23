@@ -78,7 +78,7 @@ cd "$REPO"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
-printf '.copilot-tracking/\n' > .gitignore
+printf '/.worktrees/\n.copilot-tracking/\n' > .gitignore
 printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial" main
@@ -86,7 +86,7 @@ make_commit "initial" main
 PATH="$BIN" ./scripts/start-issue.sh 88 SLUG=nasty-title >"${TMP_DIR}/start.out" 2>&1 \
   || { cat "${TMP_DIR}/start.out"; fail "start-issue.sh must exit 0 while scaffolding"; }
 
-FL="${TMP_DIR}/repo-worktrees/issue-88/.copilot-tracking/issues/issue-88/feature_list.json"
+FL="${TMP_DIR}/repo/.worktrees/issue-88/.copilot-tracking/issues/issue-88/feature_list.json"
 if [ ! -f "$FL" ]; then
   cat "${TMP_DIR}/start.out" 2>/dev/null || true
   fail "feature_list.json was not scaffolded at ${FL}"

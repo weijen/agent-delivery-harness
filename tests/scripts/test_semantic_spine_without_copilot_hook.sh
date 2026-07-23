@@ -87,7 +87,7 @@ SH
     git -C "${SCRATCH}/repo" init -q -b main
     git -C "${SCRATCH}/repo" config user.name "Harness Test"
     git -C "${SCRATCH}/repo" config user.email "harness-test@example.invalid"
-    printf '.copilot-tracking/\n' > "${SCRATCH}/repo/.gitignore"
+    printf '/.worktrees/\n.copilot-tracking/\n' > "${SCRATCH}/repo/.gitignore"
     printf 'fixture\n' > "${SCRATCH}/repo/README.md"
     printf '# Progress\n\nfixture\n' > "${SCRATCH}/repo/docs/PROGRESS.md"
     git -C "${SCRATCH}/repo" add .
@@ -100,7 +100,7 @@ SH
       cat "${SCRATCH}/start.out" >&2
       fail "real lifecycle start failed"
     }
-    worktree="${SCRATCH}/repo-worktrees/issue-42"
+    worktree="${SCRATCH}/repo/.worktrees/issue-42"
     trace="${SCRATCH}/repo/.copilot-tracking/issues/issue-42/trace.jsonl"
     (
       cd "$worktree"
