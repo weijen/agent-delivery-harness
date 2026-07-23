@@ -5,9 +5,12 @@
 #   scripts/run-sensors.sh green [--declared <list>] [--diff <base-ref>]
 #   scripts/run-sensors.sh --gate pre-review
 #   scripts/run-sensors.sh --gate pre-pr
+#   scripts/run-sensors.sh --last
 #
-# Enforcement by construction (the #343 doctrine's teeth): the `green` mode
-# CANNOT run the full suite by choice — it runs exactly the scoped set that
+# The only execution shapes are `green` and `--gate`; `--last` is a read-only
+# lookup of the most recent saved gate summary for the current HEAD.
+# Enforcement by construction (the #343 doctrine's teeth): `green` CANNOT run
+# the full suite by choice — it runs exactly the scoped set that
 # scripts/affected-sensors.sh resolves (declared + affected), and escalates to
 # the full suite ONLY when the resolver itself reports FULL (unbounded blast
 # radius). The full suite otherwise requires an explicit `--gate pre-review`
@@ -17,14 +20,17 @@
 # the decision from the agent entirely.
 #
 # Output: one result line per sensor (PASS/FAIL <path>), then a summary line:
-#   SENSORS <mode> scope=<scoped|full> ran=<n> failed=<m>
+#   SENSORS <mode> head=<sha> scope=<scoped|full> ran=<n> failed=<m>
 # The summary line's scope/count feed TRACE_SENSOR_SCOPE / TRACE_SENSOR_COUNT
 # on the corresponding handback (see log-handback.sh #343 passthrough).
-# Exit: 0 all green · 1 at least one sensor failed · 2 usage error.
+# Gate summaries are saved under ignored .copilot-tracking state. `--last`
+# refuses the record after HEAD changes and preserves the saved pass/fail exit.
+# Exit: 0 all green · 1 failed/stale result · 2 usage error.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LAST_SUMMARY_FILE="${REPO_ROOT}/.copilot-tracking/sensor-runs/last-gate"
 
 usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
 
@@ -34,8 +40,22 @@ DECLARED=""
 DIFF_BASE="origin/main"
 while [ $# -gt 0 ]; do
   case "$1" in
-    green) MODE=green; shift ;;
-    --gate) GATE="${2:-}"; MODE=gate; shift 2 ;;
+    green)
+      [ -z "$MODE" ] || { printf 'run-sensors.sh: choose one mode\n' >&2; exit 2; }
+      MODE=green
+      shift
+      ;;
+    --gate)
+      [ -z "$MODE" ] || { printf 'run-sensors.sh: choose one mode\n' >&2; exit 2; }
+      GATE="${2:-}"
+      MODE=gate
+      shift 2
+      ;;
+    --last)
+      [ -z "$MODE" ] || { printf 'run-sensors.sh: choose one mode\n' >&2; exit 2; }
+      MODE=last
+      shift
+      ;;
     --declared) DECLARED="${2:-}"; shift 2 ;;
     --diff) DIFF_BASE="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -48,13 +68,21 @@ if [ "$MODE" = "gate" ]; then
     pre-review|pre-pr) ;;
     *) printf 'run-sensors.sh: --gate must be pre-review or pre-pr (got "%s")\n' "$GATE" >&2; exit 2 ;;
   esac
-elif [ "$MODE" != "green" ]; then
+elif [ "$MODE" != "green" ] && [ "$MODE" != "last" ]; then
   usage; exit 2
 fi
 
+save_gate_summary() {
+  local summary="$1" tmp
+  mkdir -p "$(dirname "$LAST_SUMMARY_FILE")"
+  tmp="${LAST_SUMMARY_FILE}.tmp.$$"
+  printf '%s\n' "$summary" >"$tmp"
+  mv "$tmp" "$LAST_SUMMARY_FILE"
+}
+
 run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   local scope="$1" label="$2"; shift 2
-  local failed=0 ran=0 t
+  local failed=0 ran=0 summary t
   for t in "$@"; do
     [ -f "${REPO_ROOT}/${t}" ] || { printf 'SKIP %s (missing)\n' "$t"; continue; }
     ran=$((ran + 1))
@@ -65,7 +93,9 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
       failed=$((failed + 1))
     fi
   done
-  printf 'SENSORS %s scope=%s ran=%d failed=%d\n' "$label" "$scope" "$ran" "$failed"
+  summary="SENSORS ${label} head=${HEAD_SHA} scope=${scope} ran=${ran} failed=${failed}"
+  printf '%s\n' "$summary"
+  [ "$MODE" != "gate" ] || save_gate_summary "$summary"
   [ "$failed" -eq 0 ]
 }
 
@@ -78,6 +108,29 @@ full_set() {
 }
 
 cd "$REPO_ROOT"
+HEAD_SHA="$(git rev-parse HEAD)"
+
+if [ "$MODE" = "last" ]; then
+  if [ ! -f "$LAST_SUMMARY_FILE" ]; then
+    printf 'run-sensors.sh: no saved gate summary\n' >&2
+    exit 1
+  fi
+  summary="$(cat "$LAST_SUMMARY_FILE")"
+  if [[ ! "$summary" =~ ^SENSORS\ (pre-review|pre-pr)\ head=([0-9a-f]{40}|[0-9a-f]{64})\ scope=full\ ran=([0-9]+)\ failed=([0-9]+)$ ]]; then
+    printf 'run-sensors.sh: saved gate summary is malformed\n' >&2
+    exit 1
+  fi
+  saved_head="${BASH_REMATCH[2]}"
+  saved_failed="${BASH_REMATCH[4]}"
+  if [ "$saved_head" != "$HEAD_SHA" ]; then
+    printf 'run-sensors.sh: saved summary is stale (saved HEAD %s, current HEAD %s)\n' \
+      "$saved_head" "$HEAD_SHA" >&2
+    exit 1
+  fi
+  printf '%s\n' "$summary"
+  [ "$saved_failed" -eq 0 ]
+  exit $?
+fi
 
 if [ "$MODE" = "gate" ]; then
   # The two owed full-suite points. Explicit, auditable, twice per issue.
@@ -100,7 +153,7 @@ if [ "$RESOLVED" = "FULL" ]; then
 fi
 
 if [ -z "$RESOLVED" ]; then
-  printf 'SENSORS green scope=scoped ran=0 failed=0\n'
+  printf 'SENSORS green head=%s scope=scoped ran=0 failed=0\n' "$HEAD_SHA"
   printf 'run-sensors.sh: nothing to run — no declared sensors and no referencing sensors for this diff\n' >&2
   exit 0
 fi
