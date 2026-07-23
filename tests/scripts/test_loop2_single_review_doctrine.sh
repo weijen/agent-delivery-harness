@@ -14,8 +14,9 @@
 #      PER-FEATURE verdicts.
 #   3. A `NEEDS_REVISION` verdict routes back to `generator-subagent` PER FEATURE.
 #   4. The post-repair re-review runs in `repair` mode SCOPED to that feature only.
-#   5. The 3-rejection cap semantics are unchanged (per-feature counting,
-#      `review_reject_cap_exceeded` + `review-gate.sh` hard block).
+#   5. The reject cap distinguishes unrepaired repeats from repaired findings,
+#      retains `review_reject_cap_exceeded`, and keeps `review-gate.sh` as the
+#      hard-blocking enforcer.
 #
 # Exit codes: 0 all obligations present · 1 an obligation is missing (RED gate —
 # the doctrine still describes a per-feature mid-stream review round).
@@ -85,7 +86,8 @@ printf '%s\n' "${block}" \
   | grep -qiE 'repair.{0,60}(mode|profile).{0,80}(scoped|that feature)|(scoped|that feature).{0,80}repair.{0,20}(mode|profile)' \
   || fail "Loop 2 must state the post-repair re-review runs in repair mode scoped to that feature only"
 
-# 5. The 3-rejection cap semantics are unchanged.
+# 5. Reject-cap doctrine names both unrepaired-repeat evidence and the
+# five-total moving-goalposts backstop.
 printf '%s\n' "${block}" \
   | grep -qiE 'review_reject_cap_exceeded' \
   || fail "Loop 2 must keep the review_reject_cap_exceeded reject-cap finding"
@@ -93,8 +95,11 @@ printf '%s\n' "${block}" \
   | grep -qiE 'review-gate\.sh' \
   || fail "Loop 2 must keep review-gate.sh as the deterministic reject-cap enforcer"
 printf '%s\n' "${block}" \
-  | grep -qiE '3rd .*rejection|three or more .*review_verdict|third .*rejection' \
-  || fail "Loop 2 must keep the 3rd-rejection (three-or-more) cap semantics"
+  | grep -qiE 'same reviewed SHA|repeat_of' \
+  || fail "Loop 2 must identify same-SHA or repeat_of evidence for an unrepaired defect"
+printf '%s\n' "${block}" \
+  | grep -qiE 'five total' \
+  || fail "Loop 2 must retain the five-total moving-goalposts backstop"
 
 # 6. Negative: the doctrine must NOT still mandate a per-feature review round as
 # the default mid-stream step. The old framing reviewed "the feature or closeout

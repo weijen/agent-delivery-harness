@@ -109,7 +109,9 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    (`fail`) verdict. Declares whether the finding is actionable — i.e. backed by evidence that the
    generator can act on:
    - `true` — the finding is actionable. **Must** carry at least one of `TRACE_FINDING_REPRODUCTION`
-     or `TRACE_FINDING_PROPOSED_FIX` (see below). Counts toward the 3-rejection cap.
+     or `TRACE_FINDING_PROPOSED_FIX` (see below). Enters reject-convergence analysis: three
+     same-SHA or explicit `TRACE_REPEAT_OF` failures cap one unrepaired defect; three distinct
+     repaired findings warn, and five total actionable failures hard-stop for a design ruling.
    - `false` — the finding is a non-actionable observation or concern. Does **not** count toward
      the reject cap. The finding is reported as a WARNING, not a blocking FAIL in aggregate
      economics. Use for advisory observations, style concerns, or findings that cannot be
