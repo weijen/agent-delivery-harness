@@ -15,16 +15,20 @@ note() { echo "✗ $*"; fail=1; }
 
 skills_dir=".copilot/skills"
 
+# Archived reports are covered by docs/archive/* and must never regain
+# report-specific exceptions in the living-doc scans below.
+if grep -Eq '^[[:space:]]+docs/(copilot-health-check|skill-prompt-modernization-review|subagent-prompt-modernization-review)\.md\)' "$0"; then
+  note "obsolete report-specific allowlist exception remains"
+fi
+
 # 1. The general skill is gone.
 [ ! -e "${skills_dir}/general" ] || note "${skills_dir}/general must be deleted"
 
-# 2. No tracked file references the deleted general skill (the modernization
-#    review reports, which document the deletion decision, are the only allowed
-#    exceptions).
+# 2. No tracked living file references the deleted general skill. Archived
+#    historical documents may narrate its deletion.
 while IFS= read -r f; do
   case "$f" in
-    docs/skill-prompt-modernization-review.md) continue ;;
-    docs/subagent-prompt-modernization-review.md) continue ;;
+    docs/archive/*) continue ;;
     tests/meta/test_skill_references_resolve.sh) continue ;;
   esac
   note "$f still references the deleted skills/general path"
@@ -38,9 +42,6 @@ done < <(git grep -l 'skills/general' -- '*.md' '*.sh' 2>/dev/null || true)
 while IFS= read -r f; do
   case "$f" in
     docs/PROGRESS.md|docs/archive/*) continue ;;
-    docs/copilot-health-check.md) continue ;;
-    docs/skill-prompt-modernization-review.md) continue ;;
-    docs/subagent-prompt-modernization-review.md) continue ;;
     tests/meta/test_skill_references_resolve.sh) continue ;;
   esac
   note "$f presents the deleted \`general\` skill as a live bare-word skill reference"
