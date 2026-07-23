@@ -59,16 +59,24 @@ done
 [ -n "$TESTS_ROOT" ] || TESTS_ROOT="${REPO_ROOT}/tests"
 
 if [ -n "$DIFF_BASE" ]; then
+  discover_changed_paths() {
+    local output=""
+    output="$(git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" diff --name-only 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+  }
+  if ! DISCOVERED="$(discover_changed_paths)"; then
+    printf 'affected-sensors.sh: git discovery failed for diff base %s\n' "$DIFF_BASE" >&2
+    exit 2
+  fi
   while IFS= read -r p; do
     [ -n "$p" ] && CHANGED+=("$p")
-  done < <(
-    {
-      git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null || true
-      git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null || true
-      git -C "$REPO_ROOT" diff --name-only 2>/dev/null || true
-      git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sort -u
-  )
+  done < <(printf '%s\n' "$DISCOVERED" | sort -u)
 fi
 
 if [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then

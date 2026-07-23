@@ -142,7 +142,16 @@ fi
 # green mode: resolver decides; the agent does not.
 RESOLVER_ARGS=(--diff "$DIFF_BASE")
 [ -n "$DECLARED" ] && RESOLVER_ARGS+=(--declared "$DECLARED")
+set +e
 RESOLVED="$("${SCRIPT_DIR}/affected-sensors.sh" "${RESOLVER_ARGS[@]}")"
+resolver_rc=$?
+set -e
+if [ "$resolver_rc" -eq 2 ]; then
+  printf 'run-sensors.sh: resolver failed — falling back to FULL with warning\n' >&2
+  RESOLVED="FULL"
+elif [ "$resolver_rc" -ne 0 ]; then
+  exit "$resolver_rc"
+fi
 
 if [ "$RESOLVED" = "FULL" ]; then
   # Unbounded blast radius (shared lib / schema authority changed): the ONLY
