@@ -15,6 +15,8 @@
 #   3. Re-reviews a repaired feature in `repair` mode (per feature).
 #   4. Preserves the read-only-on-production boundary (production assets are
 #      read-only; the reviewer must not edit production).
+#   5. Uses repository-bound identity activation / per-process tokens and never
+#      mutates global GitHub CLI identity.
 #
 # It also pins the AGENTS.md doc-sync edit: the code-review-subagent portfolio
 # row must no longer say review happens "after implementation completes" (which
@@ -92,7 +94,18 @@ grep -qiE 'Production assets are read-only' "${AGENT}" \
 grep -qiE 'must not edit production' "${AGENT}" \
   || fail "reviewer contract must preserve the 'must not edit production' boundary"
 
-# 5. AGENTS.md doc-sync: the code-review-subagent portfolio row must name the
+# 5. Repository-bound GitHub identity is part of the opening role contract.
+printf '%s\n' "${opening_flat}" \
+  | grep -qF 'harness_identity_activate' \
+  || fail "opening contract must require harness_identity_activate"
+printf '%s\n' "${opening_flat}" \
+  | grep -qiE 'per-process (token|GitHub token)' \
+  || fail "opening contract must require a per-process GitHub token"
+printf '%s\n' "${opening_flat}" \
+  | grep -qF 'gh auth switch' \
+  || fail "opening contract must forbid gh auth switch"
+
+# 6. AGENTS.md doc-sync: the code-review-subagent portfolio row must name the
 # issue-completion timing and must NOT still say review fires "after
 # implementation completes" (which implies a per-feature round).
 if [ -f "${AGENTS_MD}" ]; then
