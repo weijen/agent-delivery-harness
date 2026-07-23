@@ -82,7 +82,9 @@ harness_identity_load() {
     esac
   done <"$binding"
 
-  if ! [[ "${HARNESS_GH_ACCOUNT:-}" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$ ]]; then
+  # Underscores appear in GitHub EMU logins (e.g. name_shortcode) even though
+  # classic usernames forbid them (adopter finding, foundry PoC 2026-07-23).
+  if ! [[ "${HARNESS_GH_ACCOUNT:-}" =~ ^[A-Za-z0-9]+([-_][A-Za-z0-9]+)*$ ]]; then
     printf 'error: HARNESS_GH_ACCOUNT is missing or invalid in %s\n' "$binding" >&2
     return 1
   fi

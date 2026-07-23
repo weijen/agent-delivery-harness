@@ -106,6 +106,14 @@ git -C "$PH" -c user.email=t@t.invalid -c user.name=t commit -qm bind
 tr_out="$( (cd "$PH" && . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || true
 grep -qi "COMMITTED" <<<"$tr_out" || fail "a committed binding must emit the machine-local warning: ${tr_out}"
 
+# EMU logins contain underscores (name_shortcode); the account pattern must
+# accept them (adopter finding, foundry PoC 2026-07-23).
+printf 'HARNESS_GH_ACCOUNT=someone_contoso\nHARNESS_GIT_EMAIL=1+someone_contoso@users.noreply.github.com\n' \
+  > "${PH}/.github/harness-identity.env"
+emu_rc=0
+( . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH" ) >/dev/null 2>&1 || emu_rc=$?
+[ "$emu_rc" -eq 0 ] || fail "an EMU underscore account must be a valid binding (rc=${emu_rc})"
+
 printf 'GitHub identity binding contract honored\n'
 
 (
@@ -219,13 +227,32 @@ fail() {
   exit 1
 }
 
-[ -f "$BINDING" ] || fail "repository identity binding is missing"
-grep -Fxq 'HARNESS_GH_ACCOUNT=weijen' "$BINDING" \
-  || fail "repository must bind the weijen GitHub account"
-grep -Fxq 'HARNESS_GIT_NAME=Wei Jen Lu' "$BINDING" \
-  || fail "repository Git author name is incorrect"
-grep -Fxq 'HARNESS_GIT_EMAIL=11629+weijen@users.noreply.github.com' "$BINDING" \
-  || fail "repository Git noreply email is incorrect"
+# The pinned-identity leg is a regression check for THIS repository only (its
+# binding is deliberately committed, #348). Adopters bind their own accounts —
+# machine-local and gitignored (#386) — so for them assert only that any
+# present binding actually loads (an unfilled template must not pass as one).
+origin_url="$(git config --get remote.origin.url 2>/dev/null || true)"
+case "$origin_url" in
+*weijen/agent-delivery-harness*)
+  [ -f "$BINDING" ] || fail "repository identity binding is missing"
+  grep -Fxq 'HARNESS_GH_ACCOUNT=weijen' "$BINDING" \
+    || fail "repository must bind the weijen GitHub account"
+  grep -Fxq 'HARNESS_GIT_NAME=Wei Jen Lu' "$BINDING" \
+    || fail "repository Git author name is incorrect"
+  grep -Fxq 'HARNESS_GIT_EMAIL=11629+weijen@users.noreply.github.com' "$BINDING" \
+    || fail "repository Git noreply email is incorrect"
+  ;;
+*)
+  if [ -f "$BINDING" ]; then
+    load_rc=0
+    # shellcheck source=scripts/github-identity-lib.sh
+    ( . "${ROOT}/scripts/github-identity-lib.sh" \
+        && harness_identity_load "$ROOT" ) >/dev/null 2>&1 || load_rc=$?
+    [ "$load_rc" -eq 0 ] \
+      || fail "identity binding is present but does not load cleanly (rc=${load_rc}); fill in .github/harness-identity.env from the template"
+  fi
+  ;;
+esac
 
 [ -f "$TEMPLATE" ] || fail "adopter identity template is missing"
 if grep -Eq 'weijen|11629' "$TEMPLATE"; then
