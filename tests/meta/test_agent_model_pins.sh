@@ -223,12 +223,18 @@ assert_section 'deviation' "$review Trace / Process Evidence section must inspec
 # 6. Retired handbacks remain reader-compatible history, never current blocking evidence.
 assert_section 'historical' "$review Trace / Process Evidence section must identify historical trace compatibility"
 assert_section 'reader' "$review Trace / Process Evidence section must make historical compatibility reader-side"
+assert_section '(do not|must not|never).{0,80}require.{0,80}retired choreography' \
+  "$review Trace / Process Evidence section must forbid retired choreography as current evidence"
 reject_section 'Verify .*red_handback.*impl_handback.*green_handback.*ordering' \
   "$review Trace / Process Evidence section must not require the retired handback triple"
 reject_section 'red_first_(ordering_absent|profile_mismatch).*(BLOCKING|blocking)' \
   "$review Trace / Process Evidence section must not block current reviews on retired red-first checks"
 
-# 7. Unavailable evidence handling.
+# 7. Gate-review chronology and unavailable evidence handling.
+assert_section '(this review|review handback).{0,120}(supplies|produces|records).{0,80}review_verdict|review_verdict.{0,120}(this review|review handback)' \
+  "$review Trace / Process Evidence section must identify the current handback as gate_review verdict evidence"
+assert_section '(approval|approved-head).{0,120}(after|following).{0,80}(review verdict|review handback|APPROVED)' \
+  "$review Trace / Process Evidence section must defer approval evidence until after the review verdict"
 assert_section 'trace evidence unavailable' "$review Trace / Process Evidence section must use the phrase trace evidence unavailable"
 
 # 8. Blocking process violations and review finding terms.

@@ -21,6 +21,21 @@ for file in "${REVIEWER}" "${AGENTS}" "${WORKFLOW}" "${EVALUATION}"; do
   done
 done
 
+trace_section="$(sed -n '/^## Trace \/ Process Evidence/,/^## /p' "${REVIEWER}")"
+trace_flat="$(printf '%s\n' "${trace_section}" | tr '\n' ' ')"
+for historical_name in red_handback impl_handback green_handback; do
+  grep -qF "${historical_name}" <<<"${trace_flat}" \
+    || note "reviewer trace guidance lacks historical compatibility for ${historical_name}"
+done
+grep -qiE 'reader.{0,80}historical|historical.{0,80}reader' <<<"${trace_flat}" \
+  || note "reviewer trace guidance does not scope historical names to reader compatibility"
+grep -qiE '(do not|must not|never).{0,80}require.{0,80}retired choreography' <<<"${trace_flat}" \
+  || note "reviewer trace guidance does not forbid retired choreography as current evidence"
+grep -qiE '(this review|review handback).{0,120}(supplies|produces|records).{0,80}review_verdict|review_verdict.{0,120}(this review|review handback)' <<<"${trace_flat}" \
+  || note "reviewer trace guidance does not identify the current handback as gate_review verdict evidence"
+grep -qiE '(approval|approved-head).{0,120}(after|following).{0,80}(review verdict|review handback|APPROVED)' <<<"${trace_flat}" \
+  || note "reviewer trace guidance does not defer approval evidence until after the review verdict"
+
 grep -qiE 'one (delivering )?agent' "${AGENTS}" \
   || note "AGENTS.md lacks the one-delivering-agent topology"
 grep -qiE 'one (delivering )?agent' "${WORKFLOW}" \

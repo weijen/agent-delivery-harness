@@ -313,9 +313,12 @@ a **process violation**.
    **unavailable**, not zero cost; and whether the run finished plus the final outcome (`pass` / `fail` / `n-a`).
 4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
    `gate_sensors` feature-green evidence in a HEAD-bound
-   `SENSORS ... head=... scope=... ran=... failed=0` summary; `gate_review` `review_verdict` and approval evidence; and
-   `gate_merge_closeout` CI, merge, and finish evidence when reviewing a completed closeout. Harness-observed gate
-   evidence is authoritative; narrative claims and runtime tool spans are corroborating context only.
+   `SENSORS ... head=... scope=... ran=... failed=0` summary; `gate_review`, where this review handback supplies the
+   `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
+   `gate_merge_closeout` CI,
+   merge, and finish evidence when reviewing a completed closeout. Require only evidence due at the current phase.
+   Harness-observed gate evidence is authoritative; narrative claims and runtime tool spans are corroborating context
+   only.
 5. **Check current process evidence.** Confirm every completed feature names its regression sensor and is backed by
    feature-green evidence, every `deviation` is resolved or justified, review verdicts map to feature IDs, and
    repeated-loop indicators were reviewed.
@@ -323,9 +326,9 @@ a **process violation**.
    `impl_handback`, `green_handback`, `red_reentry`, waiver, and legacy role-attribution spans as historical context.
    Do not require that retired choreography from current runs or infer a current failure from its absence. Missing
    current instrumentation must be reported as the exact phrase `trace evidence unavailable`, never inferred as pass.
-7. **Treat current hard-gate violations as BLOCKING.** A schema/redaction failure, missing hard-gate evidence,
-   unresolved `deviation`s, and repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even when
-   the code diff is clean.
+7. **Treat current hard-gate violations as BLOCKING.** A schema/redaction failure, missing hard-gate evidence due at
+   the current phase, unresolved `deviation`s, and repeated-`loop` anomalies are **BLOCKING** findings. They feed the
+   verdict even when the code diff is clean.
    - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
      trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
      the `error`-level record with `harness.outcome == "fail"` for that `harness.stage` — and cite its (redacted,
