@@ -318,8 +318,8 @@ local-only, gitignored, and never committed. Tracing never blocks the lifecycle:
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
 
-At closeout `./scripts/finish-issue.sh` also appends exactly one `finish-issue.economics` **tool span** — the durable
-machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
+At closeout `./scripts/finish-issue.sh` attaches delivery economics to its terminal `finish` **lifecycle span** — the
+durable machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
 numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
 `harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
 `harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,

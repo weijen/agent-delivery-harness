@@ -213,6 +213,22 @@ printf '%s\n' "$f1" | jq -e '
   || fail "complete finish: parent span must retain economics aggregates"
 validate_file "complete-finish trace" "$TRACE1"
 
+# Cross-run reporting must consume economics from the consolidated finish
+# lifecycle span rather than the retired finish-issue.economics child span.
+TRACE1_TMP="${TMP_DIR}/trace1-with-native-economics.jsonl"
+jq -c '
+  if .span == "lifecycle" and .["harness.lifecycle_step"] == "finish"
+  then . + {"harness.economics.native_subagent_count": 2}
+  else .
+  end
+' "$TRACE1" > "$TRACE1_TMP"
+mv "$TRACE1_TMP" "$TRACE1"
+(cd "$R1" && PATH="$BIN" ./scripts/trace-report.sh "$TRACE1") >/dev/null
+CROSS_RUN_OUT="${TMP_DIR}/cross-run.out"
+(cd "$R1" && PATH="$BIN" ./scripts/trace-report.sh --all --root "$R1") > "$CROSS_RUN_OUT"
+grep -Eq '\| 1/1 \| n/a \| 2 \|' "$CROSS_RUN_OUT" \
+  || { cat "$CROSS_RUN_OUT"; fail "cross-run report must retain economics from the final finish lifecycle span"; }
+
 # ============================================================================
 # 2. Incomplete list, warn mode → exit 0 unchanged, finish pass span
 # ============================================================================
