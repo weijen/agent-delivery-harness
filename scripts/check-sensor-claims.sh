@@ -26,7 +26,7 @@ fi
 
 summary_re='^SENSORS (green|green-full-fallback|pre-review|pre-pr) head=([0-9a-f]{40}|[0-9a-f]{64}) scope=(scoped|full) ran=([0-9]+) failed=([0-9]+)$'
 claim_re='([0-9]+)[[:space:]]+test[[:space:]]+files'
-glob_re='bash[[:space:]]+tests/(scripts|meta)/test_\*\.sh'
+glob_re='bash([[:space:]]+-[^[:space:]]+)*[[:space:]]+(\./)?tests/(scripts|meta)/test_\*\.sh'
 summaries=()
 claims=()
 violations=0
@@ -35,9 +35,10 @@ while IFS= read -r line || [ -n "$line" ]; do
   if [[ "$line" =~ $summary_re ]] && [ "${BASH_REMATCH[5]}" = "0" ]; then
     summaries+=("${BASH_REMATCH[2]}:${BASH_REMATCH[4]}")
   fi
+  shopt -s nocasematch
   if [[ "$line" =~ $claim_re ]]; then
     claim_count="${BASH_REMATCH[1]}"
-    if [[ "$line" =~ [Pp][Aa][Ss][Ss] ]]; then
+    if [[ "$line" =~ pass ]]; then
       claims+=("$claim_count")
     fi
   fi
@@ -45,6 +46,7 @@ while IFS= read -r line || [ -n "$line" ]; do
     printf 'DEVIATION sensor_direct_multi_glob\n'
     violations=$((violations + 1))
   fi
+  shopt -u nocasematch
 done <"$TRANSCRIPT"
 
 for claim_count in "${claims[@]}"; do

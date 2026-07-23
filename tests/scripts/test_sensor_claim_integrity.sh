@@ -50,12 +50,27 @@ if run_check "${TMP_DIR}/wrong-count.txt" >/dev/null 2>&1; then
   fail "summary with another count must not support the claim"
 fi
 
+printf 'ALL 157 TEST FILES PASSED\n' >"${TMP_DIR}/uppercase.txt"
+if run_check "${TMP_DIR}/uppercase.txt" >/dev/null 2>&1; then
+  fail "uppercase unsupported claim must be detected"
+fi
+
 printf 'bash tests/scripts/test_*.sh\n' >"${TMP_DIR}/glob.txt"
 if run_check "${TMP_DIR}/glob.txt" >"${TMP_DIR}/out" 2>&1; then
   fail "direct multi-glob invocation must be detected"
 fi
 grep -Fq 'DEVIATION sensor_direct_multi_glob' "${TMP_DIR}/out" \
   || fail "multi-glob finding is missing"
+
+printf 'bash ./tests/scripts/test_*.sh\n' >"${TMP_DIR}/dot-glob.txt"
+if run_check "${TMP_DIR}/dot-glob.txt" >/dev/null 2>&1; then
+  fail "multi-glob invocation with a dot path must be detected"
+fi
+
+printf 'bash -x tests/scripts/test_*.sh\n' >"${TMP_DIR}/option-glob.txt"
+if run_check "${TMP_DIR}/option-glob.txt" >/dev/null 2>&1; then
+  fail "multi-glob invocation after Bash options must be detected"
+fi
 
 printf 'bash tests/scripts/test_one.sh\n' >"${TMP_DIR}/single.txt"
 run_check "${TMP_DIR}/single.txt" >/dev/null \
