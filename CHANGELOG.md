@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.35.3 (2026-07-23)
+
+### Bug Fixes
+
+- **#380**: Align Python gate fixtures and CI signature
+  ([`9cdac75`](https://github.com/weijen/agent-delivery-harness/commit/9cdac75f75917ed4486743cce09ceaac76b8fb7a))
+
+- **#380**: Centralize Python profile gates
+  ([`f63ed13`](https://github.com/weijen/agent-delivery-harness/commit/f63ed136d8982002ccc22783cf1e0ced83054503))
+
+- **#380**: Preserve fatal ruff exit codes
+  ([`73e2722`](https://github.com/weijen/agent-delivery-harness/commit/73e2722fe0933a7e0bb40ac26d67ce44bcf92981))
+
+### Continuous Integration
+
+- **#380**: Route Python gates through authority
+  ([`f4ce70a`](https://github.com/weijen/agent-delivery-harness/commit/f4ce70ab5d97d6db0c77167525292a1fc54a1238))
+
+
 ## v0.35.2 (2026-07-23)
 
 ### Bug Fixes
