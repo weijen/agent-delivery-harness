@@ -2,6 +2,55 @@
 
 <!-- version list -->
 
+## v0.35.1 (2026-07-23)
+
+### Bug Fixes
+
+- Harden installer symlink writes
+  ([#409](https://github.com/weijen/agent-delivery-harness/pull/409),
+  [`fab26d5`](https://github.com/weijen/agent-delivery-harness/commit/fab26d5378d4df770362b2b9d84a4b007b3f8586))
+
+- **#378**: Atomically replace installer assets
+  ([#409](https://github.com/weijen/agent-delivery-harness/pull/409),
+  [`fab26d5`](https://github.com/weijen/agent-delivery-harness/commit/fab26d5378d4df770362b2b9d84a4b007b3f8586))
+
+- **#378**: Refuse symlinked installer parents
+  ([#409](https://github.com/weijen/agent-delivery-harness/pull/409),
+  [`fab26d5`](https://github.com/weijen/agent-delivery-harness/commit/fab26d5378d4df770362b2b9d84a4b007b3f8586))
+
+- **#378**: Reject dangling installer targets
+  ([#409](https://github.com/weijen/agent-delivery-harness/pull/409),
+  [`fab26d5`](https://github.com/weijen/agent-delivery-harness/commit/fab26d5378d4df770362b2b9d84a4b007b3f8586))
+
+- **#378**: Validate gitignore destination
+  ([#409](https://github.com/weijen/agent-delivery-harness/pull/409),
+  [`fab26d5`](https://github.com/weijen/agent-delivery-harness/commit/fab26d5378d4df770362b2b9d84a4b007b3f8586))
+
+### Documentation
+
+- **#394**: Align contract consumer claims
+  ([`af47dff`](https://github.com/weijen/agent-delivery-harness/commit/af47dff6da1434d3d5fb4d7b886fbe5c601c3429))
+
+### Refactoring
+
+- **#394**: Declare contract evidence governance
+  ([`9d27c03`](https://github.com/weijen/agent-delivery-harness/commit/9d27c0346d2cb7d0c770d7fef521bd0ac54e93aa))
+
+- **#394**: Define four lifecycle gates
+  ([`f5ba89c`](https://github.com/weijen/agent-delivery-harness/commit/f5ba89c6ccb3701c9720da20444cc964ca7c8b03))
+
+- **#394**: Prune retired contract claims
+  ([`8c9be88`](https://github.com/weijen/agent-delivery-harness/commit/8c9be882d97622ec5540572c866cf40267ef0e05))
+
+- **#394**: Reanchor contract consumers
+  ([`c126a38`](https://github.com/weijen/agent-delivery-harness/commit/c126a385a36bdc289c1964600141881a0acce038))
+
+### Testing
+
+- **#394**: Reanchor trace contract consumers
+  ([`bd611df`](https://github.com/weijen/agent-delivery-harness/commit/bd611dfefeaad3e09dba1d4ff44b9b117f8ec484))
+
+
 ## v0.35.0 (2026-07-23)
 
 ### Bug Fixes
