@@ -39,8 +39,7 @@ if ! declare -F trace_span >/dev/null 2>&1; then
 fi
 
 # --- Project-CI coverage lib (issue #129) ------------------------------------
-# Guarded source: a missing ci-coverage-lib.sh must never break the gate. The
-# lib owns all language-specific gate-command tokens so this script stays
+# The lib owns all language-specific gate-command tokens so this script stays
 # language-neutral (docs/harness-contract.yml).
 if [ -f "${SCRIPT_DIR}/ci-coverage-lib.sh" ]; then
   # shellcheck source=scripts/ci-coverage-lib.sh
@@ -183,12 +182,20 @@ ci_gate() {
   fi
 
   if ! declare -F ci_coverage_uncovered_surfaces >/dev/null 2>&1; then
-    yellow "⚠ ci-gate skipped: scripts/ci-coverage-lib.sh not found — coverage check disabled."
-    return 0
+    red "✗ ci-gate error: scripts/ci-coverage-lib.sh not found."
+    exit 1
   fi
 
-  local uncovered
-  uncovered="$(ci_coverage_uncovered_surfaces 2>/dev/null || true)"
+  local uncovered coverage_rc
+  if uncovered="$(ci_coverage_uncovered_surfaces)"; then
+    coverage_rc=0
+  else
+    coverage_rc=$?
+  fi
+  if [ "$coverage_rc" -ne 0 ]; then
+    red "✗ ci-gate error: project-CI coverage detection failed."
+    exit 1
+  fi
   if [ -z "$uncovered" ]; then
     green "✓ ci-gate: project CI runs the gates for all detected code surfaces."
     return 0
@@ -232,7 +239,8 @@ ci_gate() {
 # cannot be resolved (each caller emits its own gate-specific skip note).
 resolve_issue_number() {
   if [ -n "${TRACE_ISSUE:-}" ]; then
-    printf '%s' "${TRACE_ISSUE}"
+    [[ "${TRACE_ISSUE}" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$((10#${TRACE_ISSUE}))"
     return 0
   fi
   local branch

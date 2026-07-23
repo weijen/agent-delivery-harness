@@ -53,12 +53,16 @@ _ci_coverage_surface_sigs() {
   [ -f "$profile" ] || return 1
   (
     # shellcheck disable=SC1090
-    . "$profile" >/dev/null 2>&1 || exit 1
-    if declare -F profile_detect >/dev/null 2>&1 && profile_detect; then
+    . "$profile" >/dev/null 2>&1 || exit 2
+    declare -F profile_detect >/dev/null 2>&1 || exit 2
+    if profile_detect; then
       printf '%s' "${PROFILE_CI_SIGNATURES:-}"
       exit 0
+    else
+      detect_rc=$?
     fi
-    exit 1
+    [ "$detect_rc" -eq 1 ] && exit 1
+    exit 2
   )
 }
 
@@ -66,11 +70,18 @@ _ci_coverage_surface_sigs() {
 # project workflow covers. A detected surface with no declared signatures cannot
 # be proven covered, so it is reported (fail visible rather than silently pass).
 ci_coverage_uncovered_surfaces() {
-  local workflows id sigs wf covered
+  local workflows id sigs wf covered surface_rc grep_rc
   workflows="$(_ci_coverage_workflows)"
   for id in $CI_COVERAGE_SURFACES; do
-    if ! sigs="$(_ci_coverage_surface_sigs "$id")"; then
+    if sigs="$(_ci_coverage_surface_sigs "$id")"; then
+      surface_rc=0
+    else
+      surface_rc=$?
+    fi
+    if [ "$surface_rc" -eq 1 ]; then
       continue
+    elif [ "$surface_rc" -ne 0 ]; then
+      return 2
     fi
     covered=0
     if [ -n "$sigs" ] && [ -n "$workflows" ]; then
@@ -79,6 +90,9 @@ ci_coverage_uncovered_surfaces() {
         if grep -Eq "$sigs" "$wf" 2>/dev/null; then
           covered=1
           break
+        else
+          grep_rc=$?
+          [ "$grep_rc" -eq 1 ] || return 2
         fi
       done <<EOF
 $workflows

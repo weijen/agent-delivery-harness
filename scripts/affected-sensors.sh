@@ -16,8 +16,9 @@
 #     acceptable, silent under-inclusion is not),
 #   * a changed file that is itself a sensor is always in its own set.
 #
-# FULL fallback (conservative, single-line output `FULL`): any changed path
-# whose blast radius cannot be bounded by textual reference —
+# FULL fallback (conservative, single-line output `FULL`): a discovery error
+# (reported as exit 2 for the runner to promote) or any changed path whose blast
+# radius cannot be bounded by textual reference —
 #   * shared sourced libraries: scripts/trace-lib.sh scripts/issue-lib.sh
 #     scripts/finish-lib.sh scripts/reconcile-lib.sh scripts/ci-coverage-lib.sh
 #   * schema/contract authorities: docs/evaluation/trace-schema.v1.json
@@ -59,16 +60,24 @@ done
 [ -n "$TESTS_ROOT" ] || TESTS_ROOT="${REPO_ROOT}/tests"
 
 if [ -n "$DIFF_BASE" ]; then
+  discover_changed_paths() {
+    local output=""
+    output="$(git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" diff --name-only 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+    output="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" || return 1
+    printf '%s\n' "$output"
+  }
+  if ! DISCOVERED="$(discover_changed_paths)"; then
+    printf 'affected-sensors.sh: git discovery failed for diff base %s\n' "$DIFF_BASE" >&2
+    exit 2
+  fi
   while IFS= read -r p; do
     [ -n "$p" ] && CHANGED+=("$p")
-  done < <(
-    {
-      git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null || true
-      git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null || true
-      git -C "$REPO_ROOT" diff --name-only 2>/dev/null || true
-      git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sort -u
-  )
+  done < <(printf '%s\n' "$DISCOVERED" | sort -u)
 fi
 
 if [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then

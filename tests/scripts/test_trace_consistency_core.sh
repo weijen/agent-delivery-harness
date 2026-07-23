@@ -374,6 +374,22 @@ rc="$(run_checker "${state_dir}/trace.jsonl")"
 grep -Fq 'VIOLATION consistency: pr_mismatch' "$OUT" \
   || fail "PR mismatch finding is missing"
 
+# --- 11. Secure scratch creation is mandatory; no predictable fallback.
+no_mktemp_bin="${TMP_DIR}/no-mktemp-bin"
+mkdir -p "$no_mktemp_bin"
+for tool in bash dirname basename git jq mkdir rm; do
+  tool_path="$(command -v "$tool")"
+  ln -s "$tool_path" "${no_mktemp_bin}/${tool}"
+done
+set +e
+PATH="$no_mktemp_bin" "$CHECKER" "${state_dir}/trace.jsonl" >"$OUT" 2>"$ERR"
+no_mktemp_rc=$?
+set -e
+[ "$no_mktemp_rc" = "2" ] \
+  || fail "checker without mktemp must exit 2 (got ${no_mktemp_rc})"
+grep -qi 'mktemp is required' "$ERR" \
+  || fail "checker without mktemp must explain the hard requirement"
+
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
   printf '\n%d trace-consistency-core contract violation(s).\n' "$fails" >&2

@@ -12,8 +12,8 @@
 # Enforcement by construction (the #343 doctrine's teeth): `green` CANNOT run
 # the full suite by choice — it runs exactly the scoped set that
 # scripts/affected-sensors.sh resolves (declared + affected), and escalates to
-# the full suite ONLY when the resolver itself reports FULL (unbounded blast
-# radius). The full suite otherwise requires an explicit `--gate pre-review`
+# the full suite ONLY when the resolver reports FULL (unbounded blast radius)
+# or fails discovery with exit 2 (fail-closed fallback). The full suite otherwise requires an explicit `--gate pre-review`
 # or `--gate pre-pr` invocation — the two per-issue points where it is owed.
 # Cross-model evidence (2026-07-21/22 runs) shows agents over-comply with
 # verification obligations regardless of prose doctrine; this runner removes
@@ -142,7 +142,16 @@ fi
 # green mode: resolver decides; the agent does not.
 RESOLVER_ARGS=(--diff "$DIFF_BASE")
 [ -n "$DECLARED" ] && RESOLVER_ARGS+=(--declared "$DECLARED")
+set +e
 RESOLVED="$("${SCRIPT_DIR}/affected-sensors.sh" "${RESOLVER_ARGS[@]}")"
+resolver_rc=$?
+set -e
+if [ "$resolver_rc" -eq 2 ]; then
+  printf 'run-sensors.sh: resolver failed — falling back to FULL with warning\n' >&2
+  RESOLVED="FULL"
+elif [ "$resolver_rc" -ne 0 ]; then
+  exit "$resolver_rc"
+fi
 
 if [ "$RESOLVED" = "FULL" ]; then
   # Unbounded blast radius (shared lib / schema authority changed): the ONLY

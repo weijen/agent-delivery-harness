@@ -270,12 +270,14 @@ fi
 PROGRESS_FILE="${ARTIFACT_DIR}/progress.md"
 FEATURE_LIST_FILE="${ARTIFACT_DIR}/feature_list.json"
 
-if command -v mktemp >/dev/null 2>&1; then
-  TMP_DIR="$(mktemp -d)"
-else
-  TMP_DIR="${TMPDIR:-/tmp}/check-trace-consistency.$$.${RANDOM}"
-  mkdir -p "$TMP_DIR"
-fi
+command -v mktemp >/dev/null 2>&1 || {
+  printf 'check-trace-consistency.sh: mktemp is required for secure scratch files\n' >&2
+  exit 2
+}
+TMP_DIR="$(mktemp -d)" || {
+  printf 'check-trace-consistency.sh: mktemp could not create secure scratch space\n' >&2
+  exit 2
+}
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 violations=0

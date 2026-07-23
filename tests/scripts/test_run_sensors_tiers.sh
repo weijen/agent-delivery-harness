@@ -165,4 +165,25 @@ for bad in "green --full" "green --all" "green --suite full"; do
     || fail "'run-sensors.sh ${bad}' must be rejected as a usage error (got ${rc}) — green may never opt into a full run"
 done
 
+# 9. Git discovery errors are never converted into a silent scoped run. The
+# resolver returns 2 and the runner conservatively executes FULL with a warning.
+head_sha="$(git -C "$FIX" rev-parse HEAD)"
+set +e
+resolver_out="$(cd "$FIX" && ./scripts/affected-sensors.sh \
+  --declared tests/scripts/test_widget.sh --diff refs/heads/does-not-exist 2>&1)"
+resolver_rc=$?
+set -e
+[ "$resolver_rc" = "2" ] \
+  || fail "invalid diff base must make the resolver exit 2 (got ${resolver_rc}: ${resolver_out})"
+grep -qi 'git discovery failed' <<<"$resolver_out" \
+  || fail "resolver must explain the git discovery failure"
+
+out="$(run green --declared tests/scripts/test_widget.sh \
+  --diff refs/heads/does-not-exist 2>&1)" \
+  || fail "runner must recover from resolver exit 2 by running the green FULL fallback"
+grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
+  || fail "resolver error must produce a full fallback summary (got: $out)"
+grep -qi 'resolver.*failed.*FULL' <<<"$out" \
+  || fail "runner must warn that resolver failure forced FULL"
+
 printf 'PASS: run-sensors tier enforcement honors the #347 contract\n'
