@@ -92,6 +92,14 @@ fixture_repo() {
 
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
+    case ",${scripts_csv}," in
+      *,review-gate.sh,*)
+        case ",${scripts_csv}," in
+          *,ci-coverage-lib.sh,*) ;;
+          *) scripts+=("ci-coverage-lib.sh") ;;
+        esac
+        ;;
+    esac
     for script in "${scripts[@]}"; do
       [[ "$script" =~ ^[A-Za-z0-9._-]+\.sh$ ]] || {
         _fixture_usage_error "invalid script name: $script"

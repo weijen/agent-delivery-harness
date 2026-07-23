@@ -150,7 +150,8 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts" "${R}/docs/evaluation"
 for s in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
-         create-pr.sh merge-pr.sh finish-issue.sh finish-lib.sh trace-lib.sh trace-report.sh; do
+         create-pr.sh merge-pr.sh finish-issue.sh finish-lib.sh trace-lib.sh trace-report.sh \
+         ci-coverage-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${R}/scripts/"
 done
 cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${R}/docs/evaluation/trace-schema.v1.json"

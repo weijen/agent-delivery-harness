@@ -46,8 +46,36 @@ if ! run_a ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must pass for a docs-only repo"
 fi
 
+# Missing detector library is an error, not a disabled success path.
+mv "${A}/scripts/ci-coverage-lib.sh" "${TMP_DIR}/ci-coverage-lib.sh"
+set +e
+run_a ./scripts/review-gate.sh ci-gate
+missing_lib_rc=$?
+set -e
+mv "${TMP_DIR}/ci-coverage-lib.sh" "${A}/scripts/ci-coverage-lib.sh"
+[ "$missing_lib_rc" -ne 0 ] \
+  || fail "ci-gate must fail when ci-coverage-lib.sh is missing"
+grep -qi 'ci-gate.*error' "$OUT" \
+  || { cat "$OUT"; fail "missing detector library must report a ci-gate error"; }
+
 # 1. code surface, no project CI -> fail closed
 printf '%s' "$PY_SURFACE" > "${A}/pyproject.toml"
+
+# A detector/profile execution error is distinct from an absent surface.
+cp "${A}/profiles/python.profile.sh" "${TMP_DIR}/python.profile.sh"
+cat >"${A}/profiles/python.profile.sh" <<'SH'
+profile_detect() { return 42; }
+SH
+set +e
+run_a ./scripts/review-gate.sh ci-gate
+detector_error_rc=$?
+set -e
+cp "${TMP_DIR}/python.profile.sh" "${A}/profiles/python.profile.sh"
+[ "$detector_error_rc" -ne 0 ] \
+  || fail "ci-gate must fail when a surface detector errors"
+grep -qi 'ci-gate.*error' "$OUT" \
+  || { cat "$OUT"; fail "surface detector failure must report a ci-gate error"; }
+
 if run_a ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must FAIL CLOSED when a code surface has no project CI"
 fi
