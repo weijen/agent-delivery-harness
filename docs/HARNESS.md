@@ -62,8 +62,8 @@ single source of truth for Core Harness behavior. Before changing any lifecycle
 script, keep these sensors green:
 
 - `tests/scripts/test_harness_contract.sh` — scripts still satisfy the contract
-  (required scripts exist and parse; declared lifecycle steps, env flags, state
-  transitions, and failure modes still appear; owner scripts stay
+  (required scripts exist and parse; the four gates, SHA bindings, audited
+  bypasses, and environment flags still match their owners; owner scripts stay
   language-neutral).
 - `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.

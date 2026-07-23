@@ -175,7 +175,7 @@ sha_bindings:
 
 bypasses:
   - id: FORCE
-    audit: record forced worktree removal in the issue trace
+    audit: operator records the forced-removal rationale in the issue Action Log
     owner: scripts/finish-issue.sh
     present: FORCE
   - id: SKIP_CI_GATE
