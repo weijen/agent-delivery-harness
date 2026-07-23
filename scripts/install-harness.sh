@@ -112,6 +112,8 @@ list_files() {
 rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
 # shellcheck disable=SC2317,SC2329
 rc_write() {
+	target_parent_is_safe "$RC_REL" \
+		|| die "refusing ${RC_REL}: symlinked parent directory"
 	mkdir -p "$(dirname "$RC_DST")"
 	cp "$RC_SRC" "$RC_DST"
 }
@@ -130,7 +132,7 @@ append_lock_entry() {
 	printf '%s\t%s\n' "$digest" "$rel" >>"$LOCK_NEXT"
 }
 
-reject_parent_is_safe() {
+target_parent_is_safe() {
 	local rel="$1" current="$TARGET_DIR" component="" index=0
 	local -a components=()
 	IFS='/' read -r -a components <<<"$rel"
@@ -145,7 +147,7 @@ reject_parent_is_safe() {
 emit_reject() {
 	local rel="$1" dst="$2" src="$3" reject="" tmp="" diff_rc=0
 	reject="${dst}.rej"
-	if ! reject_parent_is_safe "$rel"; then
+	if ! target_parent_is_safe "$rel"; then
 		printf '  failed to emit %s.rej: symlinked parent directory\n' "$rel" >&2
 		return 1
 	fi
@@ -201,6 +203,8 @@ validate_harness_lock() {
 write_harness_lock() {
 	local target_tmp=""
 	[ "$MODE" != "dry" ] || return 0
+	target_parent_is_safe ".harness-lock" \
+		|| die "refusing .harness-lock: symlinked parent directory"
 	target_tmp="$(mktemp "${TARGET_DIR}/.harness-lock.XXXXXX")" \
 		|| die "could not create .harness-lock temporary file"
 	{
@@ -244,6 +248,7 @@ reconcile() {
 	fi
 	RC_SRC="${REPO_ROOT}/${rel}"
 	RC_DST="${TARGET_DIR}/${rel}"
+	RC_REL="$rel"
 	source_hash="$(sha256_file "$RC_SRC")"
 	base_hash="$(lock_base_hash "$rel")"
 	local missing=0
@@ -476,6 +481,9 @@ prune_harness_dev_sensors() {
 		if [ "$actual" = "$expected" ]; then
 			if [ "$MODE" = "dry" ]; then
 				printf '  would remove harness-dev sensor %s\n' "$rel"
+			elif ! target_parent_is_safe "$rel"; then
+				printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
+				prune_rc=1
 			elif rm -f "$dst"; then
 				printf '  removed harness-dev sensor %s\n' "$rel"
 			else
@@ -492,7 +500,10 @@ prune_harness_dev_sensors() {
 				append_lock_entry "deleted" "$rel"
 			elif [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
 				printf '  removing harness-dev sensor %s (upstream policy changed)\n' "$rel"
-				if rm -f "$dst"; then
+				if ! target_parent_is_safe "$rel"; then
+					printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
+					prune_rc=1
+				elif rm -f "$dst"; then
 					printf '  removed harness-dev sensor %s\n' "$rel"
 				else
 					printf '  failed to remove harness-dev sensor %s\n' "$rel" >&2
@@ -562,6 +573,10 @@ prune_retired() {
 		if [ "$actual" = "$digest" ]; then
 			if [ "$MODE" = "dry" ]; then
 				printf '  would remove retired %s\n' "$rel"
+			elif ! target_parent_is_safe "$rel"; then
+				printf '  failed to remove retired %s: symlinked parent directory\n' "$rel" >&2
+				prune_rc=1
+				continue
 			else
 				if ! rm -f "$dst"; then
 					printf '  failed to remove retired %s\n' "$rel" >&2
@@ -592,7 +607,11 @@ prune_retired() {
 				append_lock_entry "deleted" "$rel"
 			elif [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
 				printf '  removing retired %s (upstream deleted)\n' "$rel"
-				if ! rm -f "$dst"; then
+				if ! target_parent_is_safe "$rel"; then
+					printf '  failed to remove retired %s: symlinked parent directory\n' "$rel" >&2
+					prune_rc=1
+					continue
+				elif ! rm -f "$dst"; then
 					printf '  failed to remove retired %s\n' "$rel" >&2
 					prune_rc=1
 					continue
@@ -691,6 +710,8 @@ if [ "$MODE" != "dry" ] \
 	# repo never commits it (apex-vs incident, 2026-07-23).
 	if [ -e "${TARGET_DIR}/.gitignore" ] \
 		&& ! grep -qx '\.github/harness-identity\.env' "${TARGET_DIR}/.gitignore" 2>/dev/null; then
+		target_parent_is_safe ".gitignore" \
+			|| die "refusing .gitignore: symlinked parent directory"
 		printf '.github/harness-identity.env\n' >>"${TARGET_DIR}/.gitignore"
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
