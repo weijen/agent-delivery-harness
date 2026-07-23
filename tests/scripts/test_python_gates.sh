@@ -65,4 +65,24 @@ LINT_RC=7 assert_rc 7 "$GATES" all
 [ "$(wc -l <"$UV_LOG" | tr -d ' ')" -eq 2 ] \
 	|| fail "full run did not stop at the first real failure"
 
+# Adversarial: ruff's own exit code 2 means a fatal/usage error (e.g. a bad
+# invocation or config crash), never "nothing to check" — unlike mypy's
+# dormant-root exit 2 or pytest's exit 5. The dormant-root skip must not
+# swallow a ruff fatal error for format_check or lint.
+: >"$UV_LOG"
+set +e
+FORMAT_RC=2 "$GATES" all
+got=$?
+set -e
+[ "$got" -ne 0 ] \
+	|| fail "full run must not silently accept a ruff format fatal error (exit 2) as a dormant-root skip"
+
+: >"$UV_LOG"
+set +e
+LINT_RC=2 "$GATES" all
+got=$?
+set -e
+[ "$got" -ne 0 ] \
+	|| fail "full run must not silently accept a ruff check fatal error (exit 2) as a dormant-root skip"
+
 printf 'python gate authority sensor passed\n'

@@ -50,7 +50,11 @@ if [ "$gate" = "all" ]; then
 			continue
 		else
 			status=$?
-			[ "$status" -eq 2 ] || exit "$status"
+			if [ "$status" -eq 2 ] \
+				&& { [ "$gate" = "typecheck" ] || [ "$gate" = "test" ]; }; then
+				continue
+			fi
+			exit "$status"
 		fi
 	done
 else
