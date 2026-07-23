@@ -84,6 +84,7 @@ continuing the ritual.
   underlying spec detail, read the relevant project docs under `docs/`.
 5. Run a quick smoke check from the project validation docs, or `./scripts/init.sh` while docs-only,
   to confirm the repo isn't already broken before you add to it.
+6. Scratch output goes to `.copilot-tracking/tmp/` (gitignored); `/tmp` is read-only in sandboxed runs.
 
 ### Per-issue working directory (`.copilot-tracking/issues/issue-NN/`)
 
