@@ -81,6 +81,16 @@ if run_a ./scripts/review-gate.sh ci-gate; then
 fi
 grep -qi "no project CI runs the gates" "$OUT" || { cat "$OUT"; fail "ci-gate failure missing the expected message"; }
 
+# Only the exact documented value bypasses; other populated values still fail.
+for non_bypass in 0 true yes; do
+  if run_a env SKIP_CI_GATE="$non_bypass" ./scripts/review-gate.sh ci-gate; then
+    cat "$OUT"; fail "SKIP_CI_GATE=${non_bypass} must not bypass ci-gate"
+  fi
+  if grep -qi 'bypassing' "$OUT"; then
+    cat "$OUT"; fail "SKIP_CI_GATE=${non_bypass} must not report a bypass"
+  fi
+done
+
 # 1b. harness-smoke.yml only -> still fails (not project CI)
 mkdir -p "${A}/.github/workflows"
 printf '%s\n' "$SMOKE_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"

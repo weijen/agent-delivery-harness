@@ -16,8 +16,9 @@
 #     acceptable, silent under-inclusion is not),
 #   * a changed file that is itself a sensor is always in its own set.
 #
-# FULL fallback (conservative, single-line output `FULL`): any changed path
-# whose blast radius cannot be bounded by textual reference —
+# FULL fallback (conservative, single-line output `FULL`): a discovery error
+# (reported as exit 2 for the runner to promote) or any changed path whose blast
+# radius cannot be bounded by textual reference —
 #   * shared sourced libraries: scripts/trace-lib.sh scripts/issue-lib.sh
 #     scripts/finish-lib.sh scripts/reconcile-lib.sh scripts/ci-coverage-lib.sh
 #   * schema/contract authorities: docs/evaluation/trace-schema.v1.json
