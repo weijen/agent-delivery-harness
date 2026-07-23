@@ -49,7 +49,7 @@ scripts:
     role: Validate per-issue feature_list.json structure and completion.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
-    role: Trace/artifact consistency checker (schema validation folded in, #335); accepts historical feature_start spans without requiring them for current delivery.
+    role: Trace/artifact consistency checker with schema validation.
   - id: review-gate
     path: scripts/review-gate.sh
     role: HEAD-bound local review approval marker.
@@ -58,7 +58,7 @@ scripts:
     role: Sync onto main, enforce review gate, push, and open the PR.
   - id: merge-pr
     path: scripts/merge-pr.sh
-    role: Verify the PR's CI checks concluded green, then merge (conductor-invoked, not auto-merge).
+    role: Verify the PR's CI checks concluded green, then merge through the explicit closeout command.
   - id: finish-issue
     path: scripts/finish-issue.sh
     role: Tear down the worktree after the PR merges.
@@ -87,9 +87,6 @@ lifecycle:
   - id: tracking-scaffold
     owner: scripts/start-issue.sh
     present: feature_list.json
-  - id: breakdown-ownership
-    owner: scripts/start-issue.sh
-    present: conductor authors
   - id: feature-list-validation
     owner: scripts/check-feature-list.sh
     present: feature_list.json
@@ -240,11 +237,6 @@ failure_modes:
     kind: hard
     owner: scripts/review-gate.sh
     present: no project CI runs the gates
-  - id: teeth-proof-missing-warn
-    kind: warn
-    owner: scripts/check-feature-list.sh
-    present: teeth_proof_missing
-
 # ---------------------------------------------------------------------------
 # Trace emission (issue #94). Every lifecycle script emits schema-v1 trace
 # spans by sourcing scripts/trace-lib.sh (guarded: a missing library degrades

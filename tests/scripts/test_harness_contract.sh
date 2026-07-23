@@ -180,23 +180,14 @@ grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:
   || fail "contract no longer declares the ci-not-green-refused failure mode"
 end_scenario "contract declares the CI-green merge precondition and its failure mode"
 
-# --- 2c. Breakdown-ownership backstop (issue #78) ----------------------------
-# The contract must keep declaring that the conductor owns authoring the
-# feature_list.json breakdown (after the plan + human-input gate), owned by
-# scripts/start-issue.sh. Deleting the obligation from the YAML must fail this
-# sensor even though section 3 would then no longer check it.
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the breakdown-ownership lifecycle obligation"
-end_scenario "contract declares the breakdown-ownership lifecycle obligation"
-
-# --- 2d. Trace-lib registration backstop (issue #93) -------------------------
+# --- 2c. Trace-lib registration backstop (issue #93) -------------------------
 # scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
 # lifecycle scripts. The required-script backstop above forces the contract to
 # keep declaring it in the scripts list (section 1 then enforces that it
 # exists, is executable, and parses with bash -n), and section 4 asserts it
 # stays inside the language-neutral boundary alongside the other owners.
 
-# --- 2e. Trace-emission backstop (issue #94) ----------------------------------
+# --- 2d. Trace-emission backstop (issue #94) ----------------------------------
 # The six lifecycle scripts each emit schema-v1 trace spans via trace-lib.sh
 # (guarded source + trace_span calls). Two layers, mirroring 2b/2c:
 #   (a) script-side presence backstop: every instrumented owner must still
@@ -242,19 +233,17 @@ else
 fi
 end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
 
-# --- 2f. Trace checker contract ------------------------------------------------
+# --- 2e. Trace checker contract ------------------------------------------------
 require_contract_record scripts path scripts/check-trace-consistency.sh
 end_scenario "contract declares the trace consistency checker"
 
-# --- 2g. Teeth-proof warning contract backstop (issue #263) ------------------
-require_contract_record failure_modes id teeth-proof-missing-warn scripts/check-feature-list.sh
-end_scenario "contract declares the teeth-proof-missing warn failure mode"
-
-# --- 2h. feature_start retirement backstop (issue #370) ----------------------
-if grep -qF 'feature_start_missing' "${ROOT}/scripts/check-trace-consistency.sh"; then
-  fail "feature_start_missing must remain retired from the consistency checker"
-fi
-end_scenario "feature_start is not a current trace-consistency obligation"
+# --- 2f. Retired concepts stay out of the contract ---------------------------
+for retired in feature_start teeth-proof conductor; do
+  if grep -Eiq -- "$retired" "$CONTRACT"; then
+    fail "contract still asserts retired '${retired}' semantics"
+  fi
+done
+end_scenario "contract excludes retired feature-start, teeth-proof, and role-era claims"
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
