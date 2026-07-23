@@ -87,9 +87,12 @@ grep -Fq "ShellCheck version mismatch: local unknown, CI ${ci_version}" \
 
 ABSENT="${TMP_DIR}/absent"
 make_fixture "$ABSENT" "absent"
+for tool in awk bash basename dirname find git grep sed tr; do
+  ln -s "$(command -v "$tool")" "${ABSENT}/bin/${tool}"
+done
 (
   cd "$ABSENT"
-  PATH="${ABSENT}/bin:/usr/bin:/bin" ./scripts/init.sh
+  PATH="${ABSENT}/bin" ./scripts/init.sh
 ) >"${TMP_DIR}/absent.out" 2>&1 \
   || fail "missing ShellCheck must remain warn-only"
 grep -Fq "ShellCheck not installed; CI uses ${ci_version}" \
