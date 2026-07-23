@@ -751,6 +751,8 @@ if [ "$MODE" != "dry" ] \
 	# Source path is anchored to the runtime repository root.
 	# The filled binding is machine-local by design: make sure the adopter
 	# repo never commits it (apex-vs incident, 2026-07-23).
+	target_destination_is_safe ".gitignore" \
+		|| die "refusing .gitignore: destination is not a regular file"
 	if [ -e "${TARGET_DIR}/.gitignore" ] \
 		&& ! grep -qx '\.github/harness-identity\.env' "${TARGET_DIR}/.gitignore" 2>/dev/null; then
 		append_identity_gitignore
