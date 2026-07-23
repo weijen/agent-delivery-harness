@@ -90,4 +90,20 @@ PATH="${TMP_DIR}/bin:/usr/bin:/bin" \
 [ "$(grep -c 'harness-identity.env not found' "${TMP_DIR}/missing.err")" -eq 1 ] \
   || fail "missing binding must warn exactly once per process"
 
+
+# --- Placeholder + committed-binding guards (apex-vs incident, 2026-07-23) ----
+PH="${TMP_DIR}/ph-repo"
+mkdir -p "${PH}/.github"
+git init -q -b main "$PH"
+cp "${ROOT}/.github/harness-identity.env.example" "${PH}/.github/harness-identity.env"
+ph_rc=0
+ph_out="$( (cd "$PH" && . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || ph_rc=$?
+[ "$ph_rc" -eq 2 ] || fail "placeholder binding must be treated as absent (rc=2), got rc=${ph_rc}: ${ph_out}"
+grep -qi "placeholder" <<<"$ph_out" || fail "placeholder binding must warn about placeholders: ${ph_out}"
+printf 'HARNESS_GH_ACCOUNT=real-account\nHARNESS_GIT_EMAIL=a@users.noreply.github.com\n' > "${PH}/.github/harness-identity.env"
+git -C "$PH" -c user.email=t@t.invalid -c user.name=t add -f .github/harness-identity.env
+git -C "$PH" -c user.email=t@t.invalid -c user.name=t commit -qm bind
+tr_out="$( (cd "$PH" && . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || true
+grep -qi "COMMITTED" <<<"$tr_out" || fail "a committed binding must emit the machine-local warning: ${tr_out}"
+
 printf 'GitHub identity binding contract honored\n'

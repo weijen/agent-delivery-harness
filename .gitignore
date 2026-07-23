@@ -100,3 +100,4 @@ Thumbs.db
 
 logs/.copilot-test-tmp/
 .copilot-test-tmp/
+.github/harness-identity.env
