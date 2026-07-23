@@ -222,8 +222,11 @@ jq -e '[.. | strings | select(contains("security-evals.md"))] | length > 0' "$CO
 jq -e '[.. | strings | select(contains("dataset-governance.md"))] | length > 0' "$CONTRACT" >/dev/null \
   || fail "contract must reference the redaction authority dataset-governance.md"
 
-grep -qF '.copilot-tracking/issues/issue-*/' "${ROOT}/.gitignore" \
-  || fail ".gitignore no longer carries the .copilot-tracking/issues/issue-*/ local-only rule covering trace.jsonl"
+# Behavioral (not literal): whatever the .gitignore style, per-issue trace
+# files must be ignored (the enumerated-rule pin broke when the ignore moved
+# to ignore-all + keepfile carve-outs).
+git -C "${ROOT}" check-ignore -q .copilot-tracking/issues/issue-99/trace.jsonl \
+  || fail "per-issue trace files (.copilot-tracking/issues/issue-NN/trace.jsonl) must be gitignored"
 
 # --- 5. Failure-mode taxonomy doc (issue #99) ---------------------------------
 # docs/evaluation/failure-mode-taxonomy.md is the prose authority for the
