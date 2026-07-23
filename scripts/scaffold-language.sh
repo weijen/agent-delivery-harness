@@ -108,10 +108,10 @@ load_metadata() {
 # shellcheck disable=SC2016  # literal command text is intentional in the emitted descriptor
 gate_spec() {
 	case "$1:$2" in
-	python:format_check) printf 'uv run ruff format --check .|ruff format clean|ruff format would reformat|uv run ruff format .' ;;
-	python:lint) printf 'uv run ruff check|ruff clean|ruff failed|uv run ruff check' ;;
-	python:typecheck) printf 'uv run mypy|mypy clean|mypy failed|uv run mypy' ;;
-	python:test) printf 'uv run pytest -q|pytest passing|pytest failed|uv run pytest' ;;
+	python:format_check) printf './scripts/python-gates.sh format_check|ruff format clean|ruff format would reformat|uv run ruff format .' ;;
+	python:lint) printf './scripts/python-gates.sh lint|ruff clean|ruff failed|uv run ruff check' ;;
+	python:typecheck) printf './scripts/python-gates.sh typecheck|mypy clean|mypy failed|uv run mypy' ;;
+	python:test) printf './scripts/python-gates.sh test|pytest passing|pytest failed|uv run pytest' ;;
 	go:format_check) printf 'test -z "$(gofmt -l .)"|gofmt clean|gofmt would reformat|gofmt -w .' ;;
 	go:lint) printf 'go vet ./...|go vet clean|go vet failed|go vet ./...' ;;
 	go:test) printf 'go test ./...|go test passing|go test failed|go test ./...' ;;

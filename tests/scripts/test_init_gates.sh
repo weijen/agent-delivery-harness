@@ -95,6 +95,7 @@ fi
 
 mkdir -p "${TMP_DIR}/repo/scripts" "${TMP_DIR}/fakebin"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
+cp "${ROOT}/scripts/python-gates.sh" "${TMP_DIR}/repo/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/repo/profiles"
 cat > "${TMP_DIR}/fakebin/gh" <<'SH'
 #!/usr/bin/env bash
@@ -171,6 +172,7 @@ grep -qF "terraform fmt -check -recursive" "${TMP_DIR}/gate.log" || { cat "${TMP
 FAILBIN="${TMP_DIR}/failbin"
 mkdir -p "${TMP_DIR}/failrepo/scripts" "$FAILBIN"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/failrepo/scripts/init.sh"
+cp "${ROOT}/scripts/python-gates.sh" "${TMP_DIR}/failrepo/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/failrepo/profiles"
 cat > "${FAILBIN}/gh" <<'SH'
 #!/usr/bin/env bash
@@ -379,6 +381,7 @@ grep -q "STUB-TEST-OK" "$OUT" || { cat "$OUT"; echo "case-a: gate OK not read fr
 b="${TMP_DIR}/b"
 mkdir -p "$b/scripts" "$b/bin"
 cp "${ROOT}/scripts/init.sh" "$b/scripts/init.sh"
+cp "${ROOT}/scripts/python-gates.sh" "$b/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "$b/profiles"
 make_gh "$b/bin"
 cat > "$b/bin/uv" <<'SH'
@@ -397,6 +400,7 @@ done
 c="${TMP_DIR}/c"
 mkdir -p "$c/scripts" "$c/bin"
 cp "${ROOT}/scripts/init.sh" "$c/scripts/init.sh"
+cp "${ROOT}/scripts/python-gates.sh" "$c/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "$c/profiles"
 make_gh "$c/bin"
 cat > "$c/bin/uv" <<'SH'

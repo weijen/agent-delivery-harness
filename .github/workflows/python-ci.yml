@@ -30,22 +30,5 @@ jobs:
       - name: Sync Python environment
         run: uv sync --all-groups
 
-      - name: ruff format
-        run: uv run ruff format --check .
-
-      - name: ruff check
-        run: uv run ruff check
-
-      - name: mypy
-        run: |
-          # issue #272 removed the only Python package; mypy exit 2 ("no .py
-          # files") is the no-op/skip code while the repo carries no Python
-          # source. Any other non-zero is a real type error.
-          uv run mypy || { rc=$?; [ "$rc" -eq 2 ] || exit "$rc"; }
-
-      - name: pytest
-        run: |
-          # pytest exit 5 ("no tests collected") is the skip code while no
-          # Python source remains (issue #272); any other non-zero is a real
-          # test failure.
-          uv run pytest -q || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }
+      - name: Python profile gates
+        run: ./scripts/python-gates.sh

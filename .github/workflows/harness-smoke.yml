@@ -41,16 +41,7 @@ jobs:
         run: uv sync --all-groups
 
       - name: Python profile gates
-        run: |
-          uv run ruff format --check .
-          uv run ruff check
-          # issue #272 deleted the only Python package (scripts/trace_tools/, the
-          # cloud export leg). While the repo carries no Python source, mypy exit
-          # 2 ("no .py files") and pytest exit 5 ("no tests collected") are the
-          # no-op/skip codes; any other non-zero is a real failure. The toolchain
-          # is retained dormant so a future Python component gets a ready home.
-          uv run mypy || { rc=$?; [ "$rc" -eq 2 ] || exit "$rc"; }
-          uv run pytest -q || { rc=$?; [ "$rc" -eq 5 ] || exit "$rc"; }
+        run: ./scripts/python-gates.sh
 
       - name: Check shell syntax
         run: bash -n scripts/*.sh tests/scripts/lib/*.sh tests/evals/bin/*.sh

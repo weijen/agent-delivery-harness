@@ -23,7 +23,7 @@ PROFILE_SURFACE_LABEL="Python surface detected (pyproject.toml)"
 # scripts/ci-coverage-lib.sh (issue #129) for the preflight WARN and Pre-PR
 # ci-gate. Kept here (a profile, not a language-neutral owner script) so the
 # gate scripts stay token-free.
-PROFILE_CI_SIGNATURES="pytest|ruff|mypy"
+PROFILE_CI_SIGNATURES="python-gates\\.sh"
 
 # --- Detection ---------------------------------------------------------------
 profile_detect() { [ -f "$PWD/pyproject.toml" ]; }
@@ -44,32 +44,22 @@ profile_sync() { uv sync --all-groups; }
 # gate simply omits the slot from PROFILE_GATES (empty slots are valid).
 PROFILE_GATES=(format_check lint typecheck test)
 
-profile_gate_format_check() { uv run ruff format --check .; }
+profile_gate_format_check() { ./scripts/python-gates.sh format_check; }
 PROFILE_GATE_format_check_OK="ruff format clean"
 PROFILE_GATE_format_check_FAIL="ruff format would reformat"
 PROFILE_GATE_format_check_FIX="uv run ruff format ."
 
-profile_gate_lint() { uv run ruff check; }
+profile_gate_lint() { ./scripts/python-gates.sh lint; }
 PROFILE_GATE_lint_OK="ruff clean"
 PROFILE_GATE_lint_FAIL="ruff failed"
 PROFILE_GATE_lint_FIX="uv run ruff check"
 
-profile_gate_typecheck() { uv run mypy; }
+profile_gate_typecheck() { ./scripts/python-gates.sh typecheck; }
 PROFILE_GATE_typecheck_OK="mypy clean"
 PROFILE_GATE_typecheck_FAIL="mypy failed"
 PROFILE_GATE_typecheck_FIX="uv run mypy"
 
-profile_gate_test() {
-  # A Python surface can legitimately carry no collectible tests (e.g. after the
-  # only Python package is removed). pytest exit code 5 == "no tests collected";
-  # treat it as SKIP (rc 2) so preflight WARNs rather than fails. Any other
-  # non-zero is a real test failure.
-  local rc
-  uv run pytest -q
-  rc=$?
-  [ "$rc" -eq 5 ] && return 2
-  return "$rc"
-}
+profile_gate_test() { ./scripts/python-gates.sh test; }
 PROFILE_GATE_test_OK="pytest passing"
 PROFILE_GATE_test_FAIL="pytest failed"
 PROFILE_GATE_test_FIX="uv run pytest"
