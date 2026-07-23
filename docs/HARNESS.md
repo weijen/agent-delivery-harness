@@ -65,8 +65,6 @@ script, keep these sensors green:
   (required scripts exist and parse; declared lifecycle steps, env flags, state
   transitions, and failure modes still appear; owner scripts stay
   language-neutral).
-- `tests/scripts/test_profiles.sh` and each `tests/scripts/test_<id>_profile.sh`
-  — descriptors keep their Profile Interface shape.
 - `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.
 

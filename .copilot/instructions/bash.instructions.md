@@ -27,6 +27,8 @@ harness contract and the AGENTS.md conventions.
 - Keep embedded jq filters compatible with jq 1.6. Parenthesize complete
   expressions before binding with `as` (for example, `((. | length) + 1) as
   $count`) so operator precedence cannot bind only the right-hand operand.
+- Put a scoped `# shellcheck source=...` annotation immediately before every
+  dynamic `source` command so later statements cannot detach the annotation.
 - Canonicalize paths before comparing them (`(cd "$p" && pwd -P)`); a linked
   worktree can report a physical path where the main checkout reports a logical
   one (macOS `/var` → `/private/var`).

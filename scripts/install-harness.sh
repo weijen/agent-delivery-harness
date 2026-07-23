@@ -674,7 +674,6 @@ if [ "$MODE" != "dry" ] \
 	&& [ -f "${TARGET_DIR}/.github/harness-identity.env" ] \
 	&& git -C "$TARGET_DIR" rev-parse --git-dir >/dev/null 2>&1; then
 	# Source path is anchored to the runtime repository root.
-	# shellcheck disable=SC1091
 	# The filled binding is machine-local by design: make sure the adopter
 	# repo never commits it (apex-vs incident, 2026-07-23).
 	if [ -e "${TARGET_DIR}/.gitignore" ] \
@@ -682,6 +681,7 @@ if [ "$MODE" != "dry" ] \
 		printf '.github/harness-identity.env\n' >>"${TARGET_DIR}/.gitignore"
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
+	# shellcheck source=/dev/null
 	source "${REPO_ROOT}/scripts/github-identity-lib.sh"
 	if ! harness_identity_configure_git "$TARGET_DIR"; then
 		printf 'error: could not apply the target repository GitHub identity binding\n' >&2

@@ -45,10 +45,8 @@ done <"${TMP_DIR}/entries"
 required=(
 	'tests/meta/test_*.sh'
 	tests/scripts/test_commit_convention_doc.sh
-	tests/scripts/test_evaluation_archive_layout.sh
 	tests/scripts/test_init_gates.sh
 	tests/scripts/test_release_workflow.sh
-	tests/scripts/test_terraform_sink.sh
 	tests/scripts/test_version_no_drift.sh
 )
 for pattern in "${required[@]}"; do

@@ -14,8 +14,7 @@
 #      missing hook config means "runtime spans are only captured …" / a "dark
 #      run" is gone (dark_run is now a semantic-spine check — issue #305 F1).
 #
-# Structural sensor (greps the script SOURCE). Modelled on the sibling
-# structural sensor tests/scripts/test_verify_gate_sensor_list.sh.
+# Structural sensor (greps the script SOURCE).
 #
 # Exit codes: 0 all obligations met · 1 an obligation is violated (RED gate —
 # start-issue.sh still seeds the hook / still warns about a dark run).
