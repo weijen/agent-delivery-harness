@@ -102,8 +102,11 @@ printf '%s\n' "${opening_flat}" \
   | grep -qiE 'per-process (token|GitHub token)' \
   || fail "opening contract must require a per-process GitHub token"
 printf '%s\n' "${opening_flat}" \
-  | grep -qF 'gh auth switch' \
-  || fail "opening contract must forbid gh auth switch"
+  | grep -qiE 'never mutate global GitHub CLI state|must not mutate global GitHub CLI state' \
+  || fail "opening contract must forbid mutation of global GitHub CLI state"
+printf '%s\n' "${opening_flat}" \
+  | grep -qiE '(never|must not|do not).{0,80}gh auth switch' \
+  || fail "opening contract must explicitly forbid gh auth switch"
 
 # 6. AGENTS.md doc-sync: the code-review-subagent portfolio row must name the
 # issue-completion timing and must NOT still say review fires "after
