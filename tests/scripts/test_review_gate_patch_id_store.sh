@@ -410,6 +410,20 @@ run_cpr() {
 RA="${TMP_DIR}/ra"
 make_pr_repo "$RA" 310
 
+# Instrument review-gate invocations independently of trace suppression. The
+# wrapper is committed before approval so create-pr still starts clean and the
+# approved patch identity includes the fixture itself.
+mv "${RA}/scripts/review-gate.sh" "${RA}/scripts/review-gate.real.sh"
+cat > "${RA}/scripts/review-gate.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[ -z "${REVIEW_GATE_CALL_LOG:-}" ] || printf '%s\n' "${1:-}" >> "$REVIEW_GATE_CALL_LOG"
+exec "$(dirname "$0")/review-gate.real.sh" "$@"
+SH
+chmod +x "${RA}/scripts/review-gate.sh" "${RA}/scripts/review-gate.real.sh"
+git -C "$RA" add scripts/review-gate.sh scripts/review-gate.real.sh
+git -C "$RA" commit -q -m "test: instrument review gate calls"
+
 # Approve before the rebase (pre-rebase HEAD is approved with 2-line marker).
 (cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
   || fail "(A) setup: initial approve failed"
@@ -425,14 +439,20 @@ LINE_COUNT_BEFORE="$(wc -l < "$MARKER_A" | tr -d ' ')"
 advance_origin_main_unrelated "$RA"
 
 OUT_A="${TMP_DIR}/a.out"
+CALL_LOG_A="${TMP_DIR}/a-review-gate-calls"
 # The carry should work: create-pr.sh must exit 0 without a second approve.
-if ! run_cpr "$RA" a "$OUT_A" -- --title "feat: carry" --body "test"; then
+if ! run_cpr "$RA" a "$OUT_A" "REVIEW_GATE_CALL_LOG=${CALL_LOG_A}" -- --title "feat: carry" --body "test"; then
   cat "$OUT_A"
   fail "(A) create-pr.sh must exit 0 on content-preserving rebase with carry — no second approve needed"
 fi
 # The PR must have actually opened (GH_STATE file created by fake gh pr create).
 [ -f "${TMP_DIR}/gh-state-a" ] \
   || { cat "$OUT_A"; fail "(A) the PR must open (fake gh pr create must have run)"; }
+
+# Observe actual gate executions rather than inferring them from suppressed
+# child spans: one pre-rebase check, then carry, and no post-carry check.
+[ "$(cat "$CALL_LOG_A")" = $'check\ncarry-rebase-approval' ] \
+  || { cat "$CALL_LOG_A"; fail "(A) expected actual gate calls check then carry only (zero post-rebase checks)"; }
 
 # Marker line 1 must be the post-rebase HEAD.
 POST_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
