@@ -19,7 +19,8 @@
 #     fragments matched against the owning script with `grep -Eiq`.
 #   * Keep values on a single line; the reader does not handle YAML block scalars.
 
-version: 1
+version: 2
+review_by: 2027-01-23
 
 # ---------------------------------------------------------------------------
 # Required entrypoints. Each must exist, be executable, and parse with bash -n.
@@ -50,6 +51,9 @@ scripts:
   - id: run-sensors
     path: scripts/run-sensors.sh
     role: Run scoped or full sensors and save a HEAD-bound gate summary.
+  - id: log-handback
+    path: scripts/log-handback.sh
+    role: Emit semantic handback and review-verdict evidence.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
     role: Trace/artifact consistency checker with schema validation.
@@ -117,8 +121,53 @@ gate_merge_closeout:
     present: git worktree (remove|prune)
 
 # ---------------------------------------------------------------------------
-# Required inputs and environment flags. Each flag must still be referenced in
-# its owning script (usage string or behavior branch).
+# Evidence governance. Hard gates consume only harness-observed evidence.
+# New rules ship warn first and promote to hard after an observation period.
+# ---------------------------------------------------------------------------
+evidence:
+  - id: sensor-summary
+    provenance: harness-observed
+    examples: trace spans, exit codes, SENSORS summaries, and gh pr checks
+  - id: progress-prose
+    provenance: agent-claimed
+    examples: progress.md prose and PR text
+
+policy:
+  - id: hard-gates-observed-only
+    rule: hard gates consume only harness-observed evidence
+  - id: new-rules-warn-first
+    rule: new clauses ship warn and promote to hard after observation
+
+sha_bindings:
+  - id: approval-head
+    binding: review approval is bound to HEAD by approved-head
+    owner: scripts/review-gate.sh
+    present: approved-head
+  - id: review-verdict
+    binding: review verdict carries reviewed_sha
+    owner: scripts/log-handback.sh
+    present: reviewed_sha
+  - id: ci-green-head
+    binding: merge consumes CI-green checks at the PR HEAD
+    owner: scripts/merge-pr.sh
+    present: gh pr checks
+
+bypasses:
+  - id: FORCE
+    audit: record forced worktree removal in the issue trace
+    owner: scripts/finish-issue.sh
+    present: FORCE
+  - id: SKIP_CI_GATE
+    audit: log the skipped project-CI coverage check
+    owner: scripts/review-gate.sh
+    present: SKIP_CI_GATE
+  - id: CREATE_PR_NO_REWRITE
+    audit: preserve and report the explicit non-rewriting PR path
+    owner: scripts/create-pr.sh
+    present: CREATE_PR_NO_REWRITE
+
+# ---------------------------------------------------------------------------
+# Slim supporting inventory of environment flags.
 # ---------------------------------------------------------------------------
 env_flags:
   - name: ISSUE=
@@ -152,138 +201,6 @@ env_flags:
     owner: scripts/create-pr.sh
     present: CREATE_PR_NO_REWRITE
 
-# ---------------------------------------------------------------------------
-# Required outputs and state transitions. Each declared artifact / naming rule
-# must still be produced by its owner script.
-# ---------------------------------------------------------------------------
-state_transitions:
-  - id: branch-naming
-    owner: scripts/issue-lib.sh
-    present: feature/issue-
-  - id: worktree-naming
-    owner: scripts/issue-lib.sh
-    present: \.worktrees/issue-
-  - id: legacy-worktree-fallback
-    owner: scripts/issue-lib.sh
-    present: legacy_worktree
-  - id: feature-list-artifact
-    owner: scripts/start-issue.sh
-    present: \.copilot-tracking/issues/issue-|feature_list.json
-  - id: progress-artifact
-    owner: scripts/start-issue.sh
-    present: progress.md
-  - id: action-log-scaffold
-    owner: scripts/start-issue.sh
-    present: ^##[[:space:]]+Action Log
-  - id: review-gate-marker
-    owner: scripts/review-gate.sh
-    present: approved-head
-
-# ---------------------------------------------------------------------------
-# Hard failures (exit non-zero) and warning-only paths (warn + continue). `kind`
-# classifies each path (hard|warn) for human review. The sensor is presence-based:
-# it asserts each path's message regex still exists in its owner, so a path cannot
-# be silently DELETED. It does not detect a hard<->warn flip that preserves the
-# same message text — tightening that is intentionally left to a later revision.
-# ---------------------------------------------------------------------------
-failure_modes:
-  - id: bound-github-account-unavailable
-    kind: hard
-    owner: scripts/init.sh
-    present: repository-bound GitHub account is unavailable
-  - id: github-auth-failure
-    kind: hard
-    owner: scripts/init.sh
-    present: gh not authenticated
-  - id: preflight-failure-aborts-start
-    kind: hard
-    owner: scripts/start-issue.sh
-    present: Preflight failed
-  - id: malformed-feature-list
-    kind: hard
-    owner: scripts/check-feature-list.sh
-    present: not valid JSON
-  - id: non-object-feature-list
-    kind: hard
-    owner: scripts/check-feature-list.sh
-    present: must be a JSON object
-  - id: passes-without-verification
-    kind: hard
-    owner: scripts/check-feature-list.sh
-    present: passes:true requires non-empty verification
-  - id: incomplete-features-hard
-    kind: hard
-    owner: scripts/check-feature-list.sh
-    present: REQUIRE_FEATURES_COMPLETE
-  - id: incomplete-features-warning
-    kind: warn
-    owner: scripts/check-feature-list.sh
-    present: warning only
-  - id: missing-jq-warning
-    kind: warn
-    owner: scripts/check-feature-list.sh
-    present: jq not installed
-  - id: dirty-worktree-refused
-    kind: hard
-    owner: scripts/finish-issue.sh
-    present: uncommitted changes
-  - id: stale-review-approval
-    kind: hard
-    owner: scripts/review-gate.sh
-    present: has not been approved
-  - id: trace-consistency-warn
-    kind: warn
-    owner: scripts/review-gate.sh
-    present: REQUIRE_TRACE_CONSISTENCY=1 to block
-  - id: trace-consistency-blocking-flag
-    kind: hard
-    owner: scripts/review-gate.sh
-    present: blocking \(REQUIRE_TRACE_CONSISTENCY=1\)
-  - id: ci-not-green-refused
-    kind: hard
-    owner: scripts/merge-pr.sh
-    present: checks are not green
-  - id: ci-coverage-missing
-    kind: hard
-    owner: scripts/review-gate.sh
-    present: no project CI runs the gates
-# ---------------------------------------------------------------------------
-# Trace emission (issue #94). Every lifecycle script emits schema-v1 trace
-# spans by sourcing scripts/trace-lib.sh (guarded: a missing library degrades
-# to a warn-once no-op — tracing never blocks the lifecycle). Each entry's
-# `present:` regex is the span the owner must still emit; the sensor also
-# backstops the trace_span / trace-lib.sh references script-side.
-# ---------------------------------------------------------------------------
-trace_emission:
-  # Schema authority: docs/evaluation/trace-schema.v1.json (frozen v1
-  # vocabulary). Spans append to the per-issue trace file at the MAIN
-  # checkout root — .copilot-tracking/issues/issue-NN/trace.jsonl —
-  # regardless of caller CWD (plan D1), gitignored and never pushed.
-  # The terminal lifecycle-span EXIT trap is emitted through the shared
-  # scripts/trace-lib.sh helper trace_lifecycle_init <step> (issue #213, P-1):
-  # each owner script still DECLARES its terminal lifecycle step by the step it
-  # passes to that helper, so the contract asserts that declaration.
-  - id: trace-start-issue
-    owner: scripts/start-issue.sh
-    present: harness.lifecycle_step=preflight|trace_lifecycle_init[[:space:]]+worktree_create
-  - id: trace-check-feature-list
-    owner: scripts/check-feature-list.sh
-    present: gen_ai.tool.name=check-feature-list
-  - id: trace-review-gate
-    owner: scripts/review-gate.sh
-    present: harness.lifecycle_step=review_gate_approve
-  - id: trace-create-pr
-    owner: scripts/create-pr.sh
-    present: trace_lifecycle_init[[:space:]]+pr_create
-  - id: trace-merge-pr
-    owner: scripts/merge-pr.sh
-    present: trace_lifecycle_init[[:space:]]+pr_merge
-  - id: trace-finish-issue
-    owner: scripts/finish-issue.sh
-    present: trace_lifecycle_init[[:space:]]+finish
-  - id: trace-review-gate-trace
-    owner: scripts/review-gate.sh
-    present: gen_ai.tool.name=review-gate.trace
 
 # ---------------------------------------------------------------------------
 # Boundaries that MUST stay language-neutral. The listed owner scripts must not

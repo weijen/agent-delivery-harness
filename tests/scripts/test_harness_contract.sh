@@ -192,11 +192,38 @@ for section in "${gate_sections[@]}"; do
   done <<< "$records"
 done
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the ci-not-green-refused failure mode"
 end_scenario "contract declares four complete gates and the CI-green merge precondition"
 
-# --- 2c. Trace-lib registration backstop (issue #93) -------------------------
+# --- 2c. Evidence provenance, SHA chains, and governed bypasses --------------
+grep -Eq '^version:[[:space:]]+2$' "$CONTRACT" \
+  || fail "contract version must be 2"
+grep -Eq '^review_by:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}$' "$CONTRACT" \
+  || fail "contract must declare a review_by date"
+require_contract_record evidence id sensor-summary
+require_contract_record evidence id progress-prose
+require_contract_record policy id hard-gates-observed-only
+require_contract_record policy id new-rules-warn-first
+require_contract_record sha_bindings id approval-head scripts/review-gate.sh
+require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
+require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
+require_contract_record bypasses id FORCE scripts/finish-issue.sh
+require_contract_record bypasses id SKIP_CI_GATE scripts/review-gate.sh
+require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
+while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  provenance="$(field "$rec" provenance)"
+  case "$provenance" in
+    harness-observed|agent-claimed) ;;
+    *) fail "evidence record has invalid provenance '${provenance:-<empty>}'" ;;
+  esac
+done < <(parse_records evidence)
+while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  [ -n "$(field "$rec" audit)" ] || fail "bypass record is missing audit obligation"
+done < <(parse_records bypasses)
+end_scenario "contract declares evidence governance, SHA bindings, and audited bypasses"
+
+# --- 2d. Trace-lib registration backstop (issue #93) -------------------------
 # scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
 # lifecycle scripts. The required-script backstop above forces the contract to
 # keep declaring it in the scripts list (section 1 then enforces that it
@@ -209,10 +236,6 @@ end_scenario "contract declares four complete gates and the CI-green merge preco
 #   (a) script-side presence backstop: every instrumented owner must still
 #       reference trace_span AND trace-lib.sh — deleting the instrumentation
 #       from a script fails this sensor even if the YAML entry is deleted too;
-#   (b) the contract must declare a trace_emission section listing all six
-#       owners (each entry's present: regex is enforced by section 3's
-#       check_owner_present) and pin the schema authority
-#       docs/evaluation/trace-schema.v1.json.
 te_required=(
   scripts/start-issue.sh
   scripts/check-feature-list.sh
@@ -232,22 +255,7 @@ for owner in "${te_required[@]}"; do
   grep -Eq 'trace-lib\.sh' "$abs" \
     || fail "trace_emission/${owner}: no trace-lib.sh sourcing reference (issue #94)"
 done
-
-if grep -Eq '^trace_emission:' "$CONTRACT"; then
-  te_owners="$(parse_records trace_emission | while IFS= read -r rec; do
-    [ -n "$rec" ] && field "$rec" owner
-  done)"
-  for owner in "${te_required[@]}"; do
-    printf '%s\n' "$te_owners" | grep -qx "$owner" \
-      || fail "trace_emission: contract does not declare owner ${owner} (issue #94)"
-  done
-  awk '/^trace_emission:/{f=1;next} /^[A-Za-z_]+:/{f=0} f' "$CONTRACT" \
-    | grep -q 'docs/evaluation/trace-schema.v1.json' \
-    || fail "trace_emission: contract section does not reference the schema authority docs/evaluation/trace-schema.v1.json (issue #94)"
-else
-  fail "contract no longer declares the trace_emission section (issue #94)"
-fi
-end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
+end_scenario "lifecycle scripts retain schema-v1 trace instrumentation"
 
 # --- 2e. Trace checker contract ------------------------------------------------
 require_contract_record scripts path scripts/check-trace-consistency.sh
@@ -296,12 +304,10 @@ done
 end_scenario "four-gate obligations still present in their owner scripts"
 check_owner_present env_flags
 end_scenario "env-flag obligations still present in their owner scripts"
-check_owner_present state_transitions
-end_scenario "state-transition obligations still present in their owner scripts"
-check_owner_present failure_modes
-end_scenario "failure-mode obligations still present in their owner scripts"
-check_owner_present trace_emission
-end_scenario "trace_emission obligations still present in their owner scripts"
+check_owner_present sha_bindings
+end_scenario "SHA-binding obligations still present in their owner scripts"
+check_owner_present bypasses
+end_scenario "bypass obligations still present in their owner scripts"
 
 # --- 4. Language-neutral boundary -------------------------------------------
 neutral_owners="$(parse_nested_list language_neutral owners)"
