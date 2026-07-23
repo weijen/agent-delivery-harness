@@ -304,8 +304,10 @@ steps.
 - Cross-run cost and efficiency metrics (tool calls, deviations, tokens with
   honest coverage) are aggregated per harness version by
   `scripts/trace-report.sh --all` as deterministic markdown. Native economics
-  come from each trace's last `finish-issue.economics` span; coverage and `n/a`
-  preserve the distinction between measured zero and unavailable data.
+  come from each trace's terminal `finish` lifecycle span; historical
+  `finish-issue.economics` tool spans remain a compatibility fallback.
+  Coverage and `n/a` preserve the distinction between measured zero and
+  unavailable data.
 - Cost baselines follow the trial and baseline rules in
   [statistical-methodology.md](../archive/evaluation/statistical-methodology.md).
 - Azure Machine Learning is the preferred managed runtime for scheduled cost,
