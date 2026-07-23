@@ -173,3 +173,135 @@ lh_failure_dispositions="$(region failure_dispositions "$LOG_HANDBACK" | grep -o
 diff_or_fail "log-handback.sh failure_dispositions frozen fallback" "$AUTH_FAILURE_DISPOSITIONS" "$lh_failure_dispositions"
 
 printf 'trace-schema single-source contract honored (numeric_keys, prefixes, roles, span_types, failure_classes, failure_dispositions)\n'
+
+(
+cd "$ROOT"
+
+CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCRIPTS="${ROOT}/scripts"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+command -v jq >/dev/null 2>&1 \
+  || { printf 'FAIL: jq is required to read the trace schema contract\n' >&2; exit 1; }
+[ -f "$CONTRACT" ] \
+  || { printf 'FAIL: contract not found (%s)\n' "$CONTRACT" >&2; exit 1; }
+jq empty "$CONTRACT" 2>/dev/null \
+  || { printf 'FAIL: contract is not valid JSON (%s)\n' "$CONTRACT" >&2; exit 1; }
+[ -d "$SCRIPTS" ] \
+  || { printf 'FAIL: scripts dir not found (%s)\n' "$SCRIPTS" >&2; exit 1; }
+
+# --- Documented vocabulary: everything the contract names --------------------
+documented="${TMP_DIR}/documented"
+jq -r '
+  (.required_common[]),
+  (.required_by_span | to_entries[] | .value[]),
+  (.optional_fields | keys[])
+' "$CONTRACT" | sort -u > "$documented"
+
+# --- Emitted vocabulary: every harness.*/gen_ai.* key on a trace_span attr ---
+# Match the literal "<key>= shape that trace_span attribute arguments use
+# across the lifecycle scripts and both runtime hooks. Strip the leading
+# quote and the trailing =<value...>.
+emitted="${TMP_DIR}/emitted"
+grep -rhoE '"(harness|gen_ai)\.[a-z_.]+=' "$SCRIPTS" \
+  | sed -E 's/^"//; s/=.*$//' \
+  | sort -u > "$emitted"
+
+if [ ! -s "$emitted" ]; then
+  printf 'FAIL: no emitted harness.*/gen_ai.* keys found under scripts/ — the grep contract broke\n' >&2
+  exit 1
+fi
+
+# --- Every emitted key must be documented ------------------------------------
+undocumented="$(comm -23 "$emitted" "$documented" || true)"
+
+if [ -n "$undocumented" ]; then
+  printf 'FAIL: emitted trace keys missing from the contract (add to optional_fields or justify):\n' >&2
+  printf '%s\n' "$undocumented" | sed 's/^/  /' >&2
+  exit 1
+fi
+
+printf 'PASS: all %s emitted trace keys are documented in the contract\n' "$(wc -l < "$emitted" | tr -d ' ')"
+exit 0
+)
+
+(
+cd "$ROOT"
+
+CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+
+fails=0
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  fails=$((fails + 1))
+}
+
+# jq reads the contract's attribute and lifecycle vocabularies as data, so the
+# sensor never hardcodes a third copy. Hard-require it (CI installs jq).
+command -v jq >/dev/null 2>&1 \
+  || { printf 'FAIL: jq is required to read the trace schema contract\n' >&2; exit 1; }
+
+[ -f "$CONTRACT" ] \
+  || { printf 'FAIL: contract not found at docs/evaluation/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+[ -f "$DOC" ] \
+  || { printf 'FAIL: prose doc not found at docs/evaluation/observability-and-trace-schema.md\n' >&2; exit 1; }
+
+# --- 1. Prose doc defers to the frozen contract ------------------------------
+grep -qF 'trace-schema.v1.json' "$DOC" \
+  || fail "observability-and-trace-schema.md must reference trace-schema.v1.json as the vocabulary authority"
+
+# --- 2a. No duplicated complete lifecycle-step enumeration -------------------
+# A couple of illustrative step names are allowed; reproducing the entire
+# closed vocabulary is a second normative copy that can drift.
+lifecycle_total=0
+lifecycle_in_doc=0
+while IFS= read -r step; do
+  [ -n "$step" ] || continue
+  lifecycle_total=$((lifecycle_total + 1))
+  if grep -qE "(^|[^A-Za-z0-9_])${step}([^A-Za-z0-9_]|$)" "$DOC"; then
+    lifecycle_in_doc=$((lifecycle_in_doc + 1))
+  fi
+done < <(jq -r '.lifecycle_steps[]' "$CONTRACT")
+
+[ "$lifecycle_total" -gt 0 ] \
+  || fail "contract .lifecycle_steps is empty — cannot check for a duplicated enumeration"
+if [ "$lifecycle_total" -gt 0 ] && [ "$lifecycle_in_doc" -eq "$lifecycle_total" ]; then
+  fail "prose doc duplicates the complete ${lifecycle_total}-step lifecycle enumeration; the closed list must live only in trace-schema.v1.json"
+fi
+
+# --- 2b. Every attribute name still mentioned in the doc exists in the contract
+# Extract gen_ai.* / harness.* dotted attribute mentions from the doc, then
+# check each against the contract's attribute vocabulary (required_common +
+# per-span required + optional fields). A doc token may also be a namespace
+# prefix of a contract attribute (e.g. `gen_ai.usage.*` -> gen_ai.usage).
+doc_attrs="$(grep -oE '(gen_ai|harness)(\.[a-z_][a-z0-9_]*)+' "$DOC" | sort -u || true)"
+while IFS= read -r attr; do
+  [ -n "$attr" ] || continue
+  # Skip file-path-like mentions (e.g. harness.instructions.md) — not span attributes.
+  case "$attr" in
+    *.md | *.json | *.yml | *.yaml | *.sh) continue ;;
+  esac
+  jq -e --arg t "$attr" '
+    (.required_common
+     + ([.required_by_span[]] | add)
+     + (.optional_fields | keys)) as $attrs
+    | any($attrs[]; . == $t or startswith($t + "."))
+  ' "$CONTRACT" >/dev/null \
+    || fail "prose doc mentions attribute '${attr}' that is not in trace-schema.v1.json — vocabulary drift"
+done <<< "$doc_attrs"
+
+# --- 2c. Doc mentions the new mandatory fields (not stale vs. v1) ------------
+grep -qF 'schema_version' "$DOC" \
+  || fail "prose doc must mention the mandatory field schema_version introduced by trace schema v1"
+grep -qF 'harness.version' "$DOC" \
+  || fail "prose doc must mention the mandatory field harness.version introduced by trace schema v1"
+
+# --- Result ------------------------------------------------------------------
+if [ "$fails" -ne 0 ]; then
+  printf '\n%d trace-schema docs single-source violation(s).\n' "$fails" >&2
+  exit 1
+fi
+printf 'trace schema docs defer to the frozen contract\n'
+)

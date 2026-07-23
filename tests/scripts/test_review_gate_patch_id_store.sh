@@ -313,3 +313,305 @@ cd "$_saved_dir"
 emit "Scenario G: origin/main unavailable — approve succeeds, marker has 2 lines, line 2 is blank"
 
 tap_done
+
+(
+cd "$ROOT"
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
+# --- Restricted bin with a controllable fake gh ------------------------------
+BIN="${TMP_DIR}/bin"
+mkdir -p "$BIN"
+for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep \
+         printf date wc touch awk jq; do
+  p="$(command -v "$t" || true)"
+  [ -n "$p" ] && ln -sf "$p" "${BIN}/${t}"
+done
+cat > "${BIN}/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1 ${2:-}" in
+  "pr view")
+    [ -f "${GH_STATE:?}" ] || exit 1
+    case "$*" in
+      *url*)    printf 'https://example.invalid/pr/123\n' ;;
+      *number*) printf '123\n' ;;
+      *)        printf '123\n' ;;
+    esac
+    exit 0
+    ;;
+  "pr create")
+    : > "${GH_STATE:?}"
+    exit 0
+    ;;
+esac
+printf 'unexpected gh call: %s\n' "$*" >&2
+exit 1
+SH
+chmod +x "${BIN}/gh"
+
+# make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a local bare
+# origin. The feature commit updates docs/PROGRESS.md so status-doc gate passes
+# and adds feature.txt (no conflict with unrelated main changes).
+make_pr_repo() {
+  local dir="$1" pad="$2"
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh,check-trace-consistency.sh,issue-lib.sh
+  git clone -q "$FIXTURE_REPO" "$dir"
+  git -C "$dir" remote remove origin
+  mkdir -p "${dir}/docs/evaluation"
+  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
+  git -C "$dir" config user.name "Harness Test"
+  git -C "$dir" config user.email "harness-test@example.invalid"
+  git -C "$dir" config commit.gpgsign false
+  printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
+  mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"
+  printf '# Progress\n\nbaseline\n' > "${dir}/.copilot-tracking/issues/issue-${pad}/progress.md"
+  git -C "$dir" add docs
+  git -C "$dir" commit -q -m "add review fixture"
+  git clone -q --bare "$dir" "${dir}-origin.git"
+  git -C "$dir" remote add origin "${dir}-origin.git"
+  git -C "$dir" checkout -q -b "feature/issue-${pad}-fixture"
+  printf '# Progress\n\nissue-%s work\n' "$pad" > "${dir}/docs/PROGRESS.md"
+  printf 'feature content\n' > "${dir}/feature.txt"
+  git -C "$dir" add docs/PROGRESS.md feature.txt
+  git -C "$dir" commit -q -m "issue-${pad}: feature work"
+  git -C "$dir" fetch -q origin main
+}
+
+# advance_origin_main_unrelated <dir> — push a change to origin main that does
+# NOT touch the feature branch files (no conflict, content-preserving rebase).
+advance_origin_main_unrelated() {
+  local dir="$1"
+  local work="${dir}-mainwork"
+  git clone -q "${dir}-origin.git" "$work"
+  git -C "$work" config user.name "Harness Test"
+  git -C "$work" config user.email "harness-test@example.invalid"
+  printf 'unrelated main change\n' > "${work}/other.txt"
+  git -C "$work" add other.txt
+  git -C "$work" commit -q -m "main: unrelated change"
+  git -C "$work" push -q origin main
+  git -C "$dir" fetch -q origin main
+}
+
+# run_cpr <dir> <state-suffix> <out-file> [env=val ...] -- <args...>
+run_cpr() {
+  local dir="$1" sfx="$2" out="$3"; shift 3
+  local -a envs=()
+  while [ "$1" != "--" ]; do envs+=("$1"); shift; done
+  shift
+  (cd "$dir" && env PATH="${BIN}:${PATH}" GH_STATE="${TMP_DIR}/gh-state-${sfx}" "${envs[@]}" \
+    ./scripts/create-pr.sh "$@") > "$out" 2>&1
+}
+
+# ============================================================================
+# (A) Content-preserving rebase: carry succeeds, PR opens first try
+# ============================================================================
+RA="${TMP_DIR}/ra"
+make_pr_repo "$RA" 310
+
+# Approve before the rebase (pre-rebase HEAD is approved with 2-line marker).
+(cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(A) setup: initial approve failed"
+PRE_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
+MARKER_A="${RA}/.copilot-tracking/review-gate/approved-head"
+
+# Verify initial marker has 2 lines (feature-1 contract).
+LINE_COUNT_BEFORE="$(wc -l < "$MARKER_A" | tr -d ' ')"
+[ "$LINE_COUNT_BEFORE" = "2" ] \
+  || fail "(A) setup: initial marker must have 2 lines (feature-1), got ${LINE_COUNT_BEFORE}"
+
+# Advance origin/main with an unrelated change (content-preserving rebase).
+advance_origin_main_unrelated "$RA"
+
+OUT_A="${TMP_DIR}/a.out"
+# The carry should work: create-pr.sh must exit 0 without a second approve.
+if ! run_cpr "$RA" a "$OUT_A" -- --title "feat: carry" --body "test"; then
+  cat "$OUT_A"
+  fail "(A) create-pr.sh must exit 0 on content-preserving rebase with carry — no second approve needed"
+fi
+# The PR must have actually opened (GH_STATE file created by fake gh pr create).
+[ -f "${TMP_DIR}/gh-state-a" ] \
+  || { cat "$OUT_A"; fail "(A) the PR must open (fake gh pr create must have run)"; }
+
+# Marker line 1 must be the post-rebase HEAD.
+POST_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
+[ "$POST_REBASE_HEAD_A" != "$PRE_REBASE_HEAD_A" ] \
+  || fail "(A) HEAD should have moved after rebase (setup: origin/main must have advanced)"
+MARKER_LINE1_A="$(sed -n '1p' "$MARKER_A" | tr -d '[:space:]')"
+[ "$MARKER_LINE1_A" = "$POST_REBASE_HEAD_A" ] \
+  || fail "(A) marker line 1 must be post-rebase HEAD ${POST_REBASE_HEAD_A}, got ${MARKER_LINE1_A}"
+
+# Trace assertions: exactly one carry-annotated approve span with post-rebase SHA.
+# Trace file is mandatory for the carry contract — it must exist for issue-310-fixture branches.
+TRACE_A="${RA}/.copilot-tracking/issues/issue-310/trace.jsonl"
+[ -f "$TRACE_A" ] \
+  || fail "(A) trace file must exist at ${TRACE_A} — carry contract requires trace emission"
+command -v jq >/dev/null 2>&1 || fail "(A) jq required for trace assertions"
+
+# Exactly one carry-annotated span (not zero, not two+).
+CARRY_SPAN_COUNT_A="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_A" | wc -l | tr -d ' ')"
+[ "$CARRY_SPAN_COUNT_A" = "1" ] \
+  || fail "(A) trace must contain EXACTLY 1 carry-annotated review_gate_approve span, got ${CARRY_SPAN_COUNT_A}"
+
+# That span must have the post-rebase SHA.
+CARRY_SHA_A="$(jq -r 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id") | .["harness.review_gate_sha"]' "$TRACE_A")"
+[ "$CARRY_SHA_A" = "$POST_REBASE_HEAD_A" ] \
+  || fail "(A) carry span must carry post-rebase SHA ${POST_REBASE_HEAD_A}, got ${CARRY_SHA_A}"
+
+# check-trace-consistency.sh must exit exactly 0 (no review_sha_mismatch).
+if [ -x "${RA}/scripts/check-trace-consistency.sh" ]; then
+  CONSISTENCY_OUT="${TMP_DIR}/a-consistency.out"
+  CONS_RC=0
+  (cd "$RA" && PATH="${BIN}:${PATH}" TRACE_ISSUE=310 ./scripts/check-trace-consistency.sh 310) \
+    > "$CONSISTENCY_OUT" 2>&1 || CONS_RC=$?
+  if [ "$CONS_RC" != "0" ]; then
+    cat "$CONSISTENCY_OUT"
+    fail "(A) check-trace-consistency.sh must exit exactly 0; got exit ${CONS_RC}"
+  fi
+  if [ "$CONS_RC" = "0" ]; then
+    grep -q "review_sha_mismatch" "$CONSISTENCY_OUT" \
+      && { cat "$CONSISTENCY_OUT"; fail "(A) check-trace-consistency.sh must not report review_sha_mismatch after a carry"; }
+  fi
+fi
+
+printf 'ok - (A) content-preserving rebase: carry succeeds, PR opens without second approve\n'
+
+# ============================================================================
+# (B) Post-rebase diff alteration via create-pr path: carry fails closed
+#
+# A scoped git wrapper on PATH delegates the real rebase to the real git, then
+# amends the rebased commit to add extra content before create-pr calls carry.
+# This proves the controlled create-pr path: create-pr.sh exits non-zero at the
+# post_sync_gate/authoritative stale check, no PR opens, marker stays pre-rebase,
+# and no carry span is emitted.
+# ============================================================================
+RB="${TMP_DIR}/rb"
+make_pr_repo "$RB" 310
+
+(cd "$RB" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(B) setup: initial approve failed"
+MARKER_LINE1_BEFORE_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/approved-head" | tr -d '[:space:]')"
+
+advance_origin_main_unrelated "$RB"
+
+# Create a scoped git wrapper that: runs the real git for everything, but after
+# a successful rebase it also amends the HEAD commit to add an extra file. This
+# simulates what would happen if something altered the diff after rebase and before carry.
+BBIN="${TMP_DIR}/bbin"
+mkdir -p "$BBIN"
+REAL_GIT="$(command -v git)"
+cat > "${BBIN}/git" <<GITSH
+#!/usr/bin/env bash
+"${REAL_GIT}" "\$@"
+rc=\$?
+# After a successful rebase, amend HEAD to add extra content (alters patch-id).
+if [ "\$rc" = "0" ] && [ "\${1:-}" = "rebase" ]; then
+  REPO_DIR="\$(${REAL_GIT} rev-parse --show-toplevel 2>/dev/null || true)"
+  if [ -n "\$REPO_DIR" ]; then
+    printf 'extra content that changes the diff\n' > "\${REPO_DIR}/extra_b.txt"
+    "${REAL_GIT}" -C "\$REPO_DIR" add extra_b.txt 2>/dev/null || true
+    "${REAL_GIT}" -C "\$REPO_DIR" commit --amend --no-edit -q 2>/dev/null || true
+  fi
+fi
+exit \$rc
+GITSH
+chmod +x "${BBIN}/git"
+# Copy other needed tools to BBIN from BIN.
+for t in bash sh env basename dirname mkdir rm cat sed tr cut grep printf date wc touch awk jq; do
+  p="$(command -v "$t" || true)"
+  [ -n "$p" ] && ln -sf "$p" "${BBIN}/${t}"
+done
+ln -sf "${BIN}/gh" "${BBIN}/gh"
+
+OUT_B="${TMP_DIR}/b.out"
+B_CPR_RC=0
+(cd "$RB" && env PATH="${BBIN}:${PATH}" GH_STATE="${TMP_DIR}/gh-state-b" \
+  ./scripts/create-pr.sh --title "feat: carry-b" --body "test") \
+  > "$OUT_B" 2>&1 || B_CPR_RC=$?
+
+[ "$B_CPR_RC" -ne 0 ] \
+  || { cat "$OUT_B"; fail "(B) create-pr.sh must exit non-zero when diff altered after rebase (patch-id mismatch)"; }
+
+# No PR must have opened.
+[ ! -f "${TMP_DIR}/gh-state-b" ] \
+  || { cat "$OUT_B"; fail "(B) no PR must open when carry fails (diff altered)"; }
+
+# Marker line 1 must remain the pre-rebase SHA (unchanged by failed carry).
+MARKER_LINE1_AFTER_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/approved-head" | tr -d '[:space:]')"
+[ "$MARKER_LINE1_AFTER_B" = "$MARKER_LINE1_BEFORE_B" ] \
+  || fail "(B) marker line 1 must remain pre-rebase SHA ${MARKER_LINE1_BEFORE_B} after failed carry, got ${MARKER_LINE1_AFTER_B}"
+
+# No carry span must be emitted.
+TRACE_B="${RB}/.copilot-tracking/issues/issue-310/trace.jsonl"
+if [ -f "$TRACE_B" ] && command -v jq >/dev/null 2>&1; then
+  CARRY_SPANS_B="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_B" || true)"
+  [ -z "$CARRY_SPANS_B" ] \
+    || fail "(B) no carry span must be emitted when carry fails (diff altered)"
+fi
+
+printf 'ok - (B) post-rebase diff alteration via create-pr path: carry fails, no PR, marker unchanged, no carry span\n'
+# ============================================================================
+# (Wm) Canonical marker mismatch: carry refused, neither marker updated, no span.
+#
+# When the main-root marker's line 1 does not equal the expected pre-rebase SHA
+# (another issue's approval may be active), carry must refuse without updating
+# EITHER marker or emitting a carry span.
+# ============================================================================
+RWM_MAIN="${TMP_DIR}/rwm_main"
+RWM_WT="${TMP_DIR}/rwm_wt"
+
+make_pr_repo "$RWM_MAIN" 310
+git -C "$RWM_MAIN" checkout -q main
+git -C "$RWM_MAIN" worktree add -q "$RWM_WT" "feature/issue-310-fixture"
+ln -sf "${RWM_MAIN}-origin.git" "${RWM_WT}-origin.git"
+mkdir -p "${RWM_WT}/.copilot-tracking/issues/issue-310"
+printf '# Progress\n\nwork\n' > "${RWM_WT}/.copilot-tracking/issues/issue-310/progress.md"
+
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+  || fail "(Wm) setup: approve from linked worktree failed"
+PRE_REBASE_HEAD_WM="$(git -C "$RWM_WT" rev-parse HEAD)"
+WT_MARKER_WM="${RWM_WT}/.copilot-tracking/review-gate/approved-head"
+MAIN_MARKER_WM="${RWM_MAIN}/.copilot-tracking/review-gate/approved-head"
+
+# Set main-root marker to a DIFFERENT SHA (simulating another issue's active approval).
+mkdir -p "$(dirname "$MAIN_MARKER_WM")"
+FAKE_SHA_WM="aabbccdd11223344aabbccdd11223344aabbccdd"
+printf '%s\n' "$FAKE_SHA_WM" > "$MAIN_MARKER_WM"
+
+# Advance origin/main and manually rebase (so we can call carry directly).
+advance_origin_main_unrelated "$RWM_WT"
+(cd "$RWM_WT" && git rebase origin/main -q) || fail "(Wm) setup: rebase failed"
+
+# Direct carry call: must refuse (exit non-zero) because canonical marker != expected.
+CARRY_OUT_WM="${TMP_DIR}/wm-carry.out"
+CARRY_RC_WM=0
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_WM") \
+  > "$CARRY_OUT_WM" 2>&1 || CARRY_RC_WM=$?
+[ "$CARRY_RC_WM" -ne 0 ] \
+  || { cat "$CARRY_OUT_WM"; fail "(Wm) carry must refuse when canonical main-root marker SHA != expected pre-rebase SHA"; }
+
+# Worktree marker must be unchanged (still pre-rebase SHA, not post-rebase).
+WT_LINE1_WM="$(sed -n '1p' "$WT_MARKER_WM" | tr -d '[:space:]')"
+[ "$WT_LINE1_WM" = "$PRE_REBASE_HEAD_WM" ] \
+  || fail "(Wm) worktree marker must remain pre-rebase SHA ${PRE_REBASE_HEAD_WM} after refused carry, got ${WT_LINE1_WM}"
+
+# Main-root marker must be unchanged (still the fake SHA, not overwritten).
+MAIN_LINE1_WM="$(sed -n '1p' "$MAIN_MARKER_WM" | tr -d '[:space:]')"
+[ "$MAIN_LINE1_WM" = "$FAKE_SHA_WM" ] \
+  || fail "(Wm) main-root marker must remain '${FAKE_SHA_WM}' after refused carry, got ${MAIN_LINE1_WM}"
+
+# No carry span must have been emitted (EXIT trap skips span on rc != 0).
+TRACE_WM="${RWM_MAIN}/.copilot-tracking/issues/issue-310/trace.jsonl"
+if [ -f "$TRACE_WM" ] && command -v jq >/dev/null 2>&1; then
+  CARRY_COUNT_WM="$(jq -rc 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "review_gate_approve" and .["harness.review_gate_carry"] == "patch-id")' "$TRACE_WM" | wc -l | tr -d ' ')"
+  [ "$CARRY_COUNT_WM" = "0" ] \
+    || fail "(Wm) no carry span must be emitted when carry is refused, got ${CARRY_COUNT_WM}"
+fi
+
+printf 'ok - (Wm) canonical marker mismatch: carry refused, neither marker updated, no carry span\n'
+printf '
+1..3
+all carry-approval scenarios passed
+'
+)
