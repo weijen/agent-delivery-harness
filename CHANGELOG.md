@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.35.2 (2026-07-23)
+
+### Bug Fixes
+
+- Fail closed on gate discovery errors
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+- **#379**: Fail closed on diff discovery errors
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+- **#379**: Make ci coverage detection tri-state
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+- **#379**: Require secure trace scratch space
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+- **#379**: Validate review gate issue context
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+### Testing
+
+- **#379**: Strengthen fail-closed gate coverage
+  ([#410](https://github.com/weijen/agent-delivery-harness/pull/410),
+  [`3591970`](https://github.com/weijen/agent-delivery-harness/commit/3591970399e5adaf55f02ca7456688aa5888eac6))
+
+
 ## v0.35.1 (2026-07-23)
 
 ### Bug Fixes
