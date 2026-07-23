@@ -3,6 +3,9 @@
 # checker. It validates each trace against the frozen schema contract (folded
 # from validate-trace.sh, issue #335), then checks whether trace.jsonl,
 # feature_list.json, and the review-gate marker tell the same story.
+# When SENSOR_CLAIM_TRANSCRIPT is set, it also runs check-sensor-claims.sh for
+# the current HEAD (or SENSOR_CLAIM_HEAD) and counts unsupported test-file
+# claims or direct multi-glob sensor runs as one consistency violation.
 # Action-Log reconciliation is RETIRED (issue #332): progress.md is rendered
 # from spans by render-action-log.sh and is no longer cross-checked here.
 #
@@ -1464,6 +1467,20 @@ else
     printf 'NOTE: spine_incomplete check skipped (issue window not complete — needs worktree_create and finish)\n'
   elif [ "$spine_span_count" = "0" ]; then
     printf 'VIOLATION consistency: spine_incomplete %s\n' "${spine_issue:-unknown}"
+    violations=$((violations + 1))
+  fi
+fi
+
+# --- Optional sensor-claim evidence check (issue #368) ------------------------
+if [ -n "${SENSOR_CLAIM_TRANSCRIPT:-}" ]; then
+  sensor_claim_head="${SENSOR_CLAIM_HEAD:-}"
+  if [ -z "$sensor_claim_head" ]; then
+    sensor_claim_head="$(git rev-parse HEAD 2>/dev/null)" || sensor_claim_head=""
+  fi
+  sensor_claim_out=""
+  if ! sensor_claim_out="$("${SCRIPT_DIR}/check-sensor-claims.sh" \
+    "$SENSOR_CLAIM_TRANSCRIPT" "$sensor_claim_head" 2>&1)"; then
+    printf '%s\n' "$sensor_claim_out"
     violations=$((violations + 1))
   fi
 fi
