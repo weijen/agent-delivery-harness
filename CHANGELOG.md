@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v0.32.5 (2026-07-23)
+
+### Bug Fixes
+
+- Pin ShellCheck and warn on local version drift
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+- **#369**: Keep ShellCheck probes advisory
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+- **#369**: Pin ShellCheck in CI ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+- **#369**: Warn on ShellCheck version drift
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+### Testing
+
+- **#369**: Cover missing ShellCheck warning
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+- **#369**: Isolate missing ShellCheck fixture
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+- **#369**: Preserve ShellCheck pin coverage
+  ([#389](https://github.com/weijen/agent-delivery-harness/pull/389),
+  [`d1fb049`](https://github.com/weijen/agent-delivery-harness/commit/d1fb049b30f906a9cae0fb419feb6884161a2954))
+
+
 ## v0.32.4 (2026-07-23)
 
 ### Bug Fixes
