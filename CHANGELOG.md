@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.32.2 (2026-07-23)
+
+### Bug Fixes
+
+- Ignore ALL local agent state — enumerated subdirs kept leaking
+  ([`b640efd`](https://github.com/weijen/agent-delivery-harness/commit/b640efda42b0b396ea779361a560a5d51188875b))
+
+
 ## v0.32.1 (2026-07-23)
 
 ### Bug Fixes
