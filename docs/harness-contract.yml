@@ -103,6 +103,13 @@ gate_sensors:
     present: SENSORS.*head=.*scope=.*ran=.*failed=
 
 gate_review:
+  - id: trace-consistency
+    trigger: review or closeout trace check
+    consumes: harness-observed trace and artifact state
+    produces: review-gate.trace verdict span
+    mode: warn
+    owner: scripts/review-gate.sh
+    present: gen_ai.tool.name=review-gate.trace
   - id: independent-review
     trigger: all issue features complete and pre-review sensors green
     consumes: independent review verdict and reviewed SHA
