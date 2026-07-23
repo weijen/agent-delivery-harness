@@ -114,6 +114,8 @@ rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
 rc_write() {
 	target_parent_is_safe "$RC_REL" \
 		|| die "refusing ${RC_REL}: symlinked parent directory"
+	target_destination_is_safe "$RC_REL" \
+		|| die "refusing ${RC_REL}: destination is not a regular file"
 	mkdir -p "$(dirname "$RC_DST")"
 	cp "$RC_SRC" "$RC_DST"
 }
@@ -142,6 +144,12 @@ target_parent_is_safe() {
 		[ ! -L "$current" ] || return 1
 	done
 	return 0
+}
+
+target_destination_is_safe() {
+	local rel="$1" dst=""
+	dst="${TARGET_DIR}/${rel}"
+	[ ! -L "$dst" ] && { [ ! -e "$dst" ] || [ -f "$dst" ]; }
 }
 
 emit_reject() {
@@ -179,7 +187,7 @@ emit_reject() {
 
 validate_harness_lock() {
 	local digest="" rel="" extra=""
-	[ -e "$LOCK_FILE" ] || return 0
+	[ -e "$LOCK_FILE" ] || [ -L "$LOCK_FILE" ] || return 0
 	if [ ! -f "$LOCK_FILE" ] || [ -L "$LOCK_FILE" ]; then
 		die "refusing non-regular .harness-lock"
 	fi
@@ -205,6 +213,8 @@ write_harness_lock() {
 	[ "$MODE" != "dry" ] || return 0
 	target_parent_is_safe ".harness-lock" \
 		|| die "refusing .harness-lock: symlinked parent directory"
+	target_destination_is_safe ".harness-lock" \
+		|| die "refusing non-regular .harness-lock"
 	target_tmp="$(mktemp "${TARGET_DIR}/.harness-lock.XXXXXX")" \
 		|| die "could not create .harness-lock temporary file"
 	{
@@ -712,6 +722,8 @@ if [ "$MODE" != "dry" ] \
 		&& ! grep -qx '\.github/harness-identity\.env' "${TARGET_DIR}/.gitignore" 2>/dev/null; then
 		target_parent_is_safe ".gitignore" \
 			|| die "refusing .gitignore: symlinked parent directory"
+		target_destination_is_safe ".gitignore" \
+			|| die "refusing .gitignore: destination is not a regular file"
 		printf '.github/harness-identity.env\n' >>"${TARGET_DIR}/.gitignore"
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
