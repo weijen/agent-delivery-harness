@@ -23,6 +23,14 @@ harness_identity_load() {
   fi
   binding="${root}/.github/harness-identity.env"
   [ -f "$binding" ] || return 2
+
+  # The binding is MACHINE-LOCAL by design (each developer copies the .example
+  # and fills their own account). A committed binding turns one person's
+  # identity into repo config and hard-breaks every other developer whose
+  # machine cannot mint that account's token (apex-vs incident, 2026-07-23).
+  if git -C "$root" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
+    printf 'warning: .github/harness-identity.env is COMMITTED — it is machine-local; untrack it (git rm --cached) and gitignore it\n' >&2
+  fi
   [ ! -L "$binding" ] || {
     printf 'error: refusing symlinked GitHub identity binding: %s\n' "$binding" >&2
     return 1
@@ -86,6 +94,18 @@ harness_identity_load() {
   if [ -z "${HARNESS_GIT_NAME:-}" ]; then
     HARNESS_GIT_NAME="${HARNESS_GH_ACCOUNT}"
   fi
+
+  # Unfilled template placeholders are NOT a configuration: applying them
+  # would write the literal "Your Git Author Name" into git config and bind a
+  # nonexistent account (apex-vs incident, 2026-07-23). Treat as absent.
+  case "${HARNESS_GH_ACCOUNT}:${HARNESS_GIT_NAME}:${HARNESS_GIT_EMAIL}" in
+    *your-github-account*|*"Your Git Author Name"*)
+      printf 'warning: .github/harness-identity.env still contains template placeholders — ignoring the binding until it is filled in\n' >&2
+      unset HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
+      return 2
+      ;;
+  esac
+
   export HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
   return 0
 }
