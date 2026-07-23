@@ -4,8 +4,9 @@
 > record of `.copilot/` health as of **2026-07-08**. The findings below were
 > triaged and remediated through issues **#178, #179, #180, #181, #184** and
 > later hardening; it is retained for provenance and is **not** the live state
-> of the harness. For current status see [docs/PROGRESS.md](PROGRESS.md) and
-> [docs/HARNESS.md](HARNESS.md). The original verdict and findings are kept
+> of the harness. For frozen delivery history see
+> [docs/archive/PROGRESS.md](PROGRESS.md) and for current harness behavior see
+> [docs/HARNESS.md](../HARNESS.md). The original verdict and findings are kept
 > verbatim below.
 
 **Date:** 2026-07-08
