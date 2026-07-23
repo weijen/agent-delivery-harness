@@ -72,7 +72,7 @@ fi
 # the missing/no-op fallback above and every real invocation start from a
 # known false state before best_effort_progress_migrate runs (issue #290,
 # M10) — best_effort_progress_migrate itself also resets it at entry.
-PROGRESS_MIGRATED=false
+PROGRESS_MIGRATED=false; FINISH_ECONOMICS_ATTRS=()
 
 # Terminal `finish` lifecycle span via the shared EXIT-trap helper (issue #213
 # P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
@@ -90,6 +90,7 @@ trace__finish_attrs() {
   printf 'harness.branch=%s\n' "${BRANCH:-}"
   printf 'harness.worktree_removed=%s\n' "${WORKTREE_REMOVED}"
   printf 'harness.branch_deleted=%s\n' "${BRANCH_DELETED}"
+  for attr in "${FINISH_ECONOMICS_ATTRS[@]}"; do printf '%s\n' "$attr"; done
 }
 # Post-emission REFRESH hook (issue #329): trace_lifecycle_init's shared EXIT
 # trap calls this AFTER the finish span above is already written to the
@@ -155,7 +156,8 @@ check_feature_completion() {
   if [ ! -f "$feature_list" ]; then
     return 0
   fi
-  "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
+  TRACE_COLLAPSE_CHILD_SPANS=1 \
+    "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
 }
 
 # The worktree's own checked-out branch is the deterministic source of truth —

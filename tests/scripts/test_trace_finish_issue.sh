@@ -203,6 +203,14 @@ TRACE1="${R1}/.copilot-tracking/issues/issue-70/trace.jsonl"
 # exists — only a main-root trace file can hold a post-teardown span.
 f1="$(get_finish_span "complete finish (post-teardown survival)" "$TRACE1")"
 check_finish_span "complete finish" "$f1" pass 70
+child_tools="$(jq -r 'select(.span == "tool") | .["gen_ai.tool.name"]' "$TRACE1")"
+[ -z "$child_tools" ] \
+  || fail "complete finish: child spans must collapse into finish, found: ${child_tools}"
+printf '%s\n' "$f1" | jq -e '
+  has("harness.economics.features_total")
+  and has("harness.economics.features_passing")
+' >/dev/null \
+  || fail "complete finish: parent span must retain economics aggregates"
 validate_file "complete-finish trace" "$TRACE1"
 
 # ============================================================================

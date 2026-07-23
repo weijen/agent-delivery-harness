@@ -203,7 +203,8 @@ fi
 
 # --- 1. Review approval gate ------------------------------------------------
 TRACE_STAGE="review_gate"
-"$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+TRACE_COLLAPSE_CHILD_SPANS=1 \
+  "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 
 # --- 2. Sync onto the latest main -------------------------------------------
 # CREATE_PR_NO_REWRITE=1 is the explicit, proactive non-rewriting mode (issue
@@ -342,10 +343,12 @@ if [ "$sync_mode" != "none" ]; then
     # Nonzero _carry_rc: carry inapplicable or impossible; diagnostic printed above.
     # Falls through to the authoritative check below.
     if [ "$_carry_rc" -ne 0 ]; then
-      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+      TRACE_COLLAPSE_CHILD_SPANS=1 \
+        "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
     fi
   else
-    "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+    TRACE_COLLAPSE_CHILD_SPANS=1 \
+      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
   fi
 fi
 
@@ -408,7 +411,8 @@ if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
       _merge_main_or_die "./scripts/create-pr.sh"
       green "✓ ${branch} merged latest origin/main ($(git rev-parse --short origin/main)) — no history rewritten"
       TRACE_STAGE="post_sync_gate"
-      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+      TRACE_COLLAPSE_CHILD_SPANS=1 \
+        "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
       TRACE_STAGE="push"
       bold "==> Pushing ${branch} (non-rewriting)"
       git push origin "$branch"
