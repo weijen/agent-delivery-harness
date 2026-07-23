@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.32.3 (2026-07-23)
+
+### Bug Fixes
+
+- Identity binding is machine-local — placeholder refusal, committed-file warning, adopter gitignore
+  ([`eb9ad29`](https://github.com/weijen/agent-delivery-harness/commit/eb9ad292d3ca8ebf5017d66986486332e41e8613))
+
+- Main-red hotfix — trace-schema gitignore leg goes behavioral
+  ([`e904d47`](https://github.com/weijen/agent-delivery-harness/commit/e904d471bae252308aaeca6db80c6a2a8f9a1343))
+
+### Chores
+
+- Ignore root .copilot-test-tmp/ (only the logs/ variant was covered)
+  ([`6aafb80`](https://github.com/weijen/agent-delivery-harness/commit/6aafb801d23ef73b07e2015b8295aec5b29bcc55))
+
+
 ## v0.32.2 (2026-07-23)
 
 ### Bug Fixes
