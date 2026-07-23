@@ -128,6 +128,31 @@ for tool in uv az; do
   fi
 done
 
+shellcheck_pin_file="${SCRIPT_DIR}/../.github/workflows/harness-smoke.yml"
+shellcheck_ci_version=""
+if [ -f "$shellcheck_pin_file" ]; then
+  shellcheck_ci_version="$(awk '$1 == "SHELLCHECK_VERSION:" { print $2; exit }' "$shellcheck_pin_file")"
+fi
+if [ -n "$shellcheck_ci_version" ]; then
+  if command -v shellcheck >/dev/null 2>&1; then
+    if ! shellcheck_local_version="$(shellcheck --version 2>/dev/null \
+      | awk -F ': ' '$1 == "version" { print $2; exit }')"; then
+      shellcheck_local_version=""
+    fi
+    if [ "$shellcheck_local_version" = "$shellcheck_ci_version" ]; then
+      note_ok "ShellCheck ${shellcheck_local_version} matches CI"
+    else
+      note_warn \
+        "ShellCheck version mismatch: local ${shellcheck_local_version:-unknown}, CI ${shellcheck_ci_version}" \
+        "install ShellCheck ${shellcheck_ci_version} for CI parity"
+    fi
+  else
+    note_warn \
+      "ShellCheck not installed; CI uses ${shellcheck_ci_version}" \
+      "install ShellCheck ${shellcheck_ci_version} for CI parity"
+  fi
+fi
+
 # 2. GitHub auth (HARD-FAIL) --------------------------------------------------
 echo "[2/6] GitHub authentication"
 if [ "$gh_identity_ready" -eq 0 ]; then
