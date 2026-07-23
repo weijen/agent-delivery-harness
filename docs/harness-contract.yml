@@ -85,6 +85,13 @@ gate_start:
     mode: hard
     owner: scripts/start-issue.sh
     present: git worktree add
+  - id: tracking-ready
+    trigger: issue tracking scaffold created
+    consumes: feature_list.json
+    produces: validated criterion-sized delivery breakdown
+    mode: hard
+    owner: scripts/check-feature-list.sh
+    present: feature_list.json
 
 gate_sensors:
   - id: scoped-green
@@ -103,6 +110,13 @@ gate_review:
     mode: hard
     owner: scripts/review-gate.sh
     present: approve
+  - id: approved-pr
+    trigger: independent review approved at current HEAD
+    consumes: HEAD-bound approved-head marker
+    produces: synchronized branch and open PR
+    mode: hard
+    owner: scripts/create-pr.sh
+    present: gh pr create
 
 gate_merge_closeout:
   - id: ci-green-merge
@@ -241,12 +255,6 @@ language_neutral:
 # ---------------------------------------------------------------------------
 mermaid: |
   flowchart TD
-    preflight[init.sh preflight] --> lookup[issue lookup]
-    lookup --> worktree[branch + worktree]
-    worktree --> scaffold[tracking scaffold]
-    scaffold --> validate[feature-list validation]
-    validate --> review[review-gate approve]
-    review --> pr[create-pr sync + open]
-    pr --> cigreen[merge-pr CI-green gate]
-    cigreen --> merge[PR merge]
-    merge --> closeout[finish-issue cleanup]
+    start[Gate 1: preflight + issue worktree] --> sensors[Gate 2: scoped/full sensors green]
+    sensors --> review[Gate 3: independent review + approved PR]
+    review --> closeout[Gate 4: CI-green merge + closeout]

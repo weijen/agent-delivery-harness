@@ -17,7 +17,8 @@
   "contract_refs": [
     "scripts:init",
     "scripts:review-gate",
-    "lifecycle:preflight",
-    "lifecycle:review-approval"
+    "gate_start:issue-worktree",
+    "gate_review:independent-review",
+    "policy:hard-gates-observed-only"
   ]
 }

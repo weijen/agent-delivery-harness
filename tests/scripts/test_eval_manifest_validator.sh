@@ -299,16 +299,16 @@ resolve_contract_ref() {
 # --- Resolver self-check (independent of the manifests) --------------------
 # A known-GOOD ref must resolve; a known-BAD ref must NOT resolve. Together
 # these prove the resolver discriminates rather than always returning success.
-if resolve_contract_ref "failure_modes:stale-review-approval"; then
-	tap_ok "resolver: known-good ref failure_modes:stale-review-approval resolves"
+if resolve_contract_ref "gate_review:independent-review"; then
+	tap_ok "resolver: known-good ref gate_review:independent-review resolves"
 else
-	tap_not_ok "resolver: known-good ref failure_modes:stale-review-approval resolves"
+	tap_not_ok "resolver: known-good ref gate_review:independent-review resolves"
 fi
 
-if resolve_contract_ref "failure_modes:nope"; then
-	tap_not_ok "resolver: known-bad ref failure_modes:nope is rejected"
+if resolve_contract_ref "gate_review:nope"; then
+	tap_not_ok "resolver: known-bad ref gate_review:nope is rejected"
 else
-	tap_ok "resolver: known-bad ref failure_modes:nope is rejected"
+	tap_ok "resolver: known-bad ref gate_review:nope is rejected"
 fi
 
 # --- Per-manifest assertions -----------------------------------------------

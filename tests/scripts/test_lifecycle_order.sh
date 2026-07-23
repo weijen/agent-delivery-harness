@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Behavioral lifecycle-ORDER sensor for the harness scripts.
 #
-# docs/harness-contract.yml declares a lifecycle ORDER, and
+# docs/harness-contract.yml declares four lifecycle gates, and
 # tests/scripts/test_harness_contract.sh proves each step's text is still
 # present. Presence is not order: a refactor could keep every string yet run the
 # steps in the wrong sequence. This sensor proves the critical ordering
@@ -20,11 +20,25 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CONTRACT="${ROOT}/docs/harness-contract.yml"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/tap.sh"
+
+contract_has_ref() {
+  local section="${1%%:*}" id="${1#*:}"
+  awk -v section="$section" -v id="$id" '
+    /^[A-Za-z_]+:/ { current=$0; sub(/:.*/, "", current); in_section=(current==section); next }
+    in_section && $0 == "  - id: " id { found=1; exit }
+    END { exit(found ? 0 : 1) }
+  ' "$CONTRACT"
+}
+
+for ref in gate_start:issue-worktree gate_review:approved-pr gate_merge_closeout:issue-closeout; do
+  contract_has_ref "$ref" || { printf '# missing contract gate ref: %s\n' "$ref" >&2; exit 1; }
+done
 
 # Each of the three ordering scenarios below runs inside its own `set -e`
 # subshell (see the `( set -e ... )` wrappers). fail() therefore exits only that
