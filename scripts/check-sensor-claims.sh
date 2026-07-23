@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Detect unsupported passed-file claims and the direct multi-glob bash footgun.
+# Literal-glob detection is a best-effort advisory, not an adversarial parser;
+# authoritative integrity comes from matching every claim to a HEAD-bound
+# SENSORS summary with the same count.
 set -euo pipefail
 
 usage() {
@@ -26,7 +29,6 @@ fi
 
 summary_re='^SENSORS (green|green-full-fallback|pre-review|pre-pr) head=([0-9a-f]{40}|[0-9a-f]{64}) scope=(scoped|full) ran=([0-9]+) failed=([0-9]+)$'
 claim_re='([0-9]+)[[:space:]]+test[[:space:]]+files'
-glob_re='bash([[:space:]]+-[^[:space:]]+)*[[:space:]]+(\./)?tests/(scripts|meta)/test_\*\.sh'
 summaries=()
 claims=()
 violations=0
@@ -37,16 +39,21 @@ while IFS= read -r line || [ -n "$line" ]; do
     summaries+=("${BASH_REMATCH[2]}:${BASH_REMATCH[4]}")
   fi
   shopt -s nocasematch
-  if [[ "$line" =~ $claim_re ]]; then
-    claim_count="${BASH_REMATCH[1]}"
-    if [[ "$line" =~ pass ]]; then
+  claim_tail="$line"
+  if [[ "$line" =~ pass ]]; then
+    while [[ "$claim_tail" =~ $claim_re ]]; do
+      claim_count="${BASH_REMATCH[1]}"
+      claim_match="${BASH_REMATCH[0]}"
       claims+=("$claim_count")
-    fi
+      claim_tail="${claim_tail#*"${claim_match}"}"
+    done
   fi
-  if [[ "$line" =~ $glob_re ]]; then
+  case "$line" in
+  *'tests/scripts/test_*.sh'* | *'tests/meta/test_*.sh'*)
     printf 'DEVIATION sensor_direct_multi_glob\n'
     violations=$((violations + 1))
-  fi
+    ;;
+  esac
   shopt -u nocasematch
 done <"$TRANSCRIPT"
 

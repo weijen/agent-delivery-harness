@@ -50,6 +50,17 @@ if run_check "${TMP_DIR}/wrong-count.txt" >/dev/null 2>&1; then
   fail "summary with another count must not support the claim"
 fi
 
+cat >"${TMP_DIR}/multiple-claims.txt" <<'EOF'
+SENSORS pre-pr head=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef scope=full ran=1 failed=0
+1 test files passed; ALL 157 TEST FILES PASSED
+EOF
+if run_check "${TMP_DIR}/multiple-claims.txt" >"${TMP_DIR}/out" 2>&1; then
+  fail "every claim occurrence on a line must be validated"
+fi
+grep -Fq 'VIOLATION sensor_claim_without_summary count=157 head=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef' \
+  "${TMP_DIR}/out" \
+  || fail "later unsupported claim on the same line must be reported"
+
 printf 'ALL 157 TEST FILES PASSED\n' >"${TMP_DIR}/uppercase.txt"
 if run_check "${TMP_DIR}/uppercase.txt" >/dev/null 2>&1; then
   fail "uppercase unsupported claim must be detected"
@@ -79,6 +90,11 @@ fi
 printf 'bash -x tests/scripts/test_*.sh\n' >"${TMP_DIR}/option-glob.txt"
 if run_check "${TMP_DIR}/option-glob.txt" >/dev/null 2>&1; then
   fail "multi-glob invocation after Bash options must be detected"
+fi
+
+printf 'bash -O extglob tests/scripts/test_*.sh\n' >"${TMP_DIR}/option-operand-glob.txt"
+if run_check "${TMP_DIR}/option-operand-glob.txt" >/dev/null 2>&1; then
+  fail "literal multi-glob must be detected without parsing Bash options"
 fi
 
 printf 'bash tests/scripts/test_one.sh\n' >"${TMP_DIR}/single.txt"
