@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.35.0 (2026-07-23)
+
+### Bug Fixes
+
+- **#388**: Distinguish repaired review findings
+  ([`2b32fa7`](https://github.com/weijen/agent-delivery-harness/commit/2b32fa7010b9b446509d0358c22c6e589dc29bb4))
+
+- **#388**: Read issue-scoped review markers
+  ([`917d35e`](https://github.com/weijen/agent-delivery-harness/commit/917d35ed870638c06318f591f3b7fc46f9a64611))
+
+### Features
+
+- **#388**: Record repeated review findings
+  ([`e820f90`](https://github.com/weijen/agent-delivery-harness/commit/e820f904ea58631050a8ae0950212ef1b3cd6827))
+
+
 ## v0.34.3 (2026-07-23)
 
 ### Bug Fixes
