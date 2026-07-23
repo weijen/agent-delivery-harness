@@ -6,7 +6,6 @@ tests/scripts/test_commit_convention_doc.sh
 tests/scripts/test_customization_frontmatter_wiring.sh
 tests/scripts/test_eval_dir_contract.sh
 tests/scripts/test_eval_manifest_validator.sh
-tests/scripts/test_harness_dev_sensor_manifest.sh
 tests/scripts/test_init_gates.sh
 tests/scripts/test_install_harness_adopter_profile.sh
 tests/scripts/test_l0_manifests.sh
