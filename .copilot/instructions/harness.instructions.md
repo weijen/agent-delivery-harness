@@ -44,6 +44,10 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
 
 ## 2. Start-of-session ritual (always)
 
+After any context compaction, re-read the
+[Post-compaction re-anchor](../../AGENTS.md#post-compaction-re-anchor) before
+continuing the ritual.
+
 1. **Get into the right worktree.**
    - **Launch topology (optional, historical):** starting the Copilot CLI conductor session from
      the repository root — the trusted folder that contains `.github/hooks/` — used to matter

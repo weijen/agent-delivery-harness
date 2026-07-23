@@ -3,6 +3,13 @@
 > This file is a **map, not an encyclopedia**. It points to the sources of truth.
 > Keep it short. Detailed rules live in the linked docs.
 
+## Post-compaction re-anchor
+
+After any context compaction, re-read this block before continuing.
+- Emit `feature_start` before each feature, `deviation` when it happens, and `review_verdict` at review handback.
+- Export `TRACE_SENSOR_SCOPE` and `TRACE_SENSOR_COUNT` from runner evidence; omit them rather than guessing.
+- Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
+
 ## What this project is
 
 This repository is a reusable, language-agnostic harness for issue-driven agent
