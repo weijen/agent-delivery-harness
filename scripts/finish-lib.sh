@@ -47,7 +47,8 @@ __FINISH_LIB_SOURCED=1
 # 1 to block (the caller performs the `exit 1`).
 finish_trace_gate() {
   if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    if ! TRACE_COLLAPSE_CHILD_SPANS=1 "${SCRIPT_DIR}/review-gate.sh" trace; then
+    if ! REVIEW_GATE_ISSUE="${ISSUE_NUM}" TRACE_COLLAPSE_CHILD_SPANS=1 \
+      "${SCRIPT_DIR}/review-gate.sh" trace; then
       if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
         red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
         echo "  Resolve the findings above (or unset the flag) and re-run:"
@@ -76,7 +77,8 @@ finish_trace_gate() {
 # A missing review-gate.sh degrades to warn-and-skip. Returns 0 proceed, 1 block.
 finish_log_completeness_gate() {
   if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    if ! TRACE_COLLAPSE_CHILD_SPANS=1 "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
+    if ! REVIEW_GATE_ISSUE="${ISSUE_NUM}" TRACE_COLLAPSE_CHILD_SPANS=1 \
+      "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
       if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
         red "✗ log-completeness gate blocked the finish (REQUIRE_LOG_COMPLETE=1)."
         echo "  Resolve the findings above (or unset the flag) and re-run:"
@@ -191,7 +193,8 @@ finish_closeout_cruft_gate() {
   # Preserve existing gate output and telemetry when a complete installation
   # provides review-gate.sh. The local shared-vocabulary scan is authoritative.
   if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    REQUIRE_LOG_COMPLETE=1 "${SCRIPT_DIR}/review-gate.sh" log-completeness \
+    REVIEW_GATE_ISSUE="${ISSUE_NUM}" REQUIRE_LOG_COMPLETE=1 \
+      "${SCRIPT_DIR}/review-gate.sh" log-completeness \
       || return 1
   fi
   return 0

@@ -129,9 +129,9 @@ if [ -z "$NUM_ARG" ]; then
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
 
-# finish-issue runs from the main checkout on branch main, so branch/worktree
-# issue resolution cannot work — export the parsed number (plan D6).
+# Main-checkout closeout needs explicit per-issue trace and approval context.
 export TRACE_ISSUE="$ISSUE_NUM"
+export REVIEW_GATE_ISSUE="$ISSUE_NUM"
 
 ROOT="$(issue_repo_root)"
 cd "$ROOT"

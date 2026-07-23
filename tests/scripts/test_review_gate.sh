@@ -388,12 +388,19 @@ add_verdict() {
 # marker path (single repo, so main root == repo toplevel), so approval +
 # status-doc pass on the check path and the missing verdict is the only variable.
 set_marker() {
-  local dir="$1" mdir="$1/.copilot-tracking/review-gate"
-  mkdir -p "$mdir"
-  git -C "$dir" rev-parse HEAD > "${mdir}/approved-head"
+  local dir="$1" marker
+  marker="$(marker_path "$dir")"
+  mkdir -p "${marker%/*}"
+  git -C "$dir" rev-parse HEAD > "$marker"
 }
 
-marker_path() { printf '%s' "${1}/.copilot-tracking/review-gate/approved-head"; }
+marker_path() {
+  local dir="$1" branch issue
+  branch="$(git -C "$dir" branch --show-current)"
+  issue="${branch#feature/issue-}"
+  issue="${issue%%-*}"
+  printf '%s' "${dir}/.copilot-tracking/review-gate/issue-${issue}/approved-head"
+}
 
 run_in() { # run_in <dir> <out> <env...> -- <cmd...>
   local dir="$1" out="$2"; shift 2
@@ -572,12 +579,19 @@ add_reject() {
 # marker path (single repo, so main root == repo toplevel), so approval +
 # status-doc pass on the check path and the reject cap is the only variable.
 set_marker() {
-  local dir="$1" mdir="$1/.copilot-tracking/review-gate"
-  mkdir -p "$mdir"
-  git -C "$dir" rev-parse HEAD > "${mdir}/approved-head"
+  local dir="$1" marker
+  marker="$(marker_path "$dir")"
+  mkdir -p "${marker%/*}"
+  git -C "$dir" rev-parse HEAD > "$marker"
 }
 
-marker_path() { printf '%s' "${1}/.copilot-tracking/review-gate/approved-head"; }
+marker_path() {
+  local dir="$1" branch issue
+  branch="$(git -C "$dir" branch --show-current)"
+  issue="${branch#feature/issue-}"
+  issue="${issue%%-*}"
+  printf '%s' "${dir}/.copilot-tracking/review-gate/issue-${issue}/approved-head"
+}
 
 run_in() { # run_in <dir> <out> <env...> -- <cmd...>
   local dir="$1" out="$2"; shift 2

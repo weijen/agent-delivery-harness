@@ -137,16 +137,18 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 
 # ── Scenario D: mutation witness ─────────────────────────────────────────────
 # Direct mutation evidence (GREEN phase): a mutant review-gate.sh with the
-# patch-id append line removed. The mutant writes only line 1 (HEAD sha);
+# marker helper's patch-id field removed. The mutant writes only line 1 (HEAD sha);
 # Scenario A's 2-line assertion would catch this regression in production.
-# This proves the printf append is the load-bearing contract mechanism.
+# This proves the helper's two-line write is the load-bearing contract mechanism.
 # (Red-first evidence from Scenario A failing pre-implementation already
 # satisfies the teeth obligation; this is additional positive mutation proof.)
 mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
-# Remove the line that appends the patch-id to the marker. The pattern matches
-# the literal $marker_file in the script source (\$ → sed escaped dollar sign).
+# Replace the helper's two-line write with a one-line SHA-only marker.
 # shellcheck disable=SC2016
-sed '/printf.*_patch_id.*>> "\$marker_file"/d' "${ROOT}/scripts/review-gate.sh" > "$mutant_rg"
+sed '
+/printf.*"\$sha".*"\$patch_id".*> "\$path"/c\
+  printf '\''%s\\n'\'' "$sha" > "$path"
+' "${ROOT}/scripts/review-gate.sh" > "$mutant_rg"
 chmod +x "$mutant_rg"
 
 rm -f "$marker_file"
@@ -312,6 +314,76 @@ fi
 cd "$_saved_dir"
 emit "Scenario G: origin/main unavailable — approve succeeds, marker has 2 lines, line 2 is blank"
 
+# ── Scenario H: sibling issue worktrees keep independent canonical state ─────
+fixture_repo --with-scripts review-gate.sh
+H_MAIN="$FIXTURE_REPO"
+H_WT_398="${TMP_DIR}/h-wt-398"
+H_WT_399="${TMP_DIR}/h-wt-399"
+git -C "$H_MAIN" worktree add -q -b feature/issue-398-fixture "$H_WT_398"
+git -C "$H_MAIN" worktree add -q -b feature/issue-399-fixture "$H_WT_399"
+
+printf 'issue 398 state\n' > "${H_WT_398}/issue-398.txt"
+git -C "$H_WT_398" add issue-398.txt
+git -C "$H_WT_398" -c user.name="Harness Test" \
+  -c user.email="harness-test@example.invalid" commit -q -m "issue 398 state"
+h_head_398="$(git -C "$H_WT_398" rev-parse HEAD)"
+(cd "$H_WT_398" && REVIEW_GATE_ISSUE=398 ./scripts/review-gate.sh approve) \
+  >"${TMP_DIR}/approve-h-398.out" 2>&1 \
+  || fail "Scenario H: issue 398 approve failed"
+
+printf 'issue 399 state\n' > "${H_WT_399}/issue-399.txt"
+git -C "$H_WT_399" add issue-399.txt
+git -C "$H_WT_399" -c user.name="Harness Test" \
+  -c user.email="harness-test@example.invalid" commit -q -m "issue 399 state"
+h_head_399="$(git -C "$H_WT_399" rev-parse HEAD)"
+(cd "$H_WT_399" && REVIEW_GATE_ISSUE=399 ./scripts/review-gate.sh approve) \
+  >"${TMP_DIR}/approve-h-399.out" 2>&1 \
+  || fail "Scenario H: issue 399 approve failed"
+h_marker_398="${H_MAIN}/.copilot-tracking/review-gate/issue-398/approved-head"
+h_marker_399="${H_MAIN}/.copilot-tracking/review-gate/issue-399/approved-head"
+
+if [ ! -f "$h_marker_398" ] || [ ! -f "$h_marker_399" ]; then
+  fail "Scenario H: each sibling issue must own a canonical issue-NN marker"
+elif [ "$(sed -n '1p' "$h_marker_398")" != "$h_head_398" ]; then
+  fail "Scenario H: issue 399 approval clobbered issue 398 marker"
+elif [ "$(sed -n '1p' "$h_marker_399")" != "$h_head_399" ]; then
+  fail "Scenario H: issue 399 marker does not contain its own HEAD"
+else
+  git -C "$H_MAIN" checkout -q --detach "$h_head_398"
+  (
+    cd "$H_MAIN"
+    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=398 ./scripts/review-gate.sh check
+  ) >"${TMP_DIR}/check-h-398.out" 2>&1 \
+    || fail "Scenario H: canonical issue 398 closeout check failed"
+  git -C "$H_MAIN" checkout -q --detach "$h_head_399"
+  (
+    cd "$H_MAIN"
+    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=399 ./scripts/review-gate.sh check
+  ) \
+    >"${TMP_DIR}/check-h-399.out" 2>&1 \
+    || fail "Scenario H: canonical issue 399 closeout check failed"
+fi
+cd "$_saved_dir"
+emit "Scenario H: sibling worktree approvals keep independent canonical closeout markers"
+
+# ── Scenario I: existing issue worktree reads the legacy shared marker ───────
+fixture_repo --with-scripts review-gate.sh
+I_REPO="$FIXTURE_REPO"
+cd "$I_REPO"
+git checkout -q -b feature/legacy-marker-fallback
+i_head="$(git rev-parse HEAD)"
+mkdir -p "${I_REPO}/.copilot-tracking/review-gate"
+printf '%s\n' "$i_head" \
+  > "${I_REPO}/.copilot-tracking/review-gate/approved-head"
+SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=400 ./scripts/review-gate.sh check \
+  >"${TMP_DIR}/check-i.out" 2>&1 \
+  || fail "Scenario I: issue-scoped check did not read the legacy shared marker"
+if [ -e "${I_REPO}/.copilot-tracking/review-gate/issue-400/approved-head" ]; then
+  fail "Scenario I: read fallback must not fabricate a migrated marker"
+fi
+cd "$_saved_dir"
+emit "Scenario I: issue-scoped check falls back to a legacy shared marker"
+
 tap_done
 
 (
@@ -428,7 +500,7 @@ git -C "$RA" commit -q -m "test: instrument review gate calls"
 (cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
   || fail "(A) setup: initial approve failed"
 PRE_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
-MARKER_A="${RA}/.copilot-tracking/review-gate/approved-head"
+MARKER_A="${RA}/.copilot-tracking/review-gate/issue-310/approved-head"
 
 # Verify initial marker has 2 lines (feature-1 contract).
 LINE_COUNT_BEFORE="$(wc -l < "$MARKER_A" | tr -d ' ')"
@@ -490,8 +562,8 @@ if [ -x "${RA}/scripts/check-trace-consistency.sh" ]; then
     fail "(A) check-trace-consistency.sh must exit exactly 0; got exit ${CONS_RC}"
   fi
   if [ "$CONS_RC" = "0" ]; then
-    grep -q "review_sha_mismatch" "$CONSISTENCY_OUT" \
-      && { cat "$CONSISTENCY_OUT"; fail "(A) check-trace-consistency.sh must not report review_sha_mismatch after a carry"; }
+    grep -q "^VIOLATION consistency: review_sha_mismatch" "$CONSISTENCY_OUT" \
+      && { cat "$CONSISTENCY_OUT"; fail "(A) check-trace-consistency.sh must not report a review_sha_mismatch violation after a carry"; }
   fi
 fi
 
@@ -511,7 +583,7 @@ make_pr_repo "$RB" 310
 
 (cd "$RB" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
   || fail "(B) setup: initial approve failed"
-MARKER_LINE1_BEFORE_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/approved-head" | tr -d '[:space:]')"
+MARKER_LINE1_BEFORE_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/issue-310/approved-head" | tr -d '[:space:]')"
 
 advance_origin_main_unrelated "$RB"
 
@@ -558,7 +630,7 @@ B_CPR_RC=0
   || { cat "$OUT_B"; fail "(B) no PR must open when carry fails (diff altered)"; }
 
 # Marker line 1 must remain the pre-rebase SHA (unchanged by failed carry).
-MARKER_LINE1_AFTER_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/approved-head" | tr -d '[:space:]')"
+MARKER_LINE1_AFTER_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/issue-310/approved-head" | tr -d '[:space:]')"
 [ "$MARKER_LINE1_AFTER_B" = "$MARKER_LINE1_BEFORE_B" ] \
   || fail "(B) marker line 1 must remain pre-rebase SHA ${MARKER_LINE1_BEFORE_B} after failed carry, got ${MARKER_LINE1_AFTER_B}"
 
@@ -591,8 +663,8 @@ printf '# Progress\n\nwork\n' > "${RWM_WT}/.copilot-tracking/issues/issue-310/pr
 (cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
   || fail "(Wm) setup: approve from linked worktree failed"
 PRE_REBASE_HEAD_WM="$(git -C "$RWM_WT" rev-parse HEAD)"
-WT_MARKER_WM="${RWM_WT}/.copilot-tracking/review-gate/approved-head"
-MAIN_MARKER_WM="${RWM_MAIN}/.copilot-tracking/review-gate/approved-head"
+WT_MARKER_WM="${RWM_WT}/.copilot-tracking/review-gate/issue-310/approved-head"
+MAIN_MARKER_WM="${RWM_MAIN}/.copilot-tracking/review-gate/issue-310/approved-head"
 
 # Set main-root marker to a DIFFERENT SHA (simulating another issue's active approval).
 mkdir -p "$(dirname "$MAIN_MARKER_WM")"
