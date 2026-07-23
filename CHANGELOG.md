@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v0.32.7 (2026-07-23)
+
+### Bug Fixes
+
+- **#371**: Bind reviewer GitHub identity
+  ([#392](https://github.com/weijen/agent-delivery-harness/pull/392),
+  [`dc48152`](https://github.com/weijen/agent-delivery-harness/commit/dc481522e90028e3a2e4eee309a8d75effb3afe2))
+
+- **#371**: Preserve doctrine across compaction
+  ([#392](https://github.com/weijen/agent-delivery-harness/pull/392),
+  [`dc48152`](https://github.com/weijen/agent-delivery-harness/commit/dc481522e90028e3a2e4eee309a8d75effb3afe2))
+
+- **#371**: Re-anchor doctrine after compaction
+  ([#392](https://github.com/weijen/agent-delivery-harness/pull/392),
+  [`dc48152`](https://github.com/weijen/agent-delivery-harness/commit/dc481522e90028e3a2e4eee309a8d75effb3afe2))
+
+### Testing
+
+- **#371**: Require explicit identity prohibition
+  ([#392](https://github.com/weijen/agent-delivery-harness/pull/392),
+  [`dc48152`](https://github.com/weijen/agent-delivery-harness/commit/dc481522e90028e3a2e4eee309a8d75effb3afe2))
+
+
 ## v0.32.6 (2026-07-23)
 
 ### Bug Fixes
