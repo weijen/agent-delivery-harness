@@ -240,6 +240,21 @@ out_b="$(run_gate "$work_b" TRACE_ISSUE=99)"
 grep -Eq 'issue 99\b' <<<"$out_b" \
   || fail "env source: expected resolution of issue 99, got: ${out_b}"
 
+# TRACE_ISSUE follows trace-lib's digits-only, de-padded contract.
+out_b_padded="$(run_gate "$work_b" TRACE_ISSUE=00099)"
+grep -Eq 'issue 99\b' <<<"$out_b_padded" \
+  || fail "padded env source: expected de-padded issue 99, got: ${out_b_padded}"
+if grep -Eq 'issue 00099\b' <<<"$out_b_padded"; then
+  fail "TRACE_ISSUE must be de-padded before gate use"
+fi
+
+out_b_invalid="$(run_gate "$work_b" TRACE_ISSUE='../99')"
+grep -qiE 'cannot resolve the issue number|must be a positive integer' <<<"$out_b_invalid" \
+  || fail "invalid TRACE_ISSUE must be rejected as unresolvable, got: ${out_b_invalid}"
+if grep -Fq 'issue ../99' <<<"$out_b_invalid"; then
+  fail "invalid TRACE_ISSUE must never be forwarded to gate paths"
+fi
+
 # Case C: worktree basename issue-55 resolves 55 (no branch match, no env).
 work_c_parent="$(mktemp -d "${TMP_DIR}/wtc.XXXXXX")"
 work_c="${work_c_parent}/issue-55"

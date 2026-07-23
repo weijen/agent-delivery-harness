@@ -239,7 +239,8 @@ ci_gate() {
 # cannot be resolved (each caller emits its own gate-specific skip note).
 resolve_issue_number() {
   if [ -n "${TRACE_ISSUE:-}" ]; then
-    printf '%s' "${TRACE_ISSUE}"
+    [[ "${TRACE_ISSUE}" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$((10#${TRACE_ISSUE}))"
     return 0
   fi
   local branch
