@@ -108,6 +108,20 @@ list_files() {
 # Reconcile hooks for install-harness: the desired content is a real source file
 # ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
 # are invoked indirectly by reconcile_entry (SC2329).
+atomic_copy() {
+	local src="$1" dst="$2" label="$3" tmp=""
+	tmp="$(mktemp "$(dirname "$dst")/.harness-write.XXXXXX")" \
+		|| die "could not create temporary file for ${label}"
+	if ! cp -p "$src" "$tmp"; then
+		rm -f "$tmp"
+		die "could not stage ${label}"
+	fi
+	if ! mv -f "$tmp" "$dst"; then
+		rm -f "$tmp"
+		die "could not replace ${label} atomically"
+	fi
+}
+
 # shellcheck disable=SC2317,SC2329
 rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
 # shellcheck disable=SC2317,SC2329
@@ -117,7 +131,7 @@ rc_write() {
 	target_destination_is_safe "$RC_REL" \
 		|| die "refusing ${RC_REL}: destination is not a regular file"
 	mkdir -p "$(dirname "$RC_DST")"
-	cp "$RC_SRC" "$RC_DST"
+	atomic_copy "$RC_SRC" "$RC_DST" "$RC_REL"
 }
 # shellcheck disable=SC2317,SC2329
 rc_diff() { diff -u "$RC_DST" "$RC_SRC" || true; }
@@ -150,6 +164,25 @@ target_destination_is_safe() {
 	local rel="$1" dst=""
 	dst="${TARGET_DIR}/${rel}"
 	[ ! -L "$dst" ] && { [ ! -e "$dst" ] || [ -f "$dst" ]; }
+}
+
+append_identity_gitignore() {
+	local dst="${TARGET_DIR}/.gitignore" tmp=""
+	target_parent_is_safe ".gitignore" \
+		|| die "refusing .gitignore: symlinked parent directory"
+	target_destination_is_safe ".gitignore" \
+		|| die "refusing .gitignore: destination is not a regular file"
+	tmp="$(mktemp "${TARGET_DIR}/.gitignore.XXXXXX")" \
+		|| die "could not create .gitignore temporary file"
+	if ! cp -p "$dst" "$tmp" \
+		|| ! printf '.github/harness-identity.env\n' >>"$tmp"; then
+		rm -f "$tmp"
+		die "could not stage .gitignore"
+	fi
+	if ! mv -f "$tmp" "$dst"; then
+		rm -f "$tmp"
+		die "could not replace .gitignore atomically"
+	fi
 }
 
 emit_reject() {
@@ -720,11 +753,7 @@ if [ "$MODE" != "dry" ] \
 	# repo never commits it (apex-vs incident, 2026-07-23).
 	if [ -e "${TARGET_DIR}/.gitignore" ] \
 		&& ! grep -qx '\.github/harness-identity\.env' "${TARGET_DIR}/.gitignore" 2>/dev/null; then
-		target_parent_is_safe ".gitignore" \
-			|| die "refusing .gitignore: symlinked parent directory"
-		target_destination_is_safe ".gitignore" \
-			|| die "refusing .gitignore: destination is not a regular file"
-		printf '.github/harness-identity.env\n' >>"${TARGET_DIR}/.gitignore"
+		append_identity_gitignore
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
 	# shellcheck source=/dev/null
