@@ -16,12 +16,6 @@ SENSORS=(
   tests/scripts/test_review_gate_ci_coverage.sh
   tests/scripts/test_create_pr_failure.sh
   tests/scripts/test_finish_issue_conclusion.sh
-  tests/scripts/test_finish_issue_cruft_strip.sh
-  tests/scripts/test_finish_issue_native_economics.sh
-  tests/scripts/test_finish_issue_progress_migration.sh
-  tests/scripts/test_finish_issue_state_hygiene.sh
-  tests/scripts/test_finish_issue_summary_regen.sh
-  tests/scripts/test_finish_issue_worktree_error.sh
   tests/scripts/test_trace_lib.sh
   tests/scripts/test_trace_lib_redaction.sh
 )

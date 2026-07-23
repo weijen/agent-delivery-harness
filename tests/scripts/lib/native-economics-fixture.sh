@@ -63,7 +63,7 @@ FAKEGH
 write_fake_gh "${BIN}/gh"
 
 # ---------------------------------------------------------------------------
-# Fixture scaffolding (mirrors test_economics_span.sh / test_finish_issue_summary_regen.sh)
+# Fixture scaffolding shared by economics and finish-closeout sensors.
 # ---------------------------------------------------------------------------
 copy_fixture_scripts() {
   local dir="$1"
