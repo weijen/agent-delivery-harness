@@ -184,6 +184,16 @@ assert_section() {
   fi
 }
 
+reject_section() {
+  local pattern="$1"
+  local message="$2"
+  local normalized_section
+  normalized_section="$(printf '%s\n' "$section" | tr '\n' ' ')"
+  if grep -Eiq "$pattern" <<<"$normalized_section"; then
+    note "$message"
+  fi
+}
+
 # 1. Required section heading.
 assert_file 'Trace / Process Evidence' "$review must include a Trace / Process Evidence section"
 
@@ -201,27 +211,27 @@ assert_section 'tokens' "$review Trace / Process Evidence section must report to
 assert_section 'unavailable' "$review Trace / Process Evidence section must define unavailable token semantics"
 assert_section 'schema' "$review Trace / Process Evidence section must mention schema validation"
 
-# 5. Evidence-authority split.
-assert_section 'authoritative' "$review Trace / Process Evidence section must identify authoritative evidence"
-assert_section 'corroborat' "$review Trace / Process Evidence section must identify corroborating evidence"
-assert_section 'tool[ -]?span|tool span' "$review Trace / Process Evidence section must distinguish tool spans"
-assert_section 'agent[ -]?span|agent span|agent' "$review Trace / Process Evidence section must distinguish agent spans"
+# 5. Contract-v2 current evidence set.
+assert_section 'gate[_ -]?start' "$review Trace / Process Evidence section must name gate_start"
+assert_section 'gate[_ -]?sensors' "$review Trace / Process Evidence section must name gate_sensors"
+assert_section 'gate[_ -]?review' "$review Trace / Process Evidence section must name gate_review"
+assert_section 'gate[_ -]?merge[_ -]?closeout' "$review Trace / Process Evidence section must name gate_merge_closeout"
+assert_section 'SENSORS.*head=.*scope=.*ran=.*failed=' "$review Trace / Process Evidence section must require HEAD-bound feature green evidence"
+assert_section 'review_verdict' "$review Trace / Process Evidence section must inspect review_verdict evidence"
+assert_section 'deviation' "$review Trace / Process Evidence section must inspect deviation evidence"
 
-# 6. RED/implementation/GREEN ordering and waiver handling.
-assert_section 'red_handback' "$review Trace / Process Evidence section must require red_handback evidence"
-assert_section 'impl_handback' "$review Trace / Process Evidence section must require impl_handback evidence"
-assert_section 'green_handback' "$review Trace / Process Evidence section must require green_handback evidence"
-assert_section 'waiv' "$review Trace / Process Evidence section must cover waivers"
-assert_section 'red_reentry' "$review Trace / Process Evidence section must cover red_reentry"
+# 6. Retired handbacks remain reader-compatible history, never current blocking evidence.
+assert_section 'historical' "$review Trace / Process Evidence section must identify historical trace compatibility"
+assert_section 'reader' "$review Trace / Process Evidence section must make historical compatibility reader-side"
+reject_section 'Verify .*red_handback.*impl_handback.*green_handback.*ordering' \
+  "$review Trace / Process Evidence section must not require the retired handback triple"
+reject_section 'red_first_(ordering_absent|profile_mismatch).*(BLOCKING|blocking)' \
+  "$review Trace / Process Evidence section must not block current reviews on retired red-first checks"
 
-# 7. Role attribution and unavailable evidence handling.
-assert_section 'test-subagent' "$review Trace / Process Evidence section must attribute test-subagent evidence"
-assert_section 'implementation-subagent' "$review Trace / Process Evidence section must attribute implementation-subagent evidence"
+# 7. Unavailable evidence handling.
 assert_section 'trace evidence unavailable' "$review Trace / Process Evidence section must use the phrase trace evidence unavailable"
 
 # 8. Blocking process violations and review finding terms.
-assert_section 'teeth_proof_missing' "$review Trace / Process Evidence section must name teeth_proof_missing"
-assert_section 'red_first_profile_mismatch' "$review Trace / Process Evidence section must name red_first_profile_mismatch"
 assert_section 'deviation' "$review Trace / Process Evidence section must surface deviations as review findings"
 assert_section 'loop' "$review Trace / Process Evidence section must surface loop findings"
 assert_section 'BLOCKING' "$review Trace / Process Evidence section must mark process violations BLOCKING"

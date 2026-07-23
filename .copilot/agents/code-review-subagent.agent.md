@@ -272,17 +272,16 @@ For the exposure check, flag only what the diff **introduces**; long-standing co
 unless this change touches it. The quality skills themselves are whole-codebase tools — they run only in
 `audit-sweep`, outside this subagent (#350).
 
-### Verdict 4 — Harness Lifecycle & Role-Boundary Compliance
+### Verdict 4 — Harness Lifecycle Compliance
 
 When the issue workflow is active, also judge whether the work respected the harness contract:
 
-1. **Lifecycle order** — were the steps performed in the required sequence (preflight before worktree, review-gate
-   approval before push, validation before worktree removal)? A change that reorders or skips a lifecycle step is a
+1. **Four-gate order** — did `gate_start`, `gate_sensors`, `gate_review`, and
+   `gate_merge_closeout` occur in sequence? A current change that reorders or skips a hard lifecycle gate is a
    **BLOCKING** finding.
-2. **Role boundaries (historical traces)** — for pre-#352 traces, did each role stay in scope (conductor did not directly author feature tests or production;
-   the generator stayed within one selected feature; nobody weakened, deleted, or skipped a declared sensor to pass)? A
-   role-boundary violation is **BLOCKING**.
-3. **Action Log** — are the delivering agent handbacks, subagent actions, and verdicts recorded so the lifecycle is auditable?
+2. **One-agent topology** — did one delivering agent own the issue through scoped feature verification, followed by
+   this one independent end-of-issue review? Nobody may weaken, delete, or skip a declared sensor to pass.
+3. **Action Log** — are lifecycle spans, deviations, and review verdicts recorded so the lifecycle is auditable?
 4. **Trace / Process Evidence** — when a local trace exists, the required trace review section below is part of every
    issue/PR review and feeds this verdict.
 
@@ -312,21 +311,21 @@ a **process violation**.
    passed; whether tool spans exist, remembering that `has_tool_spans=false` means runtime **instrumentation** was
    **absent**, NOT that no tools ran; model/token coverage, remembering that `tokens=null` means token data is
    **unavailable**, not zero cost; and whether the run finished plus the final outcome (`pass` / `fail` / `n-a`).
-4. **Apply the evidence-authority split.** Role-attributed handback **agent** spans are **authoritative** for red-first
-   evidence. Runtime **tool** spans are **corroborating** process evidence only, until deterministic per-feature/per-sensor
-   attribution exists. Use an `agent span` to establish red-first handback evidence and a `tool span` only to corroborate
-   process context; never treat tool spans alone as sufficient proof of TDD order.
-5. **Check process evidence for each coded feature.** Verify `red_handback` -> `impl_handback` -> `green_handback`
-   ordering unless the feature carries a governed `waiver` (waived). Confirm there is no unexplained `red_reentry`,
-   deviations are resolved or justified, and repeated-loop indicators were reviewed.
-6. **Check role attribution.** Active traces must attribute `red_handback`, `impl_handback`, and `green_handback` to
-   `generator-subagent` (historical). Historical traces may use the complete `test-subagent`, `implementation-subagent`,
-   `test-subagent` profile. Reject a triple that mixes those profiles. Missing instrumentation must be reported as the
-   exact phrase `trace evidence unavailable`, never inferred as pass.
-7. **Treat blocking process violations as BLOCKING.** A schema/redaction failure, `teeth_proof_missing`,
-   `red_first_ordering_absent` when it accompanies missing proof, `red_first_profile_mismatch` for a mixed-role
-   triple, unresolved `deviation`s, and repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even
-   when the code diff is clean.
+4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
+   `gate_sensors` feature-green evidence in a HEAD-bound
+   `SENSORS ... head=... scope=... ran=... failed=0` summary; `gate_review` `review_verdict` and approval evidence; and
+   `gate_merge_closeout` CI, merge, and finish evidence when reviewing a completed closeout. Harness-observed gate
+   evidence is authoritative; narrative claims and runtime tool spans are corroborating context only.
+5. **Check current process evidence.** Confirm every completed feature names its regression sensor and is backed by
+   feature-green evidence, every `deviation` is resolved or justified, review verdicts map to feature IDs, and
+   repeated-loop indicators were reviewed.
+6. **Read historical traces compatibly.** Reader-side compatibility may surface pre-#352 `red_handback`,
+   `impl_handback`, `green_handback`, `red_reentry`, waiver, and legacy role-attribution spans as historical context.
+   Do not require that retired choreography from current runs or infer a current failure from its absence. Missing
+   current instrumentation must be reported as the exact phrase `trace evidence unavailable`, never inferred as pass.
+7. **Treat current hard-gate violations as BLOCKING.** A schema/redaction failure, missing hard-gate evidence,
+   unresolved `deviation`s, and repeated-`loop` anomalies are **BLOCKING** findings. They feed the verdict even when
+   the code diff is clean.
    - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
      trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
      the `error`-level record with `harness.outcome == "fail"` for that `harness.stage` — and cite its (redacted,
