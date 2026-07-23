@@ -170,15 +170,31 @@ for required in \
 done
 end_scenario "contract still declares every required harness script"
 
-# --- 2b. CI-green merge precondition backstop (issue #51) --------------------
-# The contract must keep declaring that a green CI run is required before merge,
-# owned by scripts/merge-pr.sh. Deleting the lifecycle obligation from the YAML
-# must fail this sensor even though section 3 would no longer check it.
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-green-precondition[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the ci-green-precondition lifecycle obligation"
+# --- 2b. Four-gate structure and CI-green backstop ---------------------------
+gate_sections=(gate_start gate_sensors gate_review gate_merge_closeout)
+for section in "${gate_sections[@]}"; do
+  records="$(parse_records "$section")"
+  if [ -z "$records" ]; then
+    fail "contract does not declare ${section}"
+    continue
+  fi
+  while IFS= read -r rec; do
+    [ -n "$rec" ] || continue
+    for required_field in id trigger consumes produces mode owner present; do
+      [ -n "$(field "$rec" "$required_field")" ] \
+        || fail "${section}: record is missing ${required_field}"
+    done
+    mode="$(field "$rec" mode)"
+    case "$mode" in
+      hard|warn) ;;
+      *) fail "${section}: mode must be hard or warn, got '${mode:-<empty>}'" ;;
+    esac
+  done <<< "$records"
+done
+require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
 grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
   || fail "contract no longer declares the ci-not-green-refused failure mode"
-end_scenario "contract declares the CI-green merge precondition and its failure mode"
+end_scenario "contract declares four complete gates and the CI-green merge precondition"
 
 # --- 2c. Trace-lib registration backstop (issue #93) -------------------------
 # scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
@@ -274,8 +290,10 @@ check_owner_present() {
   done < <(parse_records "$section")
 }
 
-check_owner_present lifecycle
-end_scenario "lifecycle obligations still present in their owner scripts"
+for section in "${gate_sections[@]}"; do
+  check_owner_present "$section"
+done
+end_scenario "four-gate obligations still present in their owner scripts"
 check_owner_present env_flags
 end_scenario "env-flag obligations still present in their owner scripts"
 check_owner_present state_transitions

@@ -47,6 +47,9 @@ scripts:
   - id: check-feature-list
     path: scripts/check-feature-list.sh
     role: Validate per-issue feature_list.json structure and completion.
+  - id: run-sensors
+    path: scripts/run-sensors.sh
+    role: Run scoped or full sensors and save a HEAD-bound gate summary.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
     role: Trace/artifact consistency checker with schema validation.
@@ -67,42 +70,49 @@ scripts:
     role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
 
 # ---------------------------------------------------------------------------
-# Lifecycle order. The harness must continue to perform these actions in this
-# sequence. `owner` ties each step to the script that performs it; `present` is a
-# regex the owner script must still contain.
+# Four lifecycle gates. Every record names its trigger, consumed evidence,
+# produced evidence, enforcement mode, and implementation owner.
 # ---------------------------------------------------------------------------
-lifecycle:
-  - id: preflight
-    owner: scripts/init.sh
-    present: preflight
-  - id: profile-load
-    owner: scripts/init.sh
-    present: profiles/
-  - id: issue-lookup
-    owner: scripts/issue-lib.sh
-    present: gh issue view
-  - id: branch-worktree-creation
+gate_start:
+  - id: issue-worktree
+    trigger: issue selected for delivery
+    consumes: live GitHub issue record and successful preflight exit
+    produces: isolated branch, worktree, and tracking scaffold
+    mode: hard
     owner: scripts/start-issue.sh
     present: git worktree add
-  - id: tracking-scaffold
-    owner: scripts/start-issue.sh
-    present: feature_list.json
-  - id: feature-list-validation
-    owner: scripts/check-feature-list.sh
-    present: feature_list.json
-  - id: review-approval
+
+gate_sensors:
+  - id: scoped-green
+    trigger: implementation unit ready for verification
+    consumes: declared and affected sensor set
+    produces: HEAD-bound SENSORS summary with exit status
+    mode: hard
+    owner: scripts/run-sensors.sh
+    present: SENSORS.*head=.*scope=.*ran=.*failed=
+
+gate_review:
+  - id: independent-review
+    trigger: all issue features complete and pre-review sensors green
+    consumes: independent review verdict and reviewed SHA
+    produces: HEAD-bound approved-head marker
+    mode: hard
     owner: scripts/review-gate.sh
     present: approve
-  - id: pr-creation
-    owner: scripts/create-pr.sh
-    present: gh pr create
-  - id: pr-merge-sync
-    owner: scripts/create-pr.sh
-    present: git rebase origin/main
-  - id: ci-green-precondition
+
+gate_merge_closeout:
+  - id: ci-green-merge
+    trigger: approved PR ready to merge
+    consumes: GitHub CI checks green at the PR HEAD
+    produces: merged PR
+    mode: hard
     owner: scripts/merge-pr.sh
     present: gh pr checks
-  - id: closeout-worktree-cleanup
+  - id: issue-closeout
+    trigger: PR merged
+    consumes: merged PR state and complete local issue state
+    produces: removed issue worktree and pruned metadata
+    mode: hard
     owner: scripts/finish-issue.sh
     present: git worktree (remove|prune)
 
