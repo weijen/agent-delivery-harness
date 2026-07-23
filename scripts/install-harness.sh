@@ -530,6 +530,7 @@ prune_retired() {
 	local digest rel extra dst actual base_hash prune_rc=0
 	[ -f "$TOMBSTONE_LEDGER" ] || die "tombstone ledger missing: ${TOMBSTONE_LEDGER}"
 
+	# shellcheck disable=SC2094 # the duplicate-entry grep below only reads the ledger
 	while IFS=$'\t' read -r digest rel extra; do
 		case "$digest" in
 		"" | \#*) continue ;;
@@ -569,6 +570,18 @@ prune_retired() {
 				fi
 				printf '  removed retired %s\n' "$rel"
 			fi
+			continue
+		fi
+
+		# A path may carry several ledger entries (upstream final content plus
+		# adopter-side deletion hashes backfilled by the three-way sensor). If a
+		# DIFFERENT entry for this path matches the file as it stands, defer to
+		# that entry instead of refusing on this one (adopter finding, foundry
+		# PoC 2026-07-23: duplicate scripts/.gitkeep entries turned a clean
+		# retire into a refusal).
+		# shellcheck disable=SC2094 # grep only reads the ledger the loop streams
+		if [ "$actual" != "$digest" ] \
+			&& grep -q "^${actual}	${rel}\$" "$TOMBSTONE_LEDGER" 2>/dev/null; then
 			continue
 		fi
 
