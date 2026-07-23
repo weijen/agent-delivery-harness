@@ -203,7 +203,52 @@ TRACE1="${R1}/.copilot-tracking/issues/issue-70/trace.jsonl"
 # exists — only a main-root trace file can hold a post-teardown span.
 f1="$(get_finish_span "complete finish (post-teardown survival)" "$TRACE1")"
 check_finish_span "complete finish" "$f1" pass 70
+child_tools="$(jq -r 'select(.span == "tool") | .["gen_ai.tool.name"]' "$TRACE1")"
+[ -z "$child_tools" ] \
+  || fail "complete finish: child spans must collapse into finish, found: ${child_tools}"
+printf '%s\n' "$f1" | jq -e '
+  has("harness.economics.features_total")
+  and has("harness.economics.features_passing")
+' >/dev/null \
+  || fail "complete finish: parent span must retain economics aggregates"
 validate_file "complete-finish trace" "$TRACE1"
+
+# Cross-run reporting must consume economics from the consolidated finish
+# lifecycle span rather than the retired finish-issue.economics child span.
+TRACE1_TMP="${TMP_DIR}/trace1-with-native-economics.jsonl"
+jq -c '
+  if .span == "lifecycle" and .["harness.lifecycle_step"] == "finish"
+  then . + {"harness.economics.native_subagent_count": 2}
+  else .
+  end
+' "$TRACE1" > "$TRACE1_TMP"
+mv "$TRACE1_TMP" "$TRACE1"
+(cd "$R1" && PATH="$BIN" ./scripts/trace-report.sh "$TRACE1") >/dev/null
+CROSS_RUN_OUT="${TMP_DIR}/cross-run.out"
+(cd "$R1" && PATH="$BIN" ./scripts/trace-report.sh --all --root "$R1") > "$CROSS_RUN_OUT"
+grep -Eq '\| 1/1 \| n/a \| 2 \|' "$CROSS_RUN_OUT" \
+  || { cat "$CROSS_RUN_OUT"; fail "cross-run report must retain economics from the final finish lifecycle span"; }
+
+# Historical traces may have a legacy economics tool span followed by a
+# terminal finish lifecycle span with no consolidated economics.
+TRACE1_TMP="${TMP_DIR}/trace1-with-legacy-economics.jsonl"
+jq -c '
+  if .span == "lifecycle" and .["harness.lifecycle_step"] == "finish"
+  then
+    (. + {
+      "span": "tool",
+      "gen_ai.tool.name": "finish-issue.economics",
+      "harness.economics.native_subagent_count": 3
+    }),
+    (with_entries(
+       select(.key | startswith("harness.economics.") | not)))
+  else .
+  end
+' "$TRACE1" > "$TRACE1_TMP"
+mv "$TRACE1_TMP" "$TRACE1"
+(cd "$R1" && PATH="$BIN" ./scripts/trace-report.sh --all --root "$R1") > "$CROSS_RUN_OUT"
+grep -Eq '\| 1/1 \| n/a \| 3 \|' "$CROSS_RUN_OUT" \
+  || { cat "$CROSS_RUN_OUT"; fail "cross-run report must fall back to legacy economics when the terminal finish span has none"; }
 
 # ============================================================================
 # 2. Incomplete list, warn mode → exit 0 unchanged, finish pass span

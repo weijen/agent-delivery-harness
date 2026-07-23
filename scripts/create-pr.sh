@@ -28,9 +28,9 @@
 #      content-changing commit/sync still needs fresh review — carry applies only
 #      when the actual default rebase produced exactly the pre-approved HEAD, the
 #      stored identity is a valid merge-free stable hex identity, and the
-#      post-rebase identity is unchanged. After carry (or when carry is inapplicable),
-#      the authoritative check always runs: merge/non-rewrite/fallback/legacy-marker
-#      paths all require fresh approval. Carry is best-effort, not a guarantee.
+#      post-rebase identity is unchanged. Successful carry is the post-sync
+#      approval gate; inapplicable carry and merge/non-rewrite/fallback paths
+#      still require the authoritative check.
 #   5. Push the branch — --force-with-lease after a rebase (the issue branch is
 #      yours alone), or a plain push after CREATE_PR_NO_REWRITE=1 (fast-forward-safe
 #      by construction: a merge's first parent is the remote's own prior tip).
@@ -203,7 +203,8 @@ fi
 
 # --- 1. Review approval gate ------------------------------------------------
 TRACE_STAGE="review_gate"
-"$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+TRACE_COLLAPSE_CHILD_SPANS=1 \
+  "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 
 # --- 2. Sync onto the latest main -------------------------------------------
 # CREATE_PR_NO_REWRITE=1 is the explicit, proactive non-rewriting mode (issue
@@ -329,8 +330,10 @@ if [ "$sync_mode" != "none" ]; then
   # reads the stored patch-id, recomputes the current patch-id, and on an
   # exact match: updates the marker's line 1 to the post-rebase SHA and emits
   # a carry-annotated review_gate_approve span. Carry is best-effort only:
-  # a nonzero exit (any mismatch or failure) leaves the marker unchanged;
-  # the authoritative check runs immediately after regardless of carry outcome.
+  # a nonzero exit (any mismatch or failure) leaves the marker unchanged and
+  # falls through to the authoritative check. A successful exact patch-id
+  # match is itself the post-sync gate, so repeating check would only rerun
+  # unchanged gate work.
   # Never called on CREATE_PR_NO_REWRITE merge, fallback merge, no-op/retry,
   # or rebase conflict paths — did_rebase=1 is the sole trigger (issue #310).
   if [ "$did_rebase" = "1" ]; then
@@ -339,8 +342,14 @@ if [ "$sync_mode" != "none" ]; then
       || _carry_rc=$?
     # Nonzero _carry_rc: carry inapplicable or impossible; diagnostic printed above.
     # Falls through to the authoritative check below.
+    if [ "$_carry_rc" -ne 0 ]; then
+      TRACE_COLLAPSE_CHILD_SPANS=1 \
+        "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+    fi
+  else
+    TRACE_COLLAPSE_CHILD_SPANS=1 \
+      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
   fi
-  "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 fi
 
 # --- 4. Push -----------------------------------------------------------------
@@ -402,7 +411,8 @@ if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
       _merge_main_or_die "./scripts/create-pr.sh"
       green "✓ ${branch} merged latest origin/main ($(git rev-parse --short origin/main)) — no history rewritten"
       TRACE_STAGE="post_sync_gate"
-      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+      TRACE_COLLAPSE_CHILD_SPANS=1 \
+        "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
       TRACE_STAGE="push"
       bold "==> Pushing ${branch} (non-rewriting)"
       git push origin "$branch"

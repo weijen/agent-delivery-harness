@@ -116,10 +116,8 @@ Workflow per issue:
    features (2–5 typical; each provable by one `regression_sensor`, plus an `e2e_sensor` when it
    crosses a real runtime boundary).
 2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
-   delete a test to make it pass. Record one `feature_start` span per selected feature
-   (`scripts/log-handback.sh`, role `conductor` — the enum is kept for historical-trace
-   compatibility; the #291 selection-evidence gate keys on the span), and record any
-   deviation as a `deviation` span at the moment it happens. Verify each feature with
+   delete a test to make it pass. Record any deviation as a `deviation` span at
+   the moment it happens. Verify each feature with
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
    — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
    is the only exception). These `green` and `--gate` forms are the only sensor
@@ -158,12 +156,9 @@ and defer the exposure sweep to the pre-PR review (§6).
 
 #### Required per-feature handoff sequence
 
-Retired as choreography (#352) — one agent delivers the feature end-to-end. What REMAINS
-required and keyed by feature id: every `passes:true` feature **must** carry a matching
-`feature_start` agent span (#291). The governed waiver object waives it: `teeth_proof_waiver`
-is the **canonical** key, `red_first_waiver` the **deprecated** alias; a malformed canonical
-key still **shadows** the legacy alias (key-presence **precedence**), and a malformed waiver
-does not waive.
+Retired as choreography (#352). `feature_start` is not required for current
+`passes:true` work (#370): historical spans remain schema-valid, but no
+selection-evidence gate or waiver applies.
 
 #### Agent-span conventions
 
@@ -176,7 +171,7 @@ obligations, per-commit review duty, the four-blocking-gate + five-dimension sel
 ceremony at green (the review owns quality), pre-review full-suite duplication beyond the one
 `--gate pre-review` run, and every "return payloads for the conductor to record" convention —
 you write your own spans. The trace spine narrows to: lifecycle spans (emitted by the scripts),
-`feature_start`, `deviation`, `review_verdict`, and the closeout economics.
+`deviation`, `review_verdict`, and the closeout economics.
 
 ## Same-Class Escalation
 
@@ -260,7 +255,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
   commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
-  `feature_start` / `deviation` / `review_verdict` spans as they happen and the render stays
+  `deviation` / `review_verdict` spans as they happen and the render stays
   truthful. Update `.copilot-tracking/issues/<issue>/plan.md` if the approach or remaining
   phases changed.
 

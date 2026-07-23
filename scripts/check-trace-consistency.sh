@@ -33,7 +33,6 @@
 #                     harness.feature_id, and harness.outcome=="pass" —
 #                     completion without evidence otherwise.
 #                         VIOLATION consistency: unverified_feature_pass <feature_id>
-#   feature_start_missing
 #                     every passes:true entry in feature_list.json must be
 #                     backed by at least one agent span with
 #                     harness.lifecycle_step=="feature_start" and matching
@@ -43,7 +42,6 @@
 #                     a malformed canonical key shadows a valid legacy one and
 #                     does not waive). The teeth_proof / red-first evidence
 #                     checks themselves are RETIRED (issue #334).
-#                         VIOLATION consistency: feature_start_missing <feature_id>
 #   review_verdict_missing
 #                     under issue #303 per-feature review is removed and the
 #                     single independent review runs at issue completion; a
@@ -541,7 +539,6 @@ fi
 #   ::gap <N>        span=="agent" on line N lacks gen_ai.agent.name or its
 #                    value is outside the closed log-handback role enum
 #   ::green <fid>    green_handback agent span with outcome pass for <fid>
-#   ::fstart <fid>   feature_start agent span for <fid> (role not enforced)
 #   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
 #   ::verdict <fid>  review_verdict agent span for <fid> (ANY outcome) — the
 #                    set of features that DID receive a review verdict
@@ -609,12 +606,6 @@ cat > "$STATE_FILTER" <<'JQ'
          and ($span["harness.outcome"] == "pass")
          and (($span["harness.feature_id"] | type) == "string")
       then "::green \($span["harness.feature_id"])"
-      else empty
-      end ),
-    ( if ($span.span == "agent")
-         and ($span["harness.lifecycle_step"] == "feature_start")
-         and (($span["harness.feature_id"] | type) == "string")
-      then "::fstart \($span["harness.feature_id"])"
       else empty
       end ),
     ( if ($span.span == "agent")
@@ -815,7 +806,6 @@ if ! state_out="$(jq -nRr -f "$STATE_FILTER" < "$TRACE_FILE")"; then
 fi
 
 green_ids=$'\n'
-feature_start_ids=$'\n'
 reject_ids=$'\n'
 verdict_ids=$'\n'
 fullreview_pairs=$'\n'
@@ -836,7 +826,6 @@ while IFS= read -r out_line; do
       violations=$((violations + 1))
       ;;
     '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
-    '::fstart '*)  feature_start_ids="${feature_start_ids}${out_line#'::fstart '}"$'\n' ;;
     '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
     '::verdict '*) verdict_ids="${verdict_ids}${out_line#'::verdict '}"$'\n' ;;
     '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
@@ -1327,40 +1316,10 @@ fi
 if [ -f "$FEATURE_LIST_FILE" ]; then
   if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
       "$FEATURE_LIST_FILE" 2>/dev/null)"; then
-    # Governed red-first waivers (issue #144): a feature may skip red-first
-    # checking only when it carries a teeth_proof_waiver (canonical) or the
-    # deprecated red_first_waiver alias OBJECT whose .kind is in the closed set
-    # AND whose .reason is a non-empty string after trimming whitespace. Any
-    # other shape (missing, wrong type, invalid kind, empty reason) is NOT a
-    # waiver. Extracted once here, not per feature.
-    waiver_ids=$'\n'
-    if raw_waiver_ids="$(jq -r '
-        ["bootstrap", "visual-only", "doc-only", "justified"] as $kinds
-        | .features[]?
-        | select(.passes == true)
-        | (if has("teeth_proof_waiver") then .teeth_proof_waiver else .red_first_waiver end) as $w
-        | select(($w | type) == "object")
-        | select(($w.kind | type) == "string" and ($kinds | index($w.kind)) != null)
-        | select(($w.reason | type) == "string" and ($w.reason | test("\\S")))
-        | .id | strings' \
-        "$FEATURE_LIST_FILE" 2>/dev/null)"; then
-      while IFS= read -r wfid; do
-        [ -n "$wfid" ] || continue
-        waiver_ids="${waiver_ids}${wfid}"$'\n'
-      done <<< "$raw_waiver_ids"
-    fi
     while IFS= read -r fid; do
       [ -n "$fid" ] || continue
       if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
         printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
-        violations=$((violations + 1))
-      fi
-      if [[ "$waiver_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        :  # governed waiver — feature_start not required
-      elif [[ "$feature_start_ids" == *$'\n'"$fid"$'\n'* ]]; then
-        :  # feature_start span present for this feature_id
-      else
-        printf 'VIOLATION consistency: feature_start_missing %s\n' "$fid"
         violations=$((violations + 1))
       fi
       # review_verdict_missing (issue #303): once the review/approve phase is

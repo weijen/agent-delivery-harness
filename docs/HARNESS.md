@@ -109,8 +109,8 @@ The normal path is:
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
 6. Deliver it yourself with TDD — RED sensor, minimal production implementation, GREEN verified
-   with scoped sensors (`./scripts/run-sensors.sh green`), record `feature_start` and any
-   `deviation` spans, flip `passes:true` (#352: one agent, no handback choreography).
+   with scoped sensors (`./scripts/run-sensors.sh green`), record any `deviation`
+   spans, and flip `passes:true` (#352: one agent, no handback choreography).
 7. Repeat until all features pass.
 8. Run `./scripts/run-sensors.sh --gate pre-review`, then `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md), and performs an
@@ -157,8 +157,8 @@ one.
 ## Agent Topology (#352: one agent + one reviewer)
 
 The lifecycle is delivered by **one agent in one continuous context** per issue. It plans,
-authors the breakdown, implements with TDD, runs scoped sensors, records its own spans
-(`feature_start`, `deviation`), and drives the boundary scripts. The **only other model
+authors the breakdown, implements with TDD, runs scoped sensors, records its own
+`deviation` spans, and drives the boundary scripts. The **only other model
 invocation** is `code-review-subagent` — invoked once, pre-PR, over the whole branch diff, in a
 fresh context with no visibility into the delivery conversation (that independence is what made
 it the harness's most effective defect catcher). `repair`-mode re-reviews after a
@@ -318,8 +318,8 @@ local-only, gitignored, and never committed. Tracing never blocks the lifecycle:
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
 
-At closeout `./scripts/finish-issue.sh` also appends exactly one `finish-issue.economics` **tool span** — the durable
-machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
+At closeout `./scripts/finish-issue.sh` attaches delivery economics to its terminal `finish` **lifecycle span** — the
+durable machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
 numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
 `harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
 `harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,
@@ -413,8 +413,8 @@ The teeth-proof evidence machinery — the `teeth_proof` object, the red-first o
 from the independent end-of-issue review), while the ceremony taxed every green. TDD remains the working
 discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof` /
 `teeth_proof_waiver` (or the deprecated `red_first_waiver` alias) stay valid: `check-feature-list.sh` still
-shape-validates them warn-only, and governed waivers still satisfy the retained `feature_start` selection-evidence
-gate (#291), which is the only per-feature hard evidence obligation left on the PR path. Waiver kinds stay
+shape-validates them warn-only. The `feature_start` selection-evidence gate is
+also retired (#370); historical spans remain schema-valid. Waiver kinds stay
 `bootstrap`, `visual-only`, `doc-only`, or `justified` with a non-empty `reason`; `teeth_proof_waiver` remains the
 canonical key and `red_first_waiver` the deprecated alias (canonical wins when both are present).
 

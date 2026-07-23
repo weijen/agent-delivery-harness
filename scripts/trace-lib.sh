@@ -181,6 +181,9 @@ trace__resolve_issue() {
 trace_span() {
   local span_type="${1:-}"
   TRACE_LAST_SPAN_ID=""
+  if [ "${TRACE_COLLAPSE_CHILD_SPANS:-0}" = "1" ]; then
+    return 0
+  fi
   if [ -z "$span_type" ]; then
     trace_warn "trace_span: missing span type — span dropped"
     return 0

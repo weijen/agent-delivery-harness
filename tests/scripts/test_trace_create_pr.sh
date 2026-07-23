@@ -240,6 +240,9 @@ TRACE1="${R1}/.copilot-tracking/issues/issue-20/trace.jsonl"
 validate_file "happy-path trace" "$TRACE1"
 s1="$(get_pr_span "happy path" "$TRACE1")"
 check_pr_span "happy path" "$s1" pass
+child_tools="$(jq -r 'select(.span == "tool") | .["gen_ai.tool.name"]' "$TRACE1")"
+[ -z "$child_tools" ] \
+  || fail "happy path: child gate spans must collapse into pr_create, found: ${child_tools}"
 printf '%s\n' "$s1" | jq -e '
     ((.["harness.pr_number"] | tostring) == "123")
     and (.["harness.branch"] == "feature/issue-20-fixture")

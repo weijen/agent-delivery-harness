@@ -55,7 +55,7 @@
 #       reports on the given file directly
 #   ./scripts/trace-report.sh --all [--root <dir>]
 #       renders deterministic cross-run markdown from regenerated summaries
-#       and each sibling trace's final finish-issue.economics span
+#       and each sibling trace's final finish lifecycle economics
 #
 # Report-only: THIS script never gates on a run's health (exit codes below) —
 # but it is no longer un-invoked by lifecycle scripts. finish-issue.sh
@@ -352,9 +352,21 @@ cross_run_report() {
       economics="null"
       if [ -r "$trace_file" ]; then
         economics="$(jq -nR '
-          [inputs | fromjson? | objects
-           | select(.["gen_ai.tool.name"]? == "finish-issue.economics")]
-          | last // null
+          [inputs | fromjson? | objects] as $spans
+          | ([$spans[]
+              | select(
+                  .span? == "lifecycle"
+                  and .["harness.lifecycle_step"]? == "finish")
+              | select(
+                  [to_entries[]
+                   | select(.key | startswith("harness.economics."))]
+                  | length > 0)]
+             | last)
+            // ([$spans[]
+                 | select(
+                     .["gen_ai.tool.name"]? == "finish-issue.economics")]
+                | last)
+            // null
         ' < "$trace_file")"
       fi
       jq -c \
@@ -622,7 +634,7 @@ JQ
       "",
       "## Final closeout economics",
       "",
-      "Values come only from each trace's last finish-issue.economics span; n/a means no final span carried that measurement.",
+      "Values come from each trace's final finish lifecycle span (or the legacy economics tool span); n/a means no final span carried that measurement.",
       "",
       "| version | runs | passed | economics coverage | native subagent tokens | native subagents | native tool calls | native duration ms | native models | native AIU nano delta |",
       "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",

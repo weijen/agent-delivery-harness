@@ -47,7 +47,7 @@ __FINISH_LIB_SOURCED=1
 # 1 to block (the caller performs the `exit 1`).
 finish_trace_gate() {
   if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    if ! "${SCRIPT_DIR}/review-gate.sh" trace; then
+    if ! TRACE_COLLAPSE_CHILD_SPANS=1 "${SCRIPT_DIR}/review-gate.sh" trace; then
       if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
         red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
         echo "  Resolve the findings above (or unset the flag) and re-run:"
@@ -76,7 +76,7 @@ finish_trace_gate() {
 # A missing review-gate.sh degrades to warn-and-skip. Returns 0 proceed, 1 block.
 finish_log_completeness_gate() {
   if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    if ! "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
+    if ! TRACE_COLLAPSE_CHILD_SPANS=1 "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
       if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
         red "✗ log-completeness gate blocked the finish (REQUIRE_LOG_COMPLETE=1)."
         echo "  Resolve the findings above (or unset the flag) and re-run:"
@@ -1286,11 +1286,24 @@ best_effort_economics_stamp() {
   case "$native_sid" in '' | *[!A-Za-z0-9_-]*) native_sid="" ;; esac
   if [ -n "$native_sid" ] && declare -F compute_native_economics >/dev/null 2>&1; then
     local native_events="${native_state_root}/${native_sid}/events.jsonl"
-    local native_window="" native_start="" native_end=""
+    local native_window="" native_start="" native_end="" closeout_end=""
     native_window="$(native_economics_window "$trace_file")"
     if [ -n "$native_window" ]; then
       native_start="${native_window%% *}"
       native_end="${native_window##* }"
+      # Child lifecycle spans are collapsed during finish, so the trace's last
+      # pre-finish timestamp may precede native events produced later in the
+      # issue. Bound the join at closeout time, preserving a later synthetic
+      # trace timestamp if the clock or fixture lies ahead.
+      closeout_end="$(date -u +%s 2>/dev/null || true)"
+      case "$closeout_end" in
+        '' | *[!0-9]*) ;;
+        *)
+          if [ "$closeout_end" -gt "$native_end" ]; then
+            native_end="$closeout_end"
+          fi
+          ;;
+      esac
       native_json="$(compute_native_economics "$native_events" "$native_start" "$native_end")"
     fi
   fi
@@ -1325,8 +1338,7 @@ best_effort_economics_stamp() {
     finish__warn "⚠ economics stamp skipped: ${main_issue_dir} has an unsafe (symlinked) ancestor"
   fi
 
-  # Durable machine record: append exactly one finish-issue.economics tool span
-  # with the numeric aggregates. Advisory — never blocks teardown.
+  # Retain machine-readable economics on the parent finish lifecycle span.
   if declare -F trace_span >/dev/null 2>&1; then
     local -a econ_agg=()
     local agg_line=""
@@ -1341,10 +1353,14 @@ best_effort_economics_stamp() {
         [ -n "$agg_line" ] && econ_agg+=("$agg_line")
       done < <(native_economics_numeric "$native_json")
     fi
-    TRACE_ISSUE="$stamp_issue" trace_span tool \
-      "gen_ai.tool.name=finish-issue.economics" \
-      "harness.outcome=pass" \
-      ${econ_agg[@]+"${econ_agg[@]}"} >/dev/null 2>&1 || true
+    if declare -p FINISH_ECONOMICS_ATTRS >/dev/null 2>&1; then
+      FINISH_ECONOMICS_ATTRS=("${econ_agg[@]}")
+    else
+      TRACE_ISSUE="$stamp_issue" trace_span tool \
+        "gen_ai.tool.name=finish-issue.economics" \
+        "harness.outcome=pass" \
+        ${econ_agg[@]+"${econ_agg[@]}"} >/dev/null 2>&1 || true
+    fi
   fi
 
   return 0
