@@ -108,12 +108,30 @@ list_files() {
 # Reconcile hooks for install-harness: the desired content is a real source file
 # ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
 # are invoked indirectly by reconcile_entry (SC2329).
+atomic_copy() {
+	local src="$1" dst="$2" label="$3" tmp=""
+	tmp="$(mktemp "$(dirname "$dst")/.harness-write.XXXXXX")" \
+		|| die "could not create temporary file for ${label}"
+	if ! cp -p "$src" "$tmp"; then
+		rm -f "$tmp"
+		die "could not stage ${label}"
+	fi
+	if ! mv -f "$tmp" "$dst"; then
+		rm -f "$tmp"
+		die "could not replace ${label} atomically"
+	fi
+}
+
 # shellcheck disable=SC2317,SC2329
 rc_equal() { cmp -s "$RC_SRC" "$RC_DST"; }
 # shellcheck disable=SC2317,SC2329
 rc_write() {
+	target_parent_is_safe "$RC_REL" \
+		|| die "refusing ${RC_REL}: symlinked parent directory"
+	target_destination_is_safe "$RC_REL" \
+		|| die "refusing ${RC_REL}: destination is not a regular file"
 	mkdir -p "$(dirname "$RC_DST")"
-	cp "$RC_SRC" "$RC_DST"
+	atomic_copy "$RC_SRC" "$RC_DST" "$RC_REL"
 }
 # shellcheck disable=SC2317,SC2329
 rc_diff() { diff -u "$RC_DST" "$RC_SRC" || true; }
@@ -130,7 +148,7 @@ append_lock_entry() {
 	printf '%s\t%s\n' "$digest" "$rel" >>"$LOCK_NEXT"
 }
 
-reject_parent_is_safe() {
+target_parent_is_safe() {
 	local rel="$1" current="$TARGET_DIR" component="" index=0
 	local -a components=()
 	IFS='/' read -r -a components <<<"$rel"
@@ -142,10 +160,35 @@ reject_parent_is_safe() {
 	return 0
 }
 
+target_destination_is_safe() {
+	local rel="$1" dst=""
+	dst="${TARGET_DIR}/${rel}"
+	[ ! -L "$dst" ] && { [ ! -e "$dst" ] || [ -f "$dst" ]; }
+}
+
+append_identity_gitignore() {
+	local dst="${TARGET_DIR}/.gitignore" tmp=""
+	target_parent_is_safe ".gitignore" \
+		|| die "refusing .gitignore: symlinked parent directory"
+	target_destination_is_safe ".gitignore" \
+		|| die "refusing .gitignore: destination is not a regular file"
+	tmp="$(mktemp "${TARGET_DIR}/.gitignore.XXXXXX")" \
+		|| die "could not create .gitignore temporary file"
+	if ! cp -p "$dst" "$tmp" \
+		|| ! printf '.github/harness-identity.env\n' >>"$tmp"; then
+		rm -f "$tmp"
+		die "could not stage .gitignore"
+	fi
+	if ! mv -f "$tmp" "$dst"; then
+		rm -f "$tmp"
+		die "could not replace .gitignore atomically"
+	fi
+}
+
 emit_reject() {
 	local rel="$1" dst="$2" src="$3" reject="" tmp="" diff_rc=0
 	reject="${dst}.rej"
-	if ! reject_parent_is_safe "$rel"; then
+	if ! target_parent_is_safe "$rel"; then
 		printf '  failed to emit %s.rej: symlinked parent directory\n' "$rel" >&2
 		return 1
 	fi
@@ -177,7 +220,7 @@ emit_reject() {
 
 validate_harness_lock() {
 	local digest="" rel="" extra=""
-	[ -e "$LOCK_FILE" ] || return 0
+	[ -e "$LOCK_FILE" ] || [ -L "$LOCK_FILE" ] || return 0
 	if [ ! -f "$LOCK_FILE" ] || [ -L "$LOCK_FILE" ]; then
 		die "refusing non-regular .harness-lock"
 	fi
@@ -201,6 +244,10 @@ validate_harness_lock() {
 write_harness_lock() {
 	local target_tmp=""
 	[ "$MODE" != "dry" ] || return 0
+	target_parent_is_safe ".harness-lock" \
+		|| die "refusing .harness-lock: symlinked parent directory"
+	target_destination_is_safe ".harness-lock" \
+		|| die "refusing non-regular .harness-lock"
 	target_tmp="$(mktemp "${TARGET_DIR}/.harness-lock.XXXXXX")" \
 		|| die "could not create .harness-lock temporary file"
 	{
@@ -244,6 +291,7 @@ reconcile() {
 	fi
 	RC_SRC="${REPO_ROOT}/${rel}"
 	RC_DST="${TARGET_DIR}/${rel}"
+	RC_REL="$rel"
 	source_hash="$(sha256_file "$RC_SRC")"
 	base_hash="$(lock_base_hash "$rel")"
 	local missing=0
@@ -476,6 +524,9 @@ prune_harness_dev_sensors() {
 		if [ "$actual" = "$expected" ]; then
 			if [ "$MODE" = "dry" ]; then
 				printf '  would remove harness-dev sensor %s\n' "$rel"
+			elif ! target_parent_is_safe "$rel"; then
+				printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
+				prune_rc=1
 			elif rm -f "$dst"; then
 				printf '  removed harness-dev sensor %s\n' "$rel"
 			else
@@ -492,7 +543,10 @@ prune_harness_dev_sensors() {
 				append_lock_entry "deleted" "$rel"
 			elif [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
 				printf '  removing harness-dev sensor %s (upstream policy changed)\n' "$rel"
-				if rm -f "$dst"; then
+				if ! target_parent_is_safe "$rel"; then
+					printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
+					prune_rc=1
+				elif rm -f "$dst"; then
 					printf '  removed harness-dev sensor %s\n' "$rel"
 				else
 					printf '  failed to remove harness-dev sensor %s\n' "$rel" >&2
@@ -562,6 +616,10 @@ prune_retired() {
 		if [ "$actual" = "$digest" ]; then
 			if [ "$MODE" = "dry" ]; then
 				printf '  would remove retired %s\n' "$rel"
+			elif ! target_parent_is_safe "$rel"; then
+				printf '  failed to remove retired %s: symlinked parent directory\n' "$rel" >&2
+				prune_rc=1
+				continue
 			else
 				if ! rm -f "$dst"; then
 					printf '  failed to remove retired %s\n' "$rel" >&2
@@ -592,7 +650,11 @@ prune_retired() {
 				append_lock_entry "deleted" "$rel"
 			elif [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
 				printf '  removing retired %s (upstream deleted)\n' "$rel"
-				if ! rm -f "$dst"; then
+				if ! target_parent_is_safe "$rel"; then
+					printf '  failed to remove retired %s: symlinked parent directory\n' "$rel" >&2
+					prune_rc=1
+					continue
+				elif ! rm -f "$dst"; then
 					printf '  failed to remove retired %s\n' "$rel" >&2
 					prune_rc=1
 					continue
@@ -689,9 +751,11 @@ if [ "$MODE" != "dry" ] \
 	# Source path is anchored to the runtime repository root.
 	# The filled binding is machine-local by design: make sure the adopter
 	# repo never commits it (apex-vs incident, 2026-07-23).
+	target_destination_is_safe ".gitignore" \
+		|| die "refusing .gitignore: destination is not a regular file"
 	if [ -e "${TARGET_DIR}/.gitignore" ] \
 		&& ! grep -qx '\.github/harness-identity\.env' "${TARGET_DIR}/.gitignore" 2>/dev/null; then
-		printf '.github/harness-identity.env\n' >>"${TARGET_DIR}/.gitignore"
+		append_identity_gitignore
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
 	# shellcheck source=/dev/null
