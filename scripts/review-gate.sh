@@ -126,8 +126,8 @@ Commands:
               review_gate_approve span. A nonzero exit means carry was impossible
               (missing/malformed marker, wrong pre-rebase SHA, identity mismatch,
               or computation failure) — the marker is unchanged and no span is
-              emitted. Carry is best-effort: create-pr.sh always calls the
-              authoritative `check` subcommand immediately after.
+              emitted. Successful carry is the post-sync approval gate;
+              create-pr.sh calls `check` only when carry is unavailable.
   check       Require the recorded approval to match the current HEAD, and that
               the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
               Also runs the ci-gate and the trace gate (warn-only unless
