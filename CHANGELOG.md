@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.34.3 (2026-07-23)
+
+### Bug Fixes
+
+- **#398**: Isolate review approval markers
+  ([#405](https://github.com/weijen/agent-delivery-harness/pull/405),
+  [`ecddd9f`](https://github.com/weijen/agent-delivery-harness/commit/ecddd9f08dbf97b0dc9960d486ac8c1c26defe8e))
+
+
 ## v0.34.2 (2026-07-23)
 
 ### Bug Fixes
