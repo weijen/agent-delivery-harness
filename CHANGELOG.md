@@ -2,6 +2,47 @@
 
 <!-- version list -->
 
+## v0.32.6 (2026-07-23)
+
+### Bug Fixes
+
+- **#368**: Close sensor claim parser bypasses
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#368**: Enforce HEAD-bound sensor evidence
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#368**: Enforce sensor claim integrity
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#368**: Finalize sensor claim validation
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#368**: Isolate canonical summary matching
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#368**: Save HEAD-bound gate summaries
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+### Testing
+
+- **#368**: Prove saved summary reads are inert
+  ([#391](https://github.com/weijen/agent-delivery-harness/pull/391),
+  [`4a2b6af`](https://github.com/weijen/agent-delivery-harness/commit/4a2b6af7be5d949daf6306ae0b7e83960c4edb25))
+
+- **#373**: Add shared fixture helper
+  ([`1a5a539`](https://github.com/weijen/agent-delivery-harness/commit/1a5a5390a1a0476a14818fb3b3bb680b101e4255))
+
+- **#373**: Migrate sensors to shared fixtures
+  ([`9c7e78c`](https://github.com/weijen/agent-delivery-harness/commit/9c7e78c58a8b8fcc7be6361a9710514b844e183d))
+
+
 ## v0.32.5 (2026-07-23)
 
 ### Bug Fixes
