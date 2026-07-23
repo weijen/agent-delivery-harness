@@ -18,8 +18,8 @@ repository-bound identity and per-process GitHub token are used. Never mutate
 global GitHub CLI state or run `gh auth switch`.
 Scratch output goes to `.copilot-tracking/tmp/` (gitignored); `/tmp` is read-only in sandboxed runs.
 
-You are launched with a **fresh context**. You have not seen the delivering agent's planning conversation, the implementer's
-reasoning, or any prior review. The objective, acceptance criteria, and modified file list in the delivering agent's prompt
+You are launched with a **fresh context**. You have not seen the delivering agent's planning conversation, reasoning,
+or any prior review. The objective, acceptance criteria, and modified file list in the delivering agent's prompt
 are your full scope; everything else you need comes from reading and searching the workspace, inspecting the diff,
 and executing focused sensors. This keeps your verdict independent of the discussion that produced the diff.
 
@@ -190,7 +190,7 @@ Apply every instruction file matching the verification assets you edit. For shel
    is absent.
 
 **Acceptance-criteria focus.** Do not block solely because the implementation differs from the plan wording. It is
-acceptable for the implementer to use a different helper, edit an equivalent file, combine small tasks, or split work
+acceptable for the delivering agent to use a different helper, edit an equivalent file, combine small tasks, or split work
 differently when:
 
 - The objective and acceptance criteria are satisfied.
@@ -294,7 +294,7 @@ unaddressed is normally **MAJOR** (or **CRITICAL** if it also breaks a spec crit
 a `Plan first` finding is **MAJOR** when in-scope, otherwise a tracked **MINOR**; a `Defer-accept` / `Defer-protect`
 finding is **MINOR** at most. A high usefulness score never downgrades a blocking severity, and it never justifies an
 unsafe deletion, a premature abstraction, or collapsing a justified boundary. Loop every BLOCKING/CRITICAL/MAJOR finding back to
-the implementer and name the sensor that must re-run before re-review.
+the delivering agent and name the sensor that must re-run before re-review.
 
 ## Trace / Process Evidence
 
@@ -384,7 +384,7 @@ quality/security/documentation finding remains.
 
 - **high** — You read the code and the issue is unambiguous.
 - **medium** — Likely real, but depends on caller behaviour or external state you did not verify.
-- **low** — A smell that may be intentional; the delivering agent or implementer can dismiss.
+- **low** — A smell that may be intentional; the delivering agent can dismiss.
 
 ## Review Modes
 
