@@ -2,6 +2,56 @@
 
 <!-- version list -->
 
+## v0.33.0 (2026-07-23)
+
+### Bug Fixes
+
+- **#370**: Align lifecycle authority
+  ([`286e329`](https://github.com/weijen/agent-delivery-harness/commit/286e329243ef209151c99d46318cca56d0b1b953))
+
+- **#370**: Bound native economics at closeout
+  ([`8266535`](https://github.com/weijen/agent-delivery-harness/commit/8266535a213648c05b81b0ece9ff115f10a93732))
+
+- **#370**: Preserve legacy economics fallback
+  ([`f8e9f22`](https://github.com/weijen/agent-delivery-harness/commit/f8e9f22777bf920fd1430594ffb14b7dcf65adda))
+
+- **#370**: Report consolidated finish economics
+  ([`b1d72c1`](https://github.com/weijen/agent-delivery-harness/commit/b1d72c1fc2dc96801f8d78e024d68174effb0146))
+
+### Documentation
+
+- **#370**: Align economics reporting authority
+  ([`d8a9174`](https://github.com/weijen/agent-delivery-harness/commit/d8a9174d195e364c9e47eb67a62d4233205c05ba))
+
+- **#370**: Align reduced lifecycle contracts
+  ([`63163dc`](https://github.com/weijen/agent-delivery-harness/commit/63163dc75a1ed77b600dd1ef197a34e7bedd9c68))
+
+### Features
+
+- **#370**: Collapse lifecycle child spans
+  ([`0b7fd94`](https://github.com/weijen/agent-delivery-harness/commit/0b7fd9465c68a88299e6dd080d3d83fce32fd6d6))
+
+- **#370**: Retire feature start enforcement
+  ([`32da382`](https://github.com/weijen/agent-delivery-harness/commit/32da382b29faec883a72d8746653995c60bafa07))
+
+- **#370**: Skip post-rebase gate on patch carry
+  ([`a0afaf9`](https://github.com/weijen/agent-delivery-harness/commit/a0afaf999b509e2f46624e714c00685a7c30646c))
+
+### Testing
+
+- **#370**: Preserve carry gate instrumentation
+  ([`6a657ab`](https://github.com/weijen/agent-delivery-harness/commit/6a657ab9b59643b9eb890b059694234b609ccac6))
+
+- **#376**: Consolidate finish closeout sensors
+  ([`92503b6`](https://github.com/weijen/agent-delivery-harness/commit/92503b6a18cb256ba24208c9fe51b5f6392fd12d))
+
+- **#376**: Preserve progress symlink defenses
+  ([`6925dbb`](https://github.com/weijen/agent-delivery-harness/commit/6925dbb51dafda6d848f0d328154f1c6ed9d269a))
+
+- **#376**: Retain closeout security assertions
+  ([`c3d5c5f`](https://github.com/weijen/agent-delivery-harness/commit/c3d5c5fbf433a4024f1a5776268442a80ab5e072))
+
+
 ## v0.32.8 (2026-07-23)
 
 ### Bug Fixes
