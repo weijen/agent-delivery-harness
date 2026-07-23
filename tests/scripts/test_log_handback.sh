@@ -157,7 +157,11 @@ chmod 640 "$RENDER_PROGRESS"
 "${ROOT}/scripts/render-action-log.sh" "$RENDER_TRACE" >/dev/null
 [ "$(grep -c 'historical RED' "$RENDER_PROGRESS")" = "1" ] \
   || fail "renderer duplicated a legacy row"
-[ "$(stat -f '%Lp' "$RENDER_PROGRESS" 2>/dev/null || stat -c '%a' "$RENDER_PROGRESS")" = "640" ] \
+case "$(uname -s)" in
+  Darwin) progress_mode="$(stat -f '%Lp' "$RENDER_PROGRESS")" ;;
+  *) progress_mode="$(stat -c '%a' "$RENDER_PROGRESS")" ;;
+esac
+[ "$progress_mode" = "640" ] \
   || fail "renderer changed progress permissions"
 
 # Symlink targets are never rewritten.
