@@ -400,8 +400,8 @@ log_completeness_gate() {
 # review_reject_cap_gate — hard-block the PR path on the review-rejection cap
 # (issue #300, feature review-reject-cap-gate).
 #
-# The enforcement half of the user-approved 3-rejection stop rule. Like
-# red_first_evidence_gate (and unlike the warn-only trace_gate), this gate
+# The enforcement half of the user-approved 3-rejection stop rule. Unlike the
+# warn-only trace_gate, this gate
 # BLOCKS BY DEFAULT — independent of REQUIRE_TRACE_CONSISTENCY. It runs
 # check-trace-consistency.sh for the current issue and fails ONLY when the
 # detection half reports:
@@ -458,8 +458,8 @@ review_reject_cap_gate() {
 # a per-feature review verdict (issue #303, feature verdict-missing-gate).
 #
 # The enforcement half of the single end-of-issue review contract. Like
-# red_first_evidence_gate and review_reject_cap_gate (and unlike the warn-only
-# trace_gate), this gate BLOCKS BY DEFAULT — independent of
+# review_reject_cap_gate, this gate BLOCKS BY DEFAULT — independent of the
+# warn-only trace_gate and
 # REQUIRE_TRACE_CONSISTENCY. It runs check-trace-consistency.sh for the current
 # issue WITH REVIEW_GATE_APPROVE_PHASE=1 exported for that one invocation, so
 # the review/approve phase is active at approve time even though the

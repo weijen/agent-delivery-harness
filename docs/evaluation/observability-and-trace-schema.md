@@ -448,7 +448,7 @@ labeled: per-stage summed span durations (script-measured work) and
 first-to-last timestamp elapsed (whole-run wall clock, including agent
 thinking time between spans) — never blended. Every number is computed from
 spans on disk; absent data stays absent (null, never a fabricated zero).
-The closeout `finish-issue.economics` span additionally publishes
+The closeout `finish` lifecycle span additionally publishes
 `harness.economics.wall_clock_ms` and `harness.economics.active_ms` as the
 machine-readable elapsed/active pair. Active time sorts valid timestamps and
 sums adjacent gaps up to and including 30 minutes; every larger gap contributes
@@ -462,7 +462,7 @@ unparseable lines are skipped and counted, with a pointer to
 Across runs, `scripts/trace-report.sh --all` (issue #104) aggregates the emitted
 `trace-summary.json` files into deterministic markdown keyed by attributed
 `harness.version`. It reads each sibling trace's last
-`finish-issue.economics` span for native economics, reports missing or skipped
+`finish` lifecycle span for native economics, reports missing or skipped
 summaries and explicit coverage, renders absent measurements as `n/a`, and
 writes no companion aggregate file.
 

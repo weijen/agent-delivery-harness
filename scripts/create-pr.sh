@@ -28,9 +28,9 @@
 #      content-changing commit/sync still needs fresh review — carry applies only
 #      when the actual default rebase produced exactly the pre-approved HEAD, the
 #      stored identity is a valid merge-free stable hex identity, and the
-#      post-rebase identity is unchanged. After carry (or when carry is inapplicable),
-#      the authoritative check always runs: merge/non-rewrite/fallback/legacy-marker
-#      paths all require fresh approval. Carry is best-effort, not a guarantee.
+#      post-rebase identity is unchanged. Successful carry is the post-sync
+#      approval gate; inapplicable carry and merge/non-rewrite/fallback paths
+#      still require the authoritative check.
 #   5. Push the branch — --force-with-lease after a rebase (the issue branch is
 #      yours alone), or a plain push after CREATE_PR_NO_REWRITE=1 (fast-forward-safe
 #      by construction: a merge's first parent is the remote's own prior tip).

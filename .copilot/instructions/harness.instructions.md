@@ -255,7 +255,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
   commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
-  `feature_start` / `deviation` / `review_verdict` spans as they happen and the render stays
+  `deviation` / `review_verdict` spans as they happen and the render stays
   truthful. Update `.copilot-tracking/issues/<issue>/plan.md` if the approach or remaining
   phases changed.
 
