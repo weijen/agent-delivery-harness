@@ -62,6 +62,8 @@ sanitized, commit-safe fixture or specification.
 10. **Keep the trace current** — the Action Log in `.copilot-tracking/issues/issue-NN/progress.md` is rendered
    from spans (#332): record `deviation` and review verdicts as they happen.
 11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
+12. **Doctrine sensors reject contradictions** — positive contract assertions must pair with explicit checks for
+    prohibited legacy or additive requirements.
 
 → The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
 session rituals and garbage-collection cadence are in

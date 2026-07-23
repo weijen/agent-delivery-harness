@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REVIEWER="${ROOT}/.copilot/agents/code-review-subagent.agent.md"
+REVIEWER="${REVIEWER_OVERRIDE:-${ROOT}/.copilot/agents/code-review-subagent.agent.md}"
 AGENTS="${ROOT}/AGENTS.md"
 WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
 EVALUATION="${ROOT}/docs/evaluation/README.md"
@@ -35,6 +35,12 @@ grep -qiE '(this review|review handback).{0,120}(supplies|produces|records).{0,8
   || note "reviewer trace guidance does not identify the current handback as gate_review verdict evidence"
 grep -qiE '(approval|approved-head).{0,120}(after|following).{0,80}(review verdict|review handback|APPROVED)' <<<"${trace_flat}" \
   || note "reviewer trace guidance does not defer approval evidence until after the review verdict"
+if grep -qiE '(^|[.!?][[:space:]]+)(require|must require)( (the|that))? retired (handback|choreography)' <<<"${trace_flat}"; then
+  note "reviewer trace guidance affirmatively requires retired handback choreography"
+fi
+if grep -qiE 'require.{0,120}(pre-existing|existing).{0,80}(review_verdict|approval evidence)|(review_verdict|approval evidence).{0,80}(before|prior to).{0,80}(this review|review handback)' <<<"${trace_flat}"; then
+  note "reviewer trace guidance requires gate-review evidence before the review can produce it"
+fi
 
 grep -qiE 'one (delivering )?agent' "${AGENTS}" \
   || note "AGENTS.md lacks the one-delivering-agent topology"
