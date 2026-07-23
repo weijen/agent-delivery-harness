@@ -91,3 +91,117 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 echo "finish-lib extraction checks passed"
+
+(
+cd "$ROOT"
+
+cd "$ROOT"
+
+fail=0
+note() { echo "✗ $*"; fail=1; }
+ok() { echo "· $*"; }
+
+LIB="scripts/reconcile-lib.sh"
+CALLERS="scripts/install-harness.sh scripts/scaffold-language.sh"
+
+# --- A. The shared lib exists and owns the skeleton -------------------------
+if [ ! -f "$LIB" ]; then
+	note "$LIB missing — the shared reconcile skeleton is not extracted"
+else
+	ok "shared lib present: $LIB"
+	grep -Eq '^reconcile_entry[[:space:]]*\(\)' "$LIB" ||
+		note "$LIB does not define reconcile_entry()"
+	# The skeleton's signature messages belong here (single source).
+	for msg in 'would create %s' 'up to date %s' 'updating %s' 'refusing to overwrite %s'; do
+		grep -qF "$msg" "$LIB" ||
+			note "$LIB is missing the skeleton message '$msg' (the extracted body must own it)"
+	done
+fi
+
+# --- B. Both CLIs source the lib and delegate; neither re-inlines it --------
+for caller in $CALLERS; do
+	if [ ! -f "$caller" ]; then
+		note "$caller missing"
+		continue
+	fi
+	grep -Eq 'reconcile-lib\.sh' "$caller" ||
+		note "$caller does not source reconcile-lib.sh"
+	grep -Eq 'reconcile_entry' "$caller" ||
+		note "$caller does not delegate to reconcile_entry"
+	# A re-inlined skeleton would carry these signature messages itself.
+	for msg in 'would create %s' 'up to date %s'; do
+		if grep -qF "$msg" "$caller"; then
+			note "$caller re-inlines the reconcile skeleton ('$msg' belongs only in $LIB)"
+		fi
+	done
+done
+
+# --- C. The lib ships with the harness --------------------------------------
+# scripts/reconcile-lib.sh lives under scripts/, which install-harness copies
+# wholesale via its asset manifest; assert that manifest entry is intact.
+if grep -Eq '^[[:space:]]*scripts[[:space:]]*$' scripts/install-harness.sh; then
+	ok "install-harness manifest ships scripts/ wholesale (covers $LIB)"
+else
+	note "install-harness manifest no longer ships scripts/ wholesale — add $LIB to the manifest explicitly"
+fi
+
+echo
+if [ "$fail" -ne 0 ]; then
+	echo "reconcile-lib extraction sensor FAILED (RED)"
+	exit 1
+fi
+echo "reconcile-lib extraction checks passed"
+)
+
+(
+cd "$ROOT"
+
+cd "$ROOT"
+
+lib="scripts/trace-lib.sh"
+# The four scripts that emit exactly ONE terminal lifecycle span from an EXIT trap.
+lifecycle_scripts="start-issue.sh create-pr.sh merge-pr.sh finish-issue.sh"
+
+fail=0
+note() { echo "✗ $*"; fail=1; }
+
+[ -f "$lib" ] || { echo "✗ missing $lib"; exit 1; }
+
+# --- Direction 1: the shared helper exists in trace-lib.sh --------------------
+grep -qE '^trace_lifecycle_init\(\)' "$lib" ||
+  note "${lib} must define the shared helper trace_lifecycle_init()"
+grep -qE '^trace_lifecycle_arm\(\)' "$lib" ||
+  note "${lib} must define the shared helper trace_lifecycle_arm()"
+
+# --- Direction 2: no lifecycle script carries an inline terminal-trap copy ----
+for base in $lifecycle_scripts; do
+  f="scripts/${base}"
+  [ -f "$f" ] || { note "expected lifecycle script ${f} is missing"; continue; }
+
+  # Must route through the shared helper.
+  grep -qE '\btrace_lifecycle_init\b' "$f" ||
+    note "${f} must call trace_lifecycle_init (use the shared helper, not an inline trap)"
+  grep -qE '\btrace_lifecycle_arm\b' "$f" ||
+    note "${f} must call trace_lifecycle_arm (arm the shared helper's terminal span)"
+
+  # Must NOT define its own terminal EXIT-trap function ...
+  if grep -qE '^trace__[A-Za-z0-9_]*_exit\(\)' "$f"; then
+    note "${f} defines an inline trace__*_exit() trap function — extract it into trace-lib.sh trace_lifecycle_init instead"
+  fi
+  # ... nor install one via trap.
+  if grep -qE 'trap[[:space:]]+.*trace__[A-Za-z0-9_]*_exit.*EXIT' "$f"; then
+    note "${f} installs an inline trace__*_exit EXIT trap — use trace_lifecycle_init instead"
+  fi
+  # ... nor emit a lifecycle terminal span outside the helper via a hand-rolled trap.
+  if grep -qE 'trace_span[[:space:]]+lifecycle' "$f" &&
+     grep -qE '^trace__[A-Za-z0-9_]*_exit\(\)' "$f"; then
+    note "${f} emits a lifecycle span from an inline trap — route it through trace_lifecycle_init"
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo "lifecycle-trap drift sensor FAILED"
+  exit 1
+fi
+echo "lifecycle-trap drift checks passed"
+)
