@@ -21,8 +21,8 @@
 #
 # Output: one result line per sensor (PASS/FAIL <path>), then a summary line:
 #   SENSORS <mode> head=<sha> scope=<scoped|full> ran=<n> failed=<m>
-# The summary line's scope/count feed TRACE_SENSOR_SCOPE / TRACE_SENSOR_COUNT
-# on the corresponding handback (see log-handback.sh #343 passthrough).
+# The saved summary is the authoritative, HEAD-bound gate result consumed by
+# review-gate.sh; scope/count are not copied into semantic trace spans.
 # Gate summaries are saved under ignored .copilot-tracking state. `--last`
 # refuses the record after HEAD changes and preserves the saved pass/fail exit.
 # Exit: 0 all green · 1 failed/stale result · 2 usage error.

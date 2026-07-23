@@ -205,7 +205,7 @@ emit_rc=0
     TRACE_FINDING_FINGERPRINT=sha256:atomic \
     TRACE_FINDING_BASELINE_STATE=new \
     TRACE_REVIEW_MODE=full \
-    scripts/log-handback.sh code-review-subagent review_verdict feat-a fail invalid
+    scripts/log-handback.sh conductor review_verdict feat-a fail invalid
 ) >/dev/null 2>&1 || emit_rc=$?
 [ "$emit_rc" -ne 0 ] || fail "missing TRACE_ACTIONABLE must hard-fail"
 [ ! -s "$EMIT_TRACE" ] || fail "invalid verdict must not write a partial span"
@@ -220,7 +220,7 @@ emit_rc=0
     TRACE_REVIEW_MODE=repair \
     TRACE_REPAIR_SCOPE=feat-a \
     TRACE_REVIEW_EVENT_ID=event-1 \
-    scripts/log-handback.sh code-review-subagent review_verdict feat-a fail valid
+    scripts/log-handback.sh conductor review_verdict feat-a fail valid
 ) >/dev/null
 jq -e '
   .["harness.actionable"] == "true"

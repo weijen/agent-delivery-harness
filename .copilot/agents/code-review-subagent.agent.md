@@ -51,9 +51,9 @@ From the delivering agent:
 
 Return any substantive review action or verdict that the delivering agent should record in the issue progress Action Log.
 End every review handback (the `Action Log` field of your output) with the structured payload line defined in
-`.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions), fed **verbatim** to
-`scripts/log-handback.sh`: role `code-review-subagent`, step `review_verdict` (`APPROVED` → `pass`,
-`NEEDS_REVISION` → `fail`).
+`.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions). The delivering conductor records
+that payload through `scripts/log-handback.sh`: role `conductor`, step `review_verdict`
+(`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
 
 ### FAIL Verdict Attribution Requirements (issue #318)
 

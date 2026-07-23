@@ -26,22 +26,6 @@
 #                         VIOLATION consistency: role_attribution_gap line <N>
 #
 # State rules (Phase 3):
-#   unverified_feature_pass
-#                     every passes:true entry in feature_list.json must be
-#                     backed by an agent span with
-#                     harness.lifecycle_step=="green_handback", matching
-#                     harness.feature_id, and harness.outcome=="pass" —
-#                     completion without evidence otherwise.
-#                         VIOLATION consistency: unverified_feature_pass <feature_id>
-#                     every passes:true entry in feature_list.json must be
-#                     backed by at least one agent span with
-#                     harness.lifecycle_step=="feature_start" and matching
-#                     harness.feature_id (issue #291; role not enforced).
-#                     Waived by a governed teeth_proof_waiver / deprecated
-#                     red_first_waiver alias object (key-presence precedence:
-#                     a malformed canonical key shadows a valid legacy one and
-#                     does not waive). The teeth_proof / red-first evidence
-#                     checks themselves are RETIRED (issue #334).
 #   review_verdict_missing
 #                     under issue #303 per-feature review is removed and the
 #                     single independent review runs at issue completion; a
@@ -87,21 +71,6 @@
 #                     printed but never counted as a violation and never flips
 #                     the exit code; no review-gate wiring here.
 #                         WARNING consistency: duplicate_full_review <feature_id> <reviewed_sha>
-#   reviewer_instruction_files_missing
-#                     a WARNING (issue #299): reviewer provenance mirror. For a
-#                     single harness.feature_id, when at least one HANDBACK span
-#                     (harness.lifecycle_step in
-#                     red_handback|impl_handback|green_handback) carries a
-#                     non-empty string harness.instruction_files but that
-#                     feature's review_verdict span does NOT, flag it once. The
-#                     conductor records the instruction files it feeds the
-#                     generator; it should record the ones it feeds the reviewer
-#                     too. Silent when the review_verdict already carries
-#                     instruction_files, or when no handback carried them
-#                     (nothing to mirror). WARN-ONLY — like duplicate_full_review
-#                     it is printed but never counted as a violation and never
-#                     flips the exit code; no review-gate wiring here.
-#                         WARNING consistency: reviewer_instruction_files_missing <feature_id>
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
@@ -123,10 +92,9 @@
 #                     spans" is now the NORMAL state, so this rule no longer
 #                     inspects tool spans. On a COMPLETE issue window
 #                     (worktree_create + finish lifecycle spans) it requires the
-#                     SEMANTIC SPINE to be present — at least one handback agent
-#                     span (harness.lifecycle_step in
-#                     red_handback|impl_handback|green_handback) or a conductor
-#                     feature_start agent span. An empty spine on a complete
+#                     SEMANTIC SPINE to be present — at least one current writer
+#                     agent span (feature_start, deviation, or review_verdict).
+#                     An empty spine on a complete
 #                     window is the real gap the retired dark_run guard
 #                     protected. Incomplete windows NOTE-skip; the
 #                     TRACE_ALLOW_DARK_RUN=1 env (name kept for compatibility)
@@ -415,7 +383,8 @@ def jq_skipped_pass:
 | [ $lines[] | fromjson? | .["harness.lifecycle_step"]? // empty | strings ] as $steps
 | (($steps | index("finish")) != null) as $finished
 | ( if $finished
-    then ((($contract[0].lifecycle_steps // []) - ["deviation"]) - $steps)
+    then (["preflight", "worktree_create", "review_gate_approve",
+           "pr_create", "pr_merge", "finish"] - $steps)
     else []
     end ) as $missing
 | $findings[],
@@ -538,18 +507,12 @@ fi
 # protocol parsed below:
 #   ::gap <N>        span=="agent" on line N lacks gen_ai.agent.name or its
 #                    value is outside the closed log-handback role enum
-#   ::green <fid>    green_handback agent span with outcome pass for <fid>
-#   ::reject <fid>   review_verdict agent span with outcome fail for <fid>
 #   ::verdict <fid>  review_verdict agent span for <fid> (ANY outcome) — the
 #                    set of features that DID receive a review verdict
 #   ::fullreview <fid>\t<sha>
 #                    review_verdict agent span with review_mode=="full" and a
 #                    string reviewed_sha; <fid> and <sha> are TAB-separated so
 #                    the (feature_id, reviewed_sha) grouping key is unambiguous
-#   ::hb_if <fid>    red_handback|impl_handback|green_handback agent span for
-#                    <fid> carrying a non-empty string harness.instruction_files
-#   ::rv_noif <fid>  review_verdict agent span for <fid> WITHOUT (absent/empty)
-#                    harness.instruction_files
 #   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
 #   ::pr <num>       pr_create span's harness.pr_number
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
@@ -602,20 +565,6 @@ cat > "$STATE_FILTER" <<'JQ'
       else empty
       end ),
     ( if ($span.span == "agent")
-         and ($span["harness.lifecycle_step"] == "green_handback")
-         and ($span["harness.outcome"] == "pass")
-         and (($span["harness.feature_id"] | type) == "string")
-      then "::green \($span["harness.feature_id"])"
-      else empty
-      end ),
-    ( if ($span.span == "agent")
-         and ($span["harness.lifecycle_step"] == "review_verdict")
-         and ($span["harness.outcome"] == "fail")
-         and (($span["harness.feature_id"] | type) == "string")
-      then "::reject \($span["harness.feature_id"])"
-      else empty
-      end ),
-    ( if ($span.span == "agent")
          and ($span["harness.lifecycle_step"] == "review_verdict")
          and (($span["harness.feature_id"] | type) == "string")
       then "::verdict \($span["harness.feature_id"])"
@@ -629,23 +578,6 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::fullreview \($span["harness.feature_id"])\u0009\($span["harness.reviewed_sha"])"
       else empty
       end ),
-    ( if ($span.span == "agent")
-         and ((["red_handback", "impl_handback", "green_handback"]
-               | index($span["harness.lifecycle_step"])) != null)
-         and (($span["harness.instruction_files"] | type) == "string")
-         and ($span["harness.instruction_files"] != "")
-         and (($span["harness.feature_id"] | type) == "string")
-      then "::hb_if \($span["harness.feature_id"])"
-      else empty
-      end ),
-    ( if ($span.span == "agent")
-         and ($span["harness.lifecycle_step"] == "review_verdict")
-         and (($span["harness.feature_id"] | type) == "string")
-         and (($span["harness.instruction_files"] | type) != "string"
-              or $span["harness.instruction_files"] == "")
-      then "::rv_noif \($span["harness.feature_id"])"
-      else empty
-      end ),
     ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
          and (($span["harness.review_gate_sha"] | type) == "string")
       then "::approve \($span["harness.review_gate_sha"])"
@@ -656,14 +588,13 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::pr \($span["harness.pr_number"] | tostring)"
       else empty
       end ),
-    # Eligible generator failures must carry a valid class and a separate
-    # route. Occurrence is computed in trace-file order for the same class;
-    # pass outcomes, non-generator roles, and review verdicts do not
+    # Current deviation failures must carry a valid class and a separate route.
+    # Occurrence is computed in trace-file order for the same class; pass
+    # outcomes, historical handback roles, and review verdicts do not
     # participate.
     ( if ($span.span == "agent")
-         and ($span["gen_ai.agent.name"] == "generator-subagent")
-         and ((["red_handback", "impl_handback", "green_handback"]
-               | index($span["harness.lifecycle_step"])) != null)
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
          and ((["fail", "blocked"] | index($span["harness.outcome"])) != null)
       then
         (($span["harness.failure_class"] // "")
@@ -672,9 +603,8 @@ cat > "$STATE_FILTER" <<'JQ'
              | fromjson? | objects
              | . as $prior
              | select(.span == "agent")
-             | select(.["gen_ai.agent.name"] == "generator-subagent")
-             | select((["red_handback", "impl_handback", "green_handback"]
-                       | index($prior["harness.lifecycle_step"])) != null)
+             | select(.["gen_ai.agent.name"] == "conductor")
+             | select(.["harness.lifecycle_step"] == "deviation")
              | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
              | select(.["harness.failure_class"] == $gfc)
            ] | length) + 1) as $occurrence
@@ -685,13 +615,12 @@ cat > "$STATE_FILTER" <<'JQ'
         | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
       else empty
       end ),
-    # Generator research provenance is a complete route-dependent truth table:
+    # Research provenance is a complete route-dependent truth table:
     # research requires one valid pair; every other disposition requires both
     # fields to be absent. Direct traces cannot bypass either branch.
     ( if ($span.span == "agent")
-         and ($span["gen_ai.agent.name"] == "generator-subagent")
-         and ((["red_handback", "impl_handback", "green_handback"]
-               | index($span["harness.lifecycle_step"])) != null)
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
          and (
            if $span["harness.failure_disposition"] == "research"
            then
@@ -709,12 +638,13 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::research \($n)"
       else empty
       end ),
-    # A successful escalated class repair is grounded in prior same-class
-    # failed/blocked handbacks. Arbitrary pass spans, point fixes, exemptions,
-    # and blocked research requests are not durable-rule completion events.
+    # A successful escalated class repair is a passing deviation grounded in
+    # prior same-class failed/blocked deviations. Arbitrary pass spans, point
+    # fixes, exemptions, and blocked research requests are not completion
+    # events.
     ( if ($span.span == "agent")
-         and ($span["gen_ai.agent.name"] == "generator-subagent")
-         and ($span["harness.lifecycle_step"] == "green_handback")
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
          and ($span["harness.outcome"] == "pass")
          and (($span["harness.failure_class"] | type) == "string")
          and (($span["harness.failure_disposition"] | type) == "string")
@@ -725,9 +655,8 @@ cat > "$STATE_FILTER" <<'JQ'
             | fromjson? | objects
             | . as $prior
             | select(.span == "agent")
-            | select(.["gen_ai.agent.name"] == "generator-subagent")
-            | select((["red_handback", "impl_handback", "green_handback"]
-                      | index($prior["harness.lifecycle_step"])) != null)
+            | select(.["gen_ai.agent.name"] == "conductor")
+            | select(.["harness.lifecycle_step"] == "deviation")
             | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
             | select(.["harness.failure_class"] == $dfc)
           ] as $prior_failures
@@ -805,12 +734,8 @@ if ! state_out="$(jq -nRr -f "$STATE_FILTER" < "$TRACE_FILE")"; then
   exit 2
 fi
 
-green_ids=$'\n'
-reject_ids=$'\n'
 verdict_ids=$'\n'
 fullreview_pairs=$'\n'
-hb_if_ids=$'\n'
-rv_noif_ids=$'\n'
 approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
@@ -825,12 +750,8 @@ while IFS= read -r out_line; do
         "${out_line#'::gap '}"
       violations=$((violations + 1))
       ;;
-    '::green '*)   green_ids="${green_ids}${out_line#'::green '}"$'\n' ;;
-    '::reject '*)  reject_ids="${reject_ids}${out_line#'::reject '}"$'\n' ;;
     '::verdict '*) verdict_ids="${verdict_ids}${out_line#'::verdict '}"$'\n' ;;
     '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
-    '::hb_if '*)   hb_if_ids="${hb_if_ids}${out_line#'::hb_if '}"$'\n' ;;
-    '::rv_noif '*) rv_noif_ids="${rv_noif_ids}${out_line#'::rv_noif '}"$'\n' ;;
     '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
@@ -922,11 +843,11 @@ durable_rule_target_valid() {
   esac
 }
 
-# Same-class generator trigger (issue #317). Every eligible failed or blocked
-# generator handback must carry a valid closed class. For valid observations,
-# "other" still needs detail and disposition must come from its own closed
-# enum. Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must
-# route by class and can never repeat point-fix.
+# Same-class trigger (issue #317, adapted to the current conductor deviation
+# writer). Every eligible failed or blocked deviation must carry a valid closed
+# class. Finding slugs retain their generator_* names for output compatibility.
+# Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must route
+# by class and can never repeat point-fix.
 if [ "$genfail_lines" != $'\n' ]; then
   while IFS= read -r gf_line; do
     [ -n "$gf_line" ] || continue
@@ -1278,50 +1199,20 @@ if [ "$fullreview_pairs" != $'\n' ]; then
     | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
 fi
 
-# --- State: reviewer_instruction_files_missing (issue #299, WARN-only) --------
-# Reviewer provenance mirror: for a single harness.feature_id, when at least one
-# HANDBACK span (harness.lifecycle_step in
-# red_handback|impl_handback|green_handback) carried a non-empty string
-# harness.instruction_files but that feature's review_verdict span did NOT,
-# warn once for that feature id. The intent is that if the conductor recorded
-# the instruction files fed to the generator, it should record the instruction
-# files fed to the reviewer too. A feature whose review_verdict already carries
-# instruction_files is silent, and a feature where NO handback carried them is
-# silent (nothing to mirror). The per-line ::hb_if / ::rv_noif fids collected
-# above are intersected here in bash (sort -u is a constant fork budget — no
-# per-line forks). WARN-ONLY: like duplicate_full_review this is printed but
-# never counted as a violation and never flips the exit code.
-if [ "$hb_if_ids" != $'\n' ]; then
-  while IFS= read -r hbif_fid; do
-    [ -n "$hbif_fid" ] || continue
-    if [[ "$rv_noif_ids" == *$'\n'"$hbif_fid"$'\n'* ]]; then
-      printf 'WARNING consistency: reviewer_instruction_files_missing %s\n' \
-        "$hbif_fid"
-      warnings=$((warnings + 1))
-    fi
-  done < <(printf '%s' "$hb_if_ids" | grep -v '^$' | sort -u)
-fi
-
 # --- Red-first evidence pass RETIRED (issue #334) -----------------------------
 # The per-feature RED-first trace-evidence profile check (issue #144/#264) and
 # teeth_proof gating are removed: measured yield across real runs was zero (all
 # real catches came from the independent review) while the ceremony taxed every
 # green. TDD remains doctrine; the trace no longer has to PROVE redness.
 # Historical traces/feature lists carrying teeth_proof or red-first spans stay
-# valid (legacy tolerance, #330 pattern). Governed waivers are retained solely
-# for the feature_start (#291) leg below.
+# valid (legacy tolerance, #330 pattern).
 
-# --- State: unverified_feature_pass -------------------------------------------
-# Every passes:true feature must have green_handback evidence in the trace.
+# --- State: review verdict completeness --------------------------------------
 if [ -f "$FEATURE_LIST_FILE" ]; then
   if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
       "$FEATURE_LIST_FILE" 2>/dev/null)"; then
     while IFS= read -r fid; do
       [ -n "$fid" ] || continue
-      if [[ "$green_ids" != *$'\n'"$fid"$'\n'* ]]; then
-        printf 'VIOLATION consistency: unverified_feature_pass %s\n' "$fid"
-        violations=$((violations + 1))
-      fi
       # review_verdict_missing (issue #303): once the review/approve phase is
       # active, a passes:true feature with no review_verdict span (any outcome)
       # is a real gap. Silent while the phase is inactive (normal mid-issue).
@@ -1332,10 +1223,10 @@ if [ -f "$FEATURE_LIST_FILE" ]; then
       fi
     done <<< "$passing_ids"
   else
-    printf 'NOTE: unverified_feature_pass check skipped (feature_list.json is not valid JSON)\n'
+    printf 'NOTE: review_verdict_missing check skipped (feature_list.json is not valid JSON)\n'
   fi
 else
-  printf 'NOTE: unverified_feature_pass check skipped (no feature_list.json)\n'
+  printf 'NOTE: review_verdict_missing check skipped (no feature_list.json)\n'
 fi
 
 # --- State: review_sha_mismatch (marker-only — no git, no network) ------------
@@ -1387,12 +1278,9 @@ fi
 # Runtime capture is retired (issue #305): "no runtime tool spans" is now the
 # NORMAL state, so this rule no longer inspects tool spans. On a COMPLETE issue
 # window (worktree_create + finish lifecycle spans) it requires the SEMANTIC
-# SPINE to be present — at least one handback agent span
-# (harness.lifecycle_step in red_handback|impl_handback|green_handback) or a
-# conductor feature_start agent span. An empty spine on a complete window is the
-# real gap the old dark_run guard protected. TRACE_ALLOW_DARK_RUN=1 (env name
-# kept for compatibility with sibling tests) now governs THIS spine check and
-# skips the block.
+# SPINE to be present — at least one current writer agent span (feature_start,
+# deviation, or review_verdict). Historical handback spans remain schema-valid
+# but no longer satisfy current-run completeness.
 if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
   printf 'NOTE: spine_incomplete check skipped (TRACE_ALLOW_DARK_RUN=1)\n'
 else
@@ -1410,8 +1298,7 @@ else
               $span["harness.lifecycle_step"] == "finish"))
            | .spine_spans +=
              (if $span.span == "agent" and
-                 (["red_handback", "impl_handback", "green_handback",
-                   "feature_start"]
+                 (["feature_start", "deviation", "review_verdict"]
                   | index($span["harness.lifecycle_step"])) != null
               then 1 else 0 end)
            | .issue =
