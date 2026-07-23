@@ -86,8 +86,18 @@ valid_fail_extra() {
   }'
 }
 
+reviewed_fail_extra() {
+  local suffix="$1" sha="$2" repeat_of="${3:-}"
+  valid_fail_extra "$suffix" | jq -c \
+    --arg sha "$sha" \
+    --arg repeat_of "$repeat_of" '
+      . + {"harness.reviewed_sha": $sha}
+      + if $repeat_of == "" then {} else {"harness.repeat_of": $repeat_of} end'
+}
+
 # 1. Actionability controls reject counting and rejects malformed persisted
-# values without letting non-actionable findings trip the cap.
+# values without letting non-actionable findings trip the cap. Missing
+# reviewed_sha preserves the historical raw three-failure behavior.
 prepare_case actionability
 {
   verdict 1 foo fail "$(valid_fail_extra foo-1)"
@@ -120,6 +130,61 @@ assert_lacks 'review_reject_cap_exceeded bar'
 assert_has 'actionable_without_evidence line 7'
 assert_has 'actionable_invalid line 8'
 assert_has 'non_actionable_finding line 6 bar'
+
+# Same-SHA resubmission is one unrepaired defect and trips at three.
+prepare_case same-sha-repeat
+{
+  verdict 1 same-sha fail "$(reviewed_fail_extra same-sha-1 sha-a)"
+  verdict 2 same-sha fail "$(reviewed_fail_extra same-sha-2 sha-a)"
+  verdict 3 same-sha fail "$(reviewed_fail_extra same-sha-3 sha-a)"
+} > "$TRACE"
+run_checker
+assert_has 'review_reject_cap_exceeded same-sha'
+
+# Explicit repeat_of chains identify one unrepaired defect across new SHAs.
+prepare_case explicit-repeat
+{
+  verdict 1 explicit fail "$(reviewed_fail_extra repeat-root sha-a)"
+  verdict 2 explicit fail "$(reviewed_fail_extra repeat-child sha-b sha256:repeat-root)"
+  verdict 3 explicit fail "$(reviewed_fail_extra repeat-grandchild sha-c sha256:repeat-child)"
+} > "$TRACE"
+run_checker
+assert_has 'review_reject_cap_exceeded explicit'
+
+# Three distinct repaired findings at new SHAs warn but do not hard-stop.
+prepare_case distinct-repaired
+{
+  verdict 1 distinct fail "$(reviewed_fail_extra distinct-1 sha-a)"
+  verdict 2 distinct fail "$(reviewed_fail_extra distinct-2 sha-b)"
+  verdict 3 distinct fail "$(reviewed_fail_extra distinct-3 sha-c)"
+} > "$TRACE"
+run_checker
+assert_lacks 'review_reject_cap_exceeded distinct'
+assert_has 'review_reject_count_warning distinct 3'
+
+# A reused component fingerprint still denotes new holes unless repeat_of says
+# the prior hole itself remains unrepaired.
+prepare_case same-component-new-holes
+{
+  verdict 1 component fail "$(reviewed_fail_extra component sha-a)"
+  verdict 2 component fail "$(reviewed_fail_extra component sha-b)"
+  verdict 3 component fail "$(reviewed_fail_extra component sha-c)"
+} > "$TRACE"
+run_checker
+assert_lacks 'review_reject_cap_exceeded component'
+assert_has 'review_reject_count_warning component 3'
+
+# Five distinct actionable failures are the moving-goalposts backstop.
+prepare_case five-total
+{
+  verdict 1 moving fail "$(reviewed_fail_extra moving-1 sha-a)"
+  verdict 2 moving fail "$(reviewed_fail_extra moving-2 sha-b)"
+  verdict 3 moving fail "$(reviewed_fail_extra moving-3 sha-c)"
+  verdict 4 moving fail "$(reviewed_fail_extra moving-4 sha-d)"
+  verdict 5 moving fail "$(reviewed_fail_extra moving-5 sha-e)"
+} > "$TRACE"
+run_checker
+assert_has 'review_reject_cap_exceeded moving'
 
 # 2. Finding baseline state never substitutes for a stable fingerprint, while
 # a complete neighboring finding remains clean.

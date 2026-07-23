@@ -47,16 +47,19 @@
 #                     end review, so verdict absence is not yet a gap.
 #                         VIOLATION consistency: review_verdict_missing <feature_id>
 #   review_reject_cap_exceeded
-#                     the detection half of the issue #300 3-rejection stop
-#                     rule: when a single harness.feature_id accumulates
-#                     THREE OR MORE agent spans with
-#                     harness.lifecycle_step=="review_verdict" and
-#                     harness.outcome=="fail", flag it once. Count is PER
-#                     feature_id (fewer than 3 rejections for a feature → no
-#                     finding); the feature id is echoed, like the sibling
-#                     feature-id findings. Report-only here — the review-gate
-#                     hard-block on this finding is a separate feature.
+#                     the detection half of the issue #300 stop rule, refined
+#                     by issue #388: flag three countable failures only when
+#                     they show one unrepaired defect (same reviewed SHA or an
+#                     explicit repeat_of chain). Five total countable failures
+#                     remain a hard moving-goalposts backstop. Traces missing
+#                     reviewed_sha retain the historical raw three-failure
+#                     behavior. Report-only here — review-gate enforcement is
+#                     unchanged.
 #                         VIOLATION consistency: review_reject_cap_exceeded <feature_id>
+#   review_reject_count_warning
+#                     three or four countable failures at distinct reviewed
+#                     SHAs without an explicit repeat chain are warn-only.
+#                         WARNING consistency: review_reject_count_warning <feature_id> <count>
 #   duplicate_full_review
 #                     a WARNING (issue #299): when two OR MORE agent spans with
 #                     harness.lifecycle_step=="review_verdict",
@@ -74,7 +77,8 @@
 #   review_sha_mismatch
 #                     the review_gate_approve span's harness.review_gate_sha
 #                     must equal the content of the
-#                     .copilot-tracking/review-gate/approved-head marker.
+#                     issue-scoped review-gate/issue-NN/approved-head marker,
+#                     with the legacy shared marker as a read fallback.
 #                     MARKER-ONLY (plan Open Question 2, resolved): no
 #                     live-HEAD git leg, no gh/network — the checker works
 #                     on a plain directory of artifacts.
@@ -112,7 +116,8 @@
 #   ./scripts/check-trace-consistency.sh <issue-number>
 #       trace.jsonl lives at <main root>/.copilot-tracking/issues/issue-NN/
 #       (main root resolved via the shared git common dir); marker at
-#       <main root>/.copilot-tracking/review-gate/approved-head.
+#       <main root>/.copilot-tracking/review-gate/issue-NN/approved-head,
+#       falling back to the legacy shared approved-head when absent.
 #       progress.md + feature_list.json resolve from the main-root issue dir
 #       when present, FALLING BACK to the invoking worktree's toplevel
 #       tracking dir otherwise (#103 loop-2 F1) — the real layout, where
@@ -122,8 +127,8 @@
 #       progress.md and feature_list.json are SIBLINGS of the named trace
 #       (hermetic L0 fixtures); when the trace lives at a contract-shaped
 #       path <root>/.copilot-tracking/issues/issue-NN/trace.jsonl the marker
-#       is <root>/.copilot-tracking/review-gate/approved-head, otherwise the
-#       marker is treated as absent (NOTE skip).
+#       is the matching issue-scoped approved-head with legacy fallback;
+#       otherwise the marker is treated as absent (NOTE skip).
 #
 # Fork budget: a handful of constant-count processes (three jq passes, the
 # lifted awk/sed/comm pipeline, one feature-list jq) — never per-line forks;
@@ -192,6 +197,7 @@ fi
 # --- Resolve the artifact set -------------------------------------------------
 TRACE_FILE=""
 MARKER_FILE=""
+LEGACY_MARKER_FILE=""
 PATH_MODE=0
 case "$ARG" in
   */* | *.jsonl)
@@ -212,7 +218,11 @@ case "$ARG" in
     fi
     ISSUE_PAD="$(printf '%02d' "$ISSUE_NUM")"
     TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-${ISSUE_PAD}/trace.jsonl"
-    MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/approved-head"
+    MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/issue-${ISSUE_PAD}/approved-head"
+    LEGACY_MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
     ;;
 esac
 
@@ -228,9 +238,15 @@ REPOSITORY_ROOT=""
 if [ -z "$MARKER_FILE" ]; then
   # Path mode: the marker is resolvable only when the trace sits at a
   # contract-shaped path; otherwise the rule skips with a NOTE below.
-  if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
-    MARKER_FILE="${BASH_REMATCH[1]}/.copilot-tracking/review-gate/approved-head"
-    REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
+  if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-([0-9][0-9]+)$ ]]; then
+    marker_root="${BASH_REMATCH[1]}"
+    marker_issue="${BASH_REMATCH[2]}"
+    MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/issue-${marker_issue}/approved-head"
+    LEGACY_MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
+    REPOSITORY_ROOT="$(cd "$marker_root" && pwd -P)"
   fi
 elif [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
   REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
@@ -702,6 +718,8 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.actionable"] // "") | if . == "" then "__EMPTY__" else . end) as $act
         | (($span["harness.finding_reproduction"] // "") | if . == "" then "__EMPTY__" else . end) as $repro
         | (($span["harness.finding_proposed_fix"] // "") | if . == "" then "__EMPTY__" else . end) as $fix
+        | (($span["harness.reviewed_sha"] // "") | if . == "" then "__EMPTY__" else . end) as $reviewed_sha
+        | (($span["harness.repeat_of"] // "") | if . == "" then "__EMPTY__" else . end) as $repeat_of
         # Provably legacy (issue #330): the span's OWN mandatory timestamp
         # parses AND is strictly before the PR #324 merge instant. Any
         # unparseable/absent timestamp or a timestamp at/after the boundary
@@ -711,7 +729,7 @@ cat > "$STATE_FILTER" <<'JQ'
            else null
            end) as $fa_ts_secs
         | (if $fa_ts_secs != null and $fa_ts_secs < $pr324_merge_epoch then "1" else "0" end) as $fa_legacy
-        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)\t\($fa_legacy)"
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)\t\($reviewed_sha)\t\($repeat_of)\t\($fa_legacy)"
       else empty
       end ),
     # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
@@ -742,7 +760,7 @@ failattr_lines=$'\n'
 repairscope_lines=$'\n'
 genfail_lines=$'\n'
 durable_lines=$'\n'
-countable_reject_ids=$'\n'
+countable_reject_records=$'\n'
 while IFS= read -r out_line; do
   case "$out_line" in
     '::gap '*)
@@ -934,7 +952,10 @@ if [ "$durable_lines" != $'\n' ]; then
   done < <(printf '%s' "$durable_lines" | grep -v '^$')
 fi
 
-# Process ::failattr signals: <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>\t<actionable>\t<reproduction>\t<proposed_fix>\t<legacy>
+# Process ::failattr signals:
+# <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>
+# \t<actionable>\t<reproduction>\t<proposed_fix>\t<reviewed_sha>\t<repeat_of>
+# \t<legacy>
 # <legacy> ("1"|"0", issue #330): "1" only when the span's own mandatory
 # timestamp parsed AND is strictly before the PR #324 merge instant
 # (2026-07-21T00:31:35Z) — see the STATE_FILTER era-boundary comment above.
@@ -944,7 +965,8 @@ fi
 if [ "$failattr_lines" != $'\n' ]; then
   while IFS= read -r fa_line; do
     [ -n "$fa_line" ] || continue
-    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix fa_legacy <<< "$fa_line"
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix \
+      fa_reviewed_sha fa_repeat_of fa_legacy <<< "$fa_line"
     # review_fail_unattributed: fail verdict must carry non-empty feature_id
     # (excluding "-" placeholder) or the literal "unmapped"
     if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
@@ -1051,12 +1073,12 @@ if [ "$failattr_lines" != $'\n' ]; then
         printf 'VIOLATION consistency: actionable_without_evidence line %s\n' "$fa_n"
         violations=$((violations + 1))
       else
-        # Actionable with evidence: countable toward reject cap.
-        countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+        # Actionable with evidence: eligible for reject-cap analysis.
+        countable_reject_records="${countable_reject_records}${fa_fid}"$'\t'"${fa_reviewed_sha}"$'\t'"${fa_fp}"$'\t'"${fa_repeat_of}"$'\n'
       fi
     elif [ "$fa_act_val" = "__EMPTY__" ]; then
       # Historical: no actionable field — backward-compatible, countable.
-      countable_reject_ids="${countable_reject_ids}${fa_fid}"$'\n'
+      countable_reject_records="${countable_reject_records}${fa_fid}"$'\t'"${fa_reviewed_sha}"$'\t'"${fa_fp}"$'\t'"${fa_repeat_of}"$'\n'
     else
       # actionable_invalid: value is not in the closed enum {true, false}
       # and is not absent (legacy). The emitter prevents new invalid values;
@@ -1149,27 +1171,75 @@ if [ "$repairscope_lines" != $'\n' ]; then
   done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
 fi
 
-# --- State: review_reject_cap_exceeded (issue #300, issue #318) ----------------
-# The DETECTION half of the 3-rejection stop rule. A fail verdict counts toward
-# the per-feature reject cap ONLY when it is countable:
-#   (a) actionable=true with evidence (non-empty reproduction or proposed_fix), OR
-#   (b) historical: no harness.actionable field (backward compatibility).
-# Non-countable fails:
-#   (c) actionable=false (non-actionable, WARNING only), OR
-#   (d) actionable=true without evidence (actionable_without_evidence VIOLATION).
-# The per-feature countable_reject_ids are accumulated above during the
-# ::failattr processing loop. The threshold is >=3 per feature_id.
-if [ "$countable_reject_ids" != $'\n' ]; then
-  while IFS= read -r reject_line; do
-    [ -n "$reject_line" ] || continue
-    reject_count="${reject_line%% *}"
-    reject_fid="${reject_line#* }"
-    if [ "$reject_count" -ge 3 ]; then
+# --- State: review rejection convergence (issues #300, #318, #388) -----------
+# Three failures hard-stop only when evidence identifies one unrepaired defect:
+# the same reviewed SHA was resubmitted three times, or repeat_of links three
+# findings into one chain. Three or four distinct repaired findings warn. Five
+# total countable failures hard-stop as the moving-goalposts backstop. If any
+# countable record for a feature lacks reviewed_sha, preserve the historical
+# raw three-failure cap because older traces cannot prove repairs occurred.
+if [ "$countable_reject_records" != $'\n' ]; then
+  reject_findings="$(
+    printf '%s' "$countable_reject_records" \
+      | awk -F '\t' '
+          NF >= 4 {
+            fid = $1
+            sha = $2
+            fingerprint = $3
+            repeat_of = $4
+            total[fid]++
+            features[fid] = 1
+
+            if (sha == "__EMPTY__") {
+              legacy[fid] = 1
+            } else {
+              sha_key = fid SUBSEP sha
+              sha_count[sha_key]++
+              sha_owner[sha_key] = fid
+            }
+
+            root = fid "#" NR
+            parent_key = fid SUBSEP repeat_of
+            if (repeat_of != "__EMPTY__" && (parent_key in latest_root)) {
+              root = latest_root[parent_key]
+            }
+            chain_count[root]++
+            chain_owner[root] = fid
+            latest_root[fid SUBSEP fingerprint] = root
+          }
+          END {
+            for (fid in features) {
+              cap = (total[fid] >= 5 || (legacy[fid] && total[fid] >= 3))
+              for (key in sha_count) {
+                if (sha_owner[key] == fid && sha_count[key] >= 3) {
+                  cap = 1
+                }
+              }
+              for (root in chain_count) {
+                if (chain_owner[root] == fid && chain_count[root] >= 3) {
+                  cap = 1
+                }
+              }
+              if (cap) {
+                print "CAP\t" fid "\t" total[fid]
+              } else if (total[fid] >= 3) {
+                print "WARN\t" fid "\t" total[fid]
+              }
+            }
+          }
+        '
+  )"
+  while IFS=$'\t' read -r reject_kind reject_fid reject_count; do
+    [ -n "$reject_kind" ] || continue
+    if [ "$reject_kind" = "CAP" ]; then
       printf 'VIOLATION consistency: review_reject_cap_exceeded %s\n' "$reject_fid"
       violations=$((violations + 1))
+    else
+      printf 'WARNING consistency: review_reject_count_warning %s %s\n' \
+        "$reject_fid" "$reject_count"
+      warnings=$((warnings + 1))
     fi
-  done < <(printf '%s' "$countable_reject_ids" | grep -v '^$' | sort | uniq -c \
-    | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+  done <<< "$reject_findings"
 fi
 
 # --- State: duplicate_full_review (issue #299, WARN-only) ---------------------

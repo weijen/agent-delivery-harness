@@ -152,9 +152,11 @@ N test files passed requires the matching HEAD-bound
 runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
 sweep (check #7, `public-exposure-audit`); the five quality skills run only in audit-sweep
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
-runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair (the third rejection
-of one feature — three or more `review_verdict/fail` spans — trips `review_reject_cap_exceeded`
-and stops the issue; `review-gate.sh` remains its deterministic enforcer);
+runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.
+Three countable verdicts for the same unrepaired defect (same reviewed SHA or an explicit
+`repeat_of` chain) trip `review_reject_cap_exceeded`; three distinct repaired findings warn, while
+five total countable failures remain the hard moving-goalposts backstop. A cap asks the human for
+a **design ruling**, not a fourth point repair; `review-gate.sh` remains its deterministic enforcer.
 post-repair re-reviews run the **`repair` review profile** scoped to the revised features only
 and defer the exposure sweep to the pre-PR review (§6).
 
