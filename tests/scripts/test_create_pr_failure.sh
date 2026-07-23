@@ -26,8 +26,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo
+TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -75,29 +78,23 @@ exit 1
 SH
 chmod +x "${BIN}/gh"
 
-# make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
+# make_pr_repo <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
 make_pr_repo() {
-  local dir="$1" pad="$2"
-  mkdir -p "${dir}/scripts" "${dir}/docs"
-  cp "${ROOT}/scripts/create-pr.sh" "${dir}/scripts/"
-  cp "${ROOT}/scripts/review-gate.sh" "${dir}/scripts/"
-  cp "${ROOT}/scripts/trace-lib.sh" "${dir}/scripts/" 2>/dev/null || true
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.name "Harness Test"
-  git -C "$dir" config user.email "harness-test@example.invalid"
-  git -C "$dir" config commit.gpgsign false
-  printf '.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
+  local pad="$1" dir=""
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh
+  dir="$FIXTURE_REPO"
+  mkdir -p "${dir}/docs"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
-  git -C "$dir" add .gitignore README.md docs/PROGRESS.md scripts
-  git -C "$dir" commit -q -m initial
-  git clone -q --bare "$dir" "${dir}-origin.git"
-  git -C "$dir" remote add origin "${dir}-origin.git"
+  git -C "$dir" add docs/PROGRESS.md
+  git -C "$dir" commit -q -m "add progress baseline"
+  git clone -q --bare "$dir" "${FIXTURE_TMP_DIR}/origin.git"
+  git -C "$dir" remote add origin "${FIXTURE_TMP_DIR}/origin.git"
   git -C "$dir" checkout -q -b "feature/issue-${pad}-fixture"
   printf '# Progress\n\nissue-%s work\n' "$pad" > "${dir}/docs/PROGRESS.md"
   git -C "$dir" add docs/PROGRESS.md
   git -C "$dir" commit -q -m "issue-${pad}: feature work"
   git -C "$dir" fetch -q origin main
+  PR_REPO="$dir"
 }
 
 # run_cpr <dir> <state-suffix> <out-file> [env=val ...] -- <args...>
@@ -113,8 +110,8 @@ run_cpr() {
 # ============================================================================
 # (a) gh pr create exits non-zero → loud failure, NO success line
 # ============================================================================
-RA="${TMP_DIR}/ra"
-make_pr_repo "$RA" 90
+make_pr_repo 90
+RA="$PR_REPO"
 (cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "setup: approve in gh-create-fail repo failed"
 OUT_A="${TMP_DIR}/a.out"
@@ -130,8 +127,8 @@ fi
 # ============================================================================
 # (b) gh pr create succeeds but PR number is unresolvable → loud failure
 # ============================================================================
-RB="${TMP_DIR}/rb"
-make_pr_repo "$RB" 90
+make_pr_repo 90
+RB="$PR_REPO"
 (cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "setup: approve in blank-number repo failed"
 OUT_B="${TMP_DIR}/b.out"

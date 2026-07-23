@@ -57,10 +57,19 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
-SCRATCH_ROOT="${ROOT}/.copilot-tracking/test-native-economics.$$"
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts finish-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+SCRATCH_ROOT="$FIXTURE_TMP_DIR"
+TEMPLATE_REPO="$FIXTURE_REPO"
 TMP_DIR="${SCRATCH_ROOT}/tmp"
 BIN="${SCRATCH_ROOT}/bin"
-trap 'rm -rf "${SCRATCH_ROOT}"' EXIT
+mkdir -p "${TEMPLATE_REPO}/docs/evaluation"
+cp "$SCHEMA" "${TEMPLATE_REPO}/docs/evaluation/trace-schema.v1.json"
+[ -f "${ROOT}/VERSION" ] && cp "${ROOT}/VERSION" "${TEMPLATE_REPO}/VERSION"
+git -C "$TEMPLATE_REPO" add docs VERSION 2>/dev/null || git -C "$TEMPLATE_REPO" add docs
+git -C "$TEMPLATE_REPO" commit -q -m "add trace contract"
 
 fails=0
 fail() {
@@ -113,18 +122,10 @@ write_fake_gh "${BIN}/gh"
 # Fixture scaffolding (mirrors test_economics_span.sh / test_finish_issue_summary_regen.sh)
 # ---------------------------------------------------------------------------
 copy_fixture_scripts() {
-  local dir="$1" s
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for s in finish-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh \
-    issue-lib.sh start-issue.sh finish-issue.sh check-feature-list.sh; do
-    [ -f "${ROOT}/scripts/${s}" ] \
-      || hard_fail "scripts/${s} not found — required by native economics fixture"
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
-  done
-  chmod +x "${dir}/scripts/"*.sh
-  cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"
-  [ -f "${ROOT}/VERSION" ] && cp "${ROOT}/VERSION" "${dir}/VERSION"
-  return 0
+  local dir="$1"
+  git clone -q "$TEMPLATE_REPO" "$dir"
+  git -C "$dir" config user.name "Harness Test"
+  git -C "$dir" config user.email "harness-test@example.invalid"
 }
 
 # make_git_fixture <dir> <issue> — a git repo with a planted issue tracking dir
@@ -133,15 +134,7 @@ copy_fixture_scripts() {
 make_git_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "$dir"
   copy_fixture_scripts "$dir"
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.name "Harness Test"
-  git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md docs scripts
-  git -C "$dir" commit -q -m initial
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"
   printf '# Issue %s progress\n\nStatus: in progress.\n\n## Action Log\n\n' "$issue" \
     > "${dir}/.copilot-tracking/issues/issue-${pad}/progress.md"
@@ -603,13 +596,6 @@ F_E2E="${TMP_DIR}/e2e"
 I_E2E=44
 PAD_E2E="$(printf '%02d' "$I_E2E")"
 copy_fixture_scripts "$F_E2E"
-git -C "$F_E2E" init -q -b main
-git -C "$F_E2E" config user.name "Harness Test"
-git -C "$F_E2E" config user.email "harness-test@example.invalid"
-printf '/.worktrees/\n.copilot-tracking/\n' > "${F_E2E}/.gitignore"
-printf 'fixture\n' > "${F_E2E}/README.md"
-git -C "$F_E2E" add .gitignore README.md scripts docs
-git -C "$F_E2E" commit -q -m initial
 if ! start_out="$(cd "$F_E2E" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$I_E2E" SLUG=fixture 2>&1)"; then
   printf '%s\n' "$start_out"; hard_fail "E2E setup: start-issue failed"
 fi

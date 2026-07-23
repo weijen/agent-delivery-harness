@@ -15,8 +15,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts review-gate.sh,ci-coverage-lib.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
+A="$FIXTURE_REPO"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -30,17 +34,9 @@ SMOKE_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: 
 # ============================================================================
 # Part A — standalone `ci-gate` subcommand (single git repo)
 # ============================================================================
-A="${TMP_DIR}/repo-a"
-mkdir -p "${A}/scripts"
-cp "${ROOT}/scripts/review-gate.sh" "${A}/scripts/review-gate.sh"
-cp "${ROOT}/scripts/ci-coverage-lib.sh" "${A}/scripts/ci-coverage-lib.sh"
 cp -R "${ROOT}/profiles" "${A}/profiles"
-git -C "$A" init -q -b main
-git -C "$A" config user.name "Harness Test"
-git -C "$A" config user.email "harness-test@example.invalid"
-printf 'fixture\n' > "${A}/README.md"
-git -C "$A" add .
-git -C "$A" commit -q -m "initial"
+git -C "$A" add profiles
+git -C "$A" commit -q -m "add profiles"
 
 OUT="${TMP_DIR}/a.out"
 run_a() { ( cd "$A"; "$@" ) >"$OUT" 2>&1; }
@@ -118,36 +114,23 @@ EOF
 chmod +x "${TMP_DIR}/bin/gh"
 
 # origin/main with the harness scripts + profiles + a docs/PROGRESS.md baseline
-OW="${TMP_DIR}/origin-work"
-mkdir -p "${OW}/scripts" "${OW}/docs"
-git init -q -b main "$OW"
-git -C "$OW" config user.name "Harness Test"
-git -C "$OW" config user.email "harness-test@example.invalid"
-cp "${ROOT}/scripts/create-pr.sh" "${OW}/scripts/create-pr.sh"
-cp "${ROOT}/scripts/review-gate.sh" "${OW}/scripts/review-gate.sh"
-cp "${ROOT}/scripts/ci-coverage-lib.sh" "${OW}/scripts/ci-coverage-lib.sh"
+fixture_repo --with-scripts create-pr.sh,review-gate.sh,ci-coverage-lib.sh
+OW="$FIXTURE_REPO"
+mkdir -p "${OW}/docs"
 cp -R "${ROOT}/profiles" "${OW}/profiles"
-printf '.copilot-tracking/\n' > "${OW}/.gitignore"
-printf 'initial\n' > "${OW}/README.md"
 printf '# Progress\n\nbaseline\n' > "${OW}/docs/PROGRESS.md"
-git -C "$OW" add .
-git -C "$OW" commit -q -m "initial"
+git -C "$OW" add docs/PROGRESS.md profiles
+git -C "$OW" commit -q -m "add progress and profiles"
 git clone -q --bare "$OW" "${TMP_DIR}/origin.git"
 
 # working repo on a feature branch off origin/main
-R="${TMP_DIR}/repo-b"
-mkdir -p "${R}/scripts" "${R}/docs"
-cp "${ROOT}/scripts/create-pr.sh" "${R}/scripts/create-pr.sh"
-cp "${ROOT}/scripts/review-gate.sh" "${R}/scripts/review-gate.sh"
-cp "${ROOT}/scripts/ci-coverage-lib.sh" "${R}/scripts/ci-coverage-lib.sh"
-cp -R "${ROOT}/profiles" "${R}/profiles"
+fixture_repo --with-scripts create-pr.sh,review-gate.sh,ci-coverage-lib.sh
+R="$FIXTURE_REPO"
 cd "$R"
-git init -q -b feature/ci-cov
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
 git remote add origin "${TMP_DIR}/origin.git"
 git fetch -q origin main
 git reset -q --hard origin/main
+git checkout -q -b feature/ci-cov
 
 export PATH="${TMP_DIR}/bin:${PATH}"
 export GH_LOG="${TMP_DIR}/gh.log"

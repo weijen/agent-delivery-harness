@@ -43,8 +43,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/trace-lib.sh}"
 CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts trace-lib.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -107,16 +110,11 @@ AWS_SK_SECRET='wJalrSYNTHETICSYNTHETICSYNTHETIC'
 XAPI_SECRET='synthetic-api-key-value-0001'
 
 # --- Fixture: throwaway git repo faking an issue-07 worktree ---------------------
-REPO="${TMP_DIR}/myrepo"
-mkdir -p "${REPO}/scripts"
-cp "$LIB" "${REPO}/scripts/trace-lib.sh"
+REPO="$FIXTURE_REPO"
+if [ "$LIB" != "${ROOT}/scripts/trace-lib.sh" ]; then
+  cp "$LIB" "${REPO}/scripts/trace-lib.sh"
+fi
 cd "$REPO"
-git init -q -b main
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
-printf 'fixture\n' > README.md
-git add README.md scripts/trace-lib.sh
-git commit -q -m initial
 git checkout -q -b feature/issue-07-redaction-fixture
 
 # The fixture must control issue resolution: no ambient overrides.

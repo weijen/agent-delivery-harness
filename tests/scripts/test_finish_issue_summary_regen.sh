@@ -53,9 +53,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="${ROOT}/.copilot-tracking/test-runs/test_finish_issue_summary_regen.$$"
-mkdir -p "$TMP_DIR"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts issue-lib.sh,start-issue.sh,finish-issue.sh,finish-lib.sh,check-feature-list.sh,trace-lib.sh,trace-report.sh,check-trace-consistency.sh,log-handback.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
+TEMPLATE_REPO="$FIXTURE_REPO"
+mkdir -p "${TEMPLATE_REPO}/docs/evaluation"
+cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${TEMPLATE_REPO}/docs/evaluation/trace-schema.v1.json"
+git -C "$TEMPLATE_REPO" add docs
+git -C "$TEMPLATE_REPO" commit -q -m "add trace schema"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -107,15 +114,10 @@ INCOMPLETE_LIST='{"features":[{"id":"a","title":"A","steps":[],"passes":false}]}
 # writer), and the docs/evaluation/trace-schema.v1.json contract file
 # trace-report.sh itself requires to run.
 copy_finish_fixture_scripts() {
-  local dir="$1" script
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for script in \
-    issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
-    trace-lib.sh trace-report.sh check-trace-consistency.sh log-handback.sh; do
-    cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
-  done
-  chmod +x "${dir}/scripts/"*.sh
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
+  local dir="$1"
+  git clone -q "$TEMPLATE_REPO" "$dir"
+  git -C "$dir" config user.name "Harness Test"
+  git -C "$dir" config user.email "harness-test@example.invalid"
 }
 
 # make_finish_fixture <dir> <issue> <list-json>
@@ -123,14 +125,6 @@ make_finish_fixture() {
   local dir="$1" issue="$2" list="$3" pad start_out
   pad="$(printf '%02d' "$issue")"
   copy_finish_fixture_scripts "$dir"
-
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.name "Harness Test"
-  git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md scripts docs
-  git -C "$dir" commit -q -m initial
 
   if ! start_out="$(cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture 2>&1)"; then
     printf '%s\n' "$start_out"
@@ -266,13 +260,8 @@ assert_regenerated "hard-refusal" "$R3" 3293 fail
 R4="${TMP_DIR}/r329d"
 copy_finish_fixture_scripts "$R4"
 rm -f "${R4}/scripts/trace-lib.sh"
-git -C "$R4" init -q -b main
-git -C "$R4" config user.name "Harness Test"
-git -C "$R4" config user.email "harness-test@example.invalid"
-printf '/.worktrees/\n.copilot-tracking/\n' > "${R4}/.gitignore"
-printf 'fixture\n' > "${R4}/README.md"
-git -C "$R4" add .gitignore README.md scripts docs
-git -C "$R4" commit -q -m initial
+git -C "$R4" add scripts/trace-lib.sh
+git -C "$R4" commit -q -m "remove trace library"
 if ! start_out4="$(cd "$R4" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh 3294 SLUG=fixture 2>&1)"; then
   printf '%s\n' "$start_out4"
   fail "trace-lib-absent setup: start-issue for issue 3294 failed"

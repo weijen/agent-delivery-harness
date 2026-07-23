@@ -2,8 +2,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/fixture.sh"
+fixture_repo --with-scripts create-pr.sh,review-gate.sh
+TMP_DIR="$FIXTURE_TMP_DIR"
+REPO="$FIXTURE_REPO"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/tap.sh"
@@ -64,21 +68,14 @@ EOF
 }
 
 setup_origin_main() {
-  mkdir -p "${TMP_DIR}/origin-work"
-  git init -q -b main "${TMP_DIR}/origin-work"
-  git -C "${TMP_DIR}/origin-work" config user.name "Harness Test"
-  git -C "${TMP_DIR}/origin-work" config user.email "harness-test@example.invalid"
-  mkdir -p "${TMP_DIR}/origin-work/scripts"
-  cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/origin-work/scripts/create-pr.sh"
-  cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/origin-work/scripts/review-gate.sh"
-  printf '.copilot-tracking/\n' > "${TMP_DIR}/origin-work/.gitignore"
-  printf 'initial\n' > "${TMP_DIR}/origin-work/README.md"
-  mkdir -p "${TMP_DIR}/origin-work/docs"
-  printf '# Progress\n\nbaseline\n' > "${TMP_DIR}/origin-work/docs/PROGRESS.md"
-  git -C "${TMP_DIR}/origin-work" add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/review-gate.sh
-  git -C "${TMP_DIR}/origin-work" commit -q -m "initial"
-  git clone -q --bare "${TMP_DIR}/origin-work" "${TMP_DIR}/origin.git"
-  git -C "${TMP_DIR}/origin-work" remote add origin "${TMP_DIR}/origin.git"
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh
+  ORIGIN_WORK="$FIXTURE_REPO"
+  mkdir -p "${ORIGIN_WORK}/docs"
+  printf '# Progress\n\nbaseline\n' > "${ORIGIN_WORK}/docs/PROGRESS.md"
+  git -C "$ORIGIN_WORK" add docs/PROGRESS.md
+  git -C "$ORIGIN_WORK" commit -q -m "add progress baseline"
+  git clone -q --bare "$ORIGIN_WORK" "${TMP_DIR}/origin.git"
+  git -C "$ORIGIN_WORK" remote add origin "${TMP_DIR}/origin.git"
   git remote add origin "${TMP_DIR}/origin.git"
   git fetch -q origin main
 }
@@ -86,33 +83,19 @@ setup_origin_main() {
 add_origin_main_commit() {
   local filename="$1"
   local content="$2"
-  printf '%s\n' "$content" > "${TMP_DIR}/origin-work/${filename}"
-  git -C "${TMP_DIR}/origin-work" add "$filename"
-  git -C "${TMP_DIR}/origin-work" commit -q -m "main update ${filename}"
-  git -C "${TMP_DIR}/origin-work" push -q origin main
+  printf '%s\n' "$content" > "${ORIGIN_WORK}/${filename}"
+  git -C "$ORIGIN_WORK" add "$filename"
+  git -C "$ORIGIN_WORK" commit -q -m "main update ${filename}"
+  git -C "$ORIGIN_WORK" push -q origin main
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts"
-cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/repo/scripts/create-pr.sh"
-cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/repo/scripts/review-gate.sh"
-
-cd "${TMP_DIR}/repo"
-git init -q -b feature/review-gate
-git config user.name "Harness Test"
-git config user.email "harness-test@example.invalid"
-
-printf '.copilot-tracking/\n' > .gitignore
+cd "$REPO"
 printf 'initial\n' > README.md
 mkdir -p docs
 printf '# Progress\n\nbaseline\n' > docs/PROGRESS.md
 git add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/review-gate.sh
-# Baseline commit on a local `main` ref — the status-doc gate's diff base when no
-# origin/main exists yet (Phase A). Feature commits below modify docs/PROGRESS.md.
-base_tree="$(git write-tree)"
-base_commit="$(printf 'baseline\n' | git commit-tree "$base_tree")"
-git branch -f main "$base_commit"
-git update-ref refs/heads/feature/review-gate "$base_commit"
-git reset -q --hard "$base_commit"
+git commit -q -m "add progress baseline"
+git checkout -q -b feature/review-gate
 
 printf '# Progress\n\ninitial feature work\n' > docs/PROGRESS.md
 git add docs/PROGRESS.md
@@ -150,6 +133,7 @@ emit "create-pr refuses without current-HEAD approval"
 write_fake_gh
 export PATH="${TMP_DIR}/bin:${PATH}"
 export GH_LOG="${TMP_DIR}/gh.log"
+ORIGIN_WORK=""
 setup_origin_main
 
 git reset -q --hard origin/main
