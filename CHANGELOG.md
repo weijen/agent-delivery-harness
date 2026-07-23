@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.32.4 (2026-07-23)
+
+### Bug Fixes
+
+- **#372**: Keep dynamic sources lintable
+  ([`070aa8f`](https://github.com/weijen/agent-delivery-harness/commit/070aa8faf92ca56b8aa07a3e209f17ace2f8863f))
+
+### Testing
+
+- **#372**: Cut obsolete sensor portfolio
+  ([`55c01b0`](https://github.com/weijen/agent-delivery-harness/commit/55c01b0d94936d58ae73617f7b8abf3b992808ee))
+
+
 ## v0.32.3 (2026-07-23)
 
 ### Bug Fixes
