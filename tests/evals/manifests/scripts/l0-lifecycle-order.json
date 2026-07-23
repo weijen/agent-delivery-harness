@@ -15,9 +15,8 @@
   },
   "blocking": true,
   "contract_refs": [
-    "lifecycle:branch-worktree-creation",
-    "lifecycle:pr-creation",
-    "lifecycle:closeout-worktree-cleanup",
-    "failure_modes:preflight-failure-aborts-start"
+    "gate_start:issue-worktree",
+    "gate_review:approved-pr",
+    "gate_merge_closeout:issue-closeout"
   ]
 }

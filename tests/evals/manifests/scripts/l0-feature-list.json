@@ -15,9 +15,8 @@
   },
   "blocking": true,
   "contract_refs": [
-    "failure_modes:malformed-feature-list",
-    "failure_modes:non-object-feature-list",
-    "failure_modes:passes-without-verification",
-    "lifecycle:feature-list-validation"
+    "scripts:check-feature-list",
+    "gate_start:tracking-ready",
+    "policy:hard-gates-observed-only"
   ]
 }

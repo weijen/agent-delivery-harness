@@ -15,8 +15,8 @@
   },
   "blocking": true,
   "contract_refs": [
-    "failure_modes:stale-review-approval",
-    "state_transitions:review-gate-marker",
-    "lifecycle:review-approval"
+    "gate_review:independent-review",
+    "sha_bindings:approval-head",
+    "bypasses:SKIP_CI_GATE"
   ]
 }

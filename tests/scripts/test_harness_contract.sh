@@ -170,24 +170,58 @@ for required in \
 done
 end_scenario "contract still declares every required harness script"
 
-# --- 2b. CI-green merge precondition backstop (issue #51) --------------------
-# The contract must keep declaring that a green CI run is required before merge,
-# owned by scripts/merge-pr.sh. Deleting the lifecycle obligation from the YAML
-# must fail this sensor even though section 3 would no longer check it.
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-green-precondition[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the ci-green-precondition lifecycle obligation"
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*ci-not-green-refused[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the ci-not-green-refused failure mode"
-end_scenario "contract declares the CI-green merge precondition and its failure mode"
+# --- 2b. Four-gate structure and CI-green backstop ---------------------------
+gate_sections=(gate_start gate_sensors gate_review gate_merge_closeout)
+for section in "${gate_sections[@]}"; do
+  records="$(parse_records "$section")"
+  if [ -z "$records" ]; then
+    fail "contract does not declare ${section}"
+    continue
+  fi
+  while IFS= read -r rec; do
+    [ -n "$rec" ] || continue
+    for required_field in id trigger consumes produces mode owner present; do
+      [ -n "$(field "$rec" "$required_field")" ] \
+        || fail "${section}: record is missing ${required_field}"
+    done
+    mode="$(field "$rec" mode)"
+    case "$mode" in
+      hard|warn) ;;
+      *) fail "${section}: mode must be hard or warn, got '${mode:-<empty>}'" ;;
+    esac
+  done <<< "$records"
+done
+require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
+end_scenario "contract declares four complete gates and the CI-green merge precondition"
 
-# --- 2c. Breakdown-ownership backstop (issue #78) ----------------------------
-# The contract must keep declaring that the conductor owns authoring the
-# feature_list.json breakdown (after the plan + human-input gate), owned by
-# scripts/start-issue.sh. Deleting the obligation from the YAML must fail this
-# sensor even though section 3 would then no longer check it.
-grep -Eq '^[[:space:]]*-[[:space:]]*id:[[:space:]]*breakdown-ownership[[:space:]]*$' "$CONTRACT" \
-  || fail "contract no longer declares the breakdown-ownership lifecycle obligation"
-end_scenario "contract declares the breakdown-ownership lifecycle obligation"
+# --- 2c. Evidence provenance, SHA chains, and governed bypasses --------------
+grep -Eq '^version:[[:space:]]+2$' "$CONTRACT" \
+  || fail "contract version must be 2"
+grep -Eq '^review_by:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}$' "$CONTRACT" \
+  || fail "contract must declare a review_by date"
+require_contract_record evidence id sensor-summary
+require_contract_record evidence id progress-prose
+require_contract_record policy id hard-gates-observed-only
+require_contract_record policy id new-rules-warn-first
+require_contract_record sha_bindings id approval-head scripts/review-gate.sh
+require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
+require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
+require_contract_record bypasses id FORCE scripts/finish-issue.sh
+require_contract_record bypasses id SKIP_CI_GATE scripts/review-gate.sh
+require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
+while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  provenance="$(field "$rec" provenance)"
+  case "$provenance" in
+    harness-observed|agent-claimed) ;;
+    *) fail "evidence record has invalid provenance '${provenance:-<empty>}'" ;;
+  esac
+done < <(parse_records evidence)
+while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  [ -n "$(field "$rec" audit)" ] || fail "bypass record is missing audit obligation"
+done < <(parse_records bypasses)
+end_scenario "contract declares evidence governance, SHA bindings, and audited bypasses"
 
 # --- 2d. Trace-lib registration backstop (issue #93) -------------------------
 # scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
@@ -196,16 +230,12 @@ end_scenario "contract declares the breakdown-ownership lifecycle obligation"
 # exists, is executable, and parses with bash -n), and section 4 asserts it
 # stays inside the language-neutral boundary alongside the other owners.
 
-# --- 2e. Trace-emission backstop (issue #94) ----------------------------------
+# --- 2d. Trace-emission backstop (issue #94) ----------------------------------
 # The six lifecycle scripts each emit schema-v1 trace spans via trace-lib.sh
 # (guarded source + trace_span calls). Two layers, mirroring 2b/2c:
 #   (a) script-side presence backstop: every instrumented owner must still
 #       reference trace_span AND trace-lib.sh — deleting the instrumentation
 #       from a script fails this sensor even if the YAML entry is deleted too;
-#   (b) the contract must declare a trace_emission section listing all six
-#       owners (each entry's present: regex is enforced by section 3's
-#       check_owner_present) and pin the schema authority
-#       docs/evaluation/trace-schema.v1.json.
 te_required=(
   scripts/start-issue.sh
   scripts/check-feature-list.sh
@@ -225,36 +255,19 @@ for owner in "${te_required[@]}"; do
   grep -Eq 'trace-lib\.sh' "$abs" \
     || fail "trace_emission/${owner}: no trace-lib.sh sourcing reference (issue #94)"
 done
+end_scenario "lifecycle scripts retain schema-v1 trace instrumentation"
 
-if grep -Eq '^trace_emission:' "$CONTRACT"; then
-  te_owners="$(parse_records trace_emission | while IFS= read -r rec; do
-    [ -n "$rec" ] && field "$rec" owner
-  done)"
-  for owner in "${te_required[@]}"; do
-    printf '%s\n' "$te_owners" | grep -qx "$owner" \
-      || fail "trace_emission: contract does not declare owner ${owner} (issue #94)"
-  done
-  awk '/^trace_emission:/{f=1;next} /^[A-Za-z_]+:/{f=0} f' "$CONTRACT" \
-    | grep -q 'docs/evaluation/trace-schema.v1.json' \
-    || fail "trace_emission: contract section does not reference the schema authority docs/evaluation/trace-schema.v1.json (issue #94)"
-else
-  fail "contract no longer declares the trace_emission section (issue #94)"
-fi
-end_scenario "lifecycle scripts emit schema-v1 trace spans (script-side + contract)"
-
-# --- 2f. Trace checker contract ------------------------------------------------
+# --- 2e. Trace checker contract ------------------------------------------------
 require_contract_record scripts path scripts/check-trace-consistency.sh
 end_scenario "contract declares the trace consistency checker"
 
-# --- 2g. Teeth-proof warning contract backstop (issue #263) ------------------
-require_contract_record failure_modes id teeth-proof-missing-warn scripts/check-feature-list.sh
-end_scenario "contract declares the teeth-proof-missing warn failure mode"
-
-# --- 2h. feature_start retirement backstop (issue #370) ----------------------
-if grep -qF 'feature_start_missing' "${ROOT}/scripts/check-trace-consistency.sh"; then
-  fail "feature_start_missing must remain retired from the consistency checker"
-fi
-end_scenario "feature_start is not a current trace-consistency obligation"
+# --- 2f. Retired concepts stay out of the contract ---------------------------
+for retired in feature_start teeth-proof conductor; do
+  if grep -Eiq -- "$retired" "$CONTRACT"; then
+    fail "contract still asserts retired '${retired}' semantics"
+  fi
+done
+end_scenario "contract excludes retired feature-start, teeth-proof, and role-era claims"
 
 # --- 3. Lifecycle / env flags / state transitions / failure modes ------------
 # Each declared obligation must still appear (as its present: regex) in its owner.
@@ -285,16 +298,16 @@ check_owner_present() {
   done < <(parse_records "$section")
 }
 
-check_owner_present lifecycle
-end_scenario "lifecycle obligations still present in their owner scripts"
+for section in "${gate_sections[@]}"; do
+  check_owner_present "$section"
+done
+end_scenario "four-gate obligations still present in their owner scripts"
 check_owner_present env_flags
 end_scenario "env-flag obligations still present in their owner scripts"
-check_owner_present state_transitions
-end_scenario "state-transition obligations still present in their owner scripts"
-check_owner_present failure_modes
-end_scenario "failure-mode obligations still present in their owner scripts"
-check_owner_present trace_emission
-end_scenario "trace_emission obligations still present in their owner scripts"
+check_owner_present sha_bindings
+end_scenario "SHA-binding obligations still present in their owner scripts"
+check_owner_present bypasses
+end_scenario "bypass obligations still present in their owner scripts"
 
 # --- 4. Language-neutral boundary -------------------------------------------
 neutral_owners="$(parse_nested_list language_neutral owners)"

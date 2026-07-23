@@ -37,16 +37,13 @@ case "$SELECTOR" in
   regression)
     assert_capture_absent
     for record in \
-      'id: trace-start-issue' \
-      'id: trace-check-feature-list' \
-      'id: trace-review-gate' \
-      'id: trace-create-pr' \
-      'id: trace-merge-pr' \
-      'id: trace-finish-issue' \
-      'id: trace-review-gate-trace' \
-      'id: review-approval' \
-      'id: ci-green-precondition' \
-      'id: closeout-worktree-cleanup'; do
+      'id: log-handback' \
+      'id: sensor-summary' \
+      'id: review-verdict' \
+      'id: trace-consistency' \
+      'id: independent-review' \
+      'id: ci-green-merge' \
+      'id: issue-closeout'; do
       grep -qF "$record" "${ROOT}/docs/harness-contract.yml" \
         || fail "kept semantic-spine or closeout contract record missing: ${record}"
     done

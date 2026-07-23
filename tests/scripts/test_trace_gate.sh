@@ -34,7 +34,7 @@
 #      be added to the validator's known-key type map coherently).
 #   4. Contract presence backstop (docs/harness-contract.yml): the
 #      REQUIRE_TRACE_CONSISTENCY promotion flag is documented, the trace
-#      gate is declared with `kind: warn` (record id containing
+#      gate is declared with `mode: warn` (record id containing
 #      trace-consistency), and the review-gate.trace tool span is declared.
 #      (test_harness_contract.sh's generic record checks then guard the
 #      entries against silent deletion; only the presence pin lives here.)
@@ -365,11 +365,11 @@ fi
 # ============================================================================
 grep -q 'REQUIRE_TRACE_CONSISTENCY' "$CONTRACT_YML" \
   || fail "contract: the REQUIRE_TRACE_CONSISTENCY promotion flag must be documented in docs/harness-contract.yml"
-if ! grep -A3 'id: .*trace-consistency' "$CONTRACT_YML" | grep -q 'kind: warn'; then
-  fail "contract: a trace-consistency record with 'kind: warn' must be declared (warn-only phase one, promotion via the documented flag)"
+if ! grep -A5 'id: .*trace-consistency' "$CONTRACT_YML" | grep -q 'mode: warn'; then
+  fail "contract: a trace-consistency gate with 'mode: warn' must be declared (warn-only phase one, promotion via the documented flag)"
 fi
 grep -q 'review-gate\.trace' "$CONTRACT_YML" \
-  || fail "contract: the review-gate.trace tool span must be declared (trace_emission)"
+  || fail "contract: the review-gate.trace verdict span must be declared"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

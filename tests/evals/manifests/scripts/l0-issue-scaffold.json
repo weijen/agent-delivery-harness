@@ -15,9 +15,8 @@
   },
   "blocking": true,
   "contract_refs": [
-    "state_transitions:feature-list-artifact",
-    "state_transitions:progress-artifact",
-    "state_transitions:action-log-scaffold",
-    "lifecycle:tracking-scaffold"
+    "scripts:start-issue",
+    "gate_start:issue-worktree",
+    "gate_start:tracking-ready"
   ]
 }
