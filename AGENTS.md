@@ -188,6 +188,8 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 | **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, at issue completion (pre-PR), over the whole branch diff (#352: the only other model invocation in the lifecycle) |
 
 Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
+The current topology is one delivering agent followed by one independent reviewer across
+`gate_start`, `gate_sensors`, `gate_review`, and `gate_merge_closeout`.
 
 ### Skill × subagent × stage
 
@@ -205,12 +207,11 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 
-Planner and generator carry no distinctive skill; their quality bar comes from the
-applicable `<language>.instructions.md` plus `.copilot/instructions/tdd.instructions.md` and this AGENTS.md, not a
-skill. The audit skills
-are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.
+The delivering agent's quality bar comes from the applicable
+`<language>.instructions.md`, `.copilot/instructions/tdd.instructions.md`, and this AGENTS.md.
+The audit skills are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.
 
 The reviewer may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose
 a missing failure mode. Production stays read-only: `code-review-subagent` must not edit production or add a required
 production hook. It reports changed tests, commands, and evidence; a newly exposed production defect produces
-`NEEDS_REVISION` and routes through the conductor to `generator-subagent` for repair before reviewer rerun.
+`NEEDS_REVISION` and routes to the delivering agent for repair before reviewer rerun.
