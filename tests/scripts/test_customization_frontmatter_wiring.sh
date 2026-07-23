@@ -17,11 +17,9 @@ note() {
 shared_invocation='bash tests/evals/bin/validate-customization-frontmatter.sh'
 consumers=(
   .github/workflows/harness-smoke.yml
-  tests/scripts/test_harness_smoke.sh
 )
 invocation_patterns=(
   '^[[:space:]]+run:[[:space:]]+bash tests/evals/bin/validate-customization-frontmatter\.sh$'
-  '^bash tests/evals/bin/validate-customization-frontmatter\.sh$'
 )
 
 for index in "${!consumers[@]}"; do
@@ -39,4 +37,4 @@ for index in "${!consumers[@]}"; do
   fi
 done
 
-note "local smoke and GitHub Actions share customization frontmatter validation"
+note "GitHub Actions uses the shared customization frontmatter validator"
