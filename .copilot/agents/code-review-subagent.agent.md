@@ -16,6 +16,7 @@ Before any authenticated GitHub or Git operation, source
 `scripts/github-identity-lib.sh` and call `harness_identity_activate` so the
 repository-bound identity and per-process GitHub token are used. Never mutate
 global GitHub CLI state or run `gh auth switch`.
+Scratch output goes to `.copilot-tracking/tmp/` (gitignored); `/tmp` is read-only in sandboxed runs.
 
 You are launched with a **fresh context**. You have not seen the delivering agent's planning conversation, the implementer's
 reasoning, or any prior review. The objective, acceptance criteria, and modified file list in the delivering agent's prompt
