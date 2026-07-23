@@ -126,6 +126,7 @@ assert_absent "$PROGRESS" 'The **conductor authors**'
 assert_contains "$PROGRESS" '- Authored closeout note must survive.'
 assert_contains "$PROGRESS" '3500'
 assert_contains "$PROGRESS" 'claude-sonnet-5'
+assert_absent "${TMP_DIR}/happy.out" '- Tokens: n/a'
 [ ! -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ] \
   || fail "happy: issue-scoped hook state must be removed"
 jq -e '.finished == true and .final_outcome == "pass"' "$SUMMARY" >/dev/null \
@@ -201,6 +202,19 @@ fi
 [ -d "${MAIN}/.worktrees/issue-46" ] || fail "summary-refusal: worktree must remain"
 assert_contains "${TMP_DIR}/summary-refusal.out" 'trace-summary regeneration'
 
+# A pre-planted summary symlink must not overwrite an unrelated file.
+new_fixture summary-symlink 48
+MAIN="$NEW_MAIN"
+OUTSIDE="${TMP_DIR}/summary-outside"
+printf 'do not overwrite\n' >"$OUTSIDE"
+ln -s "$OUTSIDE" "${MAIN}/.copilot-tracking/issues/issue-48/trace-summary.json"
+if run_finish "$MAIN" 48 "${TMP_DIR}/summary-symlink.out" env ABANDONED=1 FORCE=1; then
+  fail "summary-symlink: symlink destination must block"
+fi
+[ -d "${MAIN}/.worktrees/issue-48" ] || fail "summary-symlink: worktree must remain"
+[ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
+  || fail "summary-symlink: unrelated destination was overwritten"
+
 # #91: surface git's own dirty-worktree error and retain the FORCE hint.
 new_fixture worktree-error 47
 MAIN="$NEW_MAIN"
@@ -209,7 +223,7 @@ if run_finish "$MAIN" 47 "${TMP_DIR}/worktree-error.out" env ABANDONED=1; then
   fail "worktree-error: dirty worktree removal must fail"
 fi
 [ -d "${MAIN}/.worktrees/issue-47" ] || fail "worktree-error: worktree must remain"
-grep -qiE 'modified|untracked|locked' "${TMP_DIR}/worktree-error.out" \
+grep -qi 'contains modified or untracked files' "${TMP_DIR}/worktree-error.out" \
   || { cat "${TMP_DIR}/worktree-error.out"; fail "worktree-error: git reason missing"; }
 assert_contains "${TMP_DIR}/worktree-error.out" 'FORCE=1'
 
