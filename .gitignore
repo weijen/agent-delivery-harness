@@ -32,11 +32,13 @@ htmlcov/
 .ruff_cache/
 
 # Ephemeral per-issue agent working state (local-persistent, never pushed)
-.copilot-tracking/issues/issue-*/
-.copilot-tracking/plans/*.md
-.copilot-tracking/review-gate/
-.copilot-tracking/sessions/
-.copilot-tracking/otel/
+# Local-only agent state: ignore EVERYTHING under .copilot-tracking except the
+# two scaffold keepfiles (enumerating subdirs kept leaking newly-added ones).
+.copilot-tracking/*
+!.copilot-tracking/issues/
+.copilot-tracking/issues/*
+!.copilot-tracking/plans/
+.copilot-tracking/plans/*
 /.worktrees/
 !.copilot-tracking/issues/.gitkeep
 !.copilot-tracking/plans/.gitkeep
@@ -96,4 +98,4 @@ data/raw-video/
 .DS_Store
 Thumbs.db
 
-logs/
+logs/.copilot-test-tmp/
