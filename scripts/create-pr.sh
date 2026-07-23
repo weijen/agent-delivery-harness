@@ -329,8 +329,10 @@ if [ "$sync_mode" != "none" ]; then
   # reads the stored patch-id, recomputes the current patch-id, and on an
   # exact match: updates the marker's line 1 to the post-rebase SHA and emits
   # a carry-annotated review_gate_approve span. Carry is best-effort only:
-  # a nonzero exit (any mismatch or failure) leaves the marker unchanged;
-  # the authoritative check runs immediately after regardless of carry outcome.
+  # a nonzero exit (any mismatch or failure) leaves the marker unchanged and
+  # falls through to the authoritative check. A successful exact patch-id
+  # match is itself the post-sync gate, so repeating check would only rerun
+  # unchanged gate work.
   # Never called on CREATE_PR_NO_REWRITE merge, fallback merge, no-op/retry,
   # or rebase conflict paths — did_rebase=1 is the sole trigger (issue #310).
   if [ "$did_rebase" = "1" ]; then
@@ -339,8 +341,12 @@ if [ "$sync_mode" != "none" ]; then
       || _carry_rc=$?
     # Nonzero _carry_rc: carry inapplicable or impossible; diagnostic printed above.
     # Falls through to the authoritative check below.
+    if [ "$_carry_rc" -ne 0 ]; then
+      "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+    fi
+  else
+    "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
   fi
-  "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
 fi
 
 # --- 4. Push -----------------------------------------------------------------
