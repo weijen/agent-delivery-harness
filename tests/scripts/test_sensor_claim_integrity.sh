@@ -55,6 +55,15 @@ if run_check "${TMP_DIR}/uppercase.txt" >/dev/null 2>&1; then
   fail "uppercase unsupported claim must be detected"
 fi
 
+cat >"${TMP_DIR}/lowercase-summary.txt" <<'EOF'
+sensors pre-pr head=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef scope=full ran=157 failed=0
+ALL 157 TEST FILES PASSED
+EOF
+if env BASHOPTS=nocasematch "$CHECKER" "${TMP_DIR}/lowercase-summary.txt" \
+  deadbeefdeadbeefdeadbeefdeadbeefdeadbeef >/dev/null 2>&1; then
+  fail "inherited nocasematch must not make a non-canonical summary valid"
+fi
+
 printf 'bash tests/scripts/test_*.sh\n' >"${TMP_DIR}/glob.txt"
 if run_check "${TMP_DIR}/glob.txt" >"${TMP_DIR}/out" 2>&1; then
   fail "direct multi-glob invocation must be detected"

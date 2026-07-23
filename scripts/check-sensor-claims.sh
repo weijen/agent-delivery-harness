@@ -31,6 +31,7 @@ summaries=()
 claims=()
 violations=0
 
+shopt -u nocasematch
 while IFS= read -r line || [ -n "$line" ]; do
   if [[ "$line" =~ $summary_re ]] && [ "${BASH_REMATCH[5]}" = "0" ]; then
     summaries+=("${BASH_REMATCH[2]}:${BASH_REMATCH[4]}")
