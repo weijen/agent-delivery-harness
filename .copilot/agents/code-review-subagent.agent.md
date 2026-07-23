@@ -78,10 +78,14 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    `unmapped` and set **`TRACE_FINDING_FINGERPRINT`** as the stable traceability label.
 4. **`TRACE_FINDING_FINGERPRINT`** — a stable per-finding identity string. **Required** when
    `feature_id` is `unmapped`. Recommended on all FAIL verdicts for cross-review deduplication.
-5. **`TRACE_REVIEW_EVENT_ID`** — groups all verdict/finding spans belonging to one logical review
+5. **`TRACE_REPEAT_OF`** — the prior finding fingerprint when this verdict re-raises the **same
+   unrepaired hole**. Omit it for a newly discovered hole, even when the new finding is in the
+   same component or failure class; assign that new hole its own fingerprint. This distinction
+   separates runaway repair loops from repaired designs that expose a different defect next.
+6. **`TRACE_REVIEW_EVENT_ID`** — groups all verdict/finding spans belonging to one logical review
    event. **Required** for new reviews. All verdicts sharing the same event ID count as one
    review round in economics.
-6. **`TRACE_FINDING_BASELINE_STATE`** — one of the closed `finding_baseline_states` enum
+7. **`TRACE_FINDING_BASELINE_STATE`** — one of the closed `finding_baseline_states` enum
    {`new`, `unchanged`, `updated`, `resolved`}. Tracks per-finding state across review events:
    - `new` — first appearance of this finding
    - `unchanged` — same finding from a prior review, not yet addressed
@@ -89,7 +93,7 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    - `resolved` — prior finding is no longer present (emit as a PASS verdict with the same
      fingerprint)
    **Required** on finding-level verdict spans that carry a `TRACE_FINDING_FINGERPRINT`.
-7. **`TRACE_REPAIR_SCOPE`** — a comma-separated list of feature-id tokens declaring the revised
+8. **`TRACE_REPAIR_SCOPE`** — a comma-separated list of feature-id tokens declaring the revised
    feature set for this repair review. **Required** on every `repair`-mode `review_verdict` call
    (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
    commas, no whitespace, no empty tokens, no duplicates. The feature_id positional arg to
@@ -101,7 +105,7 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    emit it as a separate finding/review event attributed to the affected feature's own feature_id.
    Route it to the delivering agent as a separate `NEEDS_REVISION` for routing to the affected feature's
    generator. The current repair verdict scope remains unchanged.
-8. **`TRACE_ACTIONABLE`** — closed enum `{true, false}`. **Required** on every `NEEDS_REVISION`
+9. **`TRACE_ACTIONABLE`** — closed enum `{true, false}`. **Required** on every `NEEDS_REVISION`
    (`fail`) verdict. Declares whether the finding is actionable — i.e. backed by evidence that the
    generator can act on:
    - `true` — the finding is actionable. **Must** carry at least one of `TRACE_FINDING_REPRODUCTION`
@@ -112,10 +116,10 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
      reproduced or concretely fixed.
    Missing or invalid values on a fail verdict **hard-fail** the `log-handback.sh` call (no span,
    no Action Log line). Pass verdicts may omit this field.
-9. **`TRACE_FINDING_REPRODUCTION`** — free-text reproduction steps or evidence. Non-empty when you
+10. **`TRACE_FINDING_REPRODUCTION`** — free-text reproduction steps or evidence. Non-empty when you
    provide steps to reproduce the issue. At least one of this or `TRACE_FINDING_PROPOSED_FIX` is
    **required** when `TRACE_ACTIONABLE=true`. Redacted by trace-lib.
-10. **`TRACE_FINDING_PROPOSED_FIX`** — free-text concrete proposed fix. Non-empty when you provide a
+11. **`TRACE_FINDING_PROPOSED_FIX`** — free-text concrete proposed fix. Non-empty when you provide a
     specific fix suggestion (e.g. "add null guard on line 42 of parser.sh"). At least one of this
     or `TRACE_FINDING_REPRODUCTION` is **required** when `TRACE_ACTIONABLE=true`. Redacted by
     trace-lib.

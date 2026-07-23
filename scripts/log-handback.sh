@@ -238,6 +238,8 @@ other'
       || REVIEW_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
     [ -z "${TRACE_FINDING_FINGERPRINT:-}" ] \
       || REVIEW_ARGS+=("harness.finding_fingerprint=${TRACE_FINDING_FINGERPRINT}")
+    [ -z "${TRACE_REPEAT_OF:-}" ] \
+      || REVIEW_ARGS+=("harness.repeat_of=${TRACE_REPEAT_OF}")
     [ -z "${TRACE_REVIEW_EVENT_ID:-}" ] \
       || REVIEW_ARGS+=("harness.review_event_id=${TRACE_REVIEW_EVENT_ID}")
 

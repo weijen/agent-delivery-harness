@@ -51,9 +51,14 @@ run_writer "${TMP_DIR}/deviation.out" \
   ./scripts/log-handback.sh conductor deviation feature-a blocked \
   "sensor did not bite" || fail "deviation write failed"
 run_writer "${TMP_DIR}/review.out" \
-  env TRACE_REVIEW_MODE=full \
-  ./scripts/log-handback.sh conductor review_verdict feature-a pass \
-  "approved current head" || fail "review_verdict write failed"
+  env TRACE_REVIEW_MODE=full TRACE_REVIEW_EVENT_ID=review-2 \
+    TRACE_FAILURE_CLASS=spec-violation \
+    TRACE_FINDING_FINGERPRINT=current-hole \
+    TRACE_FINDING_BASELINE_STATE=unchanged \
+    TRACE_ACTIONABLE=true TRACE_FINDING_REPRODUCTION="same hole remains" \
+    TRACE_REPEAT_OF=prior-hole \
+  ./scripts/log-handback.sh conductor review_verdict feature-a fail \
+  "same unrepaired hole" || fail "review_verdict write failed"
 
 [ "$(jq -s 'length' "$TRACE")" = "3" ] \
   || fail "three current writes must emit exactly three spans"
@@ -66,6 +71,7 @@ jq -e -s '
   and .[1]["harness.failure_mode"] == "weak-sensor"
   and .[2]["harness.review_mode"] == "full"
   and (.[2]["harness.reviewed_sha"] | type) == "string"
+  and .[2]["harness.repeat_of"] == "prior-hole"
 ' "$TRACE" >/dev/null || fail "current writer span payload is incomplete"
 grep -Fq -- '- [conductor] deviation feature-a blocked — sensor did not bite' \
   "$PROGRESS" || fail "renderer did not materialize the current deviation"
@@ -93,7 +99,7 @@ fi
 run_writer "${TMP_DIR}/retired-env.out" \
   env TRACE_INPUT_TOKENS=10 TRACE_OUTPUT_TOKENS=20 \
     TRACE_INSTRUCTION_FILES=AGENTS.md TRACE_SENSOR_SCOPE=scoped \
-    TRACE_SENSOR_COUNT=2 \
+    TRACE_SENSOR_COUNT=2 TRACE_REPEAT_OF=ignored-outside-review \
   ./scripts/log-handback.sh conductor feature_start feature-b pass \
   "retired channels probe" || fail "retired env probe failed"
 jq -e -s 'last |
@@ -102,6 +108,7 @@ jq -e -s 'last |
   and (has("harness.instruction_files") | not)
   and (has("harness.sensor_scope") | not)
   and (has("harness.sensor_count") | not)
+  and (has("harness.repeat_of") | not)
 ' "$TRACE" >/dev/null || fail "retired writer channels were still emitted"
 
 # Summary redaction and newline flattening happen before rendering.
