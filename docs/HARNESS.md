@@ -438,14 +438,16 @@ should enable a **branch-protection required check** on `main` so the gate canno
 
 ### Project-CI coverage gate
 
-`harness-smoke.yml` runs the **harness's own** sensors — it is **not** an adopting project's CI. A
-repo that ships code (Python/Go/Node/Java/Ruby) must add its own workflow that runs the project
-gates (tests, lint, format, type-check). The harness makes a missing project CI visible early and
-blocking at PR time:
+`harness-smoke.yml` owns the harness sensors and may also own a project profile gate explicitly.
+It counts as project-CI coverage only for a profile whose `PROFILE_CI_SIGNATURES` command appears
+in that workflow; unrelated harness steps never imply coverage. A repo that ships another code
+surface (Python/Go/Node/Java/Ruby) must add that profile gate to an existing workflow or create a
+separate project workflow. The harness makes a missing project CI visible early and blocking at
+PR time:
 
 - **Preflight WARN** — `./scripts/init.sh` warns when a code surface is present but no
-  `.github/workflows/*.y*ml` other than `harness-smoke.yml` references that surface's gate
-  commands. Seen at the first `start-issue`.
+  `.github/workflows/*.y*ml` references that surface's gate commands. Seen at the first
+  `start-issue`.
 - **Pre-PR fail-closed `ci-gate`** — `./scripts/review-gate.sh ci-gate` (run inside
   `review-gate.sh check`, so `./scripts/create-pr.sh` enforces it with no extra step) refuses to
   open a PR under the same condition. The documented escape hatch is `SKIP_CI_GATE=1`, which

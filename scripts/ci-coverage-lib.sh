@@ -3,10 +3,10 @@
 #
 # Issue #129. A "code surface" is a language the harness profiles can detect
 # (python, go, node, java, ruby). "Project-CI coverage" means a GitHub Actions
-# workflow (.github/workflows/*.yml|*.yaml) OTHER THAN harness-smoke.yml whose
-# text references that surface's gate-command signatures (PROFILE_CI_SIGNATURES,
-# declared in the profile descriptor). harness-smoke.yml runs the HARNESS's own
-# sensors, not an adopting project's gates, so it never counts as project CI.
+# workflow (.github/workflows/*.yml|*.yaml) whose text references that surface's
+# gate-command signatures (PROFILE_CI_SIGNATURES, declared in the profile
+# descriptor). A harness-smoke workflow counts only when it explicitly runs the
+# profile gate; its unrelated harness sensors do not imply project coverage.
 #
 # This library is the ONE place that references language-specific gate tokens on
 # behalf of scripts/review-gate.sh and scripts/create-pr.sh, which
@@ -31,15 +31,12 @@ CI_COVERAGE_PROFILES_DIR="${CI_COVERAGE_LIB_DIR}/../profiles"
 # of scope here (matches the issue's Python/Go/Node/Java/Ruby wording).
 CI_COVERAGE_SURFACES="python go node java ruby"
 
-# _ci_coverage_workflows — echo the project workflow files under
-# .github/workflows (excluding harness-smoke.yml). Emits nothing when none exist.
+# _ci_coverage_workflows — echo the workflow files under .github/workflows.
+# Emits nothing when none exist.
 _ci_coverage_workflows() {
   local wf
   for wf in "$PWD"/.github/workflows/*.yml "$PWD"/.github/workflows/*.yaml; do
     [ -e "$wf" ] || continue
-    case "$(basename "$wf")" in
-      harness-smoke.yml | harness-smoke.yaml) continue ;;
-    esac
     printf '%s\n' "$wf"
   done
 }

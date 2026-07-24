@@ -108,8 +108,9 @@ Commands:
               Also runs the ci-gate and the trace gate (warn-only unless
               REQUIRE_TRACE_CONSISTENCY=1).
   ci-gate     Fail closed when a code surface is present but no
-              .github/workflows/*.y*ml (other than harness-smoke.yml) runs its
-              gates. Bypass with SKIP_CI_GATE=1 (logged).
+              .github/workflows/*.y*ml runs its gates. Harness Smoke counts only
+              when it explicitly runs the profile gate. Bypass with
+              SKIP_CI_GATE=1 (logged).
   trace       Run check-trace-consistency.sh
               for the current issue. Warn-only by default: findings are printed
               with a warning summary and the exit code stays 0. Set
@@ -122,12 +123,12 @@ EOF
 
 # ci_gate — fail closed unless every detected code surface has project-CI
 # coverage (issue #129). A code surface present with no .github/workflows/*.y*ml
-# (other than harness-smoke.yml) running its gate commands means the project's
-# own tests/lint/type-check never run in CI, so a PR must not open. Detection +
-# all language tokens live in ci-coverage-lib.sh; this function stays
-# language-neutral, printing the lib's message via a variable. SKIP_CI_GATE=1 is
-# the documented escape hatch (mirrors FORCE=1): it bypasses the gate with a
-# LOGGED warning, never silently.
+# running its gate commands means the project's own tests/lint/type-check never
+# run in CI, so a PR must not open. Harness Smoke counts only for signatures it
+# explicitly runs. Detection + all language tokens live in ci-coverage-lib.sh;
+# this function stays language-neutral, printing the lib's message via a
+# variable. SKIP_CI_GATE=1 is the documented escape hatch (mirrors FORCE=1): it
+# bypasses the gate with a LOGGED warning, never silently.
 ci_gate() {
   TRACE_STAGE="ci_coverage"
 
