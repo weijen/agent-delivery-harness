@@ -385,6 +385,11 @@ identity, and the post-rebase identity is unchanged. The authoritative `check` a
 carry (whether carry succeeded or not): merge/non-rewrite/fallback/legacy-marker paths all require
 fresh approval.
 
+Immediately before every push path, `create-pr.sh` runs
+`./scripts/run-sensors.sh green --diff origin/main`. The affected-sensor resolver therefore
+enforces the contract's scoped sensor gate at the PR boundary; a failing sensor or discovery
+error stops the push.
+
 **Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
 feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch
 (the on-`main` refusal at the top of the script enforces this structurally). Rebase onto `origin/main`

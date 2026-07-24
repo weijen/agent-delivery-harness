@@ -120,6 +120,19 @@ _owned_ref_delete() {
   git update-ref -d "$1" >/dev/null 2>&1 || true
 }
 
+_run_scoped_sensor_gate() {
+  if [ ! -x "${SCRIPT_DIR}/run-sensors.sh" ]; then
+    red "✗ Scoped sensor gate unavailable: ${SCRIPT_DIR}/run-sensors.sh is missing or not executable."
+    return 1
+  fi
+  bold "==> Running scoped sensors before push"
+  if ! "${SCRIPT_DIR}/run-sensors.sh" green --diff origin/main; then
+    red "✗ Scoped sensors failed — refusing to push."
+    return 1
+  fi
+  green "✓ Scoped sensors passed"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Help guard (issue #328) --------------------------------------------------
@@ -352,6 +365,12 @@ if [ "$sync_mode" != "none" ]; then
   fi
 fi
 
+# The contract's hard sensor gate is enforced at the last common boundary
+# before every push. The runner resolves the branch diff to its declared and
+# affected sensors and fails closed on discovery errors.
+TRACE_STAGE="sensor_gate"
+_run_scoped_sensor_gate
+
 # --- 4. Push -----------------------------------------------------------------
 # --force-with-lease only after a rebase rewrote local history (the issue
 # branch is single-owner); a non-rewriting sync (merge, or nothing to sync)
@@ -413,6 +432,8 @@ if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
       TRACE_STAGE="post_sync_gate"
       TRACE_COLLAPSE_CHILD_SPANS=1 \
         "$(dirname "${BASH_SOURCE[0]}")/review-gate.sh" check
+      TRACE_STAGE="sensor_gate"
+      _run_scoped_sensor_gate
       TRACE_STAGE="push"
       bold "==> Pushing ${branch} (non-rewriting)"
       git push origin "$branch"

@@ -50,7 +50,7 @@ scripts:
     role: Validate per-issue feature_list.json structure and completion.
   - id: run-sensors
     path: scripts/run-sensors.sh
-    role: Run scoped or full sensors and save a HEAD-bound gate summary.
+    role: Run scoped or full sensors and return the gate result.
   - id: log-handback
     path: scripts/log-handback.sh
     role: Emit semantic handback and review-verdict evidence.
@@ -98,12 +98,12 @@ gate_start:
 
 gate_sensors:
   - id: scoped-green
-    trigger: implementation unit ready for verification
-    consumes: declared and affected sensor set
-    produces: HEAD-bound SENSORS summary with exit status
+    trigger: implementation unit ready for verification or PR branch ready to push
+    consumes: declared and affected sensor set resolved from the branch diff
+    produces: fail-closed process result before PR branch push
     mode: hard
-    owner: scripts/run-sensors.sh
-    present: SENSORS.*head=.*scope=.*ran=.*failed=
+    owner: scripts/create-pr.sh
+    present: run-sensors.sh.*green.*--diff.*origin/main
 
 gate_review:
   - id: trace-consistency
