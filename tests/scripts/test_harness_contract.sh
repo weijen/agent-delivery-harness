@@ -54,9 +54,17 @@ if [ -e "${ROOT}/scripts/trace-report.sh" ]; then
 fi
 [ -x "${ROOT}/scripts/render-action-log.sh" ] \
   || fail "live Action Log renderer must remain executable"
-if grep -q 'trace-report\.sh' "${ROOT}/docs/HARNESS.md"; then
-  fail "HARNESS.md still advertises the retired trace reporter"
-fi
+for active_doc in \
+  .copilot/instructions/harness.instructions.md \
+  docs/HARNESS.md \
+  docs/scripts-language-policy.md \
+  docs/evaluation/cost-efficiency-evals.md \
+  docs/evaluation/observability-and-trace-schema.md \
+  docs/evaluation/trace-summary.v1.json; do
+  if grep -q 'trace-report\.sh' "${ROOT}/${active_doc}"; then
+    fail "${active_doc} still advertises the retired trace reporter"
+  fi
+done
 end_scenario "trace reporter retired while Action Log rendering remains live"
 
 # --- awk YAML readers (tailored to docs/harness-contract.yml's flat shape) ----

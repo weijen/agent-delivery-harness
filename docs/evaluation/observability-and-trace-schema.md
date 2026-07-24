@@ -436,40 +436,15 @@ not wired into lifecycle gates (that wiring is issue #103).
 
 ## Reporting A Trace
 
-`scripts/trace-report.sh` (issue #98) is the standalone, report-only run
-reporter. Like the validator, run it with an issue number (it resolves the
-per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
-prints a markdown run report on stdout and writes a machine-readable summary,
-`trace-summary.json`, beside the trace file (local-only, covered by the same
-gitignore rule) under the versioned contract in
-[trace-summary.v1.json](trace-summary.v1.json) — the input contract for the
-cross-run report (`--all`, issue #104). The report keeps two clocks separate and
-labeled: per-stage summed span durations (script-measured work) and
-first-to-last timestamp elapsed (whole-run wall clock, including agent
-thinking time between spans) — never blended. Every number is computed from
-spans on disk; absent data stays absent (null, never a fabricated zero).
-Issue-number reporting publishes a post-teardown `finish-issue.economics` tool
-span carrying
-`harness.economics.wall_clock_ms` and `harness.economics.active_ms` as the
-machine-readable elapsed/active pair. Active time sorts valid timestamps and
-sums adjacent gaps up to and including 30 minutes; every larger gap contributes
-zero. Invalid or insufficient timestamps omit both fields, while a genuinely
-measured zero active time remains numeric `0`.
-Reporting never gates: exit codes are `0` whenever a report is produced and
-`2` on usage or environment errors; validation remains the validator's job —
-unparseable lines are skipped and counted, with a pointer to
-`check-trace-consistency.sh`.
+The standalone run reporter and its cross-run aggregation mode were retired in
+issue #419 because no in-repository or adopter workflow consumed their output.
+The versioned [trace-summary.v1.json](trace-summary.v1.json) file remains only as
+a frozen historical contract; no lifecycle entrypoint emits
+`trace-summary.json` or `finish-issue.economics` spans.
 
-Issue-number reporting runs on demand or from finish-issue's best-effort
-post-teardown hook; it never participates in the worktree-removal decision.
-
-Across runs, `scripts/trace-report.sh --all` (issue #104) aggregates the emitted
-`trace-summary.json` files into deterministic markdown keyed by attributed
-`harness.version`. It reads each sibling trace's last
-`finish-issue.economics` tool span for native economics (falling back to a
-historical economics-bearing `finish` lifecycle span), reports missing or skipped
-summaries and explicit coverage, renders absent measurements as `n/a`, and
-writes no companion aggregate file.
+Use `check-trace-consistency.sh` for the surviving report-only validation path.
+It checks the trace and related lifecycle state but does not generate analytics
+or summaries.
 
 ## Workstream Issues
 

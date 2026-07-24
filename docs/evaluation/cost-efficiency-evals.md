@@ -54,10 +54,10 @@ telemetry only.
 
 Issue #296 instruments comparison of the historical test plus implementation
 workflow with the merged generator workflow. It does not decide adoption.
-`scripts/trace-report.sh` derives per-feature elapsed time from the first
+The retired trace reporter derived per-feature elapsed time from the first
 observed `feature_start` to the last observed later `green_handback` for the
-same feature. This clock includes all time between those recorded edges. It
-does not attribute tool-call duration to a feature.
+same feature. This historical clock included all time between those recorded
+edges and did not attribute tool-call duration to a feature.
 
 The trace summary also reports observed review verdicts and GREEN handbacks as
 pass, fail, blocked, and total counts. Rates are present only when their
@@ -66,11 +66,9 @@ remain coverage gaps; they do not receive a zero elapsed value. Historical
 legacy roles and the generator role are included because the projections use
 lifecycle steps and feature ids, not agent-role filters.
 
-The `trace-report.sh --all` report groups these measurements by harness version and reports elapsed
-sample count, median, p75, p95, started-feature coverage, review failures as
-`{fail, of}`, blocked GREEN as `{blocked, of}`, and per-issue source rows. Old
-summaries remain valid and contribute no invented observations or
-denominators.
+The retired cross-run report grouped these measurements by harness version.
+Historical summaries remain schema-valid but no current lifecycle tool
+aggregates them.
 
 A later decision issue owns the adoption verdict. Its comparison must use at
 least 30 paired observations per arm, stratified by task shape and holding the
@@ -301,14 +299,9 @@ steps.
 
 - Efficiency is read from the same trace as trajectory and trace evals; the
   schema is shared in [observability-and-trace-schema.md](observability-and-trace-schema.md).
-- Cross-run cost and efficiency metrics (tool calls, deviations, tokens with
-  honest coverage) are aggregated per harness version by
-  `scripts/trace-report.sh --all` as deterministic markdown. Native economics
-  come from each trace's report-time `finish-issue.economics` tool span;
-  historical terminal `finish` lifecycle economics remain a compatibility
-  fallback.
-  Coverage and `n/a` preserve the distinction between measured zero and
-  unavailable data.
+- Historical cross-run cost and efficiency summaries remain frozen inputs.
+  Issue #419 retired their reporter and aggregation path; no current lifecycle
+  command emits those reports.
 - Cost baselines follow the trial and baseline rules in
   [statistical-methodology.md](../archive/evaluation/statistical-methodology.md).
 - Azure Machine Learning is the preferred managed runtime for scheduled cost,
