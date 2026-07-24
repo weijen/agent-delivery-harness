@@ -213,8 +213,8 @@ harness lifecycle.
   begins.
 - Existing script behaviors have targeted tests that fail on accidental behavior
   drift.
-- `init.sh` can add language support through profiles rather than new hard-coded
-  language branches.
+- `init.sh` keeps explicit marker-file detection while profiles own surface
+  labels, dependency sync, and gate commands.
 - Python and current Go/Node/Terraform detection behavior remains compatible.
 - Node.js, Go, Ruby, and Java support is added through profiles and tested with
   fake toolchains or minimal fixtures.

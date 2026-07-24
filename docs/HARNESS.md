@@ -25,11 +25,12 @@ separate from replaceable language support and project-specific conventions:
   recorded in
   [docs/scripts-language-policy.md](scripts-language-policy.md).
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
-  that teach `init.sh` how to detect a project surface and run its gates. The
+  that supply surface labels, dependency sync, and gate commands after
+  `init.sh`'s explicit marker checks select a project surface. The
   shipped set is **Python and Node.js** (proven adopters); **Go, Java, and Ruby**
   are generator-supported — regenerate them on demand with
-  `scaffold-language.sh`. The core does not hard-code any language; it loads the
-  matching profile. See
+  `scaffold-language.sh`. The lifecycle core stays language-neutral, while the
+  current preflight enumerates marker files and loads the matching profile. See
   [profiles/README.md](../profiles/README.md) for the descriptor contract and
   [docs/multi-language-profiles.md](multi-language-profiles.md) for the design.
 - **Framework Templates** — project-specific conventions layered on top of a
@@ -289,8 +290,9 @@ trace carries only the path and one-line summary of that lesson, never its body.
 
 ## Gates And Sensors
 
-`./scripts/init.sh` detects project surfaces and runs the matching local gates when present. Each language is
-driven by its profile descriptor in `profiles/<id>.profile.sh`, not by hard-coded branches:
+`./scripts/init.sh` detects project surfaces with explicit marker-file branches.
+For each detected language, `profiles/<id>.profile.sh` supplies the surface
+label, dependency sync, and local gate commands:
 
 - docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
 - Python (`pyproject.toml`): `uv sync --all-groups`, ruff format/check, mypy, and pytest.

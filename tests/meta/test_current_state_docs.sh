@@ -32,4 +32,12 @@ for path in README.md docs/getting-started.md docs/multi-language-profiles.md do
   done
 done
 
+reject docs/HARNESS.md "not by hard-coded branches"
+reject docs/HARNESS.md "The core does not hard-code any language"
+reject docs/multi-language-profiles.md "through profiles rather than new hard-coded"
+grep -qiF "explicit marker" docs/HARNESS.md \
+  || fail "docs/HARNESS.md does not describe explicit marker detection"
+grep -qiF "explicit marker" docs/multi-language-profiles.md \
+  || fail "docs/multi-language-profiles.md does not describe explicit marker detection"
+
 printf 'current-state documentation checks passed\n'
