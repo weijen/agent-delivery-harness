@@ -205,6 +205,26 @@ while IFS= read -r pattern; do
 	}
 done <"${TMP_DIR}/entries"
 
+while IFS= read -r sensor; do
+	grep -Eq '^[[:space:]]*[^#].*--with-dev-sensors' "${ROOT}/${sensor}" \
+		|| continue
+
+	classified=false
+	while IFS= read -r pattern; do
+		# shellcheck disable=SC2254 # Manifest entries are intentional glob patterns.
+		case "$sensor" in
+		$pattern)
+			classified=true
+			break
+			;;
+		esac
+	done <"${TMP_DIR}/entries"
+	[ "$classified" = true ] || {
+		echo "dev-fixture sensor must be harness-dev: $sensor"
+		exit 1
+	}
+done < <(cd "$ROOT" && compgen -G 'tests/scripts/test_*.sh' | sort)
+
 required=(
 	'tests/meta/test_*.sh'
 	tests/scripts/test_init_gates.sh
