@@ -345,17 +345,17 @@ cross_run_report() {
         economics="$(jq -nR '
           [inputs | fromjson? | objects] as $spans
           | ([$spans[]
-              | select(
-                  .span? == "lifecycle"
-                  and .["harness.lifecycle_step"]? == "finish")
-              | select(
-                  [to_entries[]
-                   | select(.key | startswith("harness.economics."))]
-                  | length > 0)]
-             | last)
+               | select(
+                   .["gen_ai.tool.name"]? == "finish-issue.economics")]
+              | last)
             // ([$spans[]
                  | select(
-                     .["gen_ai.tool.name"]? == "finish-issue.economics")]
+                     .span? == "lifecycle"
+                     and .["harness.lifecycle_step"]? == "finish")
+                 | select(
+                     [to_entries[]
+                      | select(.key | startswith("harness.economics."))]
+                     | length > 0)]
                 | last)
             // null
         ' < "$trace_file")"
