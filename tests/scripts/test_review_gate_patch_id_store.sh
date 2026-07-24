@@ -70,7 +70,7 @@ git remote add origin "${TMP_DIR}/origin.git"
 git fetch -q origin main
 
 # Establish feature commits on top of origin/main.
-# docs/PROGRESS.md must differ from origin/main so status_doc_gate passes.
+# Keep docs/PROGRESS.md distinct as inert historical fixture data.
 git reset -q --hard origin/main
 printf 'feature work\n' > feature.txt
 printf '# Progress\n\npatch-id store implementation\n' > docs/PROGRESS.md
@@ -143,6 +143,7 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 # (Red-first evidence from Scenario A failing pre-implementation already
 # satisfies the teeth obligation; this is additional positive mutation proof.)
 mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/"
 # Replace the helper's two-line write with a one-line SHA-only marker.
 # shellcheck disable=SC2016
 sed '
@@ -366,24 +367,6 @@ fi
 cd "$_saved_dir"
 emit "Scenario H: sibling worktree approvals keep independent canonical closeout markers"
 
-# ── Scenario I: existing issue worktree reads the legacy shared marker ───────
-fixture_repo --with-scripts review-gate.sh
-I_REPO="$FIXTURE_REPO"
-cd "$I_REPO"
-git checkout -q -b feature/legacy-marker-fallback
-i_head="$(git rev-parse HEAD)"
-mkdir -p "${I_REPO}/.copilot-tracking/review-gate"
-printf '%s\n' "$i_head" \
-  > "${I_REPO}/.copilot-tracking/review-gate/approved-head"
-SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=400 ./scripts/review-gate.sh check \
-  >"${TMP_DIR}/check-i.out" 2>&1 \
-  || fail "Scenario I: issue-scoped check did not read the legacy shared marker"
-if [ -e "${I_REPO}/.copilot-tracking/review-gate/issue-400/approved-head" ]; then
-  fail "Scenario I: read fallback must not fabricate a migrated marker"
-fi
-cd "$_saved_dir"
-emit "Scenario I: issue-scoped check falls back to a legacy shared marker"
-
 tap_done
 
 (
@@ -424,7 +407,7 @@ SH
 chmod +x "${BIN}/gh"
 
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a local bare
-# origin. The feature commit updates docs/PROGRESS.md so status-doc gate passes
+# origin. The feature commit updates docs/PROGRESS.md as inert fixture data
 # and adds feature.txt (no conflict with unrelated main changes).
 make_pr_repo() {
   local dir="$1" pad="$2"

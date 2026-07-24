@@ -21,34 +21,13 @@
 
 set -euo pipefail
 
-red()   { printf '\033[31m%s\033[0m\n' "$*"; }
-green() { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
-bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
 # shellcheck source=scripts/issue-lib.sh
 source "${SCRIPT_DIR}/issue-lib.sh"
 
-# --- Tracing (issue #94, plan D5) --------------------------------------------
-# Guarded source: a missing trace-lib.sh must never break the lifecycle.
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
-fi
-if ! declare -F trace_span >/dev/null 2>&1; then
-  TRACE_NOOP_WARNED=0
-  trace_span() {
-    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
-      printf 'start-issue: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
-      TRACE_NOOP_WARNED=1
-    fi
-    return 0
-  }
-  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
-  trace_lifecycle_init() { :; }
-  trace_lifecycle_arm() { :; }
-fi
+lifecycle_runtime_trace_init start-issue
 
 # Emit a JSON-quoted string literal for arbitrary input (including titles that
 # carry double-quotes, backslashes, or newlines), so the scaffolded

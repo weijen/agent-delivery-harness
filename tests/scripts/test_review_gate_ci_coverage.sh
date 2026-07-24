@@ -173,7 +173,7 @@ git checkout -q -b feature/ci-cov
 export PATH="${TMP_DIR}/bin:${PATH}"
 export GH_LOG="${TMP_DIR}/gh.log"
 
-# 5a. code surface + status-doc edit + approval, but NO project CI -> create-pr blocks at ci-gate
+# 5a. code surface + approval, but NO project CI -> create-pr blocks at ci-gate
 printf '%s' "$PY_SURFACE" > pyproject.toml
 printf '# Progress\n\nissue-129\n' > docs/PROGRESS.md
 git add pyproject.toml docs/PROGRESS.md

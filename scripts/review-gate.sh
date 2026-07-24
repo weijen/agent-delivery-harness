@@ -8,35 +8,15 @@
 
 set -euo pipefail
 
-red()    { printf '\033[31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
 if [ -f "${SCRIPT_DIR}/issue-lib.sh" ]; then
   # shellcheck source=scripts/issue-lib.sh
   source "${SCRIPT_DIR}/issue-lib.sh"
 fi
 
-# --- Tracing (issue #94, plan D5) --------------------------------------------
-# Guarded source: a missing trace-lib.sh must never break the gate. The script
-# runs inside the issue worktree, so trace-lib resolves the issue from the
-# feature/issue-NN-* branch and pins the trace file to the MAIN root (plan D1).
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
-fi
-if ! declare -F trace_span >/dev/null 2>&1; then
-  TRACE_NOOP_WARNED=0
-  trace_span() {
-    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
-      printf 'review-gate: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
-      TRACE_NOOP_WARNED=1
-    fi
-    return 0
-  }
-  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
-fi
+lifecycle_runtime_trace_init review-gate
 
 # --- Project-CI coverage lib (issue #129) ------------------------------------
 # The lib owns all language-specific gate-command tokens so this script stays
@@ -47,8 +27,8 @@ if [ -f "${SCRIPT_DIR}/ci-coverage-lib.sh" ]; then
 fi
 
 # One span per gate operation, emitted from a stage-tracked EXIT trap (plan
-# D3): approve → review_gate_approve lifecycle span; check / status-doc →
-# tool spans carrying the failing sub-gate in harness.stage. Usage errors and
+# D3): approve → review_gate_approve lifecycle span; check and explicit
+# sub-gates emit tool spans carrying the failing sub-gate in harness.stage. Usage errors and
 # help set no TRACE_CMD, so they emit nothing (not gate operations). The
 # `trace` subcommand is the exception: trace_gate emits its
 # review-gate.trace tool span inline (one per gate run, also when invoked
@@ -95,9 +75,6 @@ trace__gate_exit() {
         fi
         trace_span tool "gen_ai.tool.name=review-gate.check" "${attrs[@]}"
         ;;
-      status-doc)
-        trace_span tool "gen_ai.tool.name=review-gate.status-doc" "${attrs[@]}"
-        ;;
       ci-gate)
         if [ "$outcome" = "fail" ] && [ -n "$TRACE_STAGE" ]; then
           attrs+=("harness.stage=${TRACE_STAGE}")
@@ -112,7 +89,7 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|status-doc|ci-gate|trace|log-completeness|carry-rebase-approval
+Usage: ./scripts/review-gate.sh approve|check|ci-gate|trace|log-completeness|carry-rebase-approval
 
 Commands:
   approve     Record the current HEAD as reviewed.
@@ -127,13 +104,9 @@ Commands:
               or computation failure) — the marker is unchanged and no span is
               emitted. Successful carry is the post-sync approval gate;
               create-pr.sh calls `check` only when carry is unavailable.
-  check       Require the recorded approval to match the current HEAD, and that
-              the repo-wide status doc (docs/PROGRESS.md) changed on this branch.
+  check       Require the recorded approval to match the current HEAD.
               Also runs the ci-gate and the trace gate (warn-only unless
               REQUIRE_TRACE_CONSISTENCY=1).
-  status-doc  Require docs/PROGRESS.md to have changed in <base>...HEAD.
-              Every change must update the repo-wide status doc — there is no
-              opt-out. docs/PROGRESS.md is what the next agent reads first.
   ci-gate     Fail closed when a code surface is present but no
               .github/workflows/*.y*ml (other than harness-smoke.yml) runs its
               gates. Bypass with SKIP_CI_GATE=1 (logged).
@@ -145,24 +118,6 @@ Commands:
               Scan the issue's progress.md for unfilled placeholders. Warn-only
               by default; set REQUIRE_LOG_COMPLETE=1 to make findings a hard failure.
 EOF
-}
-
-# status_doc_gate — fail closed unless docs/PROGRESS.md changed on the branch.
-#
-# The repo-wide, pushed status doc must be updated as part of the branch before a
-# PR opens (harness.instructions.md §6) — it is the running log the next agent
-# reads first, so every change must touch it. We prove that deterministically by
-# diffing it over <base>...HEAD, where <base> is origin/main, else main. There is
-# deliberately no override: an opt-out would let the one thing the next agent
-# relies on silently rot.
-status_doc_gate() {
-  # RETIRED (2026-07-22): the docs/PROGRESS.md update-before-PR obligation is
-  # gone — the journal duplicated git log / issues / trace and its gate only
-  # ever caught its own bookkeeping. Kept as an accepted no-op so in-flight
-  # branches and older callers do not break.
-  TRACE_STAGE="status_doc"
-  yellow "! status-doc gate retired — docs/PROGRESS.md is frozen history; nothing to check."
-  return 0
 }
 
 # ci_gate — fail closed unless every detected code surface has project-CI
@@ -213,7 +168,7 @@ ci_gate() {
 #
 # Runs the report-only trace checker for the current issue and passes through
 # schema/type/redaction and cross-artifact findings.
-# Phase one is WARN-ONLY (#84 status-doc rollout precedent): findings print a
+# Phase one is WARN-ONLY (#84 staged-rollout precedent): findings print a
 # ⚠ summary and the gate returns 0. REQUIRE_TRACE_CONSISTENCY=1 — the
 # documented promotion flag, mirroring REQUIRE_FEATURES_COMPLETE exactly —
 # turns violations into a hard failure (return 1). Promotion later is a
@@ -616,7 +571,6 @@ _patch_id_for_branch() {
 }
 
 repo_root="$(git rev-parse --show-toplevel)"
-legacy_marker_file="${repo_root}/.copilot-tracking/review-gate/approved-head"
 marker_issue="${REVIEW_GATE_ISSUE:-}"
 if [ -z "$marker_issue" ]; then
   marker_issue="$(resolve_issue_number || true)"
@@ -638,15 +592,10 @@ marker_main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
   exit 2
 }
 canonical_marker_file="${marker_main_root}/${marker_relative}"
-canonical_legacy_marker="${marker_main_root}/.copilot-tracking/review-gate/approved-head"
 marker_read_file="$marker_file"
 if [ -n "$marker_issue" ] && [ ! -f "$marker_read_file" ]; then
   if [ -f "$canonical_marker_file" ]; then
     marker_read_file="$canonical_marker_file"
-  elif [ -f "$legacy_marker_file" ]; then
-    marker_read_file="$legacy_marker_file"
-  elif [ -f "$canonical_legacy_marker" ]; then
-    marker_read_file="$canonical_legacy_marker"
   fi
 fi
 head_sha="$(git rev-parse HEAD)"
@@ -752,11 +701,6 @@ case "$command" in
     # In a linked worktree the canonical marker lives in the main checkout
     # root, so carry validates and updates both copies.
     canonical_read_file="$canonical_marker_file"
-    if [ "$marker_read_file" = "$legacy_marker_file" ] \
-        && [ -n "$marker_issue" ] && [ ! -f "$canonical_read_file" ] \
-        && [ -f "$canonical_legacy_marker" ]; then
-      canonical_read_file="$canonical_legacy_marker"
-    fi
 
     if [ "$canonical_marker_file" != "$marker_file" ]; then
       # Linked worktree: canonical and local markers are distinct paths.
@@ -838,12 +782,11 @@ case "$command" in
     else
       green "✓ review approved for current HEAD ${head_sha}"
     fi
-    status_doc_gate
     # Project-CI coverage gate (issue #129): fail closed when a code surface has
     # no project-CI workflow running its gates (bypass: SKIP_CI_GATE=1).
     ci_gate
     # Two-phase trace gate (issue #103): warn-only inside check by default —
-    # approval + status-doc still decide the exit code; under
+    # approval and the hard sub-gates still decide the exit code; under
     # REQUIRE_TRACE_CONSISTENCY=1 trace findings fail the check too.
     TRACE_STAGE="trace_gate"
     trace_gate
@@ -861,11 +804,6 @@ case "$command" in
     # trace gate above (REQUIRE_TRACE_CONSISTENCY governs THAT, not this).
     TRACE_STAGE="review_verdict"
     review_verdict_gate || exit 1
-    ;;
-  status-doc)
-    TRACE_CMD="status-doc"
-    TRACE_T0="$(trace_now_ms)"
-    status_doc_gate
     ;;
   ci-gate)
     TRACE_CMD="ci-gate"

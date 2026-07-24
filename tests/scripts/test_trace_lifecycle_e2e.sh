@@ -149,7 +149,7 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts" "${R}/docs/evaluation"
-for s in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
+for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
          finish-lib.sh economics-report-lib.sh trace-lib.sh trace-report.sh \
          ci-coverage-lib.sh; do
@@ -192,7 +192,7 @@ run_step start "$R" ./scripts/start-issue.sh 42 SLUG=e2e
 printf '%s\n' '{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}' \
   > "${WT}/.copilot-tracking/issues/issue-42/feature_list.json"
 
-# The branch must update docs/PROGRESS.md (status-doc gate, no opt-out).
+# Keep docs/PROGRESS.md distinct as inert historical fixture data.
 printf '# Progress\n\nissue-42 shipped\n' > "${WT}/docs/PROGRESS.md"
 git -C "$WT" add docs/PROGRESS.md
 git -C "$WT" commit -q -m "issue-42: progress update"

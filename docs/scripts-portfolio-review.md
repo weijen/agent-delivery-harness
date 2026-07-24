@@ -48,7 +48,7 @@ trigger), and never migrate the lifecycle core or the hooks.
 | `finish-issue.sh` | 295 | Teardown: worktree removal, completion check, trace export/reconstruct/hygiene | 9 |
 | `scaffold-language.sh` | 284 | Generate profile descriptor + instructions skeleton | – |
 | `start-issue.sh` | 232 | Worktree + branch + per-issue scaffold | 6 |
-| `review-gate.sh` | 448 | 5 gates: approval marker, status-doc, ci-coverage, trace, red-first | 6 |
+| `review-gate.sh` | 448 | Approval marker, CI coverage, trace, and review-evidence gates | 6 |
 | `install-harness.sh` | 173 | Copy harness into target repo (dry/write/update) | – |
 | `create-pr.sh` | 146 | Rebase onto main, dual gate check, push, open PR | 4 |
 | `merge-pr.sh` | 134 | CI-green gate, squash merge | – |

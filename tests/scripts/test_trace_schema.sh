@@ -109,10 +109,10 @@ jq -e '.optional_fields["harness.failure_mode"] | (type == "string") and contain
 # arrays. Backstop lists are hardcoded here (sorted, order-insensitive) so a
 # contract edit cannot silently drift them; tests/meta/test_trace_schema_single_source.sh
 # enforces that each script-local copy matches these arrays.
-expected_numeric_keys='["harness.duration_ms","harness.exit_status","harness.finding_count","harness.incomplete_count","harness.teeth_proof_missing_count","harness.violation_count","harness.warning_count"]'
+expected_numeric_keys='["harness.duration_ms","harness.exit_status","harness.finding_count","harness.incomplete_count","harness.violation_count","harness.warning_count"]'
 jq -e --argjson want "$expected_numeric_keys" \
   '(.numeric_keys // [] | sort) == $want' "$CONTRACT" >/dev/null \
-  || fail "contract .numeric_keys must be exactly the 7 trace-gate count keys (issue #173)"
+  || fail "contract .numeric_keys must be exactly the 6 trace-gate count keys (issue #173)"
 
 expected_numeric_prefixes='["gen_ai.usage.","harness.economics."]'
 jq -e --argjson want "$expected_numeric_prefixes" \

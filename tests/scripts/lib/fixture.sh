@@ -93,6 +93,14 @@ fixture_repo() {
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
     case ",${scripts_csv}," in
+      *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,review-gate.sh,*)
+        case ",${scripts_csv}," in
+          *,lifecycle-runtime-lib.sh,*) ;;
+          *) scripts+=("lifecycle-runtime-lib.sh") ;;
+        esac
+        ;;
+    esac
+    case ",${scripts_csv}," in
       *,review-gate.sh,*)
         case ",${scripts_csv}," in
           *,ci-coverage-lib.sh,*) ;;

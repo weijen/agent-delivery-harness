@@ -97,10 +97,8 @@ issue_derive_slug() {
 # Usage: resolve_issue_env <number> [explicit-slug]
 resolve_issue_env() {
   local num="$1" explicit_slug="${2:-}"
-  local root parent reponame primary_worktree legacy_worktree
+  local root
   root="$(issue_main_root)"
-  parent="$(dirname "$root")"
-  reponame="$(basename "$root")"
 
   ISSUE_NUM="$num"
   ISSUE_PAD="$(printf '%02d' "$num")"
@@ -110,13 +108,7 @@ resolve_issue_env() {
     ISSUE_SLUG="$(issue_derive_slug "$num")"
   fi
   BRANCH="feature/issue-${ISSUE_PAD}-${ISSUE_SLUG}"
-  primary_worktree="${root}/.worktrees/issue-${ISSUE_PAD}"
-  legacy_worktree="${parent}/${reponame}-worktrees/issue-${ISSUE_PAD}"
-  if [ ! -d "$primary_worktree" ] && [ -d "$legacy_worktree" ]; then
-    WORKTREE_DIR="$legacy_worktree"
-  else
-    WORKTREE_DIR="$primary_worktree"
-  fi
+  WORKTREE_DIR="${root}/.worktrees/issue-${ISSUE_PAD}"
   TRACKING_DIR="${WORKTREE_DIR}/.copilot-tracking/issues/issue-${ISSUE_PAD}"
   export ISSUE_NUM ISSUE_PAD ISSUE_SLUG BRANCH WORKTREE_DIR TRACKING_DIR
 }

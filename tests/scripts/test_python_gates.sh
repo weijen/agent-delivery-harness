@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GATES="${ROOT}/scripts/python-gates.sh"
+NODE_PROFILE="${ROOT}/profiles/node.profile.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -13,6 +14,9 @@ fail() {
 
 [ -x "$GATES" ] || fail "authority is not executable"
 bash -n "$GATES" || fail "authority does not parse"
+if grep -Eq 'PROFILE_SYNC_|profile_sync[[:space:]]*\(\)' "$NODE_PROFILE"; then
+	fail "Node profile retains dependency-sync declarations that init.sh never consumes"
+fi
 
 for workflow in harness-smoke.yml python-ci.yml; do
 	path="${ROOT}/.github/workflows/${workflow}"

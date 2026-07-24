@@ -33,6 +33,7 @@ emit() {
 mkdir -p "${TMP_DIR}/repo/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 cp "${ROOT}/scripts/trace-lib.sh" "${TMP_DIR}/repo/scripts/trace-lib.sh"
@@ -51,7 +52,7 @@ CHECK_OUT="${TMP_DIR}/check.out"
 
 SKIP_INIT=1 ./scripts/start-issue.sh 200 SLUG=check-test >"$CHECK_START_OUT"
 FEATURE_LIST="${TMP_DIR}/repo/.worktrees/issue-200/.copilot-tracking/issues/issue-200/feature_list.json"
-TRACE_FILE="${TMP_DIR}/repo/.copilot-tracking/issues/issue-200/trace.jsonl"
+
 [ -f "$FEATURE_LIST" ] || { printf '# BLOCKING: feature_list.json was not scaffolded\n' >&2; exit 1; }
 
 set_features() { printf '%s\n' "$1" > "$FEATURE_LIST"; }
@@ -140,89 +141,13 @@ if grep -qi "command not found" "$CHECK_OUT"; then
 fi
 emit "missing jq skips the check with a warning and exit 0"
 
-# 12. A well-formed optional teeth_proof object is accepted.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":{"kind":"red_first","evidence":"new sensor failed before production change"}}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "well-formed teeth_proof should pass"; fi
-emit "well-formed teeth_proof is accepted"
-
-# 13. A present teeth_proof that is not an object must hard-fail and name teeth_proof.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":"red_first evidence"}]}'
-if run_check; then cat "$CHECK_OUT"; fail "non-object teeth_proof should fail"; fi
-grep -q 'teeth_proof' "$CHECK_OUT" || fail "non-object teeth_proof error should name teeth_proof"
-emit "non-object teeth_proof hard-fails and names teeth_proof"
-
-# 14. A teeth_proof kind outside the closed set must hard-fail and name teeth_proof.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":{"kind":"manual","evidence":"not an allowed kind"}}]}'
-if run_check; then cat "$CHECK_OUT"; fail "invalid teeth_proof.kind should fail"; fi
-grep -q 'teeth_proof' "$CHECK_OUT" || fail "invalid teeth_proof.kind error should name teeth_proof"
-emit "invalid teeth_proof.kind hard-fails and names teeth_proof"
-
-# 15. Empty or whitespace-only teeth_proof evidence must hard-fail and name teeth_proof.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":{"kind":"mutation","evidence":"   "}}]}'
-if run_check; then cat "$CHECK_OUT"; fail "whitespace-only teeth_proof.evidence should fail"; fi
-grep -q 'teeth_proof' "$CHECK_OUT" || fail "empty teeth_proof.evidence error should name teeth_proof"
-emit "empty teeth_proof.evidence hard-fails and names teeth_proof"
-
-# 16. Missing teeth_proof evidence must hard-fail and name teeth_proof.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":{"kind":"negative_fixture"}}]}'
-if run_check; then cat "$CHECK_OUT"; fail "missing teeth_proof.evidence should fail"; fi
-grep -q 'teeth_proof' "$CHECK_OUT" || fail "missing teeth_proof.evidence error should name teeth_proof"
-emit "missing teeth_proof.evidence hard-fails and names teeth_proof"
-
-# 17. A passes:true feature without teeth_proof is warn-only and reports coverage.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green"}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "missing teeth_proof should warn only (exit 0)"; fi
-grep -q 'teeth_proof_missing' "$CHECK_OUT" || fail "missing teeth_proof warning should report teeth_proof_missing"
-emit "passes:true without teeth_proof warns with teeth_proof_missing"
-
-# 18. A valid red_first_waiver suppresses teeth_proof_missing.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","red_first_waiver":{"kind":"justified","reason":"legacy feature was already complete before this sensor existed"}}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "valid red_first_waiver should keep missing teeth_proof warn-only"; fi
-if grep -q 'teeth_proof_missing' "$CHECK_OUT"; then
-  fail "valid red_first_waiver should suppress teeth_proof_missing"
+# 12. Retired proof and waiver fields are inert unknown metadata.
+set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":"malformed legacy value","teeth_proof_waiver":{},"red_first_waiver":42}]}'
+if ! run_check; then cat "$CHECK_OUT"; fail "retired proof metadata must not affect completion validation"; fi
+if grep -Eq 'teeth_proof|red_first_waiver' "$CHECK_OUT"; then
+  fail "retired proof metadata must not emit validation or coverage diagnostics"
 fi
-emit "valid red_first_waiver suppresses teeth_proof_missing"
-
-# 19. A valid teeth_proof_waiver suppresses teeth_proof_missing.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof_waiver":{"kind":"doc-only","reason":"docs only, no code path"}}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "valid teeth_proof_waiver should keep missing teeth_proof warn-only"; fi
-if grep -q 'teeth_proof_missing' "$CHECK_OUT"; then
-  fail "valid teeth_proof_waiver should suppress teeth_proof_missing"
-fi
-emit "valid teeth_proof_waiver suppresses teeth_proof_missing"
-
-# 20. An empty teeth_proof_waiver hard-fails and names teeth_proof_waiver.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof_waiver":{}}]}'
-if run_check; then cat "$CHECK_OUT"; fail "empty teeth_proof_waiver should fail"; fi
-grep -q 'teeth_proof_waiver' "$CHECK_OUT" || fail "empty teeth_proof_waiver error should name teeth_proof_waiver"
-emit "empty teeth_proof_waiver hard-fails and names teeth_proof_waiver"
-
-# 21. The trace span records teeth_proof_missing_count as a numeric attribute.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green"}]}'
-rm -f "$TRACE_FILE"
-if ! run_check; then cat "$CHECK_OUT"; fail "missing teeth_proof should warn only (exit 0) while emitting trace"; fi
-if [ ! -s "$TRACE_FILE" ]; then
-  fail "check-feature-list did not emit trace.jsonl"
-else
-  missing_count_present="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | has("harness.teeth_proof_missing_count")' "$TRACE_FILE" | tail -n 1)"
-  missing_count_type="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | ."harness.teeth_proof_missing_count" | type' "$TRACE_FILE" | tail -n 1)"
-  missing_count_value="$(jq -r 'select(.span == "tool" and ."gen_ai.tool.name" == "check-feature-list") | ."harness.teeth_proof_missing_count"' "$TRACE_FILE" | tail -n 1)"
-  [ "$missing_count_present" = "true" ] || fail "harness.teeth_proof_missing_count missing from tool span"
-  [ "$missing_count_type" = "number" ] || fail "harness.teeth_proof_missing_count type is ${missing_count_type} (expected number)"
-  [ "$missing_count_value" = "1" ] || fail "harness.teeth_proof_missing_count value is ${missing_count_value} (expected 1)"
-fi
-emit "trace span records numeric teeth_proof_missing_count"
-
-# 22. A passes:true feature with teeth_proof:null treats null as absent and warns only.
-set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":null}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should warn only (exit 0) for passes:true"; fi
-grep -q 'teeth_proof_missing' "$CHECK_OUT" || fail "teeth_proof:null should report teeth_proof_missing for passes:true"
-emit "passes:true with teeth_proof null warns with teeth_proof_missing"
-
-# 23. A passes:false feature with teeth_proof:null treats null as absent and warns only.
-set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false,"teeth_proof":null}]}'
-if ! run_check; then cat "$CHECK_OUT"; fail "teeth_proof:null should not hard-fail for passes:false"; fi
-emit "passes:false with teeth_proof null does not hard-fail"
+emit "retired proof and waiver metadata is ignored"
 
 (
 cd "$ROOT"
@@ -245,6 +170,7 @@ emit() {
 mkdir -p "${TMP_DIR}/repo/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 cp "${ROOT}/scripts/trace-lib.sh" "${TMP_DIR}/repo/scripts/trace-lib.sh"

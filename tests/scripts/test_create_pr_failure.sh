@@ -684,7 +684,7 @@ SH
 chmod +x "${BIN}/gh"
 
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a bare
-# origin. The feature commit updates docs/PROGRESS.md (status-doc gate) and
+# origin. The feature commit updates docs/PROGRESS.md as inert fixture data and
 # conflict.txt (merge-conflict raw material, mirroring test_trace_create_pr.sh).
 make_pr_repo() {
   local dir="$1" pad="$2"
@@ -864,7 +864,7 @@ SH
 chmod +x "${BIN}/gh"
 
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a bare
-# origin, with the review-gate's own status-doc gate satisfied.
+# origin, with the review gate otherwise satisfied.
 make_pr_repo() {
   local dir="$1" pad="$2"
   fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh

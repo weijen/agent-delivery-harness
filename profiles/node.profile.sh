@@ -47,16 +47,6 @@ if [ -f "$PWD/pnpm-lock.yaml" ] ||
 fi
 PROFILE_SURFACE_LABEL="Node surface detected (package.json, ${PROFILE_PM})"
 
-# --- Dependency sync (declared-but-unused) -----------------------------------
-# init.sh is a sensor, not an installer, so it runs no Node dependency sync.
-# These strings exist for descriptor-contract symmetry and future tooling.
-PROFILE_SYNC_OK="node dependencies present"
-PROFILE_SYNC_FAIL="node dependency install failed"
-PROFILE_SYNC_FIX="inspect: ${PROFILE_PM} install"
-PROFILE_SYNC_SKIP_MSG="no package.json yet — skipping node checks"
-
-profile_sync() { "${PROFILE_PM}" install; }
-
 # --- Quality gates -----------------------------------------------------------
 # typecheck is conditional: present only for TypeScript projects (tsconfig.json,
 # a typecheck script, or *.ts sources). JS-only projects omit the slot entirely

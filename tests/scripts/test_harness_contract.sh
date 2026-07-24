@@ -196,6 +196,9 @@ require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.s
 if grep -q -- '--last' scripts/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
 fi
+if grep -Eq 'status_doc_gate|status-doc' scripts/review-gate.sh; then
+  fail "review-gate.sh must not retain the retired status-document gate surface"
+fi
 end_scenario "contract declares four complete gates with wired sensors and CI-green merge"
 
 # --- 2c. Evidence provenance, SHA chains, and governed bypasses --------------
@@ -235,11 +238,8 @@ end_scenario "contract declares evidence governance, SHA bindings, and audited b
 # stays inside the language-neutral boundary alongside the other owners.
 
 # --- 2d. Trace-emission backstop (issue #94) ----------------------------------
-# The six lifecycle scripts each emit schema-v1 trace spans via trace-lib.sh
-# (guarded source + trace_span calls). Two layers, mirroring 2b/2c:
-#   (a) script-side presence backstop: every instrumented owner must still
-#       reference trace_span AND trace-lib.sh — deleting the instrumentation
-#       from a script fails this sensor even if the YAML entry is deleted too;
+# The lifecycle entrypoints emit schema-v1 spans via lifecycle-runtime-lib.sh,
+# while check-feature-list.sh sources trace-lib.sh directly.
 te_required=(
   scripts/start-issue.sh
   scripts/check-feature-list.sh
@@ -254,10 +254,17 @@ for owner in "${te_required[@]}"; do
     fail "trace_emission/${owner}: instrumented script missing"
     continue
   fi
-  grep -Eq 'trace_span' "$abs" \
-    || fail "trace_emission/${owner}: no trace_span reference — trace emission removed (issue #94)"
-  grep -Eq 'trace-lib\.sh' "$abs" \
-    || fail "trace_emission/${owner}: no trace-lib.sh sourcing reference (issue #94)"
+  if [ "$owner" = "scripts/check-feature-list.sh" ]; then
+    grep -Eq 'trace_span' "$abs" \
+      || fail "trace_emission/${owner}: no trace_span reference — trace emission removed (issue #94)"
+    grep -Eq 'trace-lib\.sh' "$abs" \
+      || fail "trace_emission/${owner}: no trace-lib.sh sourcing reference (issue #94)"
+  else
+    grep -Eq 'lifecycle-runtime-lib\.sh' "$abs" \
+      || fail "trace_emission/${owner}: no lifecycle runtime sourcing reference (issue #423)"
+    grep -Eq 'lifecycle_runtime_trace_init' "$abs" \
+      || fail "trace_emission/${owner}: shared trace bootstrap is not initialized (issue #423)"
+  fi
 done
 end_scenario "lifecycle scripts retain schema-v1 trace instrumentation"
 

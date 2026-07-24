@@ -330,7 +330,6 @@ def types_valid:
 # >>> trace-schema:numeric_keys
 ["harness.exit_status", "harness.duration_ms", "harness.finding_count", "harness.incomplete_count",
  "harness.issue", "schema_version",
- "harness.teeth_proof_missing_count",
  "harness.violation_count", "harness.warning_count"] as $numeric_keys
 # <<< trace-schema:numeric_keys
 | to_entries
