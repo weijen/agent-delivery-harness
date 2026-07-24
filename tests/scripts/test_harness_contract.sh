@@ -49,6 +49,16 @@ end_scenario() {
 
 [ -f "$CONTRACT" ] || { printf '# BLOCKING: contract not found at %s\n' "$CONTRACT" >&2; exit 1; }
 
+if [ -e "${ROOT}/scripts/trace-report.sh" ]; then
+  fail "retired trace-report.sh still exists"
+fi
+[ -x "${ROOT}/scripts/render-action-log.sh" ] \
+  || fail "live Action Log renderer must remain executable"
+if grep -q 'trace-report\.sh' "${ROOT}/docs/HARNESS.md"; then
+  fail "HARNESS.md still advertises the retired trace reporter"
+fi
+end_scenario "trace reporter retired while Action Log rendering remains live"
+
 # --- awk YAML readers (tailored to docs/harness-contract.yml's flat shape) ----
 
 # parse_records SECTION

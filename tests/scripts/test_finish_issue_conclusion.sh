@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 
@@ -108,11 +108,8 @@ mkdir -p "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state"
 printf 'orphan\n' >"${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state/session-a-tool-b"
 printf '{"summary_schema_version":1,"finished":false}\n' \
   >"${MAIN}/.copilot-tracking/issues/issue-${PAD}/trace-summary.json"
-STATE="${TMP_DIR}/native-state"
-plant_events "$STATE" "$SID" bracket
 FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-41-fixture","state":"MERGED","mergedAt":"2026-05-01T12:30:00Z","number":441}]' \
   run_finish "$MAIN" 41 "${TMP_DIR}/happy.out" env FORCE=1 \
-    COPILOT_AGENT_SESSION_ID="$SID" COPILOT_CLI_STATE_ROOT="$STATE" \
   || { cat "${TMP_DIR}/happy.out"; fail "happy: finish unexpectedly failed"; }
 [ ! -e "${MAIN}/.worktrees/issue-${PAD}" ] || fail "happy: worktree must be removed"
 PROGRESS="${MAIN}/.copilot-tracking/issues/issue-${PAD}/progress.md"
@@ -124,14 +121,12 @@ assert_absent "$PROGRESS" 'Status:'
 assert_absent "$PROGRESS" '- _Record conductor handbacks'
 assert_absent "$PROGRESS" 'The **conductor authors**'
 assert_contains "$PROGRESS" '- Authored closeout note must survive.'
-assert_contains "$PROGRESS" '## Delivery economics (auto-stamped, trace-derived)'
-assert_contains "$PROGRESS" '3500'
-assert_contains "$PROGRESS" 'claude-sonnet-5'
+assert_absent "$PROGRESS" '## Delivery economics (auto-stamped, trace-derived)'
 assert_absent "${TMP_DIR}/happy.out" '## Delivery economics (auto-stamped, trace-derived)'
 [ ! -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ] \
   || fail "happy: issue-scoped hook state must be removed"
-jq -e '.finished == true and .final_outcome == "pass"' "$SUMMARY" >/dev/null \
-  || { cat "$SUMMARY"; fail "happy: final trace summary was not regenerated"; }
+jq -e '.finished == false' "$SUMMARY" >/dev/null \
+  || { cat "$SUMMARY"; fail "happy: retired reporter must not rewrite the historical summary"; }
 [ "$(jq -es 'length' "$SUMMARY")" -eq 1 ] \
   || fail "happy: summary must contain exactly one JSON document"
 TRACE="${MAIN}/.copilot-tracking/issues/issue-${PAD}/trace.jsonl"
@@ -215,33 +210,6 @@ ln -s "$OUTSIDE" "$ECON_LINK"
 [ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
   || fail "economics-symlink: unrelated destination was overwritten"
 assert_contains "${TMP_DIR}/economics-symlink.out" 'is a symlink'
-
-# Reporter failure is advisory and cannot block destructive teardown.
-new_fixture summary-refusal 46
-MAIN="$NEW_MAIN"
-cat >"${MAIN}/scripts/trace-report.sh" <<'BROKEN'
-#!/usr/bin/env bash
-exit 7
-BROKEN
-chmod +x "${MAIN}/scripts/trace-report.sh"
-run_finish "$MAIN" 46 "${TMP_DIR}/summary-refusal.out" env ABANDONED=1 FORCE=1 \
-  || { cat "${TMP_DIR}/summary-refusal.out"; fail "summary-refusal: reporter failure must not block"; }
-[ ! -e "${MAIN}/.worktrees/issue-46" ] \
-  || fail "summary-refusal: worktree must be removed despite reporter failure"
-assert_absent "${TMP_DIR}/summary-refusal.out" 'trace-summary regeneration'
-
-# A pre-planted summary symlink remains protected without blocking teardown.
-new_fixture summary-symlink 48
-MAIN="$NEW_MAIN"
-OUTSIDE="${TMP_DIR}/summary-outside"
-printf 'do not overwrite\n' >"$OUTSIDE"
-ln -s "$OUTSIDE" "${MAIN}/.copilot-tracking/issues/issue-48/trace-summary.json"
-run_finish "$MAIN" 48 "${TMP_DIR}/summary-symlink.out" env ABANDONED=1 FORCE=1 \
-  || { cat "${TMP_DIR}/summary-symlink.out"; fail "summary-symlink: reporting refusal must not block"; }
-[ ! -e "${MAIN}/.worktrees/issue-48" ] \
-  || fail "summary-symlink: worktree must be removed"
-[ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
-  || fail "summary-symlink: unrelated destination was overwritten"
 
 # #91: surface git's own dirty-worktree error and retain the FORCE hint.
 new_fixture worktree-error 47
