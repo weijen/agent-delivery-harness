@@ -73,7 +73,7 @@ copy_fixture_scripts() {
 }
 
 # make_git_fixture <dir> <issue> — a git repo with a planted issue tracking dir
-# (progress.md + feature_list.json), used for the DIRECT best_effort_economics_stamp
+# (progress.md + feature_list.json), used for the DIRECT trace_report_economics_stamp
 # cases. No worktree; main root == the repo itself.
 make_git_fixture() {
   local dir="$1" issue="$2" pad
@@ -185,7 +185,7 @@ plant_events() {
   } > "${dir}/events.jsonl"
 }
 
-# run_stamp <dir> <issue> [sid] [state_root] — run best_effort_economics_stamp
+# run_stamp <dir> <issue> [sid] [state_root] — run trace_report_economics_stamp
 # directly, capturing the operator-facing block on stdout. Pins the native
 # resolution env; when sid/state_root are omitted, the session id is UNSET so
 # the native path fails open.
@@ -196,11 +196,11 @@ run_stamp() {
     if [ -n "$sid" ]; then
       env PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" \
         TRACE_ISSUE="$issue" COPILOT_AGENT_SESSION_ID="$sid" COPILOT_CLI_STATE_ROOT="$state_root" \
-        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; best_effort_economics_stamp'
+        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; trace_report_economics_stamp'
     else
       env -u COPILOT_AGENT_SESSION_ID PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" \
         SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" COPILOT_CLI_STATE_ROOT="${state_root:-${TMP_DIR}/empty-state}" \
-        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; best_effort_economics_stamp'
+        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; trace_report_economics_stamp'
     fi
   )
 }
@@ -208,7 +208,7 @@ run_stamp() {
 # run_fn <dir> <function> <arg>... — source finish-lib.sh in isolation and call
 # ONE pure helper directly (compute_native_economics / render_native_economics),
 # so a security assertion can inspect that helper's own output shape (e.g. exact
-# line count) without going through the full best_effort_economics_stamp path.
+# line count) without going through the full trace_report_economics_stamp path.
 # Every argument is passed positionally (never interpolated into the sourced
 # command string), so a hostile byte sequence in an argument cannot alter which
 # code runs.

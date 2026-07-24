@@ -8,14 +8,12 @@
 # finish-issue.sh can stay a thin teardown orchestrator:
 #
 #   finish_trace_gate             — pre-teardown two-phase trace gate (#103)
-#   finish_log_completeness_gate  — pre-teardown Action Log placeholder gate (#266)
 #   finish_closeout_cruft_gate     — exact scaffold strip + strict residual gate (#320)
 #   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
-#   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
-#   finish_summary_regen_gate     — pre-teardown REQUIRED trace-summary readiness gate (#329)
+#   trace_report_economics_stamp  — report-time progress.md economics stamp (#267, #381)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
-#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→render→scrub→conclude→stamp→summary-gate (#320, #329, #332)
+#   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→render→scrub→conclude (#320, #332, #381)
 #
 # Contract with finish-issue.sh — everything is resolved at CALL time, not at
 # source time, so this file just defines functions:
@@ -64,34 +62,6 @@ finish_trace_gate() {
     fi
   else
     yellow "⚠ trace gate skipped: scripts/review-gate.sh not found"
-  fi
-  return 0
-}
-
-# --- Log-completeness gate (issue #266, feature finish-issue-log-gate-wiring) -
-# Same two-phase shape as finish_trace_gate: warn-only by default (findings
-# print, teardown proceeds); under REQUIRE_LOG_COMPLETE=1 a placeholder-laden
-# progress.md turns into a refusal BEFORE worktree_remove, leaving the worktree
-# intact. review-gate.sh log-completeness returns non-zero only under that flag,
-# so an unflagged non-zero here is an unexpected/broken gate — say so honestly.
-# A missing review-gate.sh degrades to warn-and-skip. Returns 0 proceed, 1 block.
-finish_log_completeness_gate() {
-  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
-    if ! REVIEW_GATE_ISSUE="${ISSUE_NUM}" TRACE_COLLAPSE_CHILD_SPANS=1 \
-      "${SCRIPT_DIR}/review-gate.sh" log-completeness; then
-      if [ "${REQUIRE_LOG_COMPLETE:-0}" = "1" ]; then
-        red "✗ log-completeness gate blocked the finish (REQUIRE_LOG_COMPLETE=1)."
-        echo "  Resolve the findings above (or unset the flag) and re-run:"
-      else
-        red "✗ log-completeness gate failed unexpectedly (it is warn-only without REQUIRE_LOG_COMPLETE=1)."
-        echo "  Inspect the output above, then re-run:"
-      fi
-      echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
-      echo "  The worktree is left intact."
-      return 1
-    fi
-  else
-    yellow "⚠ log-completeness gate skipped: scripts/review-gate.sh not found"
   fi
   return 0
 }
@@ -529,7 +499,7 @@ economics_time_summary() {
 # token usage do not fabricate zero-token runs. Issue #329 sharpens the token
 # row specifically: rather than a half-present "- Tokens: n/a" placeholder, the
 # token row is OMITTED entirely when no model span carried usage — the honest
-# subagent-only native token surface (joined by best_effort_economics_stamp) is
+# subagent-only native token surface (joined by trace_report_economics_stamp) is
 # the operator's token source when the runtime carries no gen_ai.usage.* on
 # model spans, and a contradictory n/a line next to it is worse than absence.
 compute_delivery_economics() {
@@ -836,7 +806,7 @@ finish__warn() {
 }
 
 # Shared main-checkout resolver (issue #290): both best_effort_progress_migrate
-# and best_effort_economics_stamp need the MAIN checkout root (it survives
+# and trace_report_economics_stamp need the MAIN checkout root (it survives
 # `git worktree remove`; a linked worktree does not). trace__main_root (from
 # trace-lib.sh) is the primary source; when trace-lib.sh was not sourced (or a
 # checkout predates it) fall back to `git rev-parse --git-common-dir`, whose
@@ -858,7 +828,7 @@ finish__resolve_main_root() {
 }
 
 # Path-safety helper shared by best_effort_progress_migrate and
-# best_effort_economics_stamp (issue #290, M9): validates that
+# trace_report_economics_stamp (issue #290, M9): validates that
 # main_root/.copilot-tracking/issues/issue-<issue_pad> is reachable through a
 # chain of REAL (non-symlink) directories only — i.e. no ancestor component
 # (.copilot-tracking, issues, or issue-NN itself) may be a symlink to
@@ -1090,17 +1060,17 @@ economics_numeric_aggregates() {
 # '## Action Log' section — is the authoritative delivery record, but
 # `git worktree remove` deletes it with the worktree. This helper
 # verbatim-copies that file over any existing MAIN-root progress.md (the
-# worktree copy always wins) BEFORE best_effort_economics_stamp runs, so the
+# worktree copy always wins) before trace_report_economics_stamp runs, so the
 # stamp lands on the real Action Log instead of synthesizing a hollow stub.
 # Reads ISSUE_NUM/WORKTREE_DIR at CALL time (same contract as
-# best_effort_economics_stamp) and shares finish__resolve_main_root with it.
+# trace_report_economics_stamp) and shares finish__resolve_main_root with it.
 # Warn-never-fail: any missing/invalid path, an occupied non-file destination,
 # or a copy failure is advisory only and ALWAYS returns 0 — migration must
 # never block finish-issue.sh or worktree removal.
 # Caller-visible outcome flag (issue #290, M10): reset false at every entry
 # and set true ONLY after this run's atomic `mv` onto the main-root
 # progress.md has succeeded. finish-issue.sh reads this to decide whether
-# best_effort_economics_stamp may run — a stale pre-existing main-root
+# trace_report_economics_stamp may run — a stale pre-existing main-root
 # progress.md (e.g. left over from a prior finish) must never be
 # economics-stamped as if it reflected THIS run's migration.
 # shellcheck disable=SC2034 # read by finish-issue.sh, not finish-lib.sh itself
@@ -1222,18 +1192,13 @@ best_effort_progress_migrate() {
   return 0
 }
 
-# Best-effort pre-teardown delivery economics stamp (issue #267, simplified by
-# #290). It stamps ONLY the migrated MAIN-root progress.md — the worktree copy
-# is no longer dual-written here (best_effort_progress_migrate already carried
-# the real Action Log to main root before this runs) and a missing main-root
-# progress.md is no longer synthesized as a hollow stub: economics_stamp_into
-# is itself warn-only, so an absent file simply skips the stamp instead of
-# fabricating one. The feature-list read still prefers the worktree copy (it
-# is still present at economics_stamp time) so the metrics reflect the live
-# feature_list.json. The durable machine record is the finish-issue.economics
-# span added by a later feature; this markdown stamp is operator-facing and
-# never blocks.
-best_effort_economics_stamp() {
+# Best-effort report-time delivery economics stamp (issues #267 and #381).
+# `trace-report.sh` invokes it on demand or from finish-issue's post-teardown
+# reporting hook. It stamps only the surviving MAIN-root progress.md and never
+# blocks reporting or teardown. Direct callers may still provide WORKTREE_DIR
+# while testing or reporting an active issue; otherwise the migrated main-root
+# feature list is used.
+trace_report_economics_stamp() {
   local stamp_issue="${ISSUE_NUM:-}"
   local issue_pad="" main_root="" worktree_dir="${WORKTREE_DIR:-}"
   local main_issue_dir="" worktree_issue_dir="" trace_file=""
@@ -1369,14 +1334,14 @@ best_effort_economics_stamp() {
   return 0
 }
 
-# Ordered closeout pipeline (issue #320, strip-closeout-cruft; issue #329
-# adds the trailing summary-regen gate). Orchestrates the pre-teardown
+# Ordered closeout pipeline (issue #320, strip-closeout-cruft; narrowed by
+# issue #381). Orchestrates the pre-teardown
 # record-finalization steps so finish-issue.sh stays a thin teardown
 # orchestrator: progress_migrate → action_log_render → closeout_cruft_gate →
-# progress_finalize → economics_stamp (advisory) → summary_regen_gate
-# (required). Sets TRACE_STAGE (a finish-issue.sh global) on each transition
-# and returns 0 on success / 1 on first failure. The caller does `exit 1` on
-# a non-zero return.
+# progress_finalize. Analytics run separately after teardown and cannot block
+# it. Sets TRACE_STAGE (a finish-issue.sh global) on each transition and
+# returns 0 on success / 1 on first failure. The caller does `exit 1` on a
+# non-zero return.
 finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_migrate"
@@ -1407,73 +1372,6 @@ finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_finalize"
   if ! finish_progress_finalize; then
-    echo "  The worktree is left intact."
-    return 1
-  fi
-
-  # Best-effort economics stamp (issue #267): advisory, never blocks teardown.
-  # Only reached here when migration succeeded (PROGRESS_MIGRATED=true), so
-  # the stamp reflects THIS run's migrated record — not a stale prior copy.
-  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
-  TRACE_STAGE="economics_stamp"
-  best_effort_economics_stamp
-
-  # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
-  TRACE_STAGE="summary_regen_gate"
-  if ! finish_summary_regen_gate; then
-    return 1
-  fi
-}
-
-# --- Pre-teardown REQUIRED trace-summary readiness gate (issue #329,
-# closeout-regenerate-trace-summary) ------------------------------------------
-# Issue #329 names final `trace-summary.json` regeneration a MANDATORY
-# closeout step (4/6 sampled issues had no summary at all; two more were
-# frozen mid-run with `finished:false`). This gate is the ONLY point that can
-# still refuse before `git worktree remove` — it is deliberately NOT the same
-# call as `finish__regenerate_summary` in finish-issue.sh: that one runs from
-# trace-lib's EXIT trap AFTER the process has already exited, so it can never
-# block or preserve the worktree and stays best-effort by construction (it
-# also refreshes the summary with the terminal `finish` span + final counts,
-# which this pre-teardown gate — running BEFORE that span exists — cannot
-# produce). Splitting them is intentional, not redundant: this gate proves
-# the canonical regenerator is present, runs, and actually writes the summary
-# for THIS issue WHILE THE WORKTREE IS STILL INTACT; the post-hook then
-# refreshes that same file once the finish span lands. A missing/failing
-# reporter, or one that exits 0 without producing the file, is a REQUIRED
-# artifact never being written — that blocks the finish and leaves the
-# worktree intact, exactly like finish_trace_gate/finish_closeout_cruft_gate.
-#
-# Skipped (returns 0) only when tracing itself is not active at all —
-# `trace__main_root` undefined means finish-issue.sh is running the guarded
-# no-trace-lib NOOP fallback, so there is no trace.jsonl to summarize and no
-# NEW hard requirement is introduced on a checkout that predates the trace
-# tooling (mirrors the other gates' missing-tool degrade-to-skip precedent).
-finish_summary_regen_gate() {
-  declare -F trace__main_root >/dev/null 2>&1 || return 0
-
-  local main_root="" issue_pad="" summary_path=""
-  main_root="$(trace__main_root 2>/dev/null)" || return 0
-  [ -n "$main_root" ] || return 0
-  issue_pad="$(printf '%02d' "$ISSUE_NUM" 2>/dev/null)" || return 0
-  summary_path="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace-summary.json"
-
-  local regen_out=""
-  if ! regen_out="$("${SCRIPT_DIR}/trace-report.sh" "$ISSUE_NUM" 2>&1 >/dev/null)"; then
-    red "✗ required trace-summary regeneration failed (issue #329): scripts/trace-report.sh could not run for issue ${ISSUE_NUM}."
-    echo "  trace-summary.json is a mandatory closeout artifact, not best-effort."
-    # Surface the reporter's own diagnosis (e.g. a refused symlink
-    # destination — security review fingerprint
-    # summary-regeneration-symlink-overwrite) rather than swallowing it.
-    [ -z "$regen_out" ] || printf '%s\n' "$regen_out" | sed 's/^/  /'
-    echo "  Fix the reporter (or its trace.jsonl input), then re-run:"
-    echo "    ./scripts/finish-issue.sh ${ISSUE_NUM}"
-    echo "  The worktree is left intact."
-    return 1
-  fi
-
-  if [ ! -s "$summary_path" ]; then
-    red "✗ required trace-summary regeneration did not produce ${summary_path} (issue #329)."
     echo "  The worktree is left intact."
     return 1
   fi

@@ -759,8 +759,7 @@ out="$(cd "$R1" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh 80 SLUG=fixture
 assert_removed "clean_default" "${R1}/.worktrees/issue-80"
 
 # 3. placeholder_require_blocks: placeholders + REQUIRE_LOG_COMPLETE=1 must
-# block before worktree_remove. This is the RED failure until finish-issue.sh
-# wires finish_log_completeness_gate.
+# block before worktree_remove through the active closeout-cruft gate.
 R3="${TMP_DIR}/r82"
 make_finish_fixture "$R3" 82
 write_placeholder_progress "$R3" 82
@@ -794,6 +793,12 @@ rc=0
 out="$(cd "$R4" && PATH="$BIN" REQUIRE_LOG_COMPLETE=1 FORCE=1 ./scripts/finish-issue.sh 83 SLUG=fixture 2>&1)" || rc=$?
 [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "clean_require_ok: clean log must exit 0 under REQUIRE_LOG_COMPLETE=1"; }
 assert_removed "clean_require_ok" "${R4}/.worktrees/issue-83"
+
+dead_symbol="finish_log_"'completeness_gate'
+if grep -Fq "$dead_symbol" "${ROOT}/scripts/finish-lib.sh" \
+  || grep -Fq "$dead_symbol" "${ROOT}/scripts/finish-issue.sh"; then
+  fail "superseded finish log-completeness helper must remain deleted"
+fi
 
 printf 'finish-issue log-completeness gate wiring contract honored\n'
 )

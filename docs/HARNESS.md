@@ -214,7 +214,7 @@ A merged conclusion requires a merged GitHub PR whose head is the exact issue
 branch; abandonment requires explicit `ABANDONED=1`. An identical conclusion is
 idempotent, while a conflicting conclusion is never overwritten.
 
-`./scripts/finish-issue.sh` then migrates that worktree `progress.md` before the economics stamp and before `git worktree remove`.
+`./scripts/finish-issue.sh` then migrates that worktree `progress.md` before `git worktree remove`.
 Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
 into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
 deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
@@ -320,7 +320,8 @@ local-only, gitignored, and never committed. Tracing never blocks the lifecycle:
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
 
-At closeout `./scripts/finish-issue.sh` attaches delivery economics to its terminal `finish` **lifecycle span** — the
+After closeout, issue-number mode in `./scripts/trace-report.sh` attaches delivery economics to a
+`finish-issue.economics` **tool span** — the
 durable machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
 numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
 `harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
@@ -334,7 +335,9 @@ session join — `harness.economics.native_subagent_tokens`, `harness.economics.
 `harness.economics.native_models_distinct`, and (only when checkpoints bracket the window)
 `harness.economics.native_aiu_nano_delta` — each numeric via the same `harness.economics.` prefix and **omitted**
 (never `0`) when the native records are unavailable. The subagent **model names** ride the operator-facing markdown
-block only, never the span, because a string value under the numeric prefix would be invalid. It obeys the same
+block only, never the span, because a string value under the numeric prefix would be invalid. The reporter runs
+on demand or from finish-issue's best-effort post-teardown hook, so reporting failures cannot block worktree
+removal. It obeys the same
 omit-never-fake rule as the block: the trace `gen_ai.usage.*` token keys are **absent** (never `0`) when no model span
 carried usage. The cloud token-capture path once tracked in **#163** is now **superseded** by the native-record join
 above (per #305) — #163 is no longer a prerequisite for present token keys. Likewise, `review_rounds` is absent when

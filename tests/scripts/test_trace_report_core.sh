@@ -395,6 +395,22 @@ jq -e '
 ' "${TOKEN_DIR}/trace-summary.json" >/dev/null \
   || fail "token totals included non-model passthrough or lost attribution"
 
+# --- 14. Current report-time economics outrank historical finish fields --------
+AGG_ROOT="${TMP_DIR}/aggregate"
+AGG_ISSUE="${AGG_ROOT}/.copilot-tracking/issues/issue-98"
+mkdir -p "$AGG_ISSUE"
+cp "${TOKEN_DIR}/trace.jsonl" "${AGG_ISSUE}/trace.jsonl"
+rc="$(run_report "$REPORT_SH" "${AGG_ISSUE}/trace.jsonl")"
+[ "$rc" = "0" ] || fail "aggregate fixture summary generation failed with ${rc}"
+cat >> "${AGG_ISSUE}/trace.jsonl" <<'JSONL'
+{"span":"lifecycle","harness.lifecycle_step":"finish","harness.economics.native_subagent_tokens":1}
+{"span":"tool","gen_ai.tool.name":"finish-issue.economics","harness.economics.native_subagent_tokens":2}
+JSONL
+aggregate_out="$("$REPORT_SH" --all --root "$AGG_ROOT")"
+printf '%s\n' "$aggregate_out" \
+  | grep -Eq '^\| fix1234 \| [^|]+ \| [^|]+ \| [^|]+ \| 2 \|' \
+  || fail "cross-run report preferred stale finish-span economics over current report-time economics"
+
 # --- Result ---------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
   printf '\n%d trace-report core contract violation(s).\n' "$fails" >&2
