@@ -2,6 +2,84 @@
 
 <!-- version list -->
 
+## v0.37.3 (2026-07-24)
+
+### Bug Fixes
+
+- Fail closed on incomplete tombstone history
+  ([#437](https://github.com/weijen/agent-delivery-harness/pull/437),
+  [`e82e864`](https://github.com/weijen/agent-delivery-harness/commit/e82e86485afab07dfdf4833a3a56984a0b217c2c))
+
+- **#429**: Fail closed on shallow tombstone history
+  ([#437](https://github.com/weijen/agent-delivery-harness/pull/437),
+  [`e82e864`](https://github.com/weijen/agent-delivery-harness/commit/e82e86485afab07dfdf4833a3a56984a0b217c2c))
+
+### Chores
+
+- Retire orphan audit tooling ([#434](https://github.com/weijen/agent-delivery-harness/pull/434),
+  [`119263f`](https://github.com/weijen/agent-delivery-harness/commit/119263f5b2d87bde262ec76295e815adb76086e7))
+
+- Retire unread trace reporter ([#436](https://github.com/weijen/agent-delivery-harness/pull/436),
+  [`b98a78c`](https://github.com/weijen/agent-delivery-harness/commit/b98a78cd9d4c4e389ae911c283bdef40d5015dac))
+
+- **#419**: Retire unread trace reporter
+  ([#436](https://github.com/weijen/agent-delivery-harness/pull/436),
+  [`b98a78c`](https://github.com/weijen/agent-delivery-harness/commit/b98a78cd9d4c4e389ae911c283bdef40d5015dac))
+
+- **#420**: Retire advisory sensor claim checker
+  ([#434](https://github.com/weijen/agent-delivery-harness/pull/434),
+  [`119263f`](https://github.com/weijen/agent-delivery-harness/commit/119263f5b2d87bde262ec76295e815adb76086e7))
+
+- **#420**: Retire orphan audit sweep
+  ([#434](https://github.com/weijen/agent-delivery-harness/pull/434),
+  [`119263f`](https://github.com/weijen/agent-delivery-harness/commit/119263f5b2d87bde262ec76295e815adb76086e7))
+
+- **#423**: Remove retired location fallbacks
+  ([`dd5f127`](https://github.com/weijen/agent-delivery-harness/commit/dd5f12717d258468d4d28ccfb8965c249415ce08))
+
+- **#423**: Remove retired status document gate
+  ([`5f92cbf`](https://github.com/weijen/agent-delivery-harness/commit/5f92cbf92d010238f4cf00873ba3c972fec45e0e))
+
+- **#423**: Remove unused Node sync declarations
+  ([`755197d`](https://github.com/weijen/agent-delivery-harness/commit/755197da4f18472429a4766ed8986e56f96ec11a))
+
+- **#423**: Retire teeth-proof validation
+  ([`6b62db5`](https://github.com/weijen/agent-delivery-harness/commit/6b62db5b91b97b7a647e4a6880a47f34219745f3))
+
+- **#423**: Tombstone retired migration sensor
+  ([`b22a4e8`](https://github.com/weijen/agent-delivery-harness/commit/b22a4e854a3b2f1d09005060572b1d357e86ddac))
+
+### Continuous Integration
+
+- **#429**: Validate tombstones with full history
+  ([#437](https://github.com/weijen/agent-delivery-harness/pull/437),
+  [`e82e864`](https://github.com/weijen/agent-delivery-harness/commit/e82e86485afab07dfdf4833a3a56984a0b217c2c))
+
+### Documentation
+
+- **#419**: Retire trace reporter guidance
+  ([#436](https://github.com/weijen/agent-delivery-harness/pull/436),
+  [`b98a78c`](https://github.com/weijen/agent-delivery-harness/commit/b98a78cd9d4c4e389ae911c283bdef40d5015dac))
+
+- **#423**: Align retired machinery references
+  ([`5827de5`](https://github.com/weijen/agent-delivery-harness/commit/5827de54c86657fc6de2dc2c50c55e4d3c5c2d29))
+
+### Refactoring
+
+- **#423**: Share lifecycle runtime helpers
+  ([`d1dd543`](https://github.com/weijen/agent-delivery-harness/commit/d1dd5434532e2fe58d3027704d061a388485d17b))
+
+### Testing
+
+- **#429**: Cover tombstone ledger failure modes
+  ([#437](https://github.com/weijen/agent-delivery-harness/pull/437),
+  [`e82e864`](https://github.com/weijen/agent-delivery-harness/commit/e82e86485afab07dfdf4833a3a56984a0b217c2c))
+
+- **#429**: Isolate tombstone exclusion policy
+  ([#437](https://github.com/weijen/agent-delivery-harness/pull/437),
+  [`e82e864`](https://github.com/weijen/agent-delivery-harness/commit/e82e86485afab07dfdf4833a3a56984a0b217c2c))
+
+
 ## v0.37.2 (2026-07-24)
 
 ### Bug Fixes
