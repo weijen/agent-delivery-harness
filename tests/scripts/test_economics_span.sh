@@ -48,7 +48,7 @@ copy_fixture_scripts() {
   local dir="$1"
   local s
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for s in finish-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh issue-lib.sh; do
+  for s in finish-lib.sh economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
@@ -117,7 +117,7 @@ run_economics_stamp() {
     cd "$dir"
     env -u COPILOT_AGENT_SESSION_ID PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" \
       COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty" \
-      bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; trace_report_economics_stamp >/dev/null'
+      bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; source scripts/economics-report-lib.sh; trace_report_economics_stamp >/dev/null'
   )
 }
 
@@ -247,7 +247,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE \
 
 run_compute() {
   local trace_file="$1" feature_list_file="$2"
-  source "${ROOT}/scripts/finish-lib.sh"
+  source "${ROOT}/scripts/economics-report-lib.sh"
   compute_delivery_economics "$trace_file" "$feature_list_file"
 }
 
@@ -337,7 +337,7 @@ mkdir -p "$SCRATCH"
 run_human() {
   local library="$1" trace_file="$2"
   (
-    # shellcheck source=/dev/null
+    # shellcheck source=scripts/economics-report-lib.sh
     source "$library"
     compute_delivery_economics "$trace_file" -
   )
@@ -346,7 +346,7 @@ run_human() {
 run_numeric() {
   local library="$1" trace_file="$2"
   (
-    # shellcheck source=/dev/null
+    # shellcheck source=scripts/economics-report-lib.sh
     source "$library"
     economics_numeric_aggregates "$trace_file" -
   )
@@ -371,7 +371,7 @@ assert_omits() {
   fi
 }
 
-LIB="${ROOT}/scripts/finish-lib.sh"
+LIB="${ROOT}/scripts/economics-report-lib.sh"
 TRACE_MIXED="${SCRATCH}/mixed.jsonl"
 cat > "$TRACE_MIXED" <<'JSONL'
 {"timestamp":"2026-07-20T02:00:00.750Z","span":"tool"}
@@ -421,7 +421,7 @@ assert_omits "single active" "$numeric" "harness.economics.active_ms="
 
 # Mutation proof: excluding the exactly-30-minute gap must make this sensor's
 # mixed fixture disagree with the required active aggregate.
-MUTATED_LIB="${SCRATCH}/finish-lib-mutated.sh"
+MUTATED_LIB="${SCRATCH}/economics-report-lib-mutated.sh"
 awk '
   !mutated && sub(/<= 1800/, "< 1800") { mutated = 1 }
   { print }
@@ -465,7 +465,7 @@ JSONL
 run_markdown() {
   local library="$1" trace="$2"
   (
-    # shellcheck source=scripts/finish-lib.sh
+    # shellcheck source=scripts/economics-report-lib.sh
     source "$library"
     compute_delivery_economics "$trace" -
   )
@@ -474,7 +474,7 @@ run_markdown() {
 run_numeric() {
   local library="$1" trace="$2"
   (
-    # shellcheck source=scripts/finish-lib.sh
+    # shellcheck source=scripts/economics-report-lib.sh
     source "$library"
     economics_numeric_aggregates "$trace" -
   )
@@ -502,7 +502,7 @@ assert_complete_contract() {
 
 COMPLETE="${SCRATCH}/complete.jsonl"
 write_complete_trace "$COMPLETE"
-assert_complete_contract "${ROOT}/scripts/finish-lib.sh" "$COMPLETE"
+assert_complete_contract "${ROOT}/scripts/economics-report-lib.sh" "$COMPLETE"
 
 MISSING="${SCRATCH}/missing.jsonl"
 cat > "$MISSING" <<'JSONL'
@@ -510,8 +510,8 @@ cat > "$MISSING" <<'JSONL'
 {"span":"agent","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-b","harness.review_mode":"quick","harness.outcome":"fail"}
 {"span":"agent","harness.lifecycle_step":"review_verdict","harness.review_mode":"repair","harness.outcome":"pass"}
 JSONL
-markdown="$(run_markdown "${ROOT}/scripts/finish-lib.sh" "$MISSING")"
-numeric="$(run_numeric "${ROOT}/scripts/finish-lib.sh" "$MISSING")"
+markdown="$(run_markdown "${ROOT}/scripts/economics-report-lib.sh" "$MISSING")"
+numeric="$(run_numeric "${ROOT}/scripts/economics-report-lib.sh" "$MISSING")"
 grep -Fx -- '- Review rounds: n/a (event identity coverage: 1/3 verdict spans; some spans lack unambiguous event identity)' <<< "$markdown" >/dev/null \
   || fail "incomplete review identity must render n/a with coverage"
 if grep -Fq -- 'harness.economics.review_rounds=' <<< "$numeric"; then
@@ -524,19 +524,19 @@ grep -Fx -- 'harness.economics.review_identity_total=3' <<< "$numeric" >/dev/nul
 
 NONE="${SCRATCH}/none.jsonl"
 printf '{"span":"agent","harness.lifecycle_step":"deviation"}\n' > "$NONE"
-grep -Fx -- '- Review rounds: 0' <<< "$(run_markdown "${ROOT}/scripts/finish-lib.sh" "$NONE")" >/dev/null \
+grep -Fx -- '- Review rounds: 0' <<< "$(run_markdown "${ROOT}/scripts/economics-report-lib.sh" "$NONE")" >/dev/null \
   || fail "no review verdict spans must remain a measured zero"
-grep -Fx -- 'harness.economics.review_rounds=0' <<< "$(run_numeric "${ROOT}/scripts/finish-lib.sh" "$NONE")" >/dev/null \
+grep -Fx -- 'harness.economics.review_rounds=0' <<< "$(run_numeric "${ROOT}/scripts/economics-report-lib.sh" "$NONE")" >/dev/null \
   || fail "numeric economics must report zero when there are no review verdict spans"
 
 # Mutation proof: dropping review_mode from the legacy coordinate must collapse
 # the full and repair reviews at sha-b, and this sensor must reject that result.
 # The legacy key now uses a coord string "\($sha)\t\($mode)"; stripping the mode
 # portion collapses distinct modes to the same key.
-MUTATED="${SCRATCH}/finish-lib-mutated.sh"
+MUTATED="${SCRATCH}/economics-report-lib-mutated.sh"
 # shellcheck disable=SC2016 # $mode is the literal jq variable name being mutated.
-sed 's/\\t\\($mode)//' "${ROOT}/scripts/finish-lib.sh" > "$MUTATED"
-if cmp -s "${ROOT}/scripts/finish-lib.sh" "$MUTATED"; then
+sed 's/\\t\\($mode)//' "${ROOT}/scripts/economics-report-lib.sh" > "$MUTATED"
+if cmp -s "${ROOT}/scripts/economics-report-lib.sh" "$MUTATED"; then
   fail "mutation setup did not alter the review-event key"
 fi
 if (
@@ -591,8 +591,8 @@ call_economics_stamp_into() {
   local progress_file="$1" block_text="$2"
   (
     set -euo pipefail
-    # shellcheck source=scripts/finish-lib.sh
-    source "${ROOT}/scripts/finish-lib.sh"
+    # shellcheck source=scripts/economics-report-lib.sh
+    source "${ROOT}/scripts/economics-report-lib.sh"
     economics_stamp_into "$progress_file" "$block_text"
   )
 }
@@ -621,7 +621,7 @@ copy_finish_fixture_scripts() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   for script in \
     issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
-    trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh; do
+    economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done
   chmod +x "${dir}/scripts/"*.sh
@@ -761,7 +761,7 @@ printf 'finish-issue delivery economics stamp contract honored\n'
 cd "$ROOT"
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts finish-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
 # shellcheck source=tests/scripts/lib/native-economics-fixture.sh
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 # ===========================================================================

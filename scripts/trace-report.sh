@@ -766,13 +766,17 @@ fi
 # the shared trace and economics helpers only here, after input validation;
 # path-mode reports cannot safely infer an issue tracking directory and remain
 # read-only. The stamp and its machine-readable tool span are advisory.
-if [ -n "${ISSUE_NUM:-}" ] && [ -f "${SCRIPT_DIR}/finish-lib.sh" ]; then
+if [ -n "${ISSUE_NUM:-}" ] \
+  && [ -f "${SCRIPT_DIR}/finish-lib.sh" ] \
+  && [ -f "${SCRIPT_DIR}/economics-report-lib.sh" ]; then
   if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
     # shellcheck source=scripts/trace-lib.sh
     source "${SCRIPT_DIR}/trace-lib.sh"
   fi
   # shellcheck source=scripts/finish-lib.sh
   source "${SCRIPT_DIR}/finish-lib.sh"
+  # shellcheck source=scripts/economics-report-lib.sh
+  source "${SCRIPT_DIR}/economics-report-lib.sh"
   trace_report_economics_stamp >/dev/null
 fi
 

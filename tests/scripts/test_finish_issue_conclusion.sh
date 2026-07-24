@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts finish-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 
@@ -209,7 +209,7 @@ ECON_LINK="${TMP_DIR}/economics-progress"
 ln -s "$OUTSIDE" "$ECON_LINK"
 (
   # shellcheck source=/dev/null
-  source "${ROOT}/scripts/finish-lib.sh"
+  source "${ROOT}/scripts/economics-report-lib.sh"
   economics_stamp_into "$ECON_LINK" 'unsafe block'
 ) >"${TMP_DIR}/economics-symlink.out" 2>&1
 [ "$(cat "$OUTSIDE")" = "do not overwrite" ] \

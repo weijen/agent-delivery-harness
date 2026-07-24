@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# Regression sensor (issue #215, scripts-portfolio P-4). finish-issue.sh had
-# grown into a second conductor: completion check + trace gate + trace export +
-# trace reconstruct + state hygiene + worktree teardown, with every new closeout
-# feature landing in it. This sensor pins the extraction: the four best-effort /
-# gate helpers live once in scripts/finish-lib.sh, finish-issue.sh sources it and
-# delegates, and it no longer re-inlines the helper bodies. It also guards the
-# "sequence orchestrator" shape (net line reduction).
+# Regression sensor for closeout-library boundaries (issues #215 and #422).
+# Teardown and migration helpers remain in finish-lib.sh, while report-time
+# economics live in economics-report-lib.sh. The finish orchestrator delegates
+# instead of re-inlining either responsibility.
 #
-# It is RED before the extraction (finish-lib.sh is absent and finish-issue.sh
-# carries the helper bodies) and GREEN after.
+# It is RED when either extraction regresses and GREEN after.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,8 +15,10 @@ note() { echo "✗ $*"; fail=1; }
 ok() { echo "· $*"; }
 
 LIB="scripts/finish-lib.sh"
+REPORT_LIB="scripts/economics-report-lib.sh"
 CALLER="scripts/finish-issue.sh"
 HELPERS="finish_trace_gate best_effort_state_hygiene"
+REPORT_HELPERS="compute_delivery_economics compute_native_economics render_native_economics economics_stamp_into economics_numeric_aggregates trace_report_economics_stamp"
 
 # --- A. The shared lib exists and defines the closeout helpers ---------------
 if [ ! -f "$LIB" ]; then
@@ -32,6 +30,21 @@ else
 			note "$LIB does not define ${fn}()"
 	done
 fi
+
+# --- A2. Reporting analytics live outside the teardown library --------------
+if [ ! -f "$REPORT_LIB" ]; then
+	note "$REPORT_LIB missing — economics analytics remain coupled to teardown"
+else
+	ok "reporting lib present: $REPORT_LIB"
+	for fn in $REPORT_HELPERS; do
+		grep -Eq "^${fn}[[:space:]]*\(\)" "$REPORT_LIB" ||
+			note "$REPORT_LIB does not define ${fn}()"
+	done
+fi
+for fn in $REPORT_HELPERS; do
+	grep -Eq "^${fn}[[:space:]]*\(\)" "$LIB" &&
+		note "$LIB still defines reporting-only ${fn}()"
+done
 
 # --- B. finish-issue.sh sources the lib and delegates -----------------------
 if [ ! -f "$CALLER" ]; then
@@ -73,6 +86,13 @@ if [ -f "$CALLER" ]; then
 	# orchestrator well under 240 (helper bodies + gate block removed).
 	if [ "$lines" -ge 240 ]; then
 		note "$CALLER is ${lines} lines — expected net reduction below 240 after extraction"
+	fi
+fi
+if [ -f "$LIB" ]; then
+	lines="$(wc -l <"$LIB" | tr -d ' ')"
+	ok "$LIB is ${lines} lines"
+	if [ "$lines" -gt 700 ]; then
+		note "$LIB is ${lines} lines — expected teardown-only library at or below 700"
 	fi
 fi
 

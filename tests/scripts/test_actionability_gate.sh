@@ -330,9 +330,9 @@ ECON_TRACE="${TMP_DIR}/economics.jsonl"
 } > "$ECON_TRACE"
 ECONOMICS="$(
   # ROOT is resolved dynamically by the fixture.
-  # shellcheck source=scripts/finish-lib.sh
+  # shellcheck source=scripts/economics-report-lib.sh
   # shellcheck disable=SC1091
-  source "${ROOT}/scripts/finish-lib.sh"
+  source "${ROOT}/scripts/economics-report-lib.sh"
   economics_review_event_summary "$ECON_TRACE"
 )"
 printf '%s\n' "$ECONOMICS" | jq -e '
