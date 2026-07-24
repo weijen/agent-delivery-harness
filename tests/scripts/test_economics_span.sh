@@ -48,7 +48,7 @@ copy_fixture_scripts() {
   local dir="$1"
   local s
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for s in finish-lib.sh economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh issue-lib.sh; do
+  for s in finish-lib.sh economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
@@ -597,112 +597,6 @@ call_economics_stamp_into() {
   )
 }
 
-link_tools() {
-  local dir="$1"
-  shift
-  mkdir -p "$dir"
-  local tool path
-  for tool in "$@"; do
-    path="$(command -v "$tool" || true)"
-    [ -n "$path" ] && ln -sf "$path" "${dir}/${tool}"
-  done
-}
-
-write_fake_gh() {
-  cat > "$1" <<'FAKEGH'
-#!/usr/bin/env bash
-exit 1
-FAKEGH
-  chmod +x "$1"
-}
-
-copy_finish_fixture_scripts() {
-  local dir="$1" script
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  for script in \
-    issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
-    economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh; do
-    cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
-  done
-  chmod +x "${dir}/scripts/"*.sh
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
-}
-
-make_finish_fixture() {
-  local dir="$1" issue="$2" pad start_out
-  pad="$(printf '%02d' "$issue")"
-  copy_finish_fixture_scripts "$dir"
-
-  git -C "$dir" init -q -b main
-  git -C "$dir" config user.name "Harness Test"
-  git -C "$dir" config user.email "harness-test@example.invalid"
-  printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
-  printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md scripts
-  git -C "$dir" commit -q -m initial
-
-  if ! start_out="$(cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture 2>&1)"; then
-    printf '%s\n' "$start_out"
-    fail "setup: start-issue for issue ${issue} failed"
-  fi
-  [ -d "${dir}/.worktrees/issue-${pad}" ] \
-    || fail "setup: worktree for issue ${issue} was not created"
-
-  cat > "${dir}/.worktrees/issue-${pad}/.copilot-tracking/issues/issue-${pad}/feature_list.json" <<JSON
-{
-  "features": [
-    {
-      "id": "economics-stamp",
-      "title": "Delivery economics stamp",
-      "steps": [],
-      "passes": true,
-      "verification": "done",
-      "teeth_proof": {"kind": "red_first", "evidence": "fixture complete"}
-    }
-  ]
-}
-JSON
-}
-
-write_trace_fixture() {
-  local main="$1" issue="$2" pad trace_dir
-  pad="$(printf '%02d' "$issue")"
-  trace_dir="${main}/.copilot-tracking/issues/issue-${pad}"
-  mkdir -p "$trace_dir"
-  cat > "${trace_dir}/trace.jsonl" <<'JSONL'
-{"timestamp":"2026-07-10T10:00:00Z","span":"model","gen_ai.usage.input_tokens":120,"gen_ai.usage.output_tokens":30}
-{"timestamp":"2026-07-10T10:30:00Z","span":"model","gen_ai.usage.input_tokens":80,"gen_ai.usage.output_tokens":20}
-{"timestamp":"2026-07-10T10:40:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-a","harness.review_mode":"full","harness.outcome":"fail"}
-{"timestamp":"2026-07-10T10:50:00Z","span":"lifecycle","harness.lifecycle_step":"review_verdict","harness.reviewed_sha":"sha-b","harness.review_mode":"full","harness.outcome":"pass"}
-{"timestamp":"2026-07-10T11:00:00Z","span":"lifecycle","harness.lifecycle_step":"deviation","harness.outcome":"warn"}
-JSONL
-}
-
-assert_behavioral_finish_reports_economics_post_teardown() {
-  local main="$1" issue="$2" out rc
-  make_finish_fixture "$main" "$issue"
-  write_trace_fixture "$main" "$issue"
-
-  rc=0
-  out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
-  [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "finish-issue.sh must exit 0"; }
-  if printf '%s\n' "$out" | grep -F -q '## Delivery economics (auto-stamped, trace-derived)'; then
-    printf '%s\n' "$out"
-    fail "finish output must not compute economics in the destructive path"
-  fi
-
-  local pad main_progress
-  pad="$(printf '%02d' "$issue")"
-  main_progress="${main}/.copilot-tracking/issues/issue-${pad}/progress.md"
-  [ ! -d "${main}/.worktrees/issue-${pad}" ] \
-    || fail "worktree for issue ${issue} must be removed after finish"
-  [ -f "$main_progress" ] || fail "migrated MAIN-checkout progress.md is missing"
-  grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress" \
-    || fail "post-teardown trace reporting must stamp economics into surviving progress"
-  grep -F -q -- '- Tokens: in 200 / out 50 (coverage: 2/2 runs)' "$main_progress" \
-    || fail "post-teardown economics must use the surviving MAIN-root trace"
-}
-
 # UNIT U1: append the economics region into progress.md.
 PROGRESS="${TMP_DIR}/unit-progress.md"
 cat > "$PROGRESS" <<'MD'
@@ -734,34 +628,14 @@ warn_out="$(call_economics_stamp_into "${TMP_DIR}/does-not-exist/progress.md" "b
 [ "$rc" -eq 0 ] || fail "missing progress.md path must return 0"
 [ -z "$warn_out" ] || fail "missing progress.md path must write nothing to stdout"
 
-# BEHAVIOR: finish-issue does not compute economics before teardown.
-BIN="${TMP_DIR}/bin"
-# mktemp/mv are included (issue #290) so best_effort_progress_migrate takes
-# its atomic temp-copy-then-rename path rather than the rejected direct
-# `cp -f` fallback — this fixture asserts the migrated progress.md survives
-# teardown, so it must exercise the real (non-fallback) migration path.
-link_tools "$BIN" bash sh env git basename dirname mkdir rm cat sed tr cut grep printf jq date od wc chmod cp head \
-  mktemp mv
-write_fake_gh "${BIN}/gh"
-unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COMPLETE FORCE DELETE_BRANCH 2>/dev/null || true
-# Hermeticity (issue #329): the finish-issue.sh closeout now joins native
-# Copilot economics from ${COPILOT_CLI_STATE_ROOT}/<session>/events.jsonl. Pin
-# the root to an isolated empty dir and unset the ambient session id so this
-# fixture's token assertions read only its planted MAIN-root trace, never the
-# real developer session state.
-unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
-export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
-export ABANDONED=1
-assert_behavioral_finish_reports_economics_post_teardown "${TMP_DIR}/r86" 86
-
-printf 'finish-issue delivery economics stamp contract honored\n'
+printf 'delivery economics stamp helper contract honored\n'
 )
 
 (
 cd "$ROOT"
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,trace-report.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts finish-lib.sh,economics-report-lib.sh,trace-lib.sh,log-handback.sh,check-trace-consistency.sh,issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
 # shellcheck source=tests/scripts/lib/native-economics-fixture.sh
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 # ===========================================================================

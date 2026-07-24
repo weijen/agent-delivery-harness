@@ -1,6 +1,6 @@
 {
   "summary_schema_version": 1,
-  "description": "Frozen trace-summary v1 contract for the agent-delivery-harness (issue #98). Machine-readable authority for the per-issue run summary emitted by scripts/trace-report.sh to <trace dir>/trace-summary.json (idempotent overwrite, never append). This is the live input contract for the `scripts/trace-report.sh --all` cross-run markdown report. Sibling of trace-schema.v1.json, which governs the trace.jsonl spans the summary is computed from.",
+  "description": "Frozen historical trace-summary v1 contract for the agent-delivery-harness (issue #98). No current lifecycle entrypoint emits or aggregates this format after issue #419. Sibling of trace-schema.v1.json, which governs the surviving trace.jsonl spans.",
   "notes": {
     "absence_semantics": "null means no data; 0 means measured zero; [] means the detector ran and found nothing. A metric is never fabricated from absent spans (e.g. no model spans => tokens is null, never 0).",
     "open_world": "Additive top-level keys are allowed in later v1.x revisions; existing keys and their semantics are frozen. Optional keys such as coverage, skills, bounded, and closed_by may be absent from older v1 summaries. Consumers reject unknown majors of summary_schema_version.",

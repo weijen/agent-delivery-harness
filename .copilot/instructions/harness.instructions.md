@@ -136,7 +136,7 @@ Workflow per issue:
    same-class failure stop point-fixing and fix the class.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh` (authoritative MERGED + merge SHA,
-   #328) → `./scripts/finish-issue.sh` (write-once conclusion #323, economics #329, teardown
+   #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
    gated on live merge evidence #316).
 
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
@@ -175,8 +175,8 @@ What is deliberately gone (#352): red/impl/green handback payloads and their spa
 obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check
 ceremony at green (the review owns quality), pre-review full-suite duplication beyond the one
 `--gate pre-review` run, and every "return payloads for the conductor to record" convention —
-you write your own spans. The trace spine narrows to: lifecycle spans (emitted by the scripts),
-`deviation`, `review_verdict`, and the closeout economics.
+you write your own spans. The trace spine narrows to lifecycle spans emitted by the scripts,
+`deviation`, and `review_verdict`.
 
 ## Same-Class Escalation
 

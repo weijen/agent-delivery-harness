@@ -68,7 +68,7 @@ script with one justified mini-CLI (`review-gate.sh` subcommands).
 | `trace-export.sh` | 900 | Map spans → App Insights / OTLP envelopes, fail-closed gates, curl ship | **114 + 114 lines** | 6 |
 | `copilot-trace-hook.sh` | 576 | Copilot runtime hook: tool/agent/model spans, interval attribution | 31 jq call sites | 8 |
 | `check-trace-consistency.sh` | 1,608 | Schema/type/redaction + trace ↔ progress.md ↔ feature_list cross-checks | 145 lines | – |
-| `trace-report.sh` | 1,072 | Per-issue summary/report plus `--all` cross-run markdown | **141 + 90 lines** | 9 |
+| Retired trace reporter | 1,072 | Historical per-issue and cross-run summary surface (removed in #419) | **141 + 90 lines** | 9 |
 | `trace-lib.sh` | 388 | `trace_span` emission, redaction, portable clock, main-root pinning | 37 lines | 8 |
 | `trace-reconstruct.sh` | 296 | Backfill tool spans from Copilot transcripts | moderate | 3 |
 | `claude-code-trace-hook.sh` | 285 | Claude Code runtime hook | moderate | – |
@@ -121,7 +121,7 @@ The six trace analytics tools are **data programs, not orchestration**:
 - `check-trace-consistency.sh` — a 109-line single-pass jq filter carrying schema + types + enums +
   sanity flags, deliberately monolithic to avoid per-line process forks (a constraint Python
   simply doesn't have).
-- `trace-report.sh` — per-run and cross-run jq aggregation (token bucketing with absence-vs-zero
+- Retired trace reporter — per-run and cross-run jq aggregation (token bucketing with absence-vs-zero
   semantics, loop-indicator grouping via reduce, red-reentry state tracking) that would be
   ~40 lines of readable Python with `collections`.
   plus version attribution and final closeout economics in `--all` mode).
@@ -160,7 +160,7 @@ keeps its git+gh-only footprint. (Note: `python3` is *already* a soft dependency
 
 - **Phase 0 — consolidate in bash (now, cheap):** the §3 items. No language change.
 - **Phase 1 — pilot (trigger: the next substantive trace-analytics feature, realistically
-  #163):** implement ONE tool in Python — best candidate `trace-report.sh` or the mapping half
+  #163):** implement ONE tool in Python — the mapping half
   of `trace-export.sh` — as `scripts/trace_tools/` (uv-managed, `uv run python -m ...`), keeping
   the existing `.sh` file as a thin dispatcher: use Python when available, else today's jq path
   (or a hard skip with warning). Existing bash tests must stay green against both paths.

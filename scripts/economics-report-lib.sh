@@ -3,7 +3,7 @@
 #
 # The pure computation/rendering helpers are independently sourceable.
 # trace_report_economics_stamp reuses path-safety helpers from finish-lib.sh;
-# trace-report.sh sources both libraries before calling it.
+# callers source both libraries before invoking it.
 
 if [ -n "${__ECONOMICS_REPORT_LIB_SOURCED:-}" ]; then
   return 0
@@ -155,7 +155,7 @@ economics_time_summary() {
 
 # Pure trace/feature-list economics renderer (issue #267). This is a PURE
 # function of its two explicit file arguments: callers resolve paths before
-# invoking it. Metric honesty follows the trace-report omit-never-fake /
+# invoking it. Metric honesty follows the economics-report omit-never-fake /
 # null-never-0 rule: absent measurements render n/a, and model spans without
 # token usage do not fabricate zero-token runs. Issue #329 sharpens the token
 # row specifically: rather than a half-present "- Tokens: n/a" placeholder, the

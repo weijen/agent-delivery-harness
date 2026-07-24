@@ -2,6 +2,11 @@
 # shellcheck disable=SC2034 # Public fixture globals are consumed by sourcing sensors.
 set -euo pipefail
 
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  printf 'native economics fixture helper loaded\n'
+  exit 0
+fi
+
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
 

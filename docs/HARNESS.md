@@ -204,9 +204,10 @@ is failure-atomic and independently warn-only, but closeout treats a missing,
 unsafe, unwritable, or failed migration as a hard pre-teardown block. This
 prevents worktree removal from destroying the only finalized record.
 
-At closeout, `./scripts/finish-issue.sh <N>` auto-stamps a **delivery economics** block into the issue `progress.md`
-(between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers, idempotently) directly from
-the issue trace and `feature_list.json` — no hand-entered numbers. The block reports wall-clock span as both
+`scripts/economics-report-lib.sh` retains sourceable helpers that can stamp a **delivery economics** block into an
+issue `progress.md` (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers,
+idempotently) from the issue trace and `feature_list.json`. No lifecycle entrypoint invokes these helpers after
+the trace reporter's retirement in #419. When invoked directly, the block reports wall-clock span as both
 first→last elapsed time and active time (the sum of chronologically adjacent gaps up to and including 30 minutes;
 gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
 teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
@@ -219,7 +220,7 @@ migration, closeout gates, finalization, teardown orchestration, and state
 hygiene.
 
 **Native-record economics join (issue #329).** Because the GitHub Copilot runtime does not carry `gen_ai.usage.*` on
-model spans, closeout ALSO joins real token/model economics from the local Copilot **native session records** at
+model spans, the helper can also join real token/model economics from the local Copilot **native session records** at
 `${COPILOT_CLI_STATE_ROOT:-~/.copilot/session-state}/<COPILOT_AGENT_SESSION_ID>/events.jsonl`, rendered as a clearly
 labelled second economics block. Only honest derived aggregates cross into the record, never raw event content: a
 **subagent-only** token total (the single `totalTokens` per `subagent.completed` event — never split into a fabricated
@@ -244,8 +245,8 @@ session id, the events file, `jq`, the window, or a
 field is unavailable (CI, adopter machines), every native field/row **fails open and is omitted** — never zeroed,
 never `n/a`. This native-record join **supersedes** the cloud token-capture approach tracked in **#163** (per the #305
 direction): #163 is no longer the prerequisite for non-`n/a` token rows but the complementary cloud-side path the local
-join now stands in for. The frozen `trace-summary.json` `tokens` field stays `null` (no model spans carry usage);
-`trace-report.sh --all` folds the final native economics spans into deterministic version buckets.
+join now stands in for. The frozen `trace-summary.json` contract remains historical; no current lifecycle entrypoint
+generates or aggregates those summaries.
 
 A review round is a distinct logical review event, not a per-feature `review_verdict` span. Events are keyed by
 `harness.review_event_id` when present; historical spans without an explicit ID fall back to
@@ -305,29 +306,9 @@ local-only, gitignored, and never committed. Tracing never blocks the lifecycle:
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
 contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
 
-After closeout, issue-number mode in `./scripts/trace-report.sh` attaches delivery economics to a
-`finish-issue.economics` **tool span** — the
-durable machine-readable twin of the operator-facing delivery-economics block above. It carries the same numbers as typed JSON
-numbers (`gen_ai.usage.input_tokens` / `gen_ai.usage.output_tokens` token sums, `harness.economics.token_runs` /
-`harness.economics.token_runs_total` coverage, `harness.economics.review_rounds`,
-`harness.economics.review_identity_covered` / `harness.economics.review_identity_total` identity coverage,
-`harness.economics.deviations`,
-`harness.economics.features_total` / `harness.economics.features_passing` / `harness.economics.teeth_proof`, and
-`harness.economics.wall_clock_ms` / `harness.economics.active_ms` elapsed/active time), typed via the
-`harness.economics.` numeric-key prefix. Issue #329 adds the **native-record** economics keys from the local Copilot
-session join — `harness.economics.native_subagent_tokens`, `harness.economics.native_subagent_count`,
-`harness.economics.native_tool_calls`, `harness.economics.native_duration_ms`,
-`harness.economics.native_models_distinct`, and (only when checkpoints bracket the window)
-`harness.economics.native_aiu_nano_delta` — each numeric via the same `harness.economics.` prefix and **omitted**
-(never `0`) when the native records are unavailable. The subagent **model names** ride the operator-facing markdown
-block only, never the span, because a string value under the numeric prefix would be invalid. The reporter runs
-on demand or from finish-issue's best-effort post-teardown hook, so reporting failures cannot block worktree
-removal. It obeys the same
-omit-never-fake rule as the block: the trace `gen_ai.usage.*` token keys are **absent** (never `0`) when no model span
-carried usage. The cloud token-capture path once tracked in **#163** is now **superseded** by the native-record join
-above (per #305) — #163 is no longer a prerequisite for present token keys. Likewise, `review_rounds` is absent when
-review identity coverage is incomplete, while the two coverage keys explain why. The span is advisory: like all
-tracing it warns-and-continues and never blocks teardown.
+The retired trace reporter no longer generates `trace-summary.json`, version-bucket aggregates, or
+`finish-issue.economics` tool spans. The frozen summary schema and sourceable economics helpers remain for historical
+compatibility, but they are outside the lifecycle and make no closeout claim.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 delivering agent runs it once per recorded event (single-source), and that single invocation writes the agent span to
