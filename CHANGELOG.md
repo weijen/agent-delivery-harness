@@ -2,6 +2,79 @@
 
 <!-- version list -->
 
+## v0.36.0 (2026-07-24)
+
+### Bug Fixes
+
+- **#381**: Prefer current report economics
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+### Documentation
+
+- Archive superseded review reports
+  ([#412](https://github.com/weijen/agent-delivery-harness/pull/412),
+  [`3077479`](https://github.com/weijen/agent-delivery-harness/commit/3077479ed137640de89529af2824fb598bd7ba32))
+
+- Correct current-state harness claims
+  ([#414](https://github.com/weijen/agent-delivery-harness/pull/414),
+  [`644c7fe`](https://github.com/weijen/agent-delivery-harness/commit/644c7fea9a19f690e5d3dec6919f7c94c5f03a41))
+
+- **#381**: Align economics reporting contract
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+- **#382**: Archive superseded review reports
+  ([#412](https://github.com/weijen/agent-delivery-harness/pull/412),
+  [`3077479`](https://github.com/weijen/agent-delivery-harness/commit/3077479ed137640de89529af2824fb598bd7ba32))
+
+- **#384**: Describe dormant Python surface
+  ([#414](https://github.com/weijen/agent-delivery-harness/pull/414),
+  [`644c7fe`](https://github.com/weijen/agent-delivery-harness/commit/644c7fea9a19f690e5d3dec6919f7c94c5f03a41))
+
+- **#384**: Describe explicit surface detection
+  ([#414](https://github.com/weijen/agent-delivery-harness/pull/414),
+  [`644c7fe`](https://github.com/weijen/agent-delivery-harness/commit/644c7fea9a19f690e5d3dec6919f7c94c5f03a41))
+
+- **#384**: Label generated profiles as skeletons
+  ([#414](https://github.com/weijen/agent-delivery-harness/pull/414),
+  [`644c7fe`](https://github.com/weijen/agent-delivery-harness/commit/644c7fea9a19f690e5d3dec6919f7c94c5f03a41))
+
+- **#384**: Remove residual era gate claims
+  ([#414](https://github.com/weijen/agent-delivery-harness/pull/414),
+  [`644c7fe`](https://github.com/weijen/agent-delivery-harness/commit/644c7fea9a19f690e5d3dec6919f7c94c5f03a41))
+
+- **#408**: Retire journey docs as snapshots
+  ([#413](https://github.com/weijen/agent-delivery-harness/pull/413),
+  [`fb5f6f0`](https://github.com/weijen/agent-delivery-harness/commit/fb5f6f084a594d35b1f102e02eef78a92a3d0064))
+
+### Features
+
+- Move closeout analytics behind reporting
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+- **#381**: Move economics behind trace reporting
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+- **#381**: Narrow destructive closeout
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+### Refactoring
+
+- **#381**: Delete dead finish log gate
+  ([#415](https://github.com/weijen/agent-delivery-harness/pull/415),
+  [`05a408d`](https://github.com/weijen/agent-delivery-harness/commit/05a408dfe9f4d62c4b11cd64d483ebaf74e2cb57))
+
+### Testing
+
+- **#382**: Remove obsolete report allowlists
+  ([#412](https://github.com/weijen/agent-delivery-harness/pull/412),
+  [`3077479`](https://github.com/weijen/agent-delivery-harness/commit/3077479ed137640de89529af2824fb598bd7ba32))
+
+
 ## v0.35.3 (2026-07-23)
 
 ### Bug Fixes
