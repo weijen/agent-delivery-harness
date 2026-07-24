@@ -6,6 +6,7 @@ tests/scripts/test_customization_frontmatter_validator.sh
 tests/scripts/test_eval_manifest_validator.sh
 tests/scripts/test_init_gates.sh
 tests/scripts/test_install_harness_adopter_profile.sh
+tests/scripts/test_install_harness_symlinked_parent.sh
 tests/scripts/test_release_workflow.sh
 tests/scripts/test_reviewer_end_of_issue_contract.sh
 tests/scripts/test_run_evals_scorecard.sh

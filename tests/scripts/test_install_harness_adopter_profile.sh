@@ -30,6 +30,10 @@ default_target="${TMP_DIR}/default"
 	echo "default install shipped a harness-dev release sensor"
 	exit 1
 }
+[ ! -e "${default_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
+	echo "default install shipped the harness-dev symlinked-parent sensor"
+	exit 1
+}
 if find "${default_target}/tests/meta" -type f -name 'test_*.sh' 2>/dev/null | grep -q .; then
 	echo "default install shipped harness-dev meta sensors"
 	exit 1
@@ -46,6 +50,10 @@ upgrade_target="${TMP_DIR}/upgrade"
 	echo "dev-sensor opt-in omitted an explicit harness-dev sensor"
 	exit 1
 }
+[ -f "${upgrade_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
+	echo "dev-sensor opt-in omitted the symlinked-parent sensor"
+	exit 1
+}
 [ -f "${upgrade_target}/tests/meta/test_agent_model_pins.sh" ] || {
 	echo "dev-sensor opt-in omitted meta sensors"
 	exit 1
@@ -58,6 +66,10 @@ if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
 fi
 [ ! -e "${upgrade_target}/tests/scripts/test_release_workflow.sh" ] || {
 	echo "default upgrade left an unmodified harness-dev sensor"
+	exit 1
+}
+[ ! -e "${upgrade_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
+	echo "default upgrade left the unmodified symlinked-parent sensor"
 	exit 1
 }
 grep -qF "adopter customization" "${upgrade_target}/tests/scripts/test_init_gates.sh" || {
@@ -196,6 +208,7 @@ done <"${TMP_DIR}/entries"
 required=(
 	'tests/meta/test_*.sh'
 	tests/scripts/test_init_gates.sh
+	tests/scripts/test_install_harness_symlinked_parent.sh
 	tests/scripts/test_release_workflow.sh
 	tests/scripts/test_eval_manifest_validator.sh
 )
