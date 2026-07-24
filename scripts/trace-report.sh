@@ -625,7 +625,7 @@ JQ
       "",
       "## Final closeout economics",
       "",
-      "Values come from each trace's final finish lifecycle span (or the legacy economics tool span); n/a means no final span carried that measurement.",
+      "Values come from each trace's final report-time economics tool span (or a historical economics-bearing finish lifecycle span); n/a means no span carried that measurement.",
       "",
       "| version | runs | passed | economics coverage | native subagent tokens | native subagents | native tool calls | native duration ms | native models | native AIU nano delta |",
       "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
