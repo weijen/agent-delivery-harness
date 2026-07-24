@@ -537,12 +537,10 @@ best_effort_progress_migrate() {
   return 0
 }
 
-# Best-effort report-time delivery economics stamp (issues #267 and #381).
-# `trace-report.sh` invokes it on demand or from finish-issue's post-teardown
-# reporting hook. It stamps only the surviving MAIN-root progress.md and never
-# blocks reporting or teardown. Direct callers may still provide WORKTREE_DIR
-# while testing or reporting an active issue; otherwise the migrated main-root
-# feature list is used.
+# Ordered closeout pipeline (issue #320, narrowed by issue #381). Orchestrates
+# the pre-teardown record-finalization steps so finish-issue.sh remains a thin
+# teardown orchestrator. Analytics run separately after teardown and cannot
+# block it.
 finish_closeout_orchestrate() {
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="progress_migrate"
