@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract-v2 regression sensor for the four live doctrine consumers.
+# Contract-v2 regression sensor for the live doctrine consumers.
 
 set -euo pipefail
 
@@ -8,6 +8,8 @@ REVIEWER="${REVIEWER_OVERRIDE:-${ROOT}/.copilot/agents/code-review-subagent.agen
 AGENTS="${ROOT}/AGENTS.md"
 WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
 EVALUATION="${ROOT}/docs/evaluation/README.md"
+RUBRIC="${ROOT}/docs/evaluation/product-quality-rubric.md"
+GETTING_STARTED="${ROOT}/docs/getting-started.md"
 
 fail=0
 note() {
@@ -35,19 +37,35 @@ grep -qiE '(this review|review handback).{0,120}(supplies|produces|records).{0,8
   || note "reviewer trace guidance does not identify the current handback as gate_review verdict evidence"
 grep -qiE '(approval|approved-head).{0,120}(after|following).{0,80}(review verdict|review handback|APPROVED)' <<<"${trace_flat}" \
   || note "reviewer trace guidance does not defer approval evidence until after the review verdict"
-# Affirmative retired-requirement guard: sentence-scoped and subject-agnostic,
-# so "The reviewer must require the retired handback ..." is caught even with a
-# subject prefix, and additive reintroductions by historical span name
-# ("require red_handback spans ...") are caught without the word "retired".
-# Negated sentences (the prohibition itself) stay exempt.
+grep -qi 'authoritative' <<<"${trace_flat}" \
+  || note "reviewer trace guidance lost the authoritative-evidence designation"
+grep -qi 'corroborat' <<<"${trace_flat}" \
+  || note "reviewer trace guidance lost the corroborating-evidence designation"
+# Affirmative retired-requirement guard: sentence-scoped and subject-agnostic.
+# Obligation verbs beyond "require" (verify/confirm/ensure/check/demand) are
+# covered so the retired choreography cannot come back under another verb, and
+# negated obligation phrases are STRIPPED (not whole-sentence exempted) so a
+# decoy negation cannot shield an affirmative clause in the same sentence.
+# Sentences split on terminator+whitespace+non-lowercase so neither file-path
+# dots nor mid-sentence abbreviations ("e.g. legacy") fragment clauses.
 retired_terms='retired[[:space:]]+(handback|choreography)|red_handback|impl_handback|green_handback'
+obligation_verbs='requir(e|es|ed|ing)|verif(y|ies)|confirm(s|ed|ing)?|ensur(e|es|ing)?|check(s|ed|ing)?|demand(s|ed|ing)?|mandate[sd]?'
+negation_strip='(do not|does not|must not|never|not to|without|no longer|not)[^!?]{0,60}(requir|verif|confirm|ensur|check|demand|mandat)[a-z]*'
 affirmative_retired=0
 while IFS= read -r sentence; do
-  grep -qiE "requir(e|es|ed|ing)[^.!?]{0,120}(${retired_terms})|(${retired_terms})[^.!?]{0,120}requir(e|es|ed|ing)" <<<"${sentence}" || continue
-  grep -qiE '(do[[:space:]]+not|does[[:space:]]+not|must[[:space:]]+not|never|not[[:space:]]+to|without)[[:space:]]+requir' <<<"${sentence}" && continue
+  lower="$(tr '[:upper:]' '[:lower:]' <<<"${sentence}")"
+  cleaned="$(sed -E "s/${negation_strip}//g" <<<"${lower}")"
+  grep -qE "(${obligation_verbs})[^!?]{0,120}(${retired_terms})|(${retired_terms})[^!?]{0,120}(${obligation_verbs})" <<<"${cleaned}" || continue
   affirmative_retired=1
   break
-done < <(printf '%s\n' "${trace_flat}" | tr '.!?' '\n')
+done < <(awk '{
+  s = $0
+  while (match(s, /[.!?][ \t]+[^a-z \t]/)) {
+    printf "%s\n", substr(s, 1, RSTART)
+    s = substr(s, RSTART + RLENGTH - 1)
+  }
+  print s
+}' <<<"${trace_flat}")
 if [ "${affirmative_retired}" -eq 1 ]; then
   note "reviewer trace guidance affirmatively requires retired handback choreography"
 fi
@@ -67,29 +85,46 @@ grep -qiE 'Delivering agent / independent reviewer' "${EVALUATION}" \
 if grep -qiE '\b(the )?implementer\b' "${REVIEWER}"; then
   note "reviewer prompt still addresses a retired implementer role"
 fi
-if grep -qiE 'routes? .*generator-subagent|owned by generator-subagent' "${AGENTS}" "${WORKFLOW}"; then
+if grep -qiE 'routes? .*generator-subagent|owned by generator-subagent|to [`]?generator-subagent' \
+  "${AGENTS}" "${WORKFLOW}" "${RUBRIC}" "${GETTING_STARTED}"; then
   note "live guidance still routes current work to generator-subagent"
 fi
 if grep -qiE 'Planner / implementer / tester / reviewer' "${EVALUATION}"; then
   note "evaluation layer map still presents the retired four-role topology"
 fi
+if grep -qiE 'subagents \(generator' "${GETTING_STARTED}"; then
+  note "getting-started still presents generator/planner subagents as the current set"
+fi
 
-# Kill-check (mutation): prove the affirmative-requirement guard catches a
-# subject-prefixed sentence — the gap flagged by the #383 repair review. A
-# poisoned copy of the live reviewer prompt must make this sensor exit non-zero
-# for exactly that reason. Guarded so the child run does not recurse.
+# Kill-check (mutation): prove the affirmative-requirement guard catches every
+# prohibited form the repair reviews flagged — subject-prefixed, additive by
+# span name, alternate obligation verb, and decoy-negation — and that benign
+# historical/negated mentions stay exempt. A poisoned copy of the live reviewer
+# prompt must make this sensor exit non-zero for exactly the guard's reason.
+# Guarded so the child run does not recurse.
 if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
   kill_fixture="$(mktemp)"
   trap 'rm -f "${kill_fixture}"' EXIT
   for poison in \
     'The reviewer must require the retired handback choreography for every feature.' \
-    'Additionally require red_handback spans for every completed feature.'; do
+    'Additionally require red_handback spans for every completed feature.' \
+    'Confirm the red_handback -> impl_handback -> green_handback ordering for every feature.' \
+    'Require red_handback spans for each feature, but do not require green_handback.'; do
     awk -v poison="${poison}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
       "${REVIEWER}" >"${kill_fixture}"
     kill_out="$(DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="${kill_fixture}" bash "${BASH_SOURCE[0]}" 2>&1)" \
       && note "kill-check: sensor passed a prohibited requirement: ${poison}"
     grep -qF 'affirmatively requires retired handback choreography' <<<"${kill_out}" \
       || note "kill-check: sensor rejected the poisoned prompt for the wrong reason: ${poison}"
+  done
+  for benign in \
+    'Historical red_handback spans may appear as reader context.' \
+    'The retired handback is not required for current runs.' \
+    'Do not, per pre-#352 rules e.g. legacy traces, require red_handback.'; do
+    awk -v poison="${benign}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
+      "${REVIEWER}" >"${kill_fixture}"
+    DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="${kill_fixture}" bash "${BASH_SOURCE[0]}" >/dev/null 2>&1 \
+      || note "kill-check: sensor false-positived on a benign mention: ${benign}"
   done
 fi
 

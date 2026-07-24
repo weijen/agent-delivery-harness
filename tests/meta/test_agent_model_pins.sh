@@ -219,6 +219,8 @@ assert_section 'gate[_ -]?merge[_ -]?closeout' "$review Trace / Process Evidence
 assert_section 'SENSORS.*head=.*scope=.*ran=.*failed=' "$review Trace / Process Evidence section must require HEAD-bound feature green evidence"
 assert_section 'review_verdict' "$review Trace / Process Evidence section must inspect review_verdict evidence"
 assert_section 'deviation' "$review Trace / Process Evidence section must inspect deviation evidence"
+assert_section 'authoritative' "$review Trace / Process Evidence section must identify authoritative evidence"
+assert_section 'corroborat' "$review Trace / Process Evidence section must identify corroborating evidence"
 
 # 6. Retired handbacks remain reader-compatible history, never current blocking evidence.
 assert_section 'historical' "$review Trace / Process Evidence section must identify historical trace compatibility"
@@ -238,7 +240,8 @@ assert_section '(approval|approved-head).{0,120}(after|following).{0,80}(review 
 assert_section 'trace evidence unavailable' "$review Trace / Process Evidence section must use the phrase trace evidence unavailable"
 
 # 8. Blocking process violations and review finding terms.
-assert_section 'deviation' "$review Trace / Process Evidence section must surface deviations as review findings"
+assert_section 'deviations?[^!?]{0,80}(finding|BLOCKING)|(finding|BLOCKING)[^!?]{0,80}deviations?' \
+  "$review Trace / Process Evidence section must surface deviations as review findings"
 assert_section 'loop' "$review Trace / Process Evidence section must surface loop findings"
 assert_section 'BLOCKING' "$review Trace / Process Evidence section must mark process violations BLOCKING"
 
