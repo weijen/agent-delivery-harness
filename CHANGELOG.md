@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v0.37.1 (2026-07-24)
+
+### Bug Fixes
+
+- Classify symlinked-parent sensor as harness-dev
+  ([#426](https://github.com/weijen/agent-delivery-harness/pull/426),
+  [`16d6682`](https://github.com/weijen/agent-delivery-harness/commit/16d66825f7e6c1a0692506ea1b565ce1cc5ceba5))
+
+- **#417**: Classify symlinked-parent installer sensor
+  ([#426](https://github.com/weijen/agent-delivery-harness/pull/426),
+  [`16d6682`](https://github.com/weijen/agent-delivery-harness/commit/16d66825f7e6c1a0692506ea1b565ce1cc5ceba5))
+
+### Testing
+
+- **#417**: Guard dev-fixture sensor classification
+  ([#426](https://github.com/weijen/agent-delivery-harness/pull/426),
+  [`16d6682`](https://github.com/weijen/agent-delivery-harness/commit/16d66825f7e6c1a0692506ea1b565ce1cc5ceba5))
+
+
 ## v0.37.0 (2026-07-24)
 
 ### Bug Fixes
