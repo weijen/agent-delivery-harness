@@ -14,6 +14,15 @@ keywords:
 estimated_reading_time: 15
 ---
 
+<!-- snapshot-retirement:start -->
+> [!IMPORTANT]
+> **Retired historical snapshot.** This is a point-in-time snapshot, not current
+> operating guidance. The export scripts and `trace_tools` examples no longer run.
+> The generator/handback topology was retired by #352 and superseded by the
+> contract-v2 four-gate model in #394. See
+> [`docs/harness-contract.yml`](harness-contract.yml) for current doctrine.
+
+<!-- snapshot-retirement:end -->
 ## 為什麼要替一個 AI Agent 工作流加上 Trace 和 Log
 
 過去這幾週，我們替 Agent Delivery Harness 做了一件事：讓每一次 agent 交付 issue 的過程，都留下可以被驗證的 trace 和 log，並且把它們送進 Azure Application Insights，變成可以跨版本比較的 dashboard。
