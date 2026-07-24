@@ -60,7 +60,6 @@ fi
 if ! declare -F finish_trace_gate >/dev/null 2>&1; then
   printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
-  finish_log_completeness_gate() { return 0; }
   finish_closeout_orchestrate() {
     red "✗ closeout orchestration blocked: scripts/finish-lib.sh is unavailable."
     echo "  The worktree is left intact."
