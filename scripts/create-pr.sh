@@ -60,11 +60,6 @@
 
 set -euo pipefail
 
-red()    { printf '\033[31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
-bold()   { printf '\033[1m%s\033[0m\n' "$*"; }
-
 # A push rejection "looks like" a remote force-push policy block (e.g. a
 # GitHub branch-protection "Block force pushes" rule, or a modern GitHub
 # Ruleset's protected-ref rule) only when it carries a known
@@ -134,11 +129,13 @@ _run_scoped_sensor_gate() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
 
 # --- Help guard (issue #328) --------------------------------------------------
 # -h/--help must exit 0 before ANY side effect (review-gate check, git fetch,
 # git rebase, git push, gh call, or trace span emission) — scanned across all
-# of $@, and placed before the trace-lib.sh guarded-source block below so no
+# of $@, and placed before tracing is initialized below so no
 # pr_create span is ever armed for a help request.
 for arg in "$@"; do
   case "$arg" in
@@ -163,27 +160,7 @@ if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ]; then
   harness_identity_activate "$(harness_identity_repo_root)"
 fi
 
-# --- Tracing (issue #94, plan D5) --------------------------------------------
-# Guarded source: a missing trace-lib.sh must never break PR creation. The
-# script runs inside the issue worktree, so trace-lib resolves the issue from
-# the feature/issue-NN-* branch and pins the trace to the MAIN root (plan D1).
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
-fi
-if ! declare -F trace_span >/dev/null 2>&1; then
-  TRACE_NOOP_WARNED=0
-  trace_span() {
-    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
-      printf 'create-pr: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
-      TRACE_NOOP_WARNED=1
-    fi
-    return 0
-  }
-  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
-  trace_lifecycle_init() { :; }
-  trace_lifecycle_arm() { :; }
-fi
+lifecycle_runtime_trace_init create-pr
 
 # Exactly ONE pr_create lifecycle terminal span per invocation via the shared
 # EXIT-trap helper (issue #213 P-1, trace_lifecycle_init). TRACE_STAGE names the

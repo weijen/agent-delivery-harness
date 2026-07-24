@@ -620,7 +620,7 @@ copy_finish_fixture_scripts() {
   local dir="$1" script
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   for script in \
-    issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
+    issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh \
     economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh trace-report.sh; do
     cp "${ROOT}/scripts/${script}" "${dir}/scripts/"
   done

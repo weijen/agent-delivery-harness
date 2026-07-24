@@ -309,7 +309,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in review-gate.sh check-trace-consistency.sh \
+for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the verdict PR-gate fixture"
@@ -347,7 +347,7 @@ make_repo() {
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
-  for s in review-gate.sh check-trace-consistency.sh \
+  for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
            trace-lib.sh issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
@@ -521,7 +521,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in review-gate.sh check-trace-consistency.sh \
+for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the reject-cap PR-gate fixture"
@@ -557,7 +557,7 @@ make_repo() {
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   local s
-  for s in review-gate.sh check-trace-consistency.sh \
+  for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
            trace-lib.sh issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done

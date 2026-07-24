@@ -40,6 +40,7 @@ mkdir -p "${TMP_DIR}/repo/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/finish-issue.sh" "${TMP_DIR}/repo/scripts/finish-issue.sh"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/finish-lib.sh" "${TMP_DIR}/repo/scripts/finish-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
@@ -173,7 +174,8 @@ fail() {
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
 mkdir -p "${REPO}/scripts" "$BIN"
-cp "${ROOT}/scripts/start-issue.sh" "${ROOT}/scripts/issue-lib.sh" "${REPO}/scripts/"
+cp "${ROOT}/scripts/start-issue.sh" "${ROOT}/scripts/issue-lib.sh" \
+  "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${REPO}/scripts/"
 cat >"${BIN}/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' 'Repo-local worktree fixture'
@@ -326,6 +328,7 @@ REPO="${TMP_DIR}/repo"
 mkdir -p "${REPO}/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${REPO}/scripts/"
 cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${REPO}/scripts/"
 cp "${ROOT}/scripts/trace-lib.sh" "${REPO}/scripts/"
 cat > "${REPO}/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash

@@ -149,7 +149,7 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts" "${R}/docs/evaluation"
-for s in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
+for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
          finish-lib.sh economics-report-lib.sh trace-lib.sh trace-report.sh \
          ci-coverage-lib.sh; do

@@ -143,6 +143,7 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 # (Red-first evidence from Scenario A failing pre-implementation already
 # satisfies the teeth obligation; this is additional positive mutation proof.)
 mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/"
 # Replace the helper's two-line write with a one-line SHA-only marker.
 # shellcheck disable=SC2016
 sed '

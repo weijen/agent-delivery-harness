@@ -39,6 +39,9 @@ scripts:
   - id: trace-lib
     path: scripts/trace-lib.sh
     role: Sourceable trace-span emitter for deep tracing; schema authority docs/evaluation/trace-schema.v1.json.
+  - id: lifecycle-runtime-lib
+    path: scripts/lifecycle-runtime-lib.sh
+    role: Shared terminal output and optional tracing bootstrap for lifecycle entrypoints.
   - id: ci-coverage-lib
     path: scripts/ci-coverage-lib.sh
     role: Sourceable project-CI coverage detector; owns language gate-signature tokens so review-gate.sh/create-pr.sh stay language-neutral.
@@ -236,6 +239,7 @@ language_neutral:
   owners:
     - scripts/issue-lib.sh
     - scripts/trace-lib.sh
+    - scripts/lifecycle-runtime-lib.sh
     - scripts/start-issue.sh
     - scripts/check-feature-list.sh
     - scripts/review-gate.sh

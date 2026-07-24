@@ -69,7 +69,7 @@ exit 0
 SH
     chmod +x "${SCRATCH}/bin/gh"
 
-    for script in issue-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
+    for script in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
       finish-issue.sh finish-lib.sh economics-report-lib.sh trace-lib.sh trace-report.sh \
       check-trace-consistency.sh log-handback.sh; do
       cp "${ROOT}/scripts/${script}" "${SCRATCH}/repo/scripts/"

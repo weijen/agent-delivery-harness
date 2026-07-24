@@ -37,18 +37,15 @@
 #             post-merge cleanup failure warns but keeps exit 0 (the merge won).
 set -euo pipefail
 
-red()   { printf '\033[31m%s\033[0m\n' "$*"; }
-green() { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[33m%s\033[0m\n' "$*"; }
-bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
 
 # --- Help guard (issue #328) --------------------------------------------------
 # -h/--help must exit 0 before ANY side effect (PR resolution, `gh pr checks`,
 # `gh pr merge`, branch cleanup, or trace span emission) — scanned across all
-# of $@, and placed before the trace-lib.sh guarded-source block below (and
-# thus before trace_lifecycle_init) so no pr_merge span is ever armed for a
+# of $@, and placed before tracing is initialized below so no pr_merge span is
+# ever armed for a
 # help request.
 for arg in "$@"; do
   case "$arg" in
@@ -78,27 +75,7 @@ if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ]; then
   harness_identity_activate "$(harness_identity_repo_root)"
 fi
 
-# --- Tracing (issue #94, plan D5) --------------------------------------------
-# Guarded source: a missing trace-lib.sh must never break the merge gate. The
-# script runs inside the issue worktree, so trace-lib resolves the issue from
-# the feature/issue-NN-* branch and pins the trace to the MAIN root (plan D1).
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
-fi
-if ! declare -F trace_span >/dev/null 2>&1; then
-  TRACE_NOOP_WARNED=0
-  trace_span() {
-    if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
-      printf 'merge-pr: warning: scripts/trace-lib.sh not found — trace spans disabled\n' >&2
-      TRACE_NOOP_WARNED=1
-    fi
-    return 0
-  }
-  trace_now_ms() { printf '%s000' "$(date +%s 2>/dev/null || printf '0')"; }
-  trace_lifecycle_init() { :; }
-  trace_lifecycle_arm() { :; }
-fi
+lifecycle_runtime_trace_init merge-pr
 
 # Exactly ONE pr_merge lifecycle terminal span per invocation via the shared
 # EXIT-trap helper (issue #213 P-1, trace_lifecycle_init). TRACE_STAGE names the

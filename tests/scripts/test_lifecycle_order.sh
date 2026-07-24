@@ -102,6 +102,7 @@ R1="${TMP_DIR}/r1"
 mkdir -p "${R1}/scripts"
 cp "${ROOT}/scripts/issue-lib.sh" "${R1}/scripts/"
 cp "${ROOT}/scripts/start-issue.sh" "${R1}/scripts/"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${R1}/scripts/"
 # A preflight that FAILS — start-issue must honor it and stop.
 cat > "${R1}/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash
@@ -149,6 +150,7 @@ set +e
 mkdir -p "${TMP_DIR}/origin-seed/scripts"
 cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/origin-seed/scripts/"
 cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/origin-seed/scripts/"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/origin-seed/scripts/"
 cd "${TMP_DIR}/origin-seed"
 git init -q -b main
 git config user.name "Harness Test"
@@ -163,6 +165,7 @@ R2="${TMP_DIR}/r2"
 mkdir -p "${R2}/scripts"
 cp "${ROOT}/scripts/create-pr.sh" "${R2}/scripts/"
 cp "${ROOT}/scripts/review-gate.sh" "${R2}/scripts/"
+cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${R2}/scripts/"
 cd "$R2"
 git init -q -b feature/issue-301-order
 git config user.name "Harness Test"
@@ -202,7 +205,7 @@ set +e
   set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts"
-for s in issue-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh init.sh; do
+for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh init.sh; do
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/"
 done
 # Pin a PATH that includes jq + a fake gh so the completion check actually runs,

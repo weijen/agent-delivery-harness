@@ -132,6 +132,7 @@ BIN="${TMP_DIR}/bin"
 mkdir -p "${REPO}/scripts" "${REPO}/.github" "$BIN"
 cp "${ROOT}/scripts/start-issue.sh" \
   "${ROOT}/scripts/issue-lib.sh" \
+  "${ROOT}/scripts/lifecycle-runtime-lib.sh" \
   "${ROOT}/scripts/github-identity-lib.sh" \
   "${REPO}/scripts/"
 

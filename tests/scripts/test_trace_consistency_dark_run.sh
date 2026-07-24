@@ -268,7 +268,7 @@ make_gate_fixture() {
   mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
   cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
   local s
-  for s in issue-lib.sh trace-lib.sh check-trace-consistency.sh review-gate.sh; do
+  for s in issue-lib.sh lifecycle-runtime-lib.sh trace-lib.sh check-trace-consistency.sh review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   git -C "$dir" init -q -b main
