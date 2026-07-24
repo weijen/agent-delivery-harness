@@ -100,6 +100,18 @@ fixture_repo() {
         esac
         ;;
     esac
+    case ",${scripts_csv}," in
+      *,create-pr.sh,*)
+        case ",${scripts_csv}," in
+          *,run-sensors.sh,*) ;;
+          *) scripts+=("run-sensors.sh") ;;
+        esac
+        case ",${scripts_csv}," in
+          *,affected-sensors.sh,*) ;;
+          *) scripts+=("affected-sensors.sh") ;;
+        esac
+        ;;
+    esac
     for script in "${scripts[@]}"; do
       [[ "$script" =~ ^[A-Za-z0-9._-]+\.sh$ ]] || {
         _fixture_usage_error "invalid script name: $script"

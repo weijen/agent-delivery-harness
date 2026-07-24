@@ -125,8 +125,7 @@ Workflow per issue:
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
    — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
    is the only exception). These `green` and `--gate` forms are the only sensor
-   execution shapes; use `./scripts/run-sensors.sh --last` to read the saved
-   gate result for the unchanged current HEAD. A direct
+   execution shapes; their process exit is the gate result. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,

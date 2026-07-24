@@ -107,19 +107,7 @@ grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=1$" <<<"$out" 
   || fail "--gate pre-pr must run the full fixture suite (got: $out)"
 [ "$rc" = "1" ] || fail "gate run with a red sensor must exit 1 (got ${rc})"
 
-# 6. --last reads rather than runs: it returns the saved gate summary, keeps a
-# failing gate non-zero, and a subsequent successful gate replaces the record.
-set +e
-run_count_before="$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')"
-last_out="$(run --last)"
-last_rc=$?
-set -e
-[ "$last_rc" = "1" ] || fail "--last must preserve a saved failing gate status"
-grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=1$" <<<"$last_out" \
-  || fail "--last must print the saved summary without rerunning sensors (got: $last_out)"
-[ "$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')" = "$run_count_before" ] \
-  || fail "--last must not execute any sensor"
-
+# 6. A subsequent successful gate reports the current result directly.
 cat >"${FIX}/tests/scripts/test_always_red.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'red-now-green\n' >>"${SENSOR_RUN_LOG:?}"
@@ -131,21 +119,6 @@ head_sha="$(git -C "$FIX" rev-parse HEAD)"
 out="$(run --gate pre-review)" || fail "all-green gate must pass"
 grep -q "^SENSORS pre-review head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
   || fail "successful gate summary malformed (got: $out)"
-last_out="$(run --last)" || fail "--last must return a saved successful gate"
-[ "$last_out" = "SENSORS pre-review head=${head_sha} scope=full ran=3 failed=0" ] \
-  || fail "--last returned the wrong saved summary (got: $last_out)"
-[ "$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')" = "$((run_count_before + 3))" ] \
-  || fail "successful --last must not execute sensors after the three-sensor gate"
-
-# 7. HEAD binding: changing HEAD after a saved run makes --last refuse.
-git -C "$FIX" commit -q --allow-empty -m "advance head"
-set +e
-last_out="$(run --last 2>&1)"
-last_rc=$?
-set -e
-[ "$last_rc" = "1" ] || fail "--last must refuse a summary saved for another HEAD"
-grep -q 'saved summary is stale' <<<"$last_out" \
-  || fail "stale --last refusal must explain the HEAD mismatch (got: $last_out)"
 
 set +e
 run --gate nightly >/dev/null 2>&1
@@ -153,9 +126,10 @@ rc=$?
 set -e
 [ "$rc" = "2" ] || fail "an unknown gate name must be a usage error with exit 2 (got ${rc})"
 
-# 8. No agent-facing full switch on green: the runner's own interface must not
+# 7. Dead result-reading and agent-facing full switches are rejected.
+# The runner's own interface must not
 #    accept a flag that turns green into a full run (bypass-resistance leg).
-for bad in "green --full" "green --all" "green --suite full"; do
+for bad in "--last" "green --full" "green --all" "green --suite full"; do
   set +e
   # shellcheck disable=SC2086
   run $bad >/dev/null 2>&1
@@ -165,7 +139,7 @@ for bad in "green --full" "green --all" "green --suite full"; do
     || fail "'run-sensors.sh ${bad}' must be rejected as a usage error (got ${rc}) — green may never opt into a full run"
 done
 
-# 9. Git discovery errors are never converted into a silent scoped run. The
+# 8. Git discovery errors are never converted into a silent scoped run. The
 # resolver returns 2 and the runner conservatively executes FULL with a warning.
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 set +e

@@ -191,8 +191,12 @@ for section in "${gate_sections[@]}"; do
     esac
   done <<< "$records"
 done
+require_contract_record gate_sensors id scoped-green scripts/create-pr.sh
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
-end_scenario "contract declares four complete gates and the CI-green merge precondition"
+if grep -q -- '--last' scripts/run-sensors.sh; then
+  fail "run-sensors.sh must not retain the retired unconsumed --last interface"
+fi
+end_scenario "contract declares four complete gates with wired sensors and CI-green merge"
 
 # --- 2c. Evidence provenance, SHA chains, and governed bypasses --------------
 grep -Eq '^version:[[:space:]]+2$' "$CONTRACT" \
