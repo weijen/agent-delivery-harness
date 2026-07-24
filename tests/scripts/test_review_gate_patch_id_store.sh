@@ -367,24 +367,6 @@ fi
 cd "$_saved_dir"
 emit "Scenario H: sibling worktree approvals keep independent canonical closeout markers"
 
-# ── Scenario I: existing issue worktree reads the legacy shared marker ───────
-fixture_repo --with-scripts review-gate.sh
-I_REPO="$FIXTURE_REPO"
-cd "$I_REPO"
-git checkout -q -b feature/legacy-marker-fallback
-i_head="$(git rev-parse HEAD)"
-mkdir -p "${I_REPO}/.copilot-tracking/review-gate"
-printf '%s\n' "$i_head" \
-  > "${I_REPO}/.copilot-tracking/review-gate/approved-head"
-SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=400 ./scripts/review-gate.sh check \
-  >"${TMP_DIR}/check-i.out" 2>&1 \
-  || fail "Scenario I: issue-scoped check did not read the legacy shared marker"
-if [ -e "${I_REPO}/.copilot-tracking/review-gate/issue-400/approved-head" ]; then
-  fail "Scenario I: read fallback must not fabricate a migrated marker"
-fi
-cd "$_saved_dir"
-emit "Scenario I: issue-scoped check falls back to a legacy shared marker"
-
 tap_done
 
 (

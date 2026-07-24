@@ -571,7 +571,6 @@ _patch_id_for_branch() {
 }
 
 repo_root="$(git rev-parse --show-toplevel)"
-legacy_marker_file="${repo_root}/.copilot-tracking/review-gate/approved-head"
 marker_issue="${REVIEW_GATE_ISSUE:-}"
 if [ -z "$marker_issue" ]; then
   marker_issue="$(resolve_issue_number || true)"
@@ -593,15 +592,10 @@ marker_main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
   exit 2
 }
 canonical_marker_file="${marker_main_root}/${marker_relative}"
-canonical_legacy_marker="${marker_main_root}/.copilot-tracking/review-gate/approved-head"
 marker_read_file="$marker_file"
 if [ -n "$marker_issue" ] && [ ! -f "$marker_read_file" ]; then
   if [ -f "$canonical_marker_file" ]; then
     marker_read_file="$canonical_marker_file"
-  elif [ -f "$legacy_marker_file" ]; then
-    marker_read_file="$legacy_marker_file"
-  elif [ -f "$canonical_legacy_marker" ]; then
-    marker_read_file="$canonical_legacy_marker"
   fi
 fi
 head_sha="$(git rev-parse HEAD)"
@@ -707,11 +701,6 @@ case "$command" in
     # In a linked worktree the canonical marker lives in the main checkout
     # root, so carry validates and updates both copies.
     canonical_read_file="$canonical_marker_file"
-    if [ "$marker_read_file" = "$legacy_marker_file" ] \
-        && [ -n "$marker_issue" ] && [ ! -f "$canonical_read_file" ] \
-        && [ -f "$canonical_legacy_marker" ]; then
-      canonical_read_file="$canonical_legacy_marker"
-    fi
 
     if [ "$canonical_marker_file" != "$marker_file" ]; then
       # Linked worktree: canonical and local markers are distinct paths.
