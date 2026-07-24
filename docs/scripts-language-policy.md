@@ -31,8 +31,9 @@ depends on them staying interpreter-free:
 
 ## 2. May become Python — trigger-based, never wholesale
 
-Only the **three surviving trace-analytics tools** are candidates:
-`check-trace-consistency.sh`, `trace-report.sh`, and `trace-report.sh --all`.
+Only the surviving trace-analytics surfaces are candidates:
+`check-trace-consistency.sh`, `trace-report.sh` / `trace-report.sh --all`, and
+the sourced `economics-report-lib.sh`.
 They are already "Python programs wearing a bash
 costume" (~600 lines of jq in heredocs, no types, no debugger, no unit-test
 seams).

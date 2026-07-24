@@ -549,7 +549,7 @@ cat > "$STATE_FILTER" <<'JQ'
 # The span's own `timestamp` is the one field every span is contractually
 # required to carry and is stamped once, deterministically, by trace-lib.sh's
 # own `date -u +%Y-%m-%dT%H:%M:%SZ` call at write time — reuse it instead.
-# ts_secs mirrors scripts/finish-lib.sh's economics_time_summary idiom
+# ts_secs mirrors scripts/economics-report-lib.sh's economics_time_summary idiom
 # (fromdateiso8601 with an optional fractional-second suffix) so mixed-
 # precision timestamps still compare correctly; do not invent a new parser.
 # def and the $pr324_merge_epoch binding below are chained with `|` (no

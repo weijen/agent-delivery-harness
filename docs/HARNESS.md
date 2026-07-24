@@ -232,6 +232,10 @@ teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** ru
 measured is **omitted entirely** and never fabricated as `0` or a half-present `n/a` placeholder. In particular the
 trace-derived token row appears only when a runtime adapter reported `gen_ai.usage.*` on model spans; otherwise it is
 omitted — issue #329 retired the old `- Tokens: n/a` line, because a half-present field is worse than an absent one.
+These report-time computations and stamps live in
+`scripts/economics-report-lib.sh`; `scripts/finish-lib.sh` remains limited to
+migration, closeout gates, finalization, teardown orchestration, and state
+hygiene.
 
 **Native-record economics join (issue #329).** Because the GitHub Copilot runtime does not carry `gen_ai.usage.*` on
 model spans, closeout ALSO joins real token/model economics from the local Copilot **native session records** at

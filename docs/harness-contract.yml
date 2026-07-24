@@ -72,6 +72,9 @@ scripts:
   - id: finish-lib
     path: scripts/finish-lib.sh
     role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
+  - id: economics-report-lib
+    path: scripts/economics-report-lib.sh
+    role: Sourceable report-time delivery and native economics analytics; sourced, not executed.
 
 # ---------------------------------------------------------------------------
 # Four lifecycle gates. Every record names its trigger, consumed evidence,
