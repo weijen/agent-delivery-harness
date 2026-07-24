@@ -100,6 +100,8 @@ grep -Eq '^  conflicts:[[:space:]]+0$' "$REPEAT_OUT" \
 for path in "${diverged_paths[@]}"; do
 	grep -Fq "kept ${path} (adopter changed)" "$REPEAT_OUT" \
 		|| fail "repeat update did not keep adopter-only ${path}"
+	grep -Fq '# adopter issue-49 local divergence' "${TARGET}/${path}" \
+		|| fail "repeat update overwrote adopter file ${path} despite logging it as kept"
 	printf 'reconcile %s: conflict -> adopter preserved + .rej; repeat -> kept adopter-only\n' "$path"
 done
 
