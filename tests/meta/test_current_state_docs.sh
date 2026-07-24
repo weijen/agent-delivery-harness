@@ -20,6 +20,12 @@ reject README.md "docs-only repo (like this spec pack today)"
 reject README.md "suite (with coverage)"
 reject docs/getting-started.md "A docs-only repo (like this one today)"
 reject .copilot/instructions/harness.instructions.md "docs-only era; ruff/mypy/pytest once Python lands"
+# Adversarial (code-review-subagent, issue #384): the same stale claims the
+# feature removed from one bullet still appear elsewhere in the identical file.
+reject .copilot/instructions/harness.instructions.md "with coverage"
+reject .copilot/instructions/harness.instructions.md "Docs-only era:"
+reject .copilot/instructions/harness.instructions.md "Code era:"
+reject .copilot/instructions/harness.instructions.md "docs-era equivalent"
 
 for path in README.md docs/getting-started.md .copilot/instructions/harness.instructions.md; do
   grep -qiF "dormant" "$path" || fail "${path} does not describe the dormant Python surface"
