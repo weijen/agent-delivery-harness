@@ -2,6 +2,53 @@
 
 <!-- version list -->
 
+## v0.37.0 (2026-07-24)
+
+### Bug Fixes
+
+- **#383**: Harden drift guard, finish consumer purge
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+- **#383**: Make review evidence phase-aware
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+- **#383**: Reanchor doctrine consumers to contract v2; human release for the reject cap
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+- **#383**: Reanchor reviewer lifecycle evidence
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+### Documentation
+
+- **#383**: Align one-agent gate topology
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+### Features
+
+- **#383**: Human release for the review-rejection cap
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+### Testing
+
+- **#383**: Close doctrine drift sensor gaps
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+- **#383**: Guard contract doctrine consumers
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+- **#383**: Reject contradictory doctrine
+  ([#416](https://github.com/weijen/agent-delivery-harness/pull/416),
+  [`a53360d`](https://github.com/weijen/agent-delivery-harness/commit/a53360d3d948a93349e521acc3f1c55f284aa71b))
+
+
 ## v0.36.0 (2026-07-24)
 
 ### Bug Fixes
