@@ -2,6 +2,65 @@
 
 <!-- version list -->
 
+## v0.37.4 (2026-07-24)
+
+### Bug Fixes
+
+- **#435**: Refresh project lock metadata
+  ([#440](https://github.com/weijen/agent-delivery-harness/pull/440),
+  [`ed3517c`](https://github.com/weijen/agent-delivery-harness/commit/ed3517cce5ae8edd1ba5131ea66dbe4f150b3e41))
+
+### Continuous Integration
+
+- Deduplicate pull-request gate ownership
+  ([#440](https://github.com/weijen/agent-delivery-harness/pull/440),
+  [`ed3517c`](https://github.com/weijen/agent-delivery-harness/commit/ed3517cce5ae8edd1ba5131ea66dbe4f150b3e41))
+
+- **#435**: Assign unique workflow gate ownership
+  ([#440](https://github.com/weijen/agent-delivery-harness/pull/440),
+  [`ed3517c`](https://github.com/weijen/agent-delivery-harness/commit/ed3517cce5ae8edd1ba5131ea66dbe4f150b3e41))
+
+- **#435**: Run test workflows only on pull requests
+  ([#440](https://github.com/weijen/agent-delivery-harness/pull/440),
+  [`ed3517c`](https://github.com/weijen/agent-delivery-harness/commit/ed3517cce5ae8edd1ba5131ea66dbe4f150b3e41))
+
+### Documentation
+
+- Clarify verification platform authority
+  ([#438](https://github.com/weijen/agent-delivery-harness/pull/438),
+  [`df3ac76`](https://github.com/weijen/agent-delivery-harness/commit/df3ac76b8be438d292d26c510d3a7d769a80dcab))
+
+- **#431**: Clarify verification platform authority
+  ([#438](https://github.com/weijen/agent-delivery-harness/pull/438),
+  [`df3ac76`](https://github.com/weijen/agent-delivery-harness/commit/df3ac76b8be438d292d26c510d3a7d769a80dcab))
+
+- **#432**: Record tested installer skew
+  ([#439](https://github.com/weijen/agent-delivery-harness/pull/439),
+  [`48b86a7`](https://github.com/weijen/agent-delivery-harness/commit/48b86a791247c366bc51f3a55ee002cb954a865c))
+
+- **#435**: Align CI gate help with ownership
+  ([#440](https://github.com/weijen/agent-delivery-harness/pull/440),
+  [`ed3517c`](https://github.com/weijen/agent-delivery-harness/commit/ed3517cce5ae8edd1ba5131ea66dbe4f150b3e41))
+
+### Testing
+
+- Rehearse v0.36.0 installer upgrade
+  ([#439](https://github.com/weijen/agent-delivery-harness/pull/439),
+  [`48b86a7`](https://github.com/weijen/agent-delivery-harness/commit/48b86a791247c366bc51f3a55ee002cb954a865c))
+
+- **#431**: Protect verification boundary docs
+  ([#438](https://github.com/weijen/agent-delivery-harness/pull/438),
+  [`df3ac76`](https://github.com/weijen/agent-delivery-harness/commit/df3ac76b8be438d292d26c510d3a7d769a80dcab))
+
+- **#432**: Assert repeat-update preserves adopter content
+  ([#439](https://github.com/weijen/agent-delivery-harness/pull/439),
+  [`48b86a7`](https://github.com/weijen/agent-delivery-harness/commit/48b86a791247c366bc51f3a55ee002cb954a865c))
+
+- **#432**: Rehearse v0.36.0 adopter upgrade
+  ([#439](https://github.com/weijen/agent-delivery-harness/pull/439),
+  [`48b86a7`](https://github.com/weijen/agent-delivery-harness/commit/48b86a791247c366bc51f3a55ee002cb954a865c))
+
+
 ## v0.37.3 (2026-07-24)
 
 ### Bug Fixes
