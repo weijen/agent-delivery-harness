@@ -654,6 +654,34 @@ grep -Eiq 'reject' "$OUT" \
   || fail "check_blocks_reject_cap: the check refusal must name the review-rejection cap (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
+# Case 2b: release_reject_cap (issue 33) — the human-release half of the stop
+# rule (#383): RELEASE_REJECT_CAP=1 lets a capped issue proceed, logged and
+# trace-recorded, never silently.
+# ============================================================================
+C2B="${TMP_DIR}/c33"; make_repo "$C2B" 33
+ID2B="${C2B}/.copilot-tracking/issues/issue-33"
+add_reject "$ID2B" 33 feat-a
+add_reject "$ID2B" 33 feat-a
+add_reject "$ID2B" 33 feat-a
+rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 -- ./scripts/review-gate.sh approve)"
+[ "$rc" = "0" ] \
+  || fail "release_reject_cap: RELEASE_REJECT_CAP=1 must release the capped approve path — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+[ -f "$(marker_path "$C2B")" ] \
+  || fail "release_reject_cap: approve must write the approved-head marker under a released cap"
+grep -Eiq 'release' "$OUT" \
+  || fail "release_reject_cap: the release must be LOGGED, never silent (output: $(tr '\n' '|' < "$OUT"))"
+grep -Eiq 'review_reject_cap_exceeded' "$OUT" \
+  || fail "release_reject_cap: the release log must carry the cap findings it overrides (output: $(tr '\n' '|' < "$OUT"))"
+grep -q 'review-gate.reject-cap-release' "${ID2B}/trace.jsonl" \
+  || fail "release_reject_cap: the release must be recorded as a reject-cap-release span in the issue trace"
+rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+[ "$rc" = "0" ] \
+  || fail "release_reject_cap: the release must also cover the strict trace gate (REQUIRE_TRACE_CONSISTENCY=1) — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+rc="$(run_in "$C2B" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+[ "$rc" != "0" ] \
+  || fail "release_reject_cap: without RELEASE_REJECT_CAP=1 the capped check path must still hard-block, got exit ${rc}"
+
+# ============================================================================
 # Case 3: no_block_below_cap (issue 32)
 # ============================================================================
 C3="${TMP_DIR}/c32"; make_repo "$C3" 32

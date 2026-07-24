@@ -278,6 +278,18 @@ trace_gate() {
   local v_cnt=0 w_cnt=0
   v_cnt="$(printf '%s\n' "$cout" | grep -c '^VIOLATION ' || true)"
   w_cnt="$(printf '%s\n' "$cout" | grep -c '^WARNING' || true)"
+  # A human-released cap (RELEASE_REJECT_CAP=1, see review_reject_cap_gate) must
+  # not re-block here via REQUIRE_TRACE_CONSISTENCY — the release covers the cap
+  # violation wherever it gates. The finding stays printed; only its blocking
+  # weight is released.
+  if [ "${RELEASE_REJECT_CAP:-0}" = "1" ]; then
+    local cap_cnt=0
+    cap_cnt="$(printf '%s\n' "$cout" | grep -c '^VIOLATION consistency: review_reject_cap_exceeded' || true)"
+    if [ "$cap_cnt" -gt 0 ]; then
+      yellow "⚠ trace gate: ${cap_cnt} review_reject_cap_exceeded violation(s) released by RELEASE_REJECT_CAP=1 (logged)."
+      v_cnt=$((v_cnt - cap_cnt))
+    fi
+  fi
   if [ "$crc" -eq 2 ] && [ "$v_cnt" -eq 0 ] && [ "$w_cnt" -eq 0 ]; then
     yellow "⚠ trace gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
     return 0
@@ -418,10 +430,18 @@ log_completeness_gate() {
 # spans. When that fires, the whole issue must STOP and hand back to the
 # human — no further repair attempts on that feature.
 #
+# RELEASE_REJECT_CAP=1 is the human-release half of the stop rule (issue #383):
+# after the hand-back, the human who resolved the capped defect sets it to let
+# the PR path proceed. Like SKIP_CI_GATE it never bypasses silently — the
+# release is logged with the cap findings it overrides AND recorded as a
+# review-gate.reject-cap-release tool span in the issue trace, so the override
+# is durable evidence, not a quiet skip.
+#
 # Degrades gracefully — print a neutral note and return 0, never break the
 # gate — when the issue number cannot be resolved (a checkout that predates
 # the trace tooling), the checker is not executable, or the checker hits an
-# environment error (exit 2: no trace yet). Emits no span of its own.
+# environment error (exit 2: no trace yet). Emits no span of its own except
+# the human-release span above.
 review_reject_cap_gate() {
   local issue_num=""
 
@@ -452,10 +472,22 @@ review_reject_cap_gate() {
   findings="$(printf '%s\n' "$out" \
     | grep -E '^VIOLATION consistency: review_reject_cap_exceeded' || true)"
   if [ -n "$findings" ]; then
+    if [ "${RELEASE_REJECT_CAP:-0}" = "1" ]; then
+      TRACE_STAGE="reject_cap_release"
+      yellow "⚠ reject-cap gate: RELEASE_REJECT_CAP=1 set — HUMAN RELEASE of the review-rejection cap (logged)."
+      printf '%s\n' "$findings"
+      trace_span tool \
+        "gen_ai.tool.name=review-gate.reject-cap-release" \
+        "harness.outcome=pass" \
+        "harness.exit_status=0"
+      return 0
+    fi
     red "✗ reject-cap gate: a feature hit the review-rejection cap (3rd NEEDS_REVISION)."
     printf '%s\n' "$findings"
     echo "  The 3rd review rejection for a feature STOPS the whole issue and hands"
     echo "  back to the human — do not attempt further repair on that feature."
+    echo "  After a human-directed resolution, RELEASE_REJECT_CAP=1 releases the cap"
+    echo "  with a logged, trace-recorded override."
     return 1
   fi
 
