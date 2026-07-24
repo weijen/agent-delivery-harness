@@ -3,7 +3,7 @@
 # (issue #103, feature trace-gate-two-phase, plan Phase 4).
 #
 # Executable spec. The gate follows the two established precedents: the #84
-# status-doc rollout (land as a review-gate.sh subcommand, wire into check)
+# staged rollout (land as a review-gate.sh subcommand, wire into check)
 # and REQUIRE_FEATURES_COMPLETE (documented env flag flips warn → hard fail;
 # default stays warn).
 #
@@ -16,7 +16,7 @@
 #      exit code is 1 (blocking). A clean trace exits 0 in BOTH modes.
 #   2. Wiring: `review-gate.sh check` additionally runs the trace gate
 #      warn-only — its own exit semantics are UNCHANGED by trace findings in
-#      default mode (approval + status-doc still decide), but the findings
+#      default mode (approval still decides), but the findings
 #      appear in its output; under REQUIRE_TRACE_CONSISTENCY=1 findings make
 #      check exit non-zero. finish-issue.sh runs the gate before teardown:
 #      warn-only default (worktree still removed, findings printed);
@@ -266,7 +266,7 @@ else
 fi
 
 # --- 2a. `check` wiring: default exit semantics unchanged, findings surfaced ------
-# Fresh approval + status-doc satisfied, trace findings present.
+# Fresh approval with trace findings present.
 printf '# Progress\n\nissue-80 work\n' > "${WT1}/docs/PROGRESS.md"
 git -C "$WT1" add docs/PROGRESS.md
 git -C "$WT1" commit -q -m "issue-80: progress update"
@@ -274,7 +274,7 @@ rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh approve)"
 [ "$rc" = "0" ] || hard_fail "setup: review-gate approve failed in F1 (output: $(tr '\n' '|' < "$OUT"))"
 rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh check)"
 [ "$rc" = "0" ] \
-  || fail "check, default: trace findings must NOT change check's exit semantics (approval + status-doc pass), got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "check, default: trace findings must NOT change check's exit semantics when approval passes, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'role_attribution_gap' "$OUT" \
   || fail "check, default: the warn-only trace gate must run inside check and surface its findings (output: $(tr '\n' '|' < "$OUT"))"
 rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh check)"

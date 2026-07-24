@@ -192,7 +192,7 @@ run_step start "$R" ./scripts/start-issue.sh 42 SLUG=e2e
 printf '%s\n' '{"features":[{"id":"a","title":"A","steps":[],"passes":true,"verification":"done"}]}' \
   > "${WT}/.copilot-tracking/issues/issue-42/feature_list.json"
 
-# The branch must update docs/PROGRESS.md (status-doc gate, no opt-out).
+# Keep docs/PROGRESS.md distinct as inert historical fixture data.
 printf '# Progress\n\nissue-42 shipped\n' > "${WT}/docs/PROGRESS.md"
 git -C "$WT" add docs/PROGRESS.md
 git -C "$WT" commit -q -m "issue-42: progress update"

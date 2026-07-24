@@ -337,9 +337,8 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
 # scripts/, a `main` baseline, then a feature/issue-NN-* branch with a
 # docs/PROGRESS.md change committed as inert historical fixture data. Plants a
 # main-root issue dir with an empty Action Log progress.md
-# and a feat-a passes:true feature list carrying a governed teeth_proof_waiver
-# (so red_first_evidence_gate is satisfied and the verdict leg is the only
-# blocking gate). Per-case setup appends spans/bullets and/or a trace file.
+# and a feat-a passes:true feature list. Per-case setup appends spans/bullets
+# and/or a trace file so the verdict leg is the only blocking gate.
 make_repo() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
@@ -365,15 +364,12 @@ make_repo() {
   mkdir -p "$idir"
   printf '# Issue %s progress\n\nStatus: in progress.\n\n## Action Log\n\n' "$issue" \
     > "${idir}/progress.md"
-  # feat-a passes:true with a governed teeth_proof_waiver: teeth_proof_missing
-  # and feature_start_missing are pre-satisfied, so red_first_evidence_gate
-  # passes and the verdict leg is the only blocking gate under test.
+  # Retired proof metadata is irrelevant; the verdict leg is the only blocking
+  # gate under test.
   jq -nc --argjson issue "$issue" '
     {issue: $issue,
      features: [{
-       id: "feat-a", title: "A", passes: true,
-       teeth_proof_waiver: {kind: "justified",
-         reason: "fixture waiver so red-first passes and the verdict gate is the only variable"}
+       id: "feat-a", title: "A", passes: true, verification: "fixture"
      }]}' > "${idir}/feature_list.json"
 }
 

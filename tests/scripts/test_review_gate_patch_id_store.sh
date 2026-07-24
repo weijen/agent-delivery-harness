@@ -70,7 +70,7 @@ git remote add origin "${TMP_DIR}/origin.git"
 git fetch -q origin main
 
 # Establish feature commits on top of origin/main.
-# docs/PROGRESS.md must differ from origin/main so status_doc_gate passes.
+# Keep docs/PROGRESS.md distinct as inert historical fixture data.
 git reset -q --hard origin/main
 printf 'feature work\n' > feature.txt
 printf '# Progress\n\npatch-id store implementation\n' > docs/PROGRESS.md
@@ -407,7 +407,7 @@ SH
 chmod +x "${BIN}/gh"
 
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a local bare
-# origin. The feature commit updates docs/PROGRESS.md so status-doc gate passes
+# origin. The feature commit updates docs/PROGRESS.md as inert fixture data
 # and adds feature.txt (no conflict with unrelated main changes).
 make_pr_repo() {
   local dir="$1" pad="$2"

@@ -425,12 +425,10 @@ with a whitespace-separated list of `NN` path templates. Each resolved run emits
 The teeth-proof evidence machinery — the `teeth_proof` object, the red-first ordered-triple check, and the
 `teeth_proof_missing` PR block — is retired. Measured yield across real runs was zero (every real catch came
 from the independent end-of-issue review), while the ceremony taxed every green. TDD remains the working
-discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof` /
-`teeth_proof_waiver` (or the deprecated `red_first_waiver` alias) stay valid: `check-feature-list.sh` still
-shape-validates them warn-only. The `feature_start` selection-evidence gate is
-also retired (#370); historical spans remain schema-valid. Waiver kinds stay
-`bootstrap`, `visual-only`, `doc-only`, or `justified` with a non-empty `reason`; `teeth_proof_waiver` remains the
-canonical key and `red_first_waiver` the deprecated alias (canonical wins when both are present).
+discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof`,
+`teeth_proof_waiver`, or `red_first_waiver` stay valid because the validator treats those fields as
+inert metadata. The `feature_start` selection-evidence gate is also retired (#370); historical spans
+remain schema-valid.
 
 ## CI Boundary
 
