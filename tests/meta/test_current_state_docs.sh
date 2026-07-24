@@ -15,6 +15,19 @@ reject() {
   ! grep -qF "$stale" "$path" || fail "${path} retains stale claim: ${stale}"
 }
 
+require() {
+  local path="$1"
+  local claim="$2"
+  grep -qF "$claim" "$path" || fail "${path} is missing current claim: ${claim}"
+}
+
+reject_regex() {
+  local path="$1"
+  local contradiction="$2"
+  ! grep -Eqi "$contradiction" "$path" \
+    || fail "${path} retains contradictory claim: ${contradiction}"
+}
+
 reject README.md "required only once Python code is added"
 reject README.md "docs-only repo (like this spec pack today)"
 reject README.md "suite (with coverage)"
@@ -45,5 +58,25 @@ grep -qiF "explicit marker" docs/HARNESS.md \
   || fail "docs/HARNESS.md does not describe explicit marker detection"
 grep -qiF "explicit marker" docs/multi-language-profiles.md \
   || fail "docs/multi-language-profiles.md does not describe explicit marker detection"
+
+require docs/HARNESS.md 'green local sensor run on macOS is **advisory**'
+require docs/HARNESS.md 'merge-time CI result is authoritative'
+require docs/HARNESS.md 'git log --reverse | head -1'
+require docs/HARNESS.md 'exited 141 on Ubuntu'
+for divergence in \
+  'pipelines whose consumer exits early' \
+  "BSD versus GNU \`sed -i\` syntax" \
+  "\`date\` flags and output formats" \
+  "\`mktemp\` templates and option support" \
+  "locale- or implementation-dependent \`sort\` behavior" \
+  'Git version-specific command and pipeline behavior'; do
+  require docs/HARNESS.md "$divergence"
+done
+require docs/HARNESS.md "\`trace.jsonl\` lives under \`.copilot-tracking/issues/issue-NN/\` in the **main checkout**"
+require docs/HARNESS.md "\`feature_list.json\`, \`plan.md\`, and \`progress.md\` live under the same relative path"
+require docs/HARNESS.md '**issue worktree**'
+reject_regex docs/HARNESS.md 'local.*macOS.*authoritative'
+reject_regex docs/HARNESS.md 'trace\.jsonl.*issue worktree'
+reject_regex docs/HARNESS.md 'feature_list\.json.*main checkout'
 
 printf 'current-state documentation checks passed\n'

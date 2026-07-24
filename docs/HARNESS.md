@@ -175,6 +175,15 @@ remain valid.
 
 `.copilot-tracking/` is gitignored local state. It is persistent on the developer machine but never pushed.
 
+During an active issue, the artifacts are deliberately split between checkouts:
+
+- `trace.jsonl` lives under `.copilot-tracking/issues/issue-NN/` in the **main checkout**.
+- `feature_list.json`, `plan.md`, and `progress.md` live under the same relative path in the
+  **issue worktree**.
+
+Do not look for either group in the other location. Closeout migrates the finalized
+`progress.md` to the main checkout before removing the worktree, as described below.
+
 | Path | Purpose |
 | --- | --- |
 | `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `teeth_proof`, `blocked_on`, and `verification`. |
@@ -399,6 +408,29 @@ remain schema-valid.
 over `scripts/` and `tests/`, and validates Copilot customization frontmatter. The runner is
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
+
+### Platform parity and verification authority
+
+A green local sensor run on macOS is **advisory**, not proof that the same commands
+will pass on the Ubuntu runner. The merge-time CI result is authoritative because
+shell utilities and Git behavior vary by operating system and version.
+
+The worked example is a script using `set -euo pipefail` and
+`git log --reverse | head -1`. It stayed green on macOS but exited 141 on Ubuntu
+with Git 2.34.1: `head` exited after its first line, the still-writing `git log`
+received `SIGPIPE`, and `pipefail` surfaced that failure. Avoid early-exit
+consumers over unbounded producer output; capture the complete output first or use
+an operation that consumes the full stream.
+
+When local and CI results differ, check known platform divergences before treating
+the failure as unrelated or flaky:
+
+- pipelines whose consumer exits early, especially `head` and `grep -m` under `pipefail`;
+- BSD versus GNU `sed -i` syntax;
+- `date` flags and output formats;
+- `mktemp` templates and option support;
+- locale- or implementation-dependent `sort` behavior;
+- Git version-specific command and pipeline behavior.
 
 A green run is a **hard precondition for merge**: merge through `./scripts/merge-pr.sh`, which
 verifies `gh pr checks` is green before merging. For belt-and-braces enforcement, a repo admin
