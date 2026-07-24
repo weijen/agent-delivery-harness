@@ -178,14 +178,15 @@ for resume and teardown; only newly created worktrees use `.worktrees/`.
 
 From there, follow the lifecycle in [docs/HARNESS.md](HARNESS.md): populate
 `.copilot-tracking/issues/issue-NN/feature_list.json`, work one feature at a
-time with the subagents, run the review gate, open a PR with
+time as the delivering agent, run the review gate, open a PR with
 `./scripts/create-pr.sh`, and close out with `./scripts/finish-issue.sh`.
 
 ## 7. Subagent permissions
 
-The harness uses subagents (generator, reviewer, planner) that invoke harness
-scripts on your behalf. Before spawning subagents, establish the intended
-authorization mode explicitly — see the layers below.
+The harness uses one delivering agent plus the independent
+`code-review-subagent`, and both invoke harness scripts on your behalf. Before
+spawning subagents, establish the intended authorization mode explicitly — see
+the layers below.
 
 **Provenance key for this section:**
 - **(Documented)** — per official GitHub Docs

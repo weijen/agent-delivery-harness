@@ -35,10 +35,14 @@ Lower layers are cheaper, more deterministic, and run more often.
 | --- | --- | --- | --- | --- |
 | L0 | Script lifecycle | Shell scripts and lifecycle contract | Low | High |
 | L1 | Skills | Skill trigger, artifact, behavior | Medium | Medium |
-| L2 | Subagent roles | Planner / implementer / tester / reviewer | Medium | Medium |
+| L2 | Agent topology | Delivering agent / independent reviewer | Medium | Medium |
 | L3 | Trajectory + trace | Path, ordering, audit evidence | Medium | Medium |
 | L4 | Outcome | End-to-end issue fixtures | High | Low |
 | L5 | Mutation | Regression tripwires for known-bad changes | Low–Medium | High |
+
+Current lifecycle evaluation follows contract v2: `gate_start`, `gate_sensors`, `gate_review`, and
+`gate_merge_closeout`. L2 evaluates one delivering agent followed by one independent reviewer; legacy role spans are
+historical reader-compatibility fixtures, not the live execution topology.
 
 Cross-cutting concerns (security, cost/efficiency, judge calibration, dataset
 governance, observability schema, statistical method) apply across every layer

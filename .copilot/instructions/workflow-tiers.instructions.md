@@ -49,8 +49,9 @@ strict TDD / subagent review; work spans multiple phases or sessions.
 
 Uses `code-review-subagent` for the independent review (#352 retired the planning/generator
 subagents — plan directly in `.copilot-tracking/plans/`); otherwise the main
-agent implements directly. Plan approval pause and final review pause are mandatory unless the repo's issue harness
-defines a stricter per-feature flow.
+agent implements directly. In a contract-v2 issue harness, one delivering agent follows
+`gate_start`, `gate_sensors`, `gate_review`, and `gate_merge_closeout`; local harness rules replace the generic
+approval pauses below.
 
 ## Shared Principles
 
@@ -106,8 +107,8 @@ Acknowledge the task. Ask commit preference:
 
 ### 2. Plan
 
-Write the plan yourself in `.copilot-tracking/plans/` (deep detail). Include the user's request, conversation context, and any relevant host-repo
-conventions you've already gathered. The planner returns a plan saved to `.copilot-tracking/plans/`.
+Write the plan yourself in `.copilot-tracking/plans/` (deep detail). Include the user's request, conversation context,
+and any relevant host-repo conventions you've already gathered.
 
 ### 3. Plan approval — MANDATORY PAUSE
 
@@ -125,8 +126,8 @@ a. **Implement** — follow the host repo's implementation path (#352: single ag
    - Apply style fixes scoped to touched files using the project's lint/format commands.
    - Run targeted tests during the phase; run the full suite at milestones and at the end.
 
-b. **Verify** — require the generator to run the selected feature's declared sensors and mark `passes:true` only
-  after checks and product-quality blocking gates pass. Otherwise run the repo's targeted tests directly.
+b. **Verify** — run the selected feature's declared sensors and mark `passes:true` only after checks and
+  product-quality blocking gates pass.
 
 c. **Self-check** — before declaring the phase done, scan the diff: lint clean, tests pass, no debug leftovers, no
   unrelated changes.

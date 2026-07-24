@@ -10,7 +10,7 @@
 # contract block, that it:
 #   1. Reviews the COMPLETED issue diff / WHOLE branch diff ONCE, at issue
 #      completion — NOT per feature mid-stream (per-feature verification is
-#      owned by generator-subagent).
+#      owned by the delivering agent).
 #   2. Issues PER-FEATURE verdicts (one per feature_list item).
 #   3. Re-reviews a repaired feature in `repair` mode (per feature).
 #   4. Preserves the read-only-on-production boundary (production assets are
@@ -30,6 +30,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 AGENT="${ROOT}/.copilot/agents/code-review-subagent.agent.md"
 AGENTS_MD="${ROOT}/AGENTS.md"
+WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
+EVALUATION="${ROOT}/docs/evaluation/README.md"
 
 fails=0
 fail() {
@@ -123,6 +125,36 @@ if [ -f "${AGENTS_MD}" ]; then
       fail "AGENTS.md code-review-subagent row must NOT say review fires 'after implementation completes'"
     fi
   fi
+fi
+
+# 7. All current topology consumers use contract-v2 gates and the one-agent
+# delivery topology rather than planner/generator role choreography.
+for file in "${AGENTS_MD}" "${WORKFLOW}" "${EVALUATION}"; do
+  [ -f "${file}" ] || {
+    fail "doctrine consumer not found (${file})"
+    continue
+  }
+  for gate in gate_start gate_sensors gate_review gate_merge_closeout; do
+    grep -qF "${gate}" "${file}" \
+      || fail "${file} must name contract-v2 lifecycle gate ${gate}"
+  done
+done
+
+grep -qiE 'one (delivering )?agent' "${AGENTS_MD}" \
+  || fail "AGENTS.md must describe the one-delivering-agent topology"
+grep -qiE 'one (delivering )?agent' "${WORKFLOW}" \
+  || fail "workflow tiers must describe the one-delivering-agent topology"
+grep -qiE 'delivering agent.*reviewer|reviewer.*delivering agent' "${EVALUATION}" \
+  || fail "evaluation README must describe delivering-agent and reviewer evaluation"
+
+if grep -qiE 'Planner and generator carry|generator-subagent for repair' "${AGENTS_MD}"; then
+  fail "AGENTS.md must not teach planner/generator roles as current"
+fi
+if grep -qiE 'planner returns|require the generator|generator to run' "${WORKFLOW}"; then
+  fail "workflow tiers must not teach planner/generator roles as current"
+fi
+if grep -qiE 'Planner / implementer / tester / reviewer' "${EVALUATION}"; then
+  fail "evaluation README must not teach four separated subagent roles as current"
 fi
 
 if [ "${fails}" -ne 0 ]; then
