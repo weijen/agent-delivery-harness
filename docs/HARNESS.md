@@ -294,10 +294,10 @@ driven by its profile descriptor in `profiles/<id>.profile.sh`, not by hard-code
 
 - docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
 - Python (`pyproject.toml`): `uv sync --all-groups`, ruff format/check, mypy, and pytest.
-- Go (`go.mod`): `gofmt -l`, `go vet ./...`, optional golangci-lint, and `go test ./...`.
+- Go (scaffold skeleton; `go.mod`): `gofmt -l`, `go vet ./...`, optional golangci-lint, and `go test ./...`.
 - Node.js (`package.json`): prettier, eslint, optional tsc, and the project's test script — pnpm when the project declares it, otherwise npm.
-- Java (`pom.xml`, `build.gradle`, or `build.gradle.kts`): optional Spotless and Checkstyle/PMD/SpotBugs, plus the test task — Maven or Gradle, preferring `./mvnw`/`./gradlew` wrappers.
-- Ruby (`Gemfile`): standardrb or RuboCop and RSpec or Minitest, plus a typecheck gate only when Sorbet/Steep is configured.
+- Java (scaffold skeleton; `pom.xml`, `build.gradle`, or `build.gradle.kts`): optional Spotless and Checkstyle/PMD/SpotBugs, plus the test task — Maven or Gradle, preferring `./mvnw`/`./gradlew` wrappers.
+- Ruby (scaffold skeleton; `Gemfile`): standardrb or RuboCop and RSpec or Minitest, plus a typecheck gate only when Sorbet/Steep is configured.
 - Terraform: `terraform fmt -check -recursive`, plus `terraform validate` when initialized.
 
 Missing optional tools are explicit skips or warnings. Hard requirements such as `git`, `gh`, and GitHub auth remain

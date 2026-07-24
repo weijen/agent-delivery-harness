@@ -35,9 +35,9 @@ Node.js ship in `profiles/`; Go, Java, and Ruby are **generator-supported**
 | --- | --- | --- | --- |
 | **Python** | shipped | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) |
 | **Node.js** | shipped | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) |
-| **Go** | generator-supported | `go.mod` | gofmt, go vet, optional golangci-lint, go test |
-| **Java** | generator-supported | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) |
-| **Ruby** | generator-supported | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep |
+| **Go** | scaffold skeleton | `go.mod` | gofmt, go vet, optional golangci-lint, go test |
+| **Java** | scaffold skeleton | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) |
+| **Ruby** | scaffold skeleton | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep |
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. See
 [profiles/README.md](profiles/README.md) for the descriptor contract and

@@ -25,4 +25,11 @@ for path in README.md docs/getting-started.md .copilot/instructions/harness.inst
   grep -qiF "dormant" "$path" || fail "${path} does not describe the dormant Python surface"
 done
 
+for path in README.md docs/getting-started.md docs/multi-language-profiles.md docs/HARNESS.md; do
+  for language in Go Java Ruby; do
+    grep -Ei "${language}.*scaffold" "$path" >/dev/null \
+      || fail "${path} does not label ${language} gates as scaffold-level"
+  done
+done
+
 printf 'current-state documentation checks passed\n'

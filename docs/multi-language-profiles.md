@@ -145,10 +145,10 @@ them on demand from the same templates. All are specified below:
 | Language | Detect | Package management | Gates | Web frameworks |
 | --- | --- | --- | --- | --- |
 | Python | `pyproject.toml` | `uv sync --all-groups` | ruff format, ruff check, mypy, pytest | FastAPI, Django, Flask |
-| Go | `go.mod` | `go mod download` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
+| Go (scaffold skeleton) | `go.mod` | `go mod download` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
 | Node.js | `package.json` | pnpm when `pnpm-lock.yaml` or `packageManager` says pnpm; otherwise npm | prettier, eslint, optional tsc, vitest/jest/node test | Next.js, Express, NestJS |
-| Java | `pom.xml`, `build.gradle`, or `build.gradle.kts` | Maven or Gradle wrapper | Spotless, Checkstyle or build lint, JUnit tests | Spring Boot, Quarkus |
-| Ruby | `Gemfile` | Bundler | standardrb or RuboCop, RSpec or Minitest | Rails, Sinatra, Hanami |
+| Java (scaffold skeleton) | `pom.xml`, `build.gradle`, or `build.gradle.kts` | Maven or Gradle wrapper | Spotless, Checkstyle or build lint, JUnit tests | Spring Boot, Quarkus |
+| Ruby (scaffold skeleton) | `Gemfile` | Bundler | standardrb or RuboCop, RSpec or Minitest | Rails, Sinatra, Hanami |
 
 Default choices should prefer project-local declarations over global defaults.
 For example, Node should use `pnpm` only when the project declares it; Java

@@ -114,9 +114,9 @@ for **Python and Node.js**; **Go, Java, and Ruby** are generator-supported
 | --- | --- | --- | --- | --- |
 | **Python** | shipped | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) | FastAPI, Django, Flask |
 | **Node.js** | shipped | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) | Next.js, Express, NestJS |
-| **Go** | generator-supported | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
-| **Java** | generator-supported | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
-| **Ruby** | generator-supported | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
+| **Go** | scaffold skeleton | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
+| **Java** | scaffold skeleton | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
+| **Ruby** | scaffold skeleton | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. A
 project can carry more than one surface — `init.sh` detects each and runs the
