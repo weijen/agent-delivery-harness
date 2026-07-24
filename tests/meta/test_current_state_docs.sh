@@ -79,4 +79,11 @@ reject_regex docs/HARNESS.md 'local.*macOS.*authoritative'
 reject_regex docs/HARNESS.md 'trace\.jsonl.*issue worktree'
 reject_regex docs/HARNESS.md 'feature_list\.json.*main checkout'
 
+require docs/getting-started.md "Tested upgrade skew: \`v0.36.0\` to \`v0.37.3\`"
+require docs/getting-started.md 'five downstream-diverged managed files'
+require docs/getting-started.md 'first update preserved every adopter version'
+require docs/getting-started.md 'repeat update classified each as adopter-only'
+reject docs/getting-started.md 'v0.17.0'
+reject_regex docs/getting-started.md 'tested[^.]*all[^.]*versions'
+
 printf 'current-state documentation checks passed\n'

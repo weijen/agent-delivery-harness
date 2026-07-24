@@ -41,6 +41,14 @@ descriptor. There are two common ways to start:
   A first upgrade from an older install with no lock conservatively treats every
   differing managed file as a conflict.
 
+  **Tested upgrade skew: `v0.36.0` to `v0.37.3`.** The executable rehearsal
+  uses a lock-bearing `v0.36.0` install with five downstream-diverged managed files
+  matching the issue-49 layout. The first update preserved every adopter version
+  and wrote an adjacent `.rej` for the current upstream change; after the lock
+  advanced, a repeat update classified each as adopter-only and exited cleanly.
+  This is the range and divergence shape exercised, not a compatibility guarantee
+  for earlier or arbitrary versions.
+
   Commit `.harness-lock` with the project. To permanently reserve paths for the
   adopter, commit a `.harness-keep` file containing one shell-style path glob per
   line (blank lines and `#` comments are ignored), for example:
