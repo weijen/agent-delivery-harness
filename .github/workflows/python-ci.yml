@@ -1,12 +1,7 @@
 name: Python CI
 
-# Project CI for the repository's Python surface. Issue #272 removed the only
-# Python package (scripts/trace_tools, the cloud export leg); the uv/ruff/mypy/
-# pytest toolchain is retained dormant so a future Python component gets a ready
-# home (mypy exit 2 / pytest exit 5 are treated as no-op skips below). This is
-# the adopting-project gate the harness ci-coverage check requires: harness-smoke
-# runs the harness's own sensors and is deliberately excluded from that check, so
-# the Python profile gates (ruff / mypy / pytest) get their own workflow here.
+# Harness Smoke owns the Python profile gates. This workflow remains as a
+# distinct required-check shell and verifies only dependency-lock integrity.
 
 on:
   pull_request:
@@ -17,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  python-gates:
-    name: Python profile gates
+  python-lock:
+    name: Python lock integrity
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -27,8 +22,5 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
-      - name: Sync Python environment
-        run: uv sync --all-groups
-
-      - name: Python profile gates
-        run: ./scripts/python-gates.sh
+      - name: Verify dependency lock
+        run: uv lock --check

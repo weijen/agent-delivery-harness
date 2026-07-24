@@ -30,6 +30,7 @@ fail() {
 PY_SURFACE=$'[project]\nname = "fixture"\nversion = "0.0.0"\n'
 CI_WORKFLOW=$'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
 SMOKE_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest -q'
+SMOKE_PY_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
 
 # ============================================================================
 # Part A — standalone `ci-gate` subcommand (single git repo)
@@ -91,20 +92,28 @@ for non_bypass in 0 true yes; do
   fi
 done
 
-# 1b. harness-smoke.yml only -> still fails (not project CI)
+# 1b. harness-smoke.yml without the profile signature -> still fails
 mkdir -p "${A}/.github/workflows"
 printf '%s\n' "$SMOKE_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
 if run_a ./scripts/review-gate.sh ci-gate; then
-  cat "$OUT"; fail "harness-smoke.yml must not count as project CI"
+  cat "$OUT"; fail "unrelated harness-smoke steps must not count as project CI"
+fi
+
+# 1c. harness-smoke.yml explicitly running the profile gate -> passes
+printf '%s\n' "$SMOKE_PY_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
+if ! run_a ./scripts/review-gate.sh ci-gate; then
+  cat "$OUT"; fail "harness-smoke must count when it explicitly owns the profile gate"
 fi
 
 # 4. SKIP_CI_GATE=1 bypass with a logged WARN
+printf '%s\n' "$SMOKE_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
 if ! run_a env SKIP_CI_GATE=1 ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "SKIP_CI_GATE=1 must bypass ci-gate (exit 0)"
 fi
 grep -qi "SKIP_CI_GATE" "$OUT" || { cat "$OUT"; fail "SKIP_CI_GATE bypass must log a WARN"; }
 
 # 2. covering workflow -> passes
+rm "${A}/.github/workflows/harness-smoke.yml"
 printf '%s\n' "$CI_WORKFLOW" > "${A}/.github/workflows/ci.yml"
 if ! run_a ./scripts/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must pass once a workflow runs the gates"
@@ -290,17 +299,29 @@ if ! run_init "$r"; then
 fi
 grep -qi "$COVERAGE_WARN" "$OUT" || { cat "$OUT"; fail "missing project-CI coverage WARN for Python"; }
 
-# --- 2. Only harness-smoke.yml present -> still WARN (it is not project CI) ---
+# --- 2. Harness Smoke without the profile signature -> still WARN ------------
 new_repo warn-smoke-only
 r="$NEW_REPO"
 python_surface "$r"
 add_workflow "$r" harness-smoke.yml $'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest -q'
 if ! run_init "$r"; then
-  cat "$OUT"; fail "harness-smoke.yml only must still WARN (exit 0 expected)"
+  cat "$OUT"; fail "unrelated harness-smoke.yml must still WARN (exit 0 expected)"
 fi
-grep -qi "$COVERAGE_WARN" "$OUT" || { cat "$OUT"; fail "harness-smoke.yml must not count as project CI"; }
+grep -qi "$COVERAGE_WARN" "$OUT" || { cat "$OUT"; fail "unrelated harness-smoke.yml must not count as project CI"; }
 
-# --- 3. Project workflow referencing the gate commands -> NO coverage WARN ---
+# --- 3. Harness Smoke explicitly owning the profile gate -> NO coverage WARN -
+new_repo covered-smoke
+r="$NEW_REPO"
+python_surface "$r"
+add_workflow "$r" harness-smoke.yml "$SMOKE_PY_WORKFLOW"
+if ! run_init "$r"; then
+  cat "$OUT"; fail "profile-owning harness-smoke must pass preflight (exit 0)"
+fi
+if grep -qi "$COVERAGE_WARN" "$OUT"; then
+  cat "$OUT"; fail "profile-owning harness-smoke must satisfy project-CI coverage"
+fi
+
+# --- 4. Project workflow referencing the gate commands -> NO coverage WARN ---
 new_repo covered
 r="$NEW_REPO"
 python_surface "$r"
@@ -312,7 +333,7 @@ if grep -qi "$COVERAGE_WARN" "$OUT"; then
   cat "$OUT"; fail "a workflow running the gates must NOT trigger the coverage WARN"
 fi
 
-# --- 4. Docs-only repo -> NO coverage WARN -----------------------------------
+# --- 5. Docs-only repo -> NO coverage WARN -----------------------------------
 new_repo docs-only
 r="$NEW_REPO"
 if ! run_init "$r"; then
