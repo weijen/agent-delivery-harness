@@ -12,6 +12,15 @@ keywords:
 estimated_reading_time: 8
 ---
 
+<!-- snapshot-retirement:start -->
+> [!IMPORTANT]
+> **Retired historical snapshot.** This is a point-in-time snapshot, not current
+> operating guidance. The export scripts and `trace_tools` examples no longer run.
+> The generator/handback topology was retired by #352 and superseded by the
+> contract-v2 four-gate model in #394. See
+> [`docs/harness-contract.yml`](harness-contract.yml) for current doctrine.
+
+<!-- snapshot-retirement:end -->
 ## 我們為什麼替 Agent Delivery Harness 做 Deep Tracing
 
 過去幾週，我們一直在做一件看起來有點繞的事：替一個
