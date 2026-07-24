@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.37.2 (2026-07-24)
+
+### Bug Fixes
+
+- **#418**: Enforce scoped sensors before PR push
+  ([`4f095be`](https://github.com/weijen/agent-delivery-harness/commit/4f095be06e40f35759c7c3c3a947a5266a424beb))
+
+### Chores
+
+- **#421**: Remove obsolete Terraform sink
+  ([#427](https://github.com/weijen/agent-delivery-harness/pull/427),
+  [`666e5b6`](https://github.com/weijen/agent-delivery-harness/commit/666e5b677d3bf3fdcb762011a5238293255e0cc2))
+
+### Documentation
+
+- **#422**: Restore closeout orchestrator comment
+  ([`fcc2c0d`](https://github.com/weijen/agent-delivery-harness/commit/fcc2c0dabc4aa86139d846f6f0ddb5512ab7d067))
+
+### Refactoring
+
+- **#422**: Move economics behind reporting layer
+  ([`8f781dd`](https://github.com/weijen/agent-delivery-harness/commit/8f781ddc4b2a9cf053150951ff5c06f1b5816a30))
+
+
 ## v0.37.1 (2026-07-24)
 
 ### Bug Fixes
