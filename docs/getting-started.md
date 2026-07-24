@@ -114,14 +114,15 @@ for **Python and Node.js**; **Go, Java, and Ruby** are generator-supported
 | --- | --- | --- | --- | --- |
 | **Python** | shipped | `pyproject.toml` | ruff format, ruff check, mypy, pytest (via `uv`) | FastAPI, Django, Flask |
 | **Node.js** | shipped | `package.json` | prettier, eslint, optional tsc, test script (pnpm/npm) | Next.js, Express, NestJS |
-| **Go** | generator-supported | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
-| **Java** | generator-supported | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
-| **Ruby** | generator-supported | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
+| **Go** | scaffold skeleton | `go.mod` | gofmt, go vet, optional golangci-lint, go test | Gin, Echo, Chi, net/http |
+| **Java** | scaffold skeleton | `pom.xml` / `build.gradle[.kts]` | optional Spotless, Checkstyle/PMD/SpotBugs, test (Maven/Gradle) | Spring Boot, Quarkus |
+| **Ruby** | scaffold skeleton | `Gemfile` | standardrb or RuboCop, RSpec or Minitest, optional Sorbet/Steep | Rails, Sinatra, Hanami |
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. A
 project can carry more than one surface — `init.sh` detects each and runs the
-matching gates. A docs-only repo (like this one today) needs only `shellcheck`
-on the harness scripts.
+matching gates. This repository's root Python surface is intentionally dormant:
+sync and ruff run, while mypy and pytest skip until `.py` source exists.
+Harness shell changes still require `shellcheck`.
 
 See [profiles/README.md](../profiles/README.md) for the descriptor contract and
 the full per-profile gate list, and

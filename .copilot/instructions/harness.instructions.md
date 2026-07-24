@@ -213,10 +213,9 @@ the moment to check whether an older rule it supersedes can be deleted.
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
 | GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + the `scripts/affected-sensors.sh` set (`FULL` report → whole suite) — **never the full suite by default** | — | **BLOCKING** for the feature's `passes:true` |
-| Pre-commit (docs-only era) | `shellcheck` on the harness scripts | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
-| Pre-commit (code era) | `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` · `uv run pytest` | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
+| Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
 | Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
-| **Pre-PR verify gate** | full suite + coverage (or the docs-era equivalent) | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
+| **Pre-PR verify gate** | full suite | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
 
 Prefer the cheap deterministic sensors on every change; reserve the expensive inferential sensor
 set (enumerated once in §6) for the Pre-PR verify gate. When a sensor message tells you how to
@@ -256,8 +255,9 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-1. Ensure the era-appropriate computational gates are green (shellcheck in
-   docs-only era; ruff/mypy/pytest once Python lands).
+1. Ensure the detected computational gates are green. The dormant root Python
+   surface runs sync/ruff while mypy and pytest skip until `.py` source exists;
+   harness shell changes require shellcheck.
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
   commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
@@ -298,10 +298,11 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
   you work, so a branch cut from a stale base can pass local gates yet break against current
   `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
   (re-run them if the rebase pulled in new commits) so they verify the merged result.
-3. Full deterministic suite green for the current era:
-  - Docs-only era: `shellcheck scripts/*.sh`.
-   - Code era: `uv run ruff format --check .` · `uv run ruff check` · `uv run mypy` ·
-     `uv run pytest` (with coverage).
+3. Full deterministic suite green for the current detected surfaces:
+   `./scripts/run-sensors.sh --gate pre-pr` plus the profile gates from
+   `./scripts/init.sh`. The dormant root Python surface runs sync/ruff while
+   mypy and pytest skip until `.py` source exists; harness shell changes require
+   shellcheck.
 4. Run the standalone inferential sensor set over the branch diff (**this is the authoritative
    list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
    scoped by **irreversibility**: only the three checks whose findings become irreversible the
