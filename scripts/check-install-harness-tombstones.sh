@@ -27,7 +27,7 @@ installer_history="$(git -C "$ROOT" log \
 start_commit="${installer_history%%$'\n'*}"
 [ -n "$start_commit" ] || fail "could not locate installer introduction commit"
 
-ledger_entries="$(grep -Evc '^[[:space:]]*(#|$)' "$LEDGER" || true)"
+ledger_entries="$(awk '!/^[[:space:]]*(#|$)/ { count++ } END { print count + 0 }' "$LEDGER")"
 range_count="$(git -C "$ROOT" rev-list --count "${start_commit}..HEAD")" \
   || fail "cannot inspect managed deletion history"
 if [ "$ledger_entries" -gt 0 ] && [ "$range_count" -eq 0 ]; then
@@ -62,7 +62,7 @@ git -C "$ROOT" log --diff-filter=D --format= --name-only "${start_commit}..HEAD"
   done |
   sort >"${TMP_DIR}/expected"
 
-grep -Ev '^[[:space:]]*(#|$)' "$LEDGER" | sort >"${TMP_DIR}/actual"
+awk '!/^[[:space:]]*(#|$)/ { print }' "$LEDGER" | sort >"${TMP_DIR}/actual"
 
 if grep -Ev '^[0-9a-f]{64}[[:space:]][^/[:space:]][^[:space:]]*$' \
   "${TMP_DIR}/actual" >"${TMP_DIR}/malformed" &&
