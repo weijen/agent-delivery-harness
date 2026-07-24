@@ -251,8 +251,7 @@ while IFS='|' read -r script step assertion_key; do
     finish)
       filter='
         .["harness.worktree_removed"] == "true"
-        and has("harness.economics.features_total")
-        and has("harness.economics.features_passing")'
+        and ([keys[] | select(startswith("harness.economics."))] | length == 0)'
       ;;
     *)
       fail "unknown lifecycle matrix assertion key: ${assertion_key}"

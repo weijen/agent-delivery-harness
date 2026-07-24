@@ -99,8 +99,8 @@ assert_absent() {
 }
 
 # Happy path: authoritative merge evidence produces one durable conclusion,
-# migrates and sanitizes progress, regenerates the final summary, joins native
-# economics, clears issue state, and tears down the worktree.
+# migrates and sanitizes progress, clears issue state, and tears down the
+# worktree with a terminal lifecycle span.
 new_fixture happy 41
 MAIN="$NEW_MAIN"
 PAD="$NEW_PAD"
@@ -124,9 +124,8 @@ assert_absent "$PROGRESS" 'Status:'
 assert_absent "$PROGRESS" '- _Record conductor handbacks'
 assert_absent "$PROGRESS" 'The **conductor authors**'
 assert_contains "$PROGRESS" '- Authored closeout note must survive.'
-assert_contains "$PROGRESS" '3500'
-assert_contains "$PROGRESS" 'claude-sonnet-5'
-assert_absent "${TMP_DIR}/happy.out" '- Tokens: n/a'
+assert_absent "$PROGRESS" '## Delivery economics (auto-stamped, trace-derived)'
+assert_absent "${TMP_DIR}/happy.out" '## Delivery economics (auto-stamped, trace-derived)'
 [ ! -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ] \
   || fail "happy: issue-scoped hook state must be removed"
 jq -e '.finished == true and .final_outcome == "pass"' "$SUMMARY" >/dev/null \
@@ -138,10 +137,10 @@ TRACE="${MAIN}/.copilot-tracking/issues/issue-${PAD}/trace.jsonl"
   select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish")] |
   length' < "$TRACE")" -eq 1 ] \
   || fail "happy: exactly one terminal finish lifecycle span must survive"
-jq -e 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish") |
-  ."harness.economics.native_subagent_tokens" == 3500 and
-  ."harness.economics.native_aiu_nano_delta" == 80000000000' "$TRACE" >/dev/null \
-  || fail "happy: native economics values were not joined into the finish span"
+if jq -e 'select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish") |
+  [keys[] | select(startswith("harness.economics."))] | length > 0' "$TRACE" >/dev/null; then
+  fail "happy: terminal finish span must not carry analytics attributes"
+fi
 
 # #316: absent authoritative merged-PR evidence must refuse before teardown or
 # conclusion mutation.
@@ -215,7 +214,7 @@ ln -s "$OUTSIDE" "$ECON_LINK"
   || fail "economics-symlink: unrelated destination was overwritten"
 assert_contains "${TMP_DIR}/economics-symlink.out" 'is a symlink'
 
-# #329: mandatory summary regeneration failure leaves the worktree intact.
+# Reporter failure is advisory and cannot block destructive teardown.
 new_fixture summary-refusal 46
 MAIN="$NEW_MAIN"
 cat >"${MAIN}/scripts/trace-report.sh" <<'BROKEN'
@@ -223,22 +222,22 @@ cat >"${MAIN}/scripts/trace-report.sh" <<'BROKEN'
 exit 7
 BROKEN
 chmod +x "${MAIN}/scripts/trace-report.sh"
-if run_finish "$MAIN" 46 "${TMP_DIR}/summary-refusal.out" env ABANDONED=1 FORCE=1; then
-  fail "summary-refusal: broken canonical regenerator must block"
-fi
-[ -d "${MAIN}/.worktrees/issue-46" ] || fail "summary-refusal: worktree must remain"
-assert_contains "${TMP_DIR}/summary-refusal.out" 'trace-summary regeneration'
+run_finish "$MAIN" 46 "${TMP_DIR}/summary-refusal.out" env ABANDONED=1 FORCE=1 \
+  || { cat "${TMP_DIR}/summary-refusal.out"; fail "summary-refusal: reporter failure must not block"; }
+[ ! -e "${MAIN}/.worktrees/issue-46" ] \
+  || fail "summary-refusal: worktree must be removed despite reporter failure"
+assert_absent "${TMP_DIR}/summary-refusal.out" 'trace-summary regeneration'
 
-# A pre-planted summary symlink must not overwrite an unrelated file.
+# A pre-planted summary symlink remains protected without blocking teardown.
 new_fixture summary-symlink 48
 MAIN="$NEW_MAIN"
 OUTSIDE="${TMP_DIR}/summary-outside"
 printf 'do not overwrite\n' >"$OUTSIDE"
 ln -s "$OUTSIDE" "${MAIN}/.copilot-tracking/issues/issue-48/trace-summary.json"
-if run_finish "$MAIN" 48 "${TMP_DIR}/summary-symlink.out" env ABANDONED=1 FORCE=1; then
-  fail "summary-symlink: symlink destination must block"
-fi
-[ -d "${MAIN}/.worktrees/issue-48" ] || fail "summary-symlink: worktree must remain"
+run_finish "$MAIN" 48 "${TMP_DIR}/summary-symlink.out" env ABANDONED=1 FORCE=1 \
+  || { cat "${TMP_DIR}/summary-symlink.out"; fail "summary-symlink: reporting refusal must not block"; }
+[ ! -e "${MAIN}/.worktrees/issue-48" ] \
+  || fail "summary-symlink: worktree must be removed"
 [ "$(cat "$OUTSIDE")" = "do not overwrite" ] \
   || fail "summary-symlink: unrelated destination was overwritten"
 

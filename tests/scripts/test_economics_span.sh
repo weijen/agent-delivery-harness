@@ -678,43 +678,28 @@ write_trace_fixture() {
 JSONL
 }
 
-assert_behavioral_finish_stamps_before_remove() {
-  local main="$1" issue="$2" out rc economics_line removed_line
+assert_behavioral_finish_defers_economics() {
+  local main="$1" issue="$2" out rc
   make_finish_fixture "$main" "$issue"
   write_trace_fixture "$main" "$issue"
 
   rc=0
   out="$(cd "$main" && PATH="$BIN" FORCE=1 ./scripts/finish-issue.sh "$issue" SLUG=fixture 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] || { printf '%s\n' "$out"; fail "finish-issue.sh must exit 0"; }
-  printf '%s\n' "$out" | grep -F -q '## Delivery economics (auto-stamped, trace-derived)' \
-    || { printf '%s\n' "$out"; fail "finish output must print delivery economics block"; }
-  if printf '%s\n' "$out" | grep -F -q -- '- Tokens: n/a'; then
+  if printf '%s\n' "$out" | grep -F -q '## Delivery economics (auto-stamped, trace-derived)'; then
     printf '%s\n' "$out"
-    fail "finish output must not report n/a tokens when MAIN-root trace has token data"
+    fail "finish output must not compute economics in the destructive path"
   fi
-  printf '%s\n' "$out" | grep -F -q -- '- Tokens: in ' \
-    || { printf '%s\n' "$out"; fail "finish output must include real token totals"; }
 
-  economics_line="$(printf '%s\n' "$out" | grep -n -F '## Delivery economics (auto-stamped, trace-derived)' | head -n 1 | cut -d: -f1)"
-  removed_line="$(printf '%s\n' "$out" | grep -n -F 'Removed worktree' | head -n 1 | cut -d: -f1)"
-  [ -n "$economics_line" ] || fail "could not locate economics line in finish output"
-  [ -n "$removed_line" ] || fail "could not locate Removed worktree line in finish output"
-  [ "$economics_line" -lt "$removed_line" ] \
-    || fail "delivery economics must print before Removed worktree"
-
-  # SURVIVAL (#285 item 1): the flagship human-readable artifact must OUTLIVE
-  # `git worktree remove`. The worktree progress.md is deleted with the
-  # worktree, so the block must land in a surviving file under the MAIN
-  # checkout tracking dir (where trace.jsonl already lives).
   local pad main_progress
   pad="$(printf '%02d' "$issue")"
   main_progress="${main}/.copilot-tracking/issues/issue-${pad}/progress.md"
   [ ! -d "${main}/.worktrees/issue-${pad}" ] \
     || fail "worktree for issue ${issue} must be removed after finish"
-  [ -f "$main_progress" ] \
-    || fail "economics block must survive teardown in a MAIN-checkout progress.md (${main_progress} missing)"
-  grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress" \
-    || { echo "--- ${main_progress} ---"; cat "$main_progress" 2>/dev/null; fail "surviving MAIN-checkout progress.md must contain the delivery economics block after teardown"; }
+  [ -f "$main_progress" ] || fail "migrated MAIN-checkout progress.md is missing"
+  if grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress"; then
+    fail "finish must defer economics until the reporting entrypoint requests it"
+  fi
 }
 
 # UNIT U1: append the economics region into progress.md.
@@ -748,7 +733,7 @@ warn_out="$(call_economics_stamp_into "${TMP_DIR}/does-not-exist/progress.md" "b
 [ "$rc" -eq 0 ] || fail "missing progress.md path must return 0"
 [ -z "$warn_out" ] || fail "missing progress.md path must write nothing to stdout"
 
-# BEHAVIOR: finish-issue prints/stamps the economics block before teardown.
+# BEHAVIOR: finish-issue does not compute economics before teardown.
 BIN="${TMP_DIR}/bin"
 # mktemp/mv are included (issue #290) so best_effort_progress_migrate takes
 # its atomic temp-copy-then-rename path rather than the rejected direct
@@ -766,7 +751,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COM
 unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
 export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 export ABANDONED=1
-assert_behavioral_finish_stamps_before_remove "${TMP_DIR}/r86" 86
+assert_behavioral_finish_defers_economics "${TMP_DIR}/r86" 86
 
 printf 'finish-issue delivery economics stamp contract honored\n'
 )
