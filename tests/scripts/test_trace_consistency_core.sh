@@ -94,6 +94,11 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "scripts/check-trace-consistency.sh not found (${CHECKER}) — the cross-artifact consistency checker for feature trace-consistency-core (issue #103 Phase 2) is not implemented yet"
 [ -x "$CHECKER" ] \
   || hard_fail "scripts/check-trace-consistency.sh exists but is not executable (${CHECKER})"
+[ ! -e "${ROOT}/scripts/check-sensor-claims.sh" ] \
+  || fail "retired advisory sensor-claim checker still exists"
+if grep -qE 'SENSOR_CLAIM_(TRANSCRIPT|HEAD)|check-sensor-claims' "$CHECKER"; then
+  fail "trace consistency checker still carries the retired sensor-claim hook"
+fi
 
 # (Issue #332: the META ORACLE DETECTOR block was removed along with the parity
 # leg. The reconciliation oracle meta-test is deleted; reconciliation is retired.)
