@@ -196,6 +196,9 @@ require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.s
 if grep -q -- '--last' scripts/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
 fi
+if grep -Eq 'status_doc_gate|status-doc' scripts/review-gate.sh; then
+  fail "review-gate.sh must not retain the retired status-document gate surface"
+fi
 end_scenario "contract declares four complete gates with wired sensors and CI-green merge"
 
 # --- 2c. Evidence provenance, SHA chains, and governed bypasses --------------

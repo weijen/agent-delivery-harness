@@ -335,8 +335,8 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
 # --- Fixture builder ----------------------------------------------------------
 # make_repo <dir> <issue>: a single git repo carrying review-gate.sh + deps at
 # scripts/, a `main` baseline, then a feature/issue-NN-* branch with a
-# docs/PROGRESS.md change committed (so status_doc_gate is satisfied on the
-# check path). Plants a main-root issue dir with an empty Action Log progress.md
+# docs/PROGRESS.md change committed as inert historical fixture data. Plants a
+# main-root issue dir with an empty Action Log progress.md
 # and a feat-a passes:true feature list carrying a governed teeth_proof_waiver
 # (so red_first_evidence_gate is satisfied and the verdict leg is the only
 # blocking gate). Per-case setup appends spans/bullets and/or a trace file.
@@ -400,8 +400,8 @@ add_verdict() {
 }
 
 # set_marker <dir>: record the current HEAD as review-approved at the main-root
-# marker path (single repo, so main root == repo toplevel), so approval +
-# status-doc pass on the check path and the missing verdict is the only variable.
+# marker path (single repo, so main root == repo toplevel), so approval passes
+# on the check path and the missing verdict is the only variable.
 set_marker() {
   local dir="$1" marker
   marker="$(marker_path "$dir")"
@@ -451,10 +451,10 @@ grep -Eq 'feat-a' "$OUT" \
 C2="${TMP_DIR}/c41"; make_repo "$C2" 41
 ID2="${C2}/.copilot-tracking/issues/issue-41"
 add_green "$ID2" 41 feat-a
-set_marker "$C2"   # approval matches HEAD; status-doc satisfied by make_repo
+set_marker "$C2"   # approval matches HEAD
 rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
 [ "$rc" != "0" ] \
-  || fail "check_blocks_verdict_missing: 'review-gate.sh check' must HARD-FAIL on the missing verdict even when approval and status-doc pass, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "check_blocks_verdict_missing: 'review-gate.sh check' must HARD-FAIL on the missing verdict even when approval passes, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -Eiq 'verdict' "$OUT" \
   || fail "check_blocks_verdict_missing: the check refusal must name the missing per-feature review verdict (output: $(tr '\n' '|' < "$OUT"))"
 
@@ -547,8 +547,8 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
 # --- Fixture builder ----------------------------------------------------------
 # make_repo <dir> <issue>: a single git repo carrying review-gate.sh + deps at
 # scripts/, a `main` baseline, then a feature/issue-NN-* branch with a
-# docs/PROGRESS.md change committed (so status_doc_gate is satisfied on the
-# check path). Plants a main-root issue dir with an empty Action Log progress.md
+# docs/PROGRESS.md change committed as inert historical fixture data. Plants a
+# main-root issue dir with an empty Action Log progress.md
 # and a feat-a passes:false feature list. Per-case setup appends spans/bullets.
 make_repo() {
   local dir="$1" issue="$2" pad
@@ -591,8 +591,8 @@ add_reject() {
 }
 
 # set_marker <dir>: record the current HEAD as review-approved at the main-root
-# marker path (single repo, so main root == repo toplevel), so approval +
-# status-doc pass on the check path and the reject cap is the only variable.
+# marker path (single repo, so main root == repo toplevel), so approval passes
+# on the check path and the reject cap is the only variable.
 set_marker() {
   local dir="$1" marker
   marker="$(marker_path "$dir")"
@@ -646,10 +646,10 @@ ID2="${C2}/.copilot-tracking/issues/issue-31"
 add_reject "$ID2" 31 feat-a
 add_reject "$ID2" 31 feat-a
 add_reject "$ID2" 31 feat-a
-set_marker "$C2"   # approval matches HEAD; status-doc satisfied by make_repo
+set_marker "$C2"   # approval matches HEAD
 rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
 [ "$rc" != "0" ] \
-  || fail "check_blocks_reject_cap: 'review-gate.sh check' must HARD-FAIL on the reject cap even when approval and status-doc pass, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
+  || fail "check_blocks_reject_cap: 'review-gate.sh check' must HARD-FAIL on the reject cap even when approval passes, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -Eiq 'reject' "$OUT" \
   || fail "check_blocks_reject_cap: the check refusal must name the review-rejection cap (output: $(tr '\n' '|' < "$OUT"))"
 
