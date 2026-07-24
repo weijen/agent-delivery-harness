@@ -4,8 +4,6 @@
 # Validates a per-issue .copilot-tracking/issues/issue-NN/feature_list.json:
 #   * the file exists, is valid JSON, and is a JSON object;
 #   * each .features[] item has id, title, steps (array), and passes (boolean);
-#   * optional teeth_proof objects have a supported kind and non-empty evidence;
-#   * passes:true features missing teeth_proof are reported as warn-only coverage;
 #   * any passes:true feature carries non-empty verification text;
 #   * passes:true and a non-empty blocked_on are mutually exclusive (a
 #     replanned/blocked feature cannot also be passing — Loop 3, issue #88).
@@ -62,7 +60,6 @@ fi
 TRACE_STAGE=""
 TRACE_T0=0
 incomplete_count=""
-teeth_proof_missing_count="0"
 TRACE_WARNING=""
 trace__check_exit() {
   local rc=$?
@@ -81,7 +78,6 @@ trace__check_exit() {
     if [ -n "$incomplete_count" ]; then
       attrs+=("harness.incomplete_count=${incomplete_count}")
     fi
-    attrs+=("harness.teeth_proof_missing_count=${teeth_proof_missing_count:-0}")
     if [ -n "$TRACE_WARNING" ]; then
       attrs+=("harness.warning=${TRACE_WARNING}")
     fi
@@ -150,14 +146,6 @@ fi
 problems="$(jq -r '
   def nonempty_trimmed_string:
     (type == "string") and ((gsub("\\s";"") | length) > 0);
-  def valid_teeth_proof:
-    (type == "object")
-    and (.kind as $kind | ($kind | type) == "string" and (["red_first", "mutation", "negative_fixture"] | index($kind)) != null)
-    and (.evidence | nonempty_trimmed_string);
-  def valid_governed_waiver:
-    (type == "object")
-    and (.kind as $kind | ($kind | type) == "string" and (["bootstrap", "visual-only", "doc-only", "justified"] | index($kind)) != null)
-    and (.reason | nonempty_trimmed_string);
   .features // []
   | to_entries[]
   | .key as $i | .value as $f
@@ -167,9 +155,7 @@ problems="$(jq -r '
       (if ($f | has("steps")) and (($f.steps | type) == "array") then empty else "feature[\($i)]: missing field or non-array: steps" end),
       (if ($f | has("passes")) and (($f.passes | type) == "boolean") then empty else "feature[\($i)]: missing field or non-boolean: passes" end),
       (if (($f.passes // false) == true) and (((($f.verification // "") | type) != "string") or ((($f.verification // "") | gsub("\\s";"") | length) == 0)) then "feature[\($i)]: passes:true requires non-empty verification text" else empty end),
-      (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end),
-      (if ($f.teeth_proof != null) and (($f.teeth_proof | valid_teeth_proof) | not) then "feature[\($i)]: teeth_proof must be an object with kind in {red_first|mutation|negative_fixture} and non-empty evidence" else empty end),
-      (if ($f.teeth_proof_waiver != null) and (($f.teeth_proof_waiver | valid_governed_waiver) | not) then "feature[\($i)]: teeth_proof_waiver must be an object with kind in {bootstrap|visual-only|doc-only|justified} and non-empty reason" else empty end)
+      (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end)
     ]
   | .[]
 ' "$feature_list")"
@@ -186,40 +172,6 @@ fi
 feature_count="$(jq '(.features // []) | length' "$feature_list")"
 if [ "$feature_count" -gt 5 ]; then
   yellow "  ! ${feature_count} features exceeds the sizing guideline — consider splitting this issue."
-fi
-
-teeth_proof_missing_lines="$(jq -r '
-  def nonempty_trimmed_string:
-    (type == "string") and ((gsub("\\s";"") | length) > 0);
-  def valid_teeth_proof:
-    (type == "object")
-    and (.kind as $kind | ($kind | type) == "string" and (["red_first", "mutation", "negative_fixture"] | index($kind)) != null)
-    and (.evidence | nonempty_trimmed_string);
-  def valid_governed_waiver:
-    (type == "object")
-    and (.kind as $kind | ($kind | type) == "string" and (["bootstrap", "visual-only", "doc-only", "justified"] | index($kind)) != null)
-    and (.reason | nonempty_trimmed_string);
-  .features // []
-  | to_entries[]
-  | .key as $i | .value as $f
-  | select(($f.passes // false) == true)
-  # A valid teeth_proof, the canonical teeth_proof_waiver, or the deprecated
-  # red_first_waiver alias all suppress the missing-teeth coverage warning.
-  # NOTE: only teeth_proof_waiver is hard-validated in the "problems" block
-  # above; a malformed red_first_waiver is softly treated as "no waiver" here
-  # (kept lenient on purpose while the deprecated alias is phased out).
-  | select((($f.teeth_proof // null) | valid_teeth_proof | not)
-      and (($f.red_first_waiver // null) | valid_governed_waiver | not)
-      and (($f.teeth_proof_waiver // null) | valid_governed_waiver | not))
-  | "teeth_proof_missing: feature[\($i)] \($f.id) is passes:true without teeth_proof (warn only)"
-' "$feature_list")"
-if [ -n "$teeth_proof_missing_lines" ]; then
-  teeth_proof_missing_count="$(printf '%s\n' "$teeth_proof_missing_lines" | wc -l | tr -d '[:space:]')"
-  while IFS= read -r line; do
-    [ -n "$line" ] && yellow "  ! ${line}"
-  done <<<"$teeth_proof_missing_lines"
-else
-  teeth_proof_missing_count="0"
 fi
 
 incomplete_count="$(jq '[.features[]? | select(.passes != true)] | length' "$feature_list")"

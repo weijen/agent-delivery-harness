@@ -22,7 +22,6 @@
     "harness.duration_ms",
     "harness.finding_count",
     "harness.incomplete_count",
-    "harness.teeth_proof_missing_count",
     "harness.violation_count",
     "harness.warning_count"
   ],
@@ -106,7 +105,6 @@
     "harness.duration_ms": "number (integer milliseconds); script-measured duration of the wrapped stage, present only on spans a harness script self-measures. trace-lib types integer-looking values on this exact key as JSON numbers.",
     "harness.exit_status": "number (integer); process exit code of the wrapped operation. Typed as a JSON number.",
     "harness.incomplete_count": "number (integer); count of incomplete feature_list entries reported at a gate. Typed as a JSON number.",
-    "harness.teeth_proof_missing_count": "number (integer); count of passes:true features missing teeth_proof coverage evidence reported at a gate. Typed as a JSON number.",
     "harness.violation_count": "number (integer); count of validation violations reported at a gate. Typed as a JSON number.",
     "harness.warning_count": "number (integer); count of warnings reported at a gate. Typed as a JSON number.",
     "harness.finding_count": "number (integer); count of unfilled Action Log placeholder findings reported by the log-completeness gate. Typed as a JSON number.",

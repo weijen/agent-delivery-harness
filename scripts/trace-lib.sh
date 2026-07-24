@@ -344,7 +344,6 @@ trace_span() {
                    or ($k == "harness.duration_ms")
                    or ($k == "harness.finding_count")
                    or ($k == "harness.incomplete_count")
-                   or ($k == "harness.teeth_proof_missing_count")
                    or ($k == "harness.violation_count")
                    or ($k == "harness.warning_count"))
               # <<< trace-schema:numeric_keys
