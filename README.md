@@ -54,8 +54,8 @@ them — they are not required by the harness itself.
 - [Azure CLI](https://learn.microsoft.com/cli/azure/) — `az login`. Required
   once Foundry / Terraform work starts (`REQUIRE_AZ=1 ./scripts/init.sh`).
 - [uv ≥ 0.11.9](https://docs.astral.sh/uv/getting-started/installation/) —
-  required only once Python code is added. Until then, `./scripts/init.sh` warns and
-  carries on.
+  required by this repository's root `pyproject.toml`. That Python surface is
+  intentionally dormant: it currently contains no `.py` source.
 
 ## First-time setup
 
@@ -68,15 +68,15 @@ cd <repo>
 
 `./scripts/init.sh` is a **sensor**, not an interactive installer: it CHECKS that your
 environment is healthy and exits non-zero with remediation instructions if a
-hard check fails. Soft checks (Python / uv / gates) only warn while the
-project still has no code.
+hard check or detected gate fails; legitimate absent surfaces and dormant-root
+no-source results are reported as explicit skips.
 
 ## Quality gates
 
 `./scripts/init.sh` runs the gates for whatever language surfaces it detects,
-driven by the profile descriptors — there is no single "primary" language. A
-docs-only repo (like this spec pack today) has just one required gate: shellcheck
-on the harness scripts.
+driven by the profile descriptors — there is no single "primary" language.
+This repository has an intentionally dormant Python surface (sync and ruff run;
+mypy and pytest skip while no `.py` source exists) plus Terraform and shell gates.
 
 ```sh
 shellcheck scripts/*.sh               # the harness scripts themselves (required)
@@ -96,7 +96,7 @@ automatically. For example, a Python surface (`pyproject.toml`) runs:
 uv run ruff format --check .   # auto-format check
 uv run ruff check              # lint
 uv run mypy                    # strict type-check
-uv run pytest                  # suite (with coverage)
+uv run pytest                  # suite
 ```
 
 Node.js surfaces run their own gates the same way; missing optional tools warn

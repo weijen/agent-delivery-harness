@@ -256,8 +256,9 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-1. Ensure the era-appropriate computational gates are green (shellcheck in
-   docs-only era; ruff/mypy/pytest once Python lands).
+1. Ensure the detected computational gates are green. The dormant root Python
+   surface runs sync/ruff while mypy and pytest skip until `.py` source exists;
+   harness shell changes require shellcheck.
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
   commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
