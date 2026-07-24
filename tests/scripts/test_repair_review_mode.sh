@@ -50,8 +50,11 @@ assert_agent_contract() {
     || fail "${label} repair mode must DEFER the skipped exposure sweep to the pre-PR review"
   grep -qiE 'public-exposure-audit' "$path" \
     || fail "${label} repair mode must state the public-exposure-audit sweep is deferred to pre-PR"
-  grep -qiE 'audit-sweep' "$path" \
-    || fail "${label} must state the quality-skill battery's execution point is audit-sweep (#350) — no review mode runs it"
+  grep -qiE 'quality-skill battery no longer runs in any review mode' "$path" \
+    || fail "${label} must state that no review mode runs the retired quality-skill battery (#350)"
+  if grep -qiE 'audit-sweep' "$path"; then
+    fail "${label} must not advertise the retired audit-sweep entrypoint"
+  fi
   grep -qiE 'Review mode:.{0,60}repair' "$path" \
     || fail "${label} must add repair to the enumerated review-mode list (Review mode: full/concise/repair)"
   grep -qE '^description:.*repair' "$path" \

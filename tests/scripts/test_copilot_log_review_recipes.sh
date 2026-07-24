@@ -35,6 +35,20 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+for retired in scripts/audit-sweep.sh .copilot/prompts/audit-sweep.prompt.md; do
+  [ ! -e "${ROOT}/${retired}" ] || {
+    printf 'FAIL: retired audit entrypoint still exists: %s\n' "$retired" >&2
+    exit 1
+  }
+done
+if grep -Eq 'audit-sweep' \
+  "${ROOT}/docs/HARNESS.md" \
+  "${ROOT}/.copilot/instructions/harness.instructions.md" \
+  "${ROOT}/.copilot/agents/code-review-subagent.agent.md"; then
+  printf 'FAIL: current doctrine still advertises the retired audit entrypoint\n' >&2
+  exit 1
+fi
 SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
 FIX="${ROOT}/tests/fixtures/copilot-log-review/sample-transcript.jsonl"
 
@@ -162,74 +176,6 @@ if [ "${fails}" -ne 0 ]; then
   exit 1
 fi
 printf 'copilot-log-review Quantify recipes: durations non-negative (sum 30s, orphaned call skipped), decomposition totals 30s, and inventory verified against the fixture\n'
-
-(
-cd "$ROOT"
-
-SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
-SWEEP="${ROOT}/scripts/audit-sweep.sh"
-VALIDATOR="${ROOT}/tests/evals/bin/validate-customization-frontmatter.sh"
-
-fails=0
-fail() { printf 'FAIL: %s\n' "$*" >&2; fails=$((fails + 1)); }
-
-# --- Leg A: skeleton exists and frontmatter validates -----------------------
-if [ ! -f "${SKILL}" ]; then
-  fail "A: skill skeleton not found (${SKILL})"
-else
-  if [ ! -x "${VALIDATOR}" ] && [ ! -f "${VALIDATOR}" ]; then
-    fail "A: frontmatter validator not found (${VALIDATOR})"
-  elif ! bash "${VALIDATOR}" "${SKILL}" >/dev/null 2>&1; then
-    fail "A: copilot-log-review SKILL.md fails the customization frontmatter validator"
-  fi
-fi
-
-# --- Leg B: registered in the NON_AUDIT array -------------------------------
-if [ ! -f "${SWEEP}" ]; then
-  fail "B: scripts/audit-sweep.sh not found (${SWEEP})"
-else
-  # The NON_AUDIT array declaration line must list copilot-log-review.
-  if ! grep -E '^NON_AUDIT=\(' "${SWEEP}" | grep -q 'copilot-log-review'; then
-    fail "B: copilot-log-review is not in the NON_AUDIT array in audit-sweep.sh"
-  fi
-fi
-
-# --- Leg C: excluded from the sweep (offline dry-run) -----------------------
-if [ -f "${SWEEP}" ]; then
-  TMP_DIR="$(mktemp -d)"
-  trap 'rm -rf "${TMP_DIR}"' EXIT
-  BIN="${TMP_DIR}/bin"
-  mkdir -p "${BIN}"
-  cat > "${BIN}/copilot" <<'FAKE'
-#!/usr/bin/env bash
-echo "FAKE copilot invoked — --dry-run must NOT launch the CLI: $*" >&2
-exit 97
-FAKE
-  chmod +x "${BIN}/copilot"
-  for tool in bash sh env sed awk grep sort comm date mkdir cat printf dirname basename find head tr; do
-    real="$(command -v "$tool" 2>/dev/null || true)"
-    [ -n "$real" ] && ln -sf "$real" "${BIN}/$tool"
-  done
-  run_path="${BIN}:${PATH}"
-
-  dry_out="$(cd "${ROOT}" && PATH="${run_path}" bash "${SWEEP}" --dry-run 2>&1)" || {
-    fail "C: --dry-run exited non-zero"
-    dry_out=""
-  }
-  if printf '%s\n' "${dry_out}" | grep -q 'FAKE copilot invoked'; then
-    fail "C: --dry-run launched the copilot CLI (must stay offline)"
-  fi
-  if printf '%s\n' "${dry_out}" | grep -q 'copilot-log-review'; then
-    fail "C: --dry-run swept copilot-log-review (must be excluded as non-audit)"
-  fi
-fi
-
-if [ "${fails}" -ne 0 ]; then
-  printf '\n%d copilot-log-review registration obligation(s) failed.\n' "${fails}" >&2
-  exit 1
-fi
-printf 'copilot-log-review skeleton, NON_AUDIT registration, and sweep exclusion all honored\n'
-)
 
 (
 cd "$ROOT"

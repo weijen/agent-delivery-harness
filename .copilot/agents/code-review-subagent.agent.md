@@ -254,9 +254,8 @@ to the delivering agent, or route scope and planning decisions to the human gate
 6. **Egregious quality regressions (judgment only, #350)** — obvious duplication, over-engineering/bloat, dead
    code, or doc drift the diff introduces may be raised as ordinary findings using plain reviewer judgment. Do
    NOT execute the quality-skill protocols (`find-brute-force`, `find-duplicates`, `find-over-design`,
-   `dead-code-detection`, `sync-docs`): since #350 their only execution point is the periodic whole-repo
-   `audit-sweep` (`scripts/audit-sweep.sh`), whose findings follow the tech-debt flow. Quality-pattern findings
-   are reversible and therefore never gate a PR (the #299 irreversibility principle).
+   `dead-code-detection`, `sync-docs`). Quality-pattern findings are reversible and therefore never
+   gate a PR (the #299 irreversibility principle).
 7. **Public-repo exposure introduced by this change** — Apply
     [`public-exposure-audit`](../skills/public-exposure-audit/SKILL.md) to the diff when reviewing pre-commit/pre-PR
     changes, especially for public repos, docs, prompts, skills, agents, workflows, fixtures, logs, and generated
@@ -269,8 +268,8 @@ to the delivering agent, or route scope and planning decisions to the human gate
     version-support finding, and do not repeat a refuted claim without disproving it on the reviewed HEAD.
 
 For the exposure check, flag only what the diff **introduces**; long-standing code is out of scope
-unless this change touches it. The quality skills themselves are whole-codebase tools — they run only in
-`audit-sweep`, outside this subagent (#350).
+unless this change touches it. The quality skills themselves are whole-codebase tools and stay
+outside this subagent (#350).
 
 ### Verdict 4 — Harness Lifecycle Compliance
 
@@ -423,7 +422,7 @@ What `repair` mode **SKIPS** is the whole-diff exposure sweep — check **#7** (
 **DEFERRED to the pre-PR review**, not permanently skipped: the pre-PR review (run in `full` or `concise`) runs
 check #7 over the whole branch diff — mid-loop safety relies on branch isolation plus that guaranteed pre-PR
 sweep, so nothing ships unaudited. (The former quality-skill battery no longer runs in any review mode — see
-check #6 / #350: `audit-sweep` owns it.)
+check #6 / #350.)
 
 `full` and `concise` (used at pre-PR and for standalone reviews) keep running check #7 as described above; only
 `repair` defers it.

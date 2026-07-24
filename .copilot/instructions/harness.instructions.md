@@ -149,7 +149,7 @@ N test files passed requires the matching HEAD-bound
 
 **Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
 runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
-sweep (check #7, `public-exposure-audit`); the five quality skills run only in audit-sweep
+sweep (check #7, `public-exposure-audit`); the five quality skills are not part of the review
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
 runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.
 Three countable verdicts for the same unrepaired defect (same reviewed SHA or an explicit
@@ -312,9 +312,8 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
 
    The five quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
    `dead-code-detection`, `sync-docs`) do **not** run here at all — not standalone and not embedded
-   (#350): quality-pattern findings are reversible, so by the same irreversibility principle their
-   only execution point is the periodic whole-repo `audit-sweep` (`scripts/audit-sweep.sh`). The
-   review keeps a plain-judgment flag for egregious cases (review check #6).
+   (#350): quality-pattern findings are reversible. The review keeps a plain-judgment flag for
+   egregious cases (review check #6).
 5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
@@ -393,14 +392,8 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 Agents replicate existing patterns, including bad ones — drift is inevitable. Pay debt down in
 small increments, not painful bursts.
 
-- The inferential drift sensors do **not** run on a vague "per milestone" cadence, and since #350
-  they do **not** run per PR either: the five drift skills (`find-duplicates`, `find-over-design`,
-  `find-brute-force`, `dead-code-detection`, `sync-docs`) run **whole-repo on the audit-sweep
-  cadence below only**. Their findings follow the same severity→action loop-back table, paid down
-  in scheduled increments rather than per-PR tolls.
-- Run the whole-repo `scripts/audit-sweep.sh` (the audit-sweep driver, issue #258) on a periodic
-  cadence — **weekly or per release** — to sweep drift across the whole tree, not just the branch
-  diff. This is promoted to scheduled CI when **#256** unblocks.
+- The inferential drift skills do **not** run per PR. Invoke them explicitly when a whole-repo
+  audit is requested; no periodic driver is currently shipped.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
 - Keep `docs/` honest against the code: if a doc no longer reflects behaviour, fix it (or file
