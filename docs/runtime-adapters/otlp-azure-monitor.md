@@ -5,12 +5,11 @@
 > as the OTel attribute-name mapping / exit-ramp contract any future
 > re-introduced exporter must honor.
 
-The retained sink infrastructure still provisions an Application Insights
-component and Log Analytics workspace (see
-[infra/terraform/README.md](../../infra/terraform/README.md)), and the local
-runtime records and optional adapters still use OTel-aligned `gen_ai.*` and
-`harness.*` vocabulary. What issue #272 removed is the live export flow: no
-tracked harness script currently posts Track API envelopes or OTLP logs/traces.
+The repository no longer provisions a sink. Local runtime records and optional
+adapters still use OTel-aligned `gen_ai.*` and `harness.*` vocabulary, so a
+future exporter can target consumer-managed infrastructure without changing the
+attribute contract. No tracked harness script currently posts Track API
+envelopes or OTLP logs/traces.
 
 ## Attribute-name contract
 

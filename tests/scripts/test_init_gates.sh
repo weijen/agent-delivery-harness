@@ -63,11 +63,15 @@ if [ -e "${TMP_DIR}/real-root-gate-ran" ]; then
 	exit 1
 fi
 
-grep -q "Terraform surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
 grep -q "skipping gates until earlier preflight failures are fixed" "$OUT" || { cat "$OUT"; exit 1; }
+if grep -q "Terraform surface detected" "$OUT"; then
+	echo "init.sh must not report Terraform after the repository stack is removed"
+	cat "$OUT"
+	exit 1
+fi
 if grep -q "docs-only project" "$OUT"; then
-	echo "init.sh must not report docs-only on a root with a Terraform surface"
+	echo "init.sh must not report docs-only on a root with a Python surface"
 	cat "$OUT"
 	exit 1
 fi
