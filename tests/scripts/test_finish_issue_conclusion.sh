@@ -124,7 +124,9 @@ assert_absent "$PROGRESS" 'Status:'
 assert_absent "$PROGRESS" '- _Record conductor handbacks'
 assert_absent "$PROGRESS" 'The **conductor authors**'
 assert_contains "$PROGRESS" '- Authored closeout note must survive.'
-assert_absent "$PROGRESS" '## Delivery economics (auto-stamped, trace-derived)'
+assert_contains "$PROGRESS" '## Delivery economics (auto-stamped, trace-derived)'
+assert_contains "$PROGRESS" '3500'
+assert_contains "$PROGRESS" 'claude-sonnet-5'
 assert_absent "${TMP_DIR}/happy.out" '## Delivery economics (auto-stamped, trace-derived)'
 [ ! -e "${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state" ] \
   || fail "happy: issue-scoped hook state must be removed"

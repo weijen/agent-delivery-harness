@@ -117,7 +117,7 @@ run_economics_stamp() {
     cd "$dir"
     env -u COPILOT_AGENT_SESSION_ID PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" \
       COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty" \
-      bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; best_effort_economics_stamp >/dev/null'
+      bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; trace_report_economics_stamp >/dev/null'
   )
 }
 
@@ -678,7 +678,7 @@ write_trace_fixture() {
 JSONL
 }
 
-assert_behavioral_finish_defers_economics() {
+assert_behavioral_finish_reports_economics_post_teardown() {
   local main="$1" issue="$2" out rc
   make_finish_fixture "$main" "$issue"
   write_trace_fixture "$main" "$issue"
@@ -697,9 +697,10 @@ assert_behavioral_finish_defers_economics() {
   [ ! -d "${main}/.worktrees/issue-${pad}" ] \
     || fail "worktree for issue ${issue} must be removed after finish"
   [ -f "$main_progress" ] || fail "migrated MAIN-checkout progress.md is missing"
-  if grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress"; then
-    fail "finish must defer economics until the reporting entrypoint requests it"
-  fi
+  grep -F -q '## Delivery economics (auto-stamped, trace-derived)' "$main_progress" \
+    || fail "post-teardown trace reporting must stamp economics into surviving progress"
+  grep -F -q -- '- Tokens: in 200 / out 50 (coverage: 2/2 runs)' "$main_progress" \
+    || fail "post-teardown economics must use the surviving MAIN-root trace"
 }
 
 # UNIT U1: append the economics region into progress.md.
@@ -751,7 +752,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_FEATURES_COMPLETE REQUIRE_LOG_COM
 unset COPILOT_AGENT_SESSION_ID 2>/dev/null || true
 export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 export ABANDONED=1
-assert_behavioral_finish_defers_economics "${TMP_DIR}/r86" 86
+assert_behavioral_finish_reports_economics_post_teardown "${TMP_DIR}/r86" 86
 
 printf 'finish-issue delivery economics stamp contract honored\n'
 )
@@ -989,7 +990,7 @@ fi
 block_has "$NATIVE_BLOCK_IJ" 'claude-sonnet-5' \
   || { printf '%s\n' "$NATIVE_BLOCK_IJ"; fail "INJECT: an ordinary model label must still render unchanged alongside hostile ones"; }
 
-# --- Full end-to-end proof: run best_effort_economics_stamp TWICE against the
+# --- Full end-to-end proof: run trace_report_economics_stamp TWICE against the
 # same hostile fixture (the first stamp's own output is what could corrupt the
 # marker region on the second, marker-replace-path stamp).
 OUT_IJ1="$(run_stamp "$F_IJ" "$I_IJ" "$SID" "$STATE_IJ" 2>/dev/null)"

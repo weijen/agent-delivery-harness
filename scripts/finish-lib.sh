@@ -12,7 +12,7 @@
 #   finish_closeout_cruft_gate     — exact scaffold strip + strict residual gate (#320)
 #   finish_progress_finalize      — write-once terminal conclusion gate (#320)
 #   best_effort_progress_migrate  — pre-teardown progress.md migration to main root (#290)
-#   best_effort_economics_stamp   — pre-teardown progress.md economics stamp (#267)
+#   trace_report_economics_stamp  — report-time progress.md economics stamp (#267, #381)
 #   best_effort_state_hygiene     — sweep orphaned hook-state / sessions (#175)
 #   finish_closeout_orchestrate   — ordered closeout pipeline: migrate→render→scrub→conclude (#320, #332, #381)
 #
@@ -528,7 +528,7 @@ economics_time_summary() {
 # token usage do not fabricate zero-token runs. Issue #329 sharpens the token
 # row specifically: rather than a half-present "- Tokens: n/a" placeholder, the
 # token row is OMITTED entirely when no model span carried usage — the honest
-# subagent-only native token surface (joined by best_effort_economics_stamp) is
+# subagent-only native token surface (joined by trace_report_economics_stamp) is
 # the operator's token source when the runtime carries no gen_ai.usage.* on
 # model spans, and a contradictory n/a line next to it is worse than absence.
 compute_delivery_economics() {
@@ -835,7 +835,7 @@ finish__warn() {
 }
 
 # Shared main-checkout resolver (issue #290): both best_effort_progress_migrate
-# and best_effort_economics_stamp need the MAIN checkout root (it survives
+# and trace_report_economics_stamp need the MAIN checkout root (it survives
 # `git worktree remove`; a linked worktree does not). trace__main_root (from
 # trace-lib.sh) is the primary source; when trace-lib.sh was not sourced (or a
 # checkout predates it) fall back to `git rev-parse --git-common-dir`, whose
@@ -857,7 +857,7 @@ finish__resolve_main_root() {
 }
 
 # Path-safety helper shared by best_effort_progress_migrate and
-# best_effort_economics_stamp (issue #290, M9): validates that
+# trace_report_economics_stamp (issue #290, M9): validates that
 # main_root/.copilot-tracking/issues/issue-<issue_pad> is reachable through a
 # chain of REAL (non-symlink) directories only — i.e. no ancestor component
 # (.copilot-tracking, issues, or issue-NN itself) may be a symlink to
@@ -1089,17 +1089,17 @@ economics_numeric_aggregates() {
 # '## Action Log' section — is the authoritative delivery record, but
 # `git worktree remove` deletes it with the worktree. This helper
 # verbatim-copies that file over any existing MAIN-root progress.md (the
-# worktree copy always wins) BEFORE best_effort_economics_stamp runs, so the
+# worktree copy always wins) before trace_report_economics_stamp runs, so the
 # stamp lands on the real Action Log instead of synthesizing a hollow stub.
 # Reads ISSUE_NUM/WORKTREE_DIR at CALL time (same contract as
-# best_effort_economics_stamp) and shares finish__resolve_main_root with it.
+# trace_report_economics_stamp) and shares finish__resolve_main_root with it.
 # Warn-never-fail: any missing/invalid path, an occupied non-file destination,
 # or a copy failure is advisory only and ALWAYS returns 0 — migration must
 # never block finish-issue.sh or worktree removal.
 # Caller-visible outcome flag (issue #290, M10): reset false at every entry
 # and set true ONLY after this run's atomic `mv` onto the main-root
 # progress.md has succeeded. finish-issue.sh reads this to decide whether
-# best_effort_economics_stamp may run — a stale pre-existing main-root
+# trace_report_economics_stamp may run — a stale pre-existing main-root
 # progress.md (e.g. left over from a prior finish) must never be
 # economics-stamped as if it reflected THIS run's migration.
 # shellcheck disable=SC2034 # read by finish-issue.sh, not finish-lib.sh itself
@@ -1221,18 +1221,13 @@ best_effort_progress_migrate() {
   return 0
 }
 
-# Best-effort pre-teardown delivery economics stamp (issue #267, simplified by
-# #290). It stamps ONLY the migrated MAIN-root progress.md — the worktree copy
-# is no longer dual-written here (best_effort_progress_migrate already carried
-# the real Action Log to main root before this runs) and a missing main-root
-# progress.md is no longer synthesized as a hollow stub: economics_stamp_into
-# is itself warn-only, so an absent file simply skips the stamp instead of
-# fabricating one. The feature-list read still prefers the worktree copy (it
-# is still present at economics_stamp time) so the metrics reflect the live
-# feature_list.json. The durable machine record is the finish-issue.economics
-# span added by a later feature; this markdown stamp is operator-facing and
-# never blocks.
-best_effort_economics_stamp() {
+# Best-effort report-time delivery economics stamp (issues #267 and #381).
+# `trace-report.sh` invokes it on demand or from finish-issue's post-teardown
+# reporting hook. It stamps only the surviving MAIN-root progress.md and never
+# blocks reporting or teardown. Direct callers may still provide WORKTREE_DIR
+# while testing or reporting an active issue; otherwise the migrated main-root
+# feature list is used.
+trace_report_economics_stamp() {
   local stamp_issue="${ISSUE_NUM:-}"
   local issue_pad="" main_root="" worktree_dir="${WORKTREE_DIR:-}"
   local main_issue_dir="" worktree_issue_dir="" trace_file=""

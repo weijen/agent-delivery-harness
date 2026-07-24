@@ -55,22 +55,13 @@
 #       reports on the given file directly
 #   ./scripts/trace-report.sh --all [--root <dir>]
 #       renders deterministic cross-run markdown from regenerated summaries
-#       and each sibling trace's final finish lifecycle economics
+#       and each sibling trace's final report-time economics
 #
-# Report-only: THIS script never gates on a run's health (exit codes below) —
-# but it is no longer un-invoked by lifecycle scripts. finish-issue.sh
-# closeout (issue #329) calls it by issue number from TWO sites so the
-# surviving main-root trace-summary.json is never missing/stale: (1) a
-# pre-teardown REQUIRED readiness gate (finish_summary_regen_gate,
-# scripts/finish-lib.sh) that runs while the worktree is still intact — a
-# non-zero exit here (this script missing, or exiting 2) blocks the finish
-# and leaves the worktree in place, because that surviving summary is a
-# mandatory closeout artifact, not optional; (2) a best-effort post-finish-
-# span REFRESH hook (finish__regenerate_summary, scripts/finish-issue.sh) that
-# fires after the process has already exited, so it re-runs this script once
-# more to fold in the terminal `finish` span and final counts — by then
-# nothing can block or preserve the worktree, so that second call stays
-# best-effort by construction, not because the artifact itself is optional.
+# Report-only: THIS script never gates on a run's health (exit codes below).
+# finish-issue.sh invokes it once from a best-effort post-teardown hook so
+# economics and the summary include the terminal finish span without becoming
+# prerequisites for destructive worktree removal. Operators may invoke the
+# same issue-number mode on demand.
 #
 # Exit codes: 0 report produced (regardless of run health — reporting is
 # not gating, plan D7) · 2 usage/environment error. Never 1.
@@ -771,6 +762,20 @@ if [ ! -r "$TRACE_FILE" ]; then
   exit 2
 fi
 
+# Issue-number reporting owns delivery-economics computation (#381). Source
+# the shared trace and economics helpers only here, after input validation;
+# path-mode reports cannot safely infer an issue tracking directory and remain
+# read-only. The stamp and its machine-readable tool span are advisory.
+if [ -n "${ISSUE_NUM:-}" ] && [ -f "${SCRIPT_DIR}/finish-lib.sh" ]; then
+  if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+    # shellcheck source=scripts/trace-lib.sh
+    source "${SCRIPT_DIR}/trace-lib.sh"
+  fi
+  # shellcheck source=scripts/finish-lib.sh
+  source "${SCRIPT_DIR}/finish-lib.sh"
+  trace_report_economics_stamp >/dev/null
+fi
+
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -1045,14 +1050,12 @@ jq -nR --arg trace_file "$TRACE_FILE" \
 # Security (issue #329 review, fingerprint
 # summary-regeneration-symlink-overwrite): `cp` follows a destination
 # symlink and writes through it into whatever file it points at. Because
-# this write is now MANDATORY and automatic on every closeout (both the
-# pre-teardown finish_summary_regen_gate and the post-finish-span
-# finish__regenerate_summary refresh call this same script), a local
+# this write is automatic after closeout and available on demand, a local
 # same-user actor could preplant $out_file as a symlink to an unrelated
 # writable file and have closeout silently overwrite it while reporting
 # success. Refuse — never follow, never replace — whenever $out_file
 # already exists as a symlink; this is the single canonical write boundary
-# both callers share, so the refusal covers both automatic invocations.
+# both invocation modes share, so the refusal covers both.
 emit_summary_file() {
   local summary_json="$1" trace_file="$2"
   local out_file

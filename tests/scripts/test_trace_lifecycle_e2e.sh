@@ -272,12 +272,14 @@ finish-issue.sh|finish|finish
 MATRIX
 
 # Collapsed create/finish internals must not reappear as child tool spans. The
-# explicit feature-list check and retained log-completeness gate are allowed.
+# explicit feature-list check, retained log-completeness gate, and post-teardown
+# report-time economics span are allowed.
 unexpected_tools="$(jq -r '
   select(
     .span == "tool"
     and .["gen_ai.tool.name"] != "check-feature-list"
-    and .["gen_ai.tool.name"] != "review-gate.log-completeness")
+    and .["gen_ai.tool.name"] != "review-gate.log-completeness"
+    and .["gen_ai.tool.name"] != "finish-issue.economics")
   | .["gen_ai.tool.name"]
 ' "$TRACE")"
 [ -z "$unexpected_tools" ] \
