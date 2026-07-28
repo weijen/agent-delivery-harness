@@ -70,7 +70,7 @@ set -e
 verify 77 --head "$head_sha" --mode green >/dev/null \
   || fail "--mode green with a green-mode row must pass"
 
-# 4. A hand-edited row is rejected (tamper-evident).
+# 4. A hand-edited row is rejected (tamper-evident) — including timestamp-only edits.
 row="$(head -n1 "$EVIDENCE")"
 forged="$(jq -c '.ran = 99' <<<"$row")"
 printf '%s\n' "$forged" > "$EVIDENCE"
@@ -79,6 +79,15 @@ out="$(verify 77)"
 rc=$?
 set -e
 [ "$rc" = "1" ] || fail "a hand-edited row must fail verification (got ${rc}: $out)"
+forged_ts="$(jq -c '.timestamp = "2020-01-01T00:00:00Z"' <<<"$row")"
+printf '%s\n' "$forged_ts" > "$EVIDENCE"
+set +e
+verify 77 >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" = "1" ] || fail "a timestamp-edited row must fail verification (got ${rc})"
+printf '%s\n' "$row" > "$EVIDENCE"
+verify 77 >/dev/null || fail "restored original row must verify again"
 
 # 5. Missing evidence file → exit 1; usage error → exit 2.
 rm -f "$EVIDENCE"

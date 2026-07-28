@@ -121,12 +121,12 @@ record_evidence() { # <mode-label> <scope> <ran> <failed>
   main_root="$(trace__main_root)" \
     || { evidence__warn "cannot resolve the main checkout root — evidence row skipped"; return 0; }
   pad="$(printf '%02d' "$issue")"
-  local canonical="v1|${HEAD_SHA}|${label}|${scope}|${ran}|${failed}"
+  local ts="" row=""
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local canonical="v1|${HEAD_SHA}|${label}|${scope}|${ran}|${failed}|${ts}"
   local checksum=""
   checksum="$(evidence__sha256 "$canonical")" \
     || { evidence__warn "no sha256 tool — evidence row skipped"; return 0; }
-  local ts="" row=""
-  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   row="$(jq -cn \
     --arg ts "$ts" --arg mode "$label" --arg head "$HEAD_SHA" --arg scope "$scope" \
     --argjson ran "$ran" --argjson failed "$failed" --arg checksum "sha256:${checksum}" \

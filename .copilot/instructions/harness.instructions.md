@@ -128,7 +128,9 @@ Workflow per issue:
    execution shapes; their process exit is the gate result. Green summaries are
    **recorded by the runner itself** into the issue's `sensor-evidence.jsonl` (#441) —
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
-   script-recorded rows with `scripts/verify-sensor-evidence.sh`. A direct
+   script-recorded rows with `scripts/verify-sensor-evidence.sh <NN> --head <sha>
+   --mode pre-review` (or `--mode pre-pr`): the mode filter is required because a
+   scoped mid-loop green row is not gate evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,

@@ -82,15 +82,15 @@ while IFS= read -r row; do
       (.schema_version | tostring),
       (.head // ""), (.mode // ""), (.scope // ""),
       (.ran | tostring), (.failed | tostring),
-      (.checksum // "")
+      (.timestamp // ""), (.checksum // "")
     ] | @tsv' <<<"$row" 2>/dev/null)" || fields=""
-  IFS=$'\t' read -r schema head mode scope ran failed checksum <<<"$fields"
+  IFS=$'\t' read -r schema head mode scope ran failed ts checksum <<<"$fields"
   if [ "$schema" != "1" ] || [ -z "$head" ] || [ -z "$mode" ] || [ -z "$scope" ] \
-    || [ -z "$ran" ] || [ -z "$failed" ] || [ -z "$checksum" ]; then
+    || [ -z "$ran" ] || [ -z "$failed" ] || [ -z "$ts" ] || [ -z "$checksum" ]; then
     printf 'verify-sensor-evidence: FAIL line %d missing recorder fields\n' "$line_no" >&2
     bad=$((bad + 1)); continue
   fi
-  canonical="v1|${head}|${mode}|${scope}|${ran}|${failed}"
+  canonical="v1|${head}|${mode}|${scope}|${ran}|${failed}|${ts}"
   want="sha256:$(sha256_of "$canonical")" \
     || { printf 'verify-sensor-evidence: no sha256 tool available\n' >&2; exit 1; }
   if [ "$checksum" != "$want" ]; then
@@ -98,7 +98,8 @@ while IFS= read -r row; do
       "$line_no" >&2
     bad=$((bad + 1)); continue
   fi
-  if [ -n "$HEAD_WANT" ] && [ "$head" = "$HEAD_WANT" ] && [ "$failed" = "0" ]; then
+  if [ -n "$HEAD_WANT" ] && [ "$head" = "$HEAD_WANT" ] && [ "$failed" = "0" ] \
+    && [ "$ran" != "0" ]; then
     if [ -z "$MODE_WANT" ] || [ "$mode" = "$MODE_WANT" ]; then
       head_match=1
     fi
