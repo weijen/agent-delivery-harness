@@ -628,6 +628,21 @@ case "$command" in
       red "✗ approve refused: a completed feature lacks a per-feature review verdict (see above) — not recording approval."
       exit 1
     fi
+    # Evidence re-bind gate (issue #442): approval is only recordable over gate
+    # evidence bound to the CURRENT HEAD. rebind-evidence.sh carries when a
+    # green pre-review row already exists for this HEAD and otherwise re-runs
+    # the owed gate (re-recording via #441) — so a repair commit followed by
+    # the standard approve path can never leave stale evidence for the
+    # reviewer to find. Fail-closed on red sensors; warn-and-proceed only when
+    # the rebind script is absent (installer upgrade compatibility).
+    if [ -x "${SCRIPT_DIR}/rebind-evidence.sh" ]; then
+      if ! "${SCRIPT_DIR}/rebind-evidence.sh" --gate pre-review; then
+        red "✗ approve refused: gate evidence could not be re-bound to the current HEAD (sensors red or no issue context) — not recording approval."
+        exit 1
+      fi
+    else
+      yellow "⚠ rebind-evidence.sh not found — skipping the #442 evidence re-bind gate"
+    fi
     # Compute stable branch patch identity (issue #310); see _patch_id_for_branch.
     # Returns blank when origin/main is unavailable: carry fails closed later.
     _patch_id=""
