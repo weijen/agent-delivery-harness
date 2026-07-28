@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.38.0 (2026-07-28)
+
+### Bug Fixes
+
+- **#441**: Pin gate-mode filter and widen checksum coverage
+  ([`6a0c1e9`](https://github.com/weijen/agent-delivery-harness/commit/6a0c1e9abc8c52281e2038a23ba2a842ed25921f))
+
+### Chores
+
+- **#441**: Refresh uv.lock for 0.37.4 version bump
+  ([`13d8c40`](https://github.com/weijen/agent-delivery-harness/commit/13d8c40042b8ef4b0cc228f949ee4bd994a25d97))
+
+### Documentation
+
+- **#441**: Reanchor gate_sensors evidence to script-recorded rows
+  ([`851c982`](https://github.com/weijen/agent-delivery-harness/commit/851c9822905bfb5b74edb1ab30991ba1ac87a27e))
+
+### Features
+
+- **#441**: Add tamper-evident evidence verifier
+  ([`ba1118a`](https://github.com/weijen/agent-delivery-harness/commit/ba1118a7e9d2cc7341ab596e1ea882de7322738b))
+
+- **#441**: Record green sensor summaries as script-written evidence
+  ([`b6f05d7`](https://github.com/weijen/agent-delivery-harness/commit/b6f05d7ff09ed7eaa0dd8a06d4e59caf3b679d09))
+
+### Testing
+
+- **#441**: Pin ran=0 rejection; sync verifier header
+  ([`5260e69`](https://github.com/weijen/agent-delivery-harness/commit/5260e695a8eb75bf9be0ff95609ff56de3627afd))
+
+
 ## v0.37.4 (2026-07-24)
 
 ### Bug Fixes
