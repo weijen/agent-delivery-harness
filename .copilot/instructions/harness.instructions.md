@@ -180,8 +180,12 @@ selection-evidence gate or waiver applies.
 #### Agent-span conventions
 
 Spans are written via `scripts/log-handback.sh` (role `conductor`; the role enum is retained
-for historical-trace compatibility). The Action Log in `progress.md` is rendered from spans
-(#332) — never hand-written.
+for historical-trace compatibility). The writer enforces the #318 attribution contract at
+write time (#443): a `review_verdict`/fail missing its failure class, fingerprint, or
+baseline state — or any invalid closed-enum value — is rejected with a corrective error, so
+fix the invocation and re-run. Telemetry-format defects in already-written spans are the CI
+trace gate's business, never review findings and never a rewrite-your-spans repair loop. The
+Action Log in `progress.md` is rendered from spans (#332) — never hand-written.
 
 What is deliberately gone (#352): red/impl/green handback payloads and their spans as
 obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check

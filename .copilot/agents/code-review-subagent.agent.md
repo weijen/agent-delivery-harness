@@ -98,7 +98,8 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
    commas, no whitespace, no empty tokens, no duplicates. The feature_id positional arg to
    `log-handback.sh` **must** be an exact member of repair_scope. Absent on `full`/`concise`
-   modes. Invalid values are omitted with a warning (omit, never fake).
+   modes. The writer REJECTS a missing/invalid scope or an out-of-scope feature_id at write
+   time (#443) — fix the invocation and re-run; nothing is omitted or faked.
 
    **Out-of-scope findings in repair mode:** if you discover a NEW regression or finding outside
    the revised feature set during a repair review, do NOT silently expand the repair_scope. Instead,
@@ -332,6 +333,13 @@ a **process violation**.
 7. **Treat current hard-gate violations as BLOCKING.** A schema/redaction failure, missing hard-gate evidence due at
    the current phase, unresolved `deviation`s, and repeated-`loop` anomalies are **BLOCKING** findings. They feed the
    verdict even when the code diff is clean.
+   - **Telemetry-format problems are residual risk, never verdicts (#443).** Attribution or field-shape defects in
+     already-written spans (missing/invalid `harness.failure_class`, fingerprints, baseline states, role attribution —
+     the `check-trace-consistency.sh` attribution family) are prevented at write time by `log-handback.sh`; when they
+     nevertheless appear (historical or hand-written spans), report them **once** as residual telemetry risk in this
+     section. Do not convert them into per-feature `NEEDS_REVISION` verdicts, do not route the delivering agent to
+     rewrite or replace its own spans, and never demand a "supported writer" re-write choreography — the CI trace gate
+     owns their enforcement.
    - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
      trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
      the `error`-level record with `harness.outcome == "fail"` for that `harness.stage` — and cite its (redacted,
