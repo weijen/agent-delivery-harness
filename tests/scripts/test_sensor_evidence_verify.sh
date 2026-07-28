@@ -89,6 +89,19 @@ set -e
 printf '%s\n' "$row" > "$EVIDENCE"
 verify 77 >/dev/null || fail "restored original row must verify again"
 
+# 4b. A checksum-valid ran=0 row never satisfies --head (no vacuous green).
+canon_prefix="v1|${head_sha}|green|scoped|0|0"
+ts_val="$(jq -r '.timestamp' <<<"$row")"
+zero_sum="$(printf '%s' "${canon_prefix}|${ts_val}" | { shasum -a 256 2>/dev/null || sha256sum; } | awk '{print $1}')"
+jq -c --arg sum "sha256:${zero_sum}" '.ran = 0 | .checksum = $sum' <<<"$row" > "$EVIDENCE"
+verify 77 >/dev/null || fail "a checksum-valid ran=0 row must still be well-formed"
+set +e
+verify 77 --head "$head_sha" >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" = "1" ] || fail "--head must reject a ran=0 row as green evidence (got ${rc})"
+printf '%s\n' "$row" > "$EVIDENCE"
+
 # 5. Missing evidence file → exit 1; usage error → exit 2.
 rm -f "$EVIDENCE"
 set +e

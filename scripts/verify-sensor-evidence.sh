@@ -8,10 +8,10 @@
 # Checks, over <main-root>/.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl:
 #   * every row is valid JSON with schema_version 1 and the recorder fields;
 #   * every row's checksum recomputes from the canonical fields
-#     "v1|head|mode|scope|ran|failed" — tamper-EVIDENT, not tamper-proof:
-#     it catches hand-edited bookkeeping, not a determined forger;
-#   * with --head: at least one green (failed=0) row is bound to that sha
-#     (further restricted to --mode's label when given).
+#     "v1|head|mode|scope|ran|failed|timestamp" — tamper-EVIDENT, not
+#     tamper-proof: it catches hand-edited bookkeeping, not a determined forger;
+#   * with --head: at least one green (failed=0, ran>0) row is bound to that
+#     sha (further restricted to --mode's label when given).
 #
 # Exit: 0 all checks pass · 1 verification failure / missing file · 2 usage.
 set -euo pipefail
