@@ -58,6 +58,13 @@ if grep -qiE '(require|demand)[^.!?]{0,120}(hand-cop(y|ied)|agent-transcribed|pr
   && ! grep -qiE '(do not|must not|never)[^.!?]{0,60}(require|demand)[^.!?]{0,120}(hand-cop|agent-transcrib|preserved?)' <<<"${trace_norm}"; then
   note "reviewer trace guidance affirmatively requires hand-copied ledger summaries (#441 regression)"
 fi
+# #443: telemetry-format problems are residual risk, never per-feature verdicts.
+grep -qiE 'telemetry[^.!?]{0,120}residual' <<<"${trace_norm}" \
+  || note "reviewer trace guidance lacks the telemetry-defects-as-residual-risk rule (#443)"
+grep -qiE '(do not|must not|never)[^.!?]{0,120}(convert|per-feature)[^.!?]{0,80}(NEEDS_REVISION|verdict)' <<<"${trace_norm}" \
+  || note "reviewer trace guidance must forbid converting telemetry defects into per-feature verdicts (#443)"
+grep -qiE '(never|not)[^.!?]{0,80}(rewrite|replace|re-write)[^.!?]{0,60}(its own |their own )?spans' <<<"${trace_norm}" \
+  || note "reviewer trace guidance must forbid the rewrite-your-spans repair choreography (#443)"
 # Affirmative retired-requirement guard: sentence-scoped and subject-agnostic.
 # Obligation verbs beyond "require" (verify/confirm/ensure/check/demand) are
 # covered so the retired choreography cannot come back under another verb, and
