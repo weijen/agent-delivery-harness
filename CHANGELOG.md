@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v0.39.0 (2026-07-28)
+
+### Bug Fixes
+
+- **#442**: Make the re-bind gate behaviorally hard
+  ([`dd4f57d`](https://github.com/weijen/agent-delivery-harness/commit/dd4f57da10bc06e126f2ae2eda06516bc2ed3059))
+
+### Chores
+
+- **#442**: Refresh uv.lock for 0.38.0 release bump
+  ([`76189f1`](https://github.com/weijen/agent-delivery-harness/commit/76189f1beaee14a36f76eaacf4c4e5214a0ba4cd))
+
+### Documentation
+
+- **#442**: Sync rebind sensor header with behavior
+  ([`12ef035`](https://github.com/weijen/agent-delivery-harness/commit/12ef0359deac9abb20aef679b7bb6d8ae917ecaf))
+
+### Features
+
+- **#442**: Pin the deterministic evidence carry rule
+  ([`2c4fca2`](https://github.com/weijen/agent-delivery-harness/commit/2c4fca260ef6c30028a8bea44e98c6a508205097))
+
+- **#442**: Re-bind gate evidence automatically at approve time
+  ([`e0f7d99`](https://github.com/weijen/agent-delivery-harness/commit/e0f7d99d93d7a1101e69a8c763de1b6489269975))
+
+### Testing
+
+- **#442**: Reproduce the issue-48 repair loop; doctrine re-bind rule
+  ([`d9395ca`](https://github.com/weijen/agent-delivery-harness/commit/d9395ca3bc88d12ac27d7c057873e6c18004e4df))
+
+
 ## v0.38.0 (2026-07-28)
 
 ### Bug Fixes
