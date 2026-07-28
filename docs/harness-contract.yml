@@ -114,6 +114,13 @@ gate_sensors:
     mode: warn
     owner: scripts/run-sensors.sh
     present: record_evidence
+  - id: evidence-rebind
+    trigger: review approval requested after any commit (repair loops included)
+    consumes: recorded evidence rows and the current HEAD
+    produces: gate evidence re-bound to the approved HEAD (carry when already current)
+    mode: hard
+    owner: scripts/review-gate.sh
+    present: rebind-evidence.sh
 
 gate_review:
   - id: trace-consistency
