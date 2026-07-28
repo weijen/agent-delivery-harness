@@ -43,20 +43,25 @@ jq -e '
   and .["harness.research_summary"] == "Fixture source summary."
 ' "$WRITER_TRACE" >/dev/null || fail "writer dropped valid escalation metadata"
 
+# Since #443 the writer REJECTS invalid escalation metadata instead of
+# warn-and-omit: the write exits 1, names the offending variable, and
+# appends no span.
+spans_before="$(wc -l < "$WRITER_TRACE" | tr -d ' ')"
+set +e
 (
   cd "$WT"
   TRACE_FAILURE_CLASS=not-a-class TRACE_FAILURE_DISPOSITION=not-a-route \
     ./scripts/log-handback.sh conductor deviation selected-feature blocked \
       "invalid metadata" >/dev/null 2>"${TMP_DIR}/writer-warning"
 )
-tail -n 1 "$WRITER_TRACE" | jq -e '
-  (has("harness.failure_class") | not)
-  and (has("harness.failure_disposition") | not)
-' >/dev/null || fail "writer emitted invalid escalation metadata"
+writer_rc=$?
+set -e
+[ "$writer_rc" = "1" ] \
+  || fail "writer must reject invalid escalation metadata (got rc=${writer_rc})"
+[ "$(wc -l < "$WRITER_TRACE" | tr -d ' ')" = "$spans_before" ] \
+  || fail "a rejected write must append no span"
 grep -Fq 'TRACE_FAILURE_CLASS' "${TMP_DIR}/writer-warning" \
-  || fail "writer did not warn about an invalid class"
-grep -Fq 'TRACE_FAILURE_DISPOSITION' "${TMP_DIR}/writer-warning" \
-  || fail "writer did not warn about an invalid disposition"
+  || fail "writer did not name the invalid class variable"
 
 case_dir() {
   printf '%s/%s/.copilot-tracking/issues/issue-317' "$TMP_DIR" "$1"
