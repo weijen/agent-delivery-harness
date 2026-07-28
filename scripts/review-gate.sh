@@ -633,15 +633,17 @@ case "$command" in
     # green pre-review row already exists for this HEAD and otherwise re-runs
     # the owed gate (re-recording via #441) — so a repair commit followed by
     # the standard approve path can never leave stale evidence for the
-    # reviewer to find. Fail-closed on red sensors; warn-and-proceed only when
-    # the rebind script is absent (installer upgrade compatibility).
-    if [ -x "${SCRIPT_DIR}/rebind-evidence.sh" ]; then
-      if ! "${SCRIPT_DIR}/rebind-evidence.sh" --gate pre-review; then
-        red "✗ approve refused: gate evidence could not be re-bound to the current HEAD (sensors red or no issue context) — not recording approval."
-        exit 1
-      fi
-    else
-      yellow "⚠ rebind-evidence.sh not found — skipping the #442 evidence re-bind gate"
+    # reviewer to find. HARD gate (harness-contract.yml evidence-rebind):
+    # a missing rebind script refuses approval — the installer ships
+    # scripts/ as one unit, so absence means a broken installation, and a
+    # silent downgrade here would recreate the fake-hard-gate class.
+    if [ ! -f "${SCRIPT_DIR}/rebind-evidence.sh" ]; then
+      red "✗ approve refused: scripts/rebind-evidence.sh is missing — the #442 evidence re-bind gate is hard; repair the installation."
+      exit 1
+    fi
+    if ! bash "${SCRIPT_DIR}/rebind-evidence.sh" --gate pre-review; then
+      red "✗ approve refused: gate evidence could not be re-bound to the current HEAD (sensors red or no issue context) — not recording approval."
+      exit 1
     fi
     # Compute stable branch patch identity (issue #310); see _patch_id_for_branch.
     # Returns blank when origin/main is unavailable: carry fails closed later.

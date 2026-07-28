@@ -45,20 +45,31 @@ if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
 fi
 declare -F trace__resolve_issue >/dev/null 2>&1 \
   || { printf 'rebind-evidence: trace-lib.sh unavailable — cannot resolve the issue\n' >&2; exit 1; }
-ISSUE="$(trace__resolve_issue)" \
-  || { printf 'rebind-evidence: no issue context (branch/worktree/TRACE_ISSUE)\n' >&2; exit 1; }
+# Outside an issue context there is no per-issue evidence contract to bind:
+# reviews (and their evidence audits) only exist for issue branches, so
+# nothing is owed here — warn and succeed rather than blocking approve paths
+# in non-issue repositories.
+if ! ISSUE="$(trace__resolve_issue)"; then
+  printf 'rebind-evidence: no issue context (branch/worktree/TRACE_ISSUE) — no per-issue evidence owed\n' >&2
+  exit 0
+fi
 HEAD_SHA="$(git rev-parse HEAD)"
 
 # Carry: evidence already bound to this HEAD at this gate → nothing owed.
-if [ -x "${SCRIPT_DIR}/verify-sensor-evidence.sh" ] \
-  && "${SCRIPT_DIR}/verify-sensor-evidence.sh" "$ISSUE" \
-       --head "$HEAD_SHA" --mode "$GATE" >/dev/null 2>&1; then
+verify_out=""
+if [ -f "${SCRIPT_DIR}/verify-sensor-evidence.sh" ] \
+  && verify_out="$(bash "${SCRIPT_DIR}/verify-sensor-evidence.sh" "$ISSUE" \
+       --head "$HEAD_SHA" --mode "$GATE" 2>&1)"; then
   printf 'rebind-evidence: OK evidence current for head %s (mode %s) — carried\n' \
     "$HEAD_SHA" "$GATE"
   exit 0
 fi
 
-# Re-bind: run the owed gate at the current HEAD; #441 records the row.
+# Re-bind: run the owed gate at the current HEAD; #441 records the row. The
+# verify reason is surfaced so tampering reads as tampering, not mere staleness.
+if [ -n "$verify_out" ]; then
+  printf 'rebind-evidence: %s\n' "$verify_out" >&2
+fi
 printf 'rebind-evidence: evidence stale or absent for head %s — re-running --gate %s\n' \
   "$HEAD_SHA" "$GATE"
-"${SCRIPT_DIR}/run-sensors.sh" --gate "$GATE"
+bash "${SCRIPT_DIR}/run-sensors.sh" --gate "$GATE"

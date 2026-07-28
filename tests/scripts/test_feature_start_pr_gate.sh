@@ -14,7 +14,8 @@ fail() {
 REPO="${TMP_DIR}/repo"
 mkdir -p "${REPO}/scripts" "${REPO}/docs/evaluation"
 for script in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh trace-lib.sh \
-  issue-lib.sh ci-coverage-lib.sh; do
+  issue-lib.sh ci-coverage-lib.sh \
+  rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${script}" "${REPO}/scripts/"
 done
 cp "${ROOT}/docs/evaluation/trace-schema.v1.json" \

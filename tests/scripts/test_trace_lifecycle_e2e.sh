@@ -152,7 +152,8 @@ mkdir -p "${R}/scripts" "${R}/docs/evaluation"
 for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
          finish-lib.sh economics-report-lib.sh trace-lib.sh \
-         ci-coverage-lib.sh; do
+         ci-coverage-lib.sh \
+         rebind-evidence.sh verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${s}" "${R}/scripts/"
 done
 cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${R}/docs/evaluation/trace-schema.v1.json"
