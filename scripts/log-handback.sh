@@ -115,6 +115,27 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
       fail "TRACE_ACTIONABLE '${TRACE_ACTIONABLE}' is not in the closed enum {true,false} — set to 'true' or 'false'"
       ;;
   esac
+  # Write-time #318 attribution gate (issue #443): every field the trace
+  # checker would flag post-hoc is REQUIRED here, so a malformed fail verdict
+  # is impossible to write rather than punishable one review round later.
+  [ "$FEATURE_ID" != "-" ] \
+    || fail "review_verdict/fail requires a real feature_id (or the literal 'unmapped'), not '-' (#318)"
+  [ -n "${TRACE_FAILURE_CLASS:-}" ] \
+    || fail "TRACE_FAILURE_CLASS is required on review_verdict/fail (#318) — pick one from the trace schema's closed failure_classes enum"
+  [ -n "${TRACE_FINDING_FINGERPRINT:-}" ] \
+    || fail "TRACE_FINDING_FINGERPRINT is required on review_verdict/fail (#318) — a stable finding identity label"
+  case "${TRACE_FINDING_BASELINE_STATE:-}" in
+    new|unchanged|updated|resolved) ;;
+    "")
+      fail "TRACE_FINDING_BASELINE_STATE is required on review_verdict/fail (#318) — one of new|unchanged|updated|resolved"
+      ;;
+    *)
+      fail "TRACE_FINDING_BASELINE_STATE '${TRACE_FINDING_BASELINE_STATE}' is not in the closed enum {new,unchanged,updated,resolved} (#318)"
+      ;;
+  esac
+  if [ "${TRACE_FAILURE_CLASS:-}" = "other" ] && [ -z "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
+    fail "TRACE_FAILURE_CLASS=other requires TRACE_FAILURE_CLASS_DETAIL (#318)"
+  fi
 fi
 
 HAVE_TRACE_LIB=0
@@ -178,20 +199,18 @@ exemption
 override
 research-requested'
     if [ -n "${TRACE_FAILURE_CLASS:-}" ]; then
-      if enum_valid failure_classes "${TRACE_FAILURE_CLASS}" "$failure_classes"; then
-        DEVIATION_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
-      else
-        warn "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — harness.failure_class omitted"
-      fi
+      # Invalid enum values REJECT the write (#443); missing stays allowed —
+      # the writer cannot know whether a class is owed for this deviation.
+      enum_valid failure_classes "${TRACE_FAILURE_CLASS}" "$failure_classes" \
+        || fail "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — span not written"
+      DEVIATION_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
     fi
     [ -z "${TRACE_FAILURE_CLASS_DETAIL:-}" ] \
       || DEVIATION_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
     if [ -n "${TRACE_FAILURE_DISPOSITION:-}" ]; then
-      if enum_valid failure_dispositions "${TRACE_FAILURE_DISPOSITION}" "$failure_dispositions"; then
-        DEVIATION_ARGS+=("harness.failure_disposition=${TRACE_FAILURE_DISPOSITION}")
-      else
-        warn "TRACE_FAILURE_DISPOSITION '${TRACE_FAILURE_DISPOSITION}' is not in the closed failure_dispositions enum — harness.failure_disposition omitted"
-      fi
+      enum_valid failure_dispositions "${TRACE_FAILURE_DISPOSITION}" "$failure_dispositions" \
+        || fail "TRACE_FAILURE_DISPOSITION '${TRACE_FAILURE_DISPOSITION}' is not in the closed failure_dispositions enum — span not written"
+      DEVIATION_ARGS+=("harness.failure_disposition=${TRACE_FAILURE_DISPOSITION}")
     fi
     [ -z "${TRACE_RESEARCH_URL:-}" ] \
       || DEVIATION_ARGS+=("harness.research_url=${TRACE_RESEARCH_URL}")
@@ -228,11 +247,11 @@ known-flaky
 polling
 other'
     if [ -n "${TRACE_FAILURE_CLASS:-}" ]; then
-      if enum_valid failure_classes "${TRACE_FAILURE_CLASS}" "$failure_classes"; then
-        REVIEW_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
-      else
-        warn "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — harness.failure_class omitted"
-      fi
+      # Invalid enum values REJECT the write (#443): a warn-and-omit here is
+      # exactly the malformed span the checker would flag one round later.
+      enum_valid failure_classes "${TRACE_FAILURE_CLASS}" "$failure_classes" \
+        || fail "TRACE_FAILURE_CLASS '${TRACE_FAILURE_CLASS}' is not in the closed failure_classes enum — span not written"
+      REVIEW_ARGS+=("harness.failure_class=${TRACE_FAILURE_CLASS}")
     fi
     [ -z "${TRACE_FAILURE_CLASS_DETAIL:-}" ] \
       || REVIEW_ARGS+=("harness.failure_class_detail=${TRACE_FAILURE_CLASS_DETAIL}")
@@ -250,7 +269,9 @@ other'
         ;;
       "") ;;
       *)
-        warn "TRACE_FINDING_BASELINE_STATE '${TRACE_FINDING_BASELINE_STATE}' is invalid — harness.finding_baseline_state omitted"
+        # Unreachable for fail verdicts (pre-validated above); pass verdicts
+        # with an invalid value also reject rather than silently omit (#443).
+        fail "TRACE_FINDING_BASELINE_STATE '${TRACE_FINDING_BASELINE_STATE}' is not in the closed enum {new,unchanged,updated,resolved} — span not written"
         ;;
     esac
 
