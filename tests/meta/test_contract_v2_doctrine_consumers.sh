@@ -41,6 +41,23 @@ grep -qi 'authoritative' <<<"${trace_flat}" \
   || note "reviewer trace guidance lost the authoritative-evidence designation"
 grep -qi 'corroborat' <<<"${trace_flat}" \
   || note "reviewer trace guidance lost the corroborating-evidence designation"
+# #441: gate_sensors evidence authority is the script-recorded row set.
+# Markdown emphasis is stripped so **not** and plain not read identically.
+trace_norm="$(tr -d '*' <<<"${trace_flat}")"
+grep -qF 'sensor-evidence.jsonl' <<<"${trace_norm}" \
+  || note "reviewer trace guidance lacks the script-recorded sensor-evidence.jsonl authority (#441)"
+grep -qF 'verify-sensor-evidence.sh' <<<"${trace_norm}" \
+  || note "reviewer trace guidance lacks the verify-sensor-evidence.sh validation step (#441)"
+grep -qE 'verify-sensor-evidence\.sh[^.!?]{0,80}--mode pre-review' <<<"${trace_norm}" \
+  || note "reviewer trace guidance must pin --mode pre-review so scoped green rows cannot pass as gate evidence (#441)"
+grep -qiE '(do not|must not|never).{0,60}(require|demand).{0,120}(hand-cop|agent-transcrib|transcri)' <<<"${trace_norm}" \
+  || note "reviewer trace guidance does not forbid requiring hand-copied sensor summaries (#441)"
+grep -qiE 'one.{0,40}process finding.{0,160}(never|not).{0,80}(per-feature|cascade)|(never|not).{0,80}per-feature.{0,80}(missing-coverage|cascade)' <<<"${trace_norm}" \
+  || note "reviewer trace guidance lacks the single-finding rule for missing gate evidence (#441)"
+if grep -qiE '(require|demand)[^.!?]{0,120}(hand-cop(y|ied)|agent-transcribed|preserved?)[^.!?]{0,60}(summary|SENSORS line)[^.!?]{0,60}(ledger|feature_list|notes)' <<<"${trace_norm}" \
+  && ! grep -qiE '(do not|must not|never)[^.!?]{0,60}(require|demand)[^.!?]{0,120}(hand-cop|agent-transcrib|preserved?)' <<<"${trace_norm}"; then
+  note "reviewer trace guidance affirmatively requires hand-copied ledger summaries (#441 regression)"
+fi
 # Affirmative retired-requirement guard: sentence-scoped and subject-agnostic.
 # Obligation verbs beyond "require" (verify/confirm/ensure/check/demand) are
 # covered so the retired choreography cannot come back under another verb, and

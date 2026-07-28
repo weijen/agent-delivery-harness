@@ -107,6 +107,13 @@ gate_sensors:
     mode: hard
     owner: scripts/create-pr.sh
     present: run-sensors.sh.*green.*--diff.*origin/main
+  - id: evidence-recording
+    trigger: any green (failed=0) sensor run in an issue context
+    consumes: the runner's own summary result
+    produces: tamper-evident sensor-evidence.jsonl row verified by verify-sensor-evidence.sh
+    mode: warn
+    owner: scripts/run-sensors.sh
+    present: record_evidence
 
 gate_review:
   - id: trace-consistency

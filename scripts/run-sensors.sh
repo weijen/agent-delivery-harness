@@ -27,6 +27,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Guarded source: evidence recording (issue #441) reuses the trace-lib issue
+# and main-root resolution; a missing trace-lib.sh only disables recording.
+if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
+  # shellcheck source=scripts/trace-lib.sh
+  source "${SCRIPT_DIR}/trace-lib.sh"
+fi
+
 usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
 
 MODE=""
@@ -77,7 +84,61 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   done
   summary="SENSORS ${label} head=${HEAD_SHA} scope=${scope} ran=${ran} failed=${failed}"
   printf '%s\n' "$summary"
+  record_evidence "$label" "$scope" "$ran" "$failed"
   [ "$failed" -eq 0 ]
+}
+
+# --- Script-recorded evidence (issue #441) ------------------------------------
+# A green summary (failed=0) is appended as one tamper-evident JSON row to
+# <main-root>/.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl, so the
+# reviewer's gate_sensors evidence never depends on agent hand-copying.
+# Every failure path warns and returns 0 — recording can never change the
+# sensor result (the trace-lib guarantee, applied here).
+evidence__warn() { printf 'run-sensors.sh: warning: %s\n' "$*" >&2; return 0; }
+
+evidence__sha256() { # <canonical-string> → hex digest on stdout
+  if command -v shasum >/dev/null 2>&1; then
+    printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then
+    printf '%s' "$1" | sha256sum | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    printf '%s' "$1" | openssl dgst -sha256 | awk '{print $NF}'
+  else
+    return 1
+  fi
+}
+
+record_evidence() { # <mode-label> <scope> <ran> <failed>
+  local label="$1" scope="$2" ran="$3" failed="$4"
+  [ "$failed" -eq 0 ] || return 0
+  command -v jq >/dev/null 2>&1 \
+    || { evidence__warn "jq unavailable — evidence row skipped"; return 0; }
+  declare -F trace__resolve_issue >/dev/null 2>&1 \
+    || { evidence__warn "trace-lib.sh unavailable — evidence row skipped"; return 0; }
+  local issue="" main_root="" pad=""
+  issue="$(trace__resolve_issue)" \
+    || { evidence__warn "no issue context — evidence row skipped"; return 0; }
+  main_root="$(trace__main_root)" \
+    || { evidence__warn "cannot resolve the main checkout root — evidence row skipped"; return 0; }
+  pad="$(printf '%02d' "$issue")"
+  local ts="" row=""
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local canonical="v1|${HEAD_SHA}|${label}|${scope}|${ran}|${failed}|${ts}"
+  local checksum=""
+  checksum="$(evidence__sha256 "$canonical")" \
+    || { evidence__warn "no sha256 tool — evidence row skipped"; return 0; }
+  row="$(jq -cn \
+    --arg ts "$ts" --arg mode "$label" --arg head "$HEAD_SHA" --arg scope "$scope" \
+    --argjson ran "$ran" --argjson failed "$failed" --arg checksum "sha256:${checksum}" \
+    '{schema_version: 1, timestamp: $ts, mode: $mode, head: $head,
+      scope: $scope, ran: $ran, failed: $failed, checksum: $checksum}')" \
+    || { evidence__warn "jq failed to serialize the evidence row — skipped"; return 0; }
+  local dir="${main_root}/.copilot-tracking/issues/issue-${pad}"
+  mkdir -p "$dir" 2>/dev/null \
+    || { evidence__warn "cannot create ${dir} — evidence row skipped"; return 0; }
+  printf '%s\n' "$row" >> "${dir}/sensor-evidence.jsonl" 2>/dev/null \
+    || evidence__warn "cannot append to ${dir}/sensor-evidence.jsonl — evidence row skipped"
+  return 0
 }
 
 full_set() {

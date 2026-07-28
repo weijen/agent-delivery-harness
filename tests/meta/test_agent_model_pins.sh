@@ -216,7 +216,7 @@ assert_section 'gate[_ -]?start' "$review Trace / Process Evidence section must 
 assert_section 'gate[_ -]?sensors' "$review Trace / Process Evidence section must name gate_sensors"
 assert_section 'gate[_ -]?review' "$review Trace / Process Evidence section must name gate_review"
 assert_section 'gate[_ -]?merge[_ -]?closeout' "$review Trace / Process Evidence section must name gate_merge_closeout"
-assert_section 'SENSORS.*head=.*scope=.*ran=.*failed=' "$review Trace / Process Evidence section must require HEAD-bound feature green evidence"
+assert_section 'verify-sensor-evidence\.sh.*--head|SENSORS.*head=.*scope=.*ran=.*failed=' "$review Trace / Process Evidence section must require HEAD-bound feature green evidence (script-recorded rows since #441)"
 assert_section 'review_verdict' "$review Trace / Process Evidence section must inspect review_verdict evidence"
 assert_section 'deviation' "$review Trace / Process Evidence section must inspect deviation evidence"
 assert_section 'authoritative' "$review Trace / Process Evidence section must identify authoritative evidence"
