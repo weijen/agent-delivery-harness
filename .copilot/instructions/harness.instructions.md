@@ -125,7 +125,10 @@ Workflow per issue:
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
    — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
    is the only exception). These `green` and `--gate` forms are the only sensor
-   execution shapes; their process exit is the gate result. A direct
+   execution shapes; their process exit is the gate result. Green summaries are
+   **recorded by the runner itself** into the issue's `sensor-evidence.jsonl` (#441) —
+   never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
+   script-recorded rows with `scripts/verify-sensor-evidence.sh`. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,
@@ -145,7 +148,9 @@ content) — never from memory of intending to run it. A status line that names 
 backed by that check's real output in this session; the merge gate (#328) enforces this for
 merges, and the same standard applies to every completion claim. A claim that
 N test files passed requires the matching HEAD-bound
-`SENSORS ... ran=N failed=0` line; ad-hoc shell glob output is not evidence.
+`SENSORS ... ran=N failed=0` runner output; ad-hoc shell glob output is not evidence, and
+the durable record of that output is the runner's own `sensor-evidence.jsonl` row (#441),
+not an agent transcription.
 
 **Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
 runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure

@@ -311,13 +311,16 @@ a **process violation**.
    **absent**, NOT that no tools ran; model/token coverage, remembering that `tokens=null` means token data is
    **unavailable**, not zero cost; and whether the run finished plus the final outcome (`pass` / `fail` / `n-a`).
 4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
-   `gate_sensors` feature-green evidence in a HEAD-bound
-   `SENSORS ... head=... scope=... ran=... failed=0` summary; `gate_review`, where this review handback supplies the
-   `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
+   `gate_sensors` feature-green evidence in the **script-recorded** row set —
+   `.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl`, written by `run-sensors.sh` itself and validated with
+   `scripts/verify-sensor-evidence.sh <NN> --head <reviewed-sha>` (#441); `gate_review`, where this review handback
+   supplies the `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
    `gate_merge_closeout` CI,
    merge, and finish evidence when reviewing a completed closeout. Require only evidence due at the current phase.
-   Harness-observed gate evidence is authoritative; narrative claims and runtime tool spans are corroborating context
-   only.
+   Harness-observed gate evidence is authoritative; narrative claims, hand-copied summary text, and runtime tool spans
+   are corroborating context only. Do **not** require agent-transcribed `SENSORS ...` lines in ledgers or notes: the
+   recorder owns that bookkeeping. A missing or SHA-stale script-recorded row is **one** process finding at the gate —
+   never a per-feature `missing-coverage` cascade over features whose behaviour otherwise verifies.
 5. **Check current process evidence.** Confirm every completed feature names its regression sensor and is backed by
    feature-green evidence, every `deviation` is resolved or justified, review verdicts map to feature IDs, and
    repeated-loop indicators were reviewed.
