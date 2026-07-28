@@ -55,7 +55,14 @@ esac
 SH
 chmod +x "${BIN}/gh"
 
-(cd "$REPO" && ./scripts/review-gate.sh approve) >/dev/null
+# Since #442, `approve` itself refuses over red sensors (the re-bind gate),
+# so approval-with-a-red-tree can no longer be produced through the script.
+# This test's subject is create-pr's OWN scoped sensor gate, so simulate the
+# pre-existing-approval state directly with a hand-seeded marker.
+approved_sha="$(git -C "$REPO" rev-parse HEAD)"
+mkdir -p "${REPO}/.copilot-tracking/review-gate/issue-418"
+printf '%s\n%s\n' "$approved_sha" "" \
+  >"${REPO}/.copilot-tracking/review-gate/issue-418/approved-head"
 
 set +e
 (cd "$REPO" && env PATH="${BIN}:${PATH}" GH_STATE="$GH_STATE" \

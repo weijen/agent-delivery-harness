@@ -99,7 +99,8 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
 for s in lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-trace-consistency.sh \
          trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh \
-         ci-coverage-lib.sh; do
+         ci-coverage-lib.sh \
+         rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
 done
@@ -139,7 +140,8 @@ make_gate_fixture() {
   local s
   for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-feature-list.sh \
            review-gate.sh trace-lib.sh check-trace-consistency.sh \
-           ci-coverage-lib.sh; do
+           ci-coverage-lib.sh \
+           rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
   cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"

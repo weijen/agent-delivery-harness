@@ -144,6 +144,12 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 # satisfies the teeth obligation; this is additional positive mutation proof.)
 mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
 cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/"
+# The #442 evidence re-bind gate is hard: the mutant's SCRIPT_DIR needs the
+# evidence chain beside it or approve refuses before reaching the marker write.
+for dep in rebind-evidence.sh run-sensors.sh affected-sensors.sh \
+  verify-sensor-evidence.sh trace-lib.sh; do
+  cp "${ROOT}/scripts/${dep}" "${TMP_DIR}/"
+done
 # Replace the helper's two-line write with a one-line SHA-only marker.
 # shellcheck disable=SC2016
 sed '
