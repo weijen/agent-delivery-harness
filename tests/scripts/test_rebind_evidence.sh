@@ -7,10 +7,11 @@
 #   * with no evidence at HEAD, `rebind-evidence.sh --gate pre-review` runs
 #     the full gate and a green row bound to HEAD (mode pre-review) appears;
 #   * red sensors → exit 1 and no green row is recorded;
-#   * outside an issue context → exit 1;
+#   * outside an issue context → exit 0 (no per-issue evidence owed);
 #   * usage error (unknown gate/flag) → exit 2;
-#   * review-gate.sh approve invokes rebind-evidence.sh fail-closed (static
-#     wiring check: the approve path calls the script and refuses on failure).
+#   * review-gate.sh approve invokes rebind-evidence.sh fail-closed
+#     (behavioral: red -> refused with no marker, green -> marker + fresh row,
+#     missing script -> refused).
 #
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
