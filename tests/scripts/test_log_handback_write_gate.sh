@@ -31,10 +31,12 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts" "${FIX}/docs/evaluation"
-for s in log-handback.sh trace-lib.sh check-trace-consistency.sh; do
+for s in log-handback.sh trace-lib.sh check-trace-consistency.sh issue-lib.sh github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
 done
 cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${FIX}/docs/evaluation/"
+mkdir -p "${FIX}/.copilot-tracking/issues/issue-77"
+printf '# Issue 77\n\n## Action Log\n\n' > "${FIX}/.copilot-tracking/issues/issue-77/progress.md"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
@@ -43,7 +45,8 @@ TRACE="${FIX}/.copilot-tracking/issues/issue-77/trace.jsonl"
 
 # Base env for a VALID fail verdict; each case below knocks one field out.
 valid_env=(TRACE_ACTIONABLE=true TRACE_FAILURE_CLASS=missing-coverage
-  TRACE_FINDING_FINGERPRINT=fix-77-f1 TRACE_FINDING_BASELINE_STATE=new)
+  TRACE_FINDING_FINGERPRINT=fix-77-f1 TRACE_FINDING_BASELINE_STATE=new
+  TRACE_FINDING_REPRODUCTION="repro steps" TRACE_FINDING_PROPOSED_FIX="the fix")
 lh() { (cd "$FIX" && env "$@" ./scripts/log-handback.sh conductor review_verdict F1 fail "test finding" 2>&1); }
 span_count() { [ -f "$TRACE" ] && wc -l < "$TRACE" | tr -d ' ' || printf '0'; }
 
@@ -100,12 +103,43 @@ set -e
 [ "$rc" = "1" ] || fail "feature_id '-' fail verdict must be rejected (got ${rc}: $out)"
 [ "$(span_count)" = "$before" ] || fail "rejected '-' write must append no span"
 
-# 5. A fully-attributed fail verdict writes one span the checker accepts.
+# 5. actionable=true without reproduction/fix evidence → rejected (#318
+#    actionable-without-evidence — the checker family this gate mirrors).
+mapfile -t e8 < <(env_without TRACE_FINDING_REPRODUCTION TRACE_FINDING_PROPOSED_FIX)
+reject_case "actionable without evidence" "requires TRACE_FINDING_REPRODUCTION or TRACE_FINDING_PROPOSED_FIX" "${e8[@]}"
+
+# 6. Repair-mode verdicts owe scope at write time.
+mapfile -t e9 < <(env_without)
+reject_case "repair without scope" "TRACE_REPAIR_SCOPE is required" \
+  "${e9[@]}" TRACE_REVIEW_MODE=repair
+reject_case "repair scope malformed" "not valid canonical format" \
+  "${e9[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE='F1,,F2'
+reject_case "repair feature out of scope" "is not in TRACE_REPAIR_SCOPE" \
+  "${e9[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE='F2,F3'
+
+# 7. A fully-attributed fail verdict writes one span the checker accepts —
+#    and the checker must actually RUN (rc 0/1, never a load error).
 lh "${valid_env[@]}" TRACE_REVIEW_EVENT_ID=issue77-full-test >/dev/null \
   || fail "a fully-attributed fail verdict must be accepted"
 [ "$(span_count)" = "1" ] || fail "accepted write must append exactly one span"
-check_out="$(cd "$FIX" && ./scripts/check-trace-consistency.sh 77 2>&1)" || true
+set +e
+check_out="$(cd "$FIX" && ./scripts/check-trace-consistency.sh 77 2>&1)"
+check_rc=$?
+set -e
+[ "$check_rc" = "0" ] || [ "$check_rc" = "1" ] \
+  || fail "checker must run to completion over the fixture (rc=${check_rc}: $(tail -n3 <<<"$check_out"))"
 grep -qE 'VIOLATION' <<<"$check_out" \
   && fail "checker must accept a writer-gated span (got: $(grep VIOLATION <<<"$check_out" | head -3))"
+
+# 8. Negative control: a hand-appended malformed span (bypassing the writer)
+#    IS flagged by the same checker — proving the cross-check can fire.
+hand_span="$(tail -n1 "$TRACE" | jq -c 'del(."harness.failure_class") | ."span_id" = "deadbeefdeadbeef"')"
+printf '%s\n' "$hand_span" >> "$TRACE"
+set +e
+check_out="$(cd "$FIX" && ./scripts/check-trace-consistency.sh 77 2>&1)"
+check_rc=$?
+set -e
+grep -qE 'VIOLATION consistency: failure_class_missing' <<<"$check_out" \
+  || fail "checker must flag a hand-appended malformed span (got rc=${check_rc}: $(grep -iE 'violation|error' <<<"$check_out" | head -3))"
 
 printf 'PASS: log-handback rejects malformed review_verdict/fail writes at write time\n'

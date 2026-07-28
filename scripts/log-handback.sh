@@ -136,6 +136,10 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
   if [ "${TRACE_FAILURE_CLASS:-}" = "other" ] && [ -z "${TRACE_FAILURE_CLASS_DETAIL:-}" ]; then
     fail "TRACE_FAILURE_CLASS=other requires TRACE_FAILURE_CLASS_DETAIL (#318)"
   fi
+  if [ "${TRACE_ACTIONABLE}" = "true" ] \
+    && [ -z "${TRACE_FINDING_REPRODUCTION:-}" ] && [ -z "${TRACE_FINDING_PROPOSED_FIX:-}" ]; then
+    fail "TRACE_ACTIONABLE=true requires TRACE_FINDING_REPRODUCTION or TRACE_FINDING_PROPOSED_FIX (#318 actionable-without-evidence)"
+  fi
 fi
 
 HAVE_TRACE_LIB=0
@@ -275,7 +279,13 @@ other'
         ;;
     esac
 
-    if [ "${TRACE_REVIEW_MODE:-}" = "repair" ] && [ -n "${TRACE_REPAIR_SCOPE:-}" ]; then
+    if [ "${TRACE_REVIEW_MODE:-}" = "repair" ]; then
+      # Repair verdicts owe the #318 repair-verdict-scope family at write time
+      # (#443): a missing/invalid scope or an out-of-scope feature_id is what
+      # the checker would flag as repair_scope_missing/mismatch one round
+      # later — reject it here instead.
+      [ -n "${TRACE_REPAIR_SCOPE:-}" ] \
+        || fail "TRACE_REPAIR_SCOPE is required on repair-mode review verdicts (#318) — comma-separated feature ids"
       repair_scope_valid=0
       if [[ "${TRACE_REPAIR_SCOPE}" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
         repair_scope_valid=1
@@ -289,11 +299,17 @@ other'
           seen="${seen}${token}"$'\n'
         done
       fi
-      if [ "$repair_scope_valid" = "1" ]; then
-        REVIEW_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
-      else
-        warn "TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' is not valid canonical format — harness.repair_scope omitted"
+      [ "$repair_scope_valid" = "1" ] \
+        || fail "TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' is not valid canonical format (comma-separated unique tokens) — span not written"
+      if [ "$FEATURE_ID" != "-" ] && [ "$FEATURE_ID" != "unmapped" ]; then
+        scope_member=0
+        for token in "${repair_tokens[@]}"; do
+          [ "$token" = "$FEATURE_ID" ] && { scope_member=1; break; }
+        done
+        [ "$scope_member" = "1" ] \
+          || fail "feature_id '${FEATURE_ID}' is not in TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' (#318) — span not written"
       fi
+      REVIEW_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
     fi
 
     case "${TRACE_ACTIONABLE:-}" in

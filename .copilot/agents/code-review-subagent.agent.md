@@ -98,7 +98,8 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
    commas, no whitespace, no empty tokens, no duplicates. The feature_id positional arg to
    `log-handback.sh` **must** be an exact member of repair_scope. Absent on `full`/`concise`
-   modes. Invalid values are omitted with a warning (omit, never fake).
+   modes. The writer REJECTS a missing/invalid scope or an out-of-scope feature_id at write
+   time (#443) — fix the invocation and re-run; nothing is omitted or faked.
 
    **Out-of-scope findings in repair mode:** if you discover a NEW regression or finding outside
    the revised feature set during a repair review, do NOT silently expand the repair_scope. Instead,
