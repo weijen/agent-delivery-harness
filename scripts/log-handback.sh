@@ -301,14 +301,15 @@ other'
       fi
       [ "$repair_scope_valid" = "1" ] \
         || fail "TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' is not valid canonical format (comma-separated unique tokens) — span not written"
-      if [ "$FEATURE_ID" != "-" ] && [ "$FEATURE_ID" != "unmapped" ]; then
-        scope_member=0
-        for token in "${repair_tokens[@]}"; do
-          [ "$token" = "$FEATURE_ID" ] && { scope_member=1; break; }
-        done
-        [ "$scope_member" = "1" ] \
-          || fail "feature_id '${FEATURE_ID}' is not in TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' (#318) — span not written"
-      fi
+      # No unmapped/'-' carve-out: the checker requires exact scope
+      # membership for every repair verdict, and an out-of-scope discovery
+      # belongs in a separate non-repair review event (reviewer contract).
+      scope_member=0
+      for token in "${repair_tokens[@]}"; do
+        [ "$token" = "$FEATURE_ID" ] && { scope_member=1; break; }
+      done
+      [ "$scope_member" = "1" ] \
+        || fail "feature_id '${FEATURE_ID}' is not in TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' (#318) — repair verdicts bind to named in-scope features; emit out-of-scope findings as a separate non-repair review event"
       REVIEW_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
     fi
 

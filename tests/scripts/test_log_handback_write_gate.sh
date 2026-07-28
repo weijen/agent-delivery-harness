@@ -116,6 +116,15 @@ reject_case "repair scope malformed" "not valid canonical format" \
   "${e9[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE='F1,,F2'
 reject_case "repair feature out of scope" "is not in TRACE_REPAIR_SCOPE" \
   "${e9[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE='F2,F3'
+# unmapped/'-' get no repair-mode carve-out (checker requires exact membership).
+before="$(span_count)"
+set +e
+out="$(cd "$FIX" && env "${valid_env[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE='F1,F2' \
+  ./scripts/log-handback.sh conductor review_verdict unmapped fail "stray finding" 2>&1)"
+rc=$?
+set -e
+[ "$rc" = "1" ] || fail "repair-mode 'unmapped' must be rejected (got ${rc}: $out)"
+[ "$(span_count)" = "$before" ] || fail "rejected repair-unmapped write must append no span"
 
 # 7. A fully-attributed fail verdict writes one span the checker accepts —
 #    and the checker must actually RUN (rc 0/1, never a load error).
