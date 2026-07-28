@@ -2,6 +2,40 @@
 
 <!-- version list -->
 
+## v0.40.0 (2026-07-28)
+
+### Bug Fixes
+
+- **#443**: Close actionable-evidence and repair-scope write gaps
+  ([`8a9c138`](https://github.com/weijen/agent-delivery-harness/commit/8a9c138bc9cd8f2addcdc267f9a92d5d0954789b))
+
+- **#443**: Drop the repair-mode unmapped carve-out
+  ([`008fdeb`](https://github.com/weijen/agent-delivery-harness/commit/008fdeb476ef2ba0f47a03ff6eff33b72e737ed9))
+
+### Chores
+
+- **#443**: Refresh uv.lock after release bump
+  ([`fb71149`](https://github.com/weijen/agent-delivery-harness/commit/fb7114915ae2dfe08a51979d95780f25840e7304))
+
+### Documentation
+
+- **#443**: Telemetry defects are residual risk, not verdicts
+  ([`d319293`](https://github.com/weijen/agent-delivery-harness/commit/d3192935fe36a0478a3d6f0b54fcf99ae81b4d63))
+
+### Features
+
+- **#443**: Enforce the #318 attribution contract at write time
+  ([`8b750d4`](https://github.com/weijen/agent-delivery-harness/commit/8b750d47b85cb4e3e3784c0300e0e9ec0ec5ccf8))
+
+- **#443**: Reject invalid deviation enums instead of omitting
+  ([`d109b91`](https://github.com/weijen/agent-delivery-harness/commit/d109b91843842a40e8a037fbf124bace2aab4f3a))
+
+### Testing
+
+- **#443**: Align escalation sensor with write-time rejection
+  ([`a391346`](https://github.com/weijen/agent-delivery-harness/commit/a391346c6b050a54444897a7807b51dd3817372b))
+
+
 ## v0.39.0 (2026-07-28)
 
 ### Bug Fixes
