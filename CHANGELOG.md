@@ -2,6 +2,31 @@
 
 <!-- version list -->
 
+## v0.40.1 (2026-08-08)
+
+### Bug Fixes
+
+- **#447**: Bind review verdicts to HEAD product content at approve
+  ([#451](https://github.com/weijen/agent-delivery-harness/pull/451),
+  [`43bd8f0`](https://github.com/weijen/agent-delivery-harness/commit/43bd8f0c53c5ec271a37ee48587d654c21446853))
+
+- **#447**: Close the review findings — split layout, malformed lines, cwd, verdict outcome
+  ([#451](https://github.com/weijen/agent-delivery-harness/pull/451),
+  [`43bd8f0`](https://github.com/weijen/agent-delivery-harness/commit/43bd8f0c53c5ec271a37ee48587d654c21446853))
+
+### Chores
+
+- Refresh uv.lock for the 0.40.0 release bump
+  ([#452](https://github.com/weijen/agent-delivery-harness/pull/452),
+  [`06900f9`](https://github.com/weijen/agent-delivery-harness/commit/06900f9edd38e5b4280c39be6caf19de75a69688))
+
+### Testing
+
+- **#447**: Issue-21 regression sensors for the verdict currency gate
+  ([#451](https://github.com/weijen/agent-delivery-harness/pull/451),
+  [`43bd8f0`](https://github.com/weijen/agent-delivery-harness/commit/43bd8f0c53c5ec271a37ee48587d654c21446853))
+
+
 ## v0.40.0 (2026-07-28)
 
 ### Bug Fixes
