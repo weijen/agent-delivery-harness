@@ -156,6 +156,7 @@ problems="$(jq -r '
       (if ($f | has("passes")) and (($f.passes | type) == "boolean") then empty else "feature[\($i)]: missing field or non-boolean: passes" end),
       (if (($f.passes // false) == true) and (((($f.verification // "") | type) != "string") or ((($f.verification // "") | gsub("\\s";"") | length) == 0)) then "feature[\($i)]: passes:true requires non-empty verification text" else empty end),
       (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end),
+      (if ($f | has("type")) and ((($f.type // "") | IN("feature", "repair")) | not) then "feature[\($i)]: type must be exactly \"feature\" or \"repair\" (#449 — a typo silently demotes a repair item to a feature and the routing audit cannot see it)" else empty end),
       (if (($f.type // "feature") == "repair") and ((($f.finding_fingerprint // "") | nonempty_trimmed_string) | not) then "feature[\($i)]: type:repair requires a non-empty finding_fingerprint (#449 — the review finding this item repairs)" else empty end)
     ]
   | .[]

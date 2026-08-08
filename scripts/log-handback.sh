@@ -124,6 +124,13 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
     || fail "TRACE_FAILURE_CLASS is required on review_verdict/fail (#318) — pick one from the trace schema's closed failure_classes enum"
   [ -n "${TRACE_FINDING_FINGERPRINT:-}" ] \
     || fail "TRACE_FINDING_FINGERPRINT is required on review_verdict/fail (#318) — a stable finding identity label"
+  # Whitespace would corrupt the checker's tab-joined signal protocol and the
+  # #449 repair-item fingerprint matching (write-time posture, #443/#449).
+  case "${TRACE_FINDING_FINGERPRINT:-}" in
+    *[[:space:]]*)
+      fail "TRACE_FINDING_FINGERPRINT must not contain whitespace (#449) — use a slug or hash identity"
+      ;;
+  esac
   case "${TRACE_FINDING_BASELINE_STATE:-}" in
     new|unchanged|updated|resolved) ;;
     "")

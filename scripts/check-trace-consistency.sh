@@ -788,8 +788,8 @@ cat > "$STATE_FILTER" <<'JQ'
          else null
          end) as $agg_ts_secs
         | (if $agg_ts_secs != null and $agg_ts_secs < $pr448_intro_epoch then "1" else "0" end) as $agg_legacy
-        | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $agg_fp
-        | (($span["harness.reviewed_sha"] // "") | if . == "" then "__EMPTY__" else . end) as $agg_sha
+        | (($span["harness.finding_fingerprint"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_fp
+        | (($span["harness.reviewed_sha"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_sha
         | (($span["harness.summary"] // "") | gsub("[\r\n]"; " ")) as $agg_summary
         | "::aggfinding \($n)\t\($agg_legacy)\t\($agg_fp)\t\($agg_sha)\t\($agg_summary)"
       else empty
@@ -1266,10 +1266,16 @@ fi
 # fingerprint with no matching repair item warns; authoring the items clears
 # it. Pre-#448-era spans are silent (historical multi-round traces, e.g.
 # Unilever issue-9's two rounds at one sha, predate the doctrine).
+if [ -n "$repair_candidates" ] && [ ! -f "$FEATURE_LIST_FILE" ]; then
+  printf 'NOTE: repair_items_missing check skipped (no feature_list.json)\n'
+fi
 if [ -n "$repair_candidates" ] && [ -f "$FEATURE_LIST_FILE" ]; then
-  repair_item_fps="$(jq -r \
+  if ! repair_item_fps="$(jq -r \
     '.features[]? | select((.type // "feature") == "repair") | .finding_fingerprint // empty | strings' \
-    "$FEATURE_LIST_FILE" 2>/dev/null || true)"
+    "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+    printf 'NOTE: repair_items_missing check skipped (feature_list.json is not valid JSON)\n'
+    repair_candidates=""
+  fi
   qualifying_shas="$(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
     | awk -F'\t' '{count[$1]++} END {for (s in count) if (count[s] >= 2) print s}')"
   while IFS= read -r q_sha; do

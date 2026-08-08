@@ -83,7 +83,16 @@ rc="$(run_cfl "${TMP_DIR}/s1.json")"
 [ "$rc" = "1" ] || fail "S1: expected exit 1, got ${rc}: $(cat "${TMP_DIR}/cfl.out")"
 grep -q 'finding_fingerprint' "${TMP_DIR}/cfl.out" \
   || fail "S1: diagnostic must name finding_fingerprint"
-emit "repair item without fingerprint invalid"
+
+# Typo'd type must be invalid, not silently demoted to a feature (which would
+# skip the fingerprint requirement and blind the routing audit).
+printf '{"features":[{"id":"R1","title":"t","steps":[],"passes":true,"verification":"done","type":"Repair","finding_fingerprint":"fp-a"}]}\n' \
+  > "${TMP_DIR}/s1b.json"
+rc="$(run_cfl "${TMP_DIR}/s1b.json")"
+[ "$rc" = "1" ] || fail "S1b: type 'Repair' (typo) must be invalid, got ${rc}"
+grep -q 'type must be exactly' "${TMP_DIR}/cfl.out" \
+  || fail "S1b: diagnostic must name the type enum"
+emit "repair item without fingerprint or with typo'd type invalid"
 
 # --- S2 valid repair item accepted --------------------------------------------
 printf '{"features":[%s,%s]}\n' "$(feature F1 true)" "$(repair_item R1 fp-a true)" \
@@ -156,7 +165,9 @@ rc="$(run_checker "${TMP_DIR}/s5/trace.jsonl")"
   || fail "S5: expected 2 repair_items_missing warnings — got: $(grep 'repair_items_missing' "${TMP_DIR}/out")"
 grep -q 'repair_items_missing fp-alpha' "${TMP_DIR}/out" \
   || fail "S5: warning must name fp-alpha"
-emit "unrouted multi-finding round warns per fingerprint"
+grep -q ' 3 warning(s)' "${TMP_DIR}/out" \
+  || fail "S5: expected exactly 3 counted warnings (path-mode baseline + 2 audit) — got: $(tail -1 "${TMP_DIR}/out")"
+emit "unrouted multi-finding round warns per fingerprint, counted"
 
 # --- S6 matching repair items => silent ---------------------------------------
 mk_case "${TMP_DIR}/s6"
@@ -170,15 +181,30 @@ printf '{"features":[%s,%s,%s]}\n' \
 run_checker "${TMP_DIR}/s6/trace.jsonl" >/dev/null
 grep -q 'repair_items_missing' "${TMP_DIR}/out" \
   && fail "S6: matching repair items must silence the audit — got: $(grep 'repair_items_missing' "${TMP_DIR}/out")"
-emit "routed findings silence the audit"
+
+# Exact matching only: an item fingerprint that merely CONTAINS the span's
+# fingerprint must not silence the warning.
+mk_case "${TMP_DIR}/s6b"
+cp "${TMP_DIR}/s5/trace.jsonl" "${TMP_DIR}/s6b/trace.jsonl"
+printf '{"features":[%s,%s]}\n' \
+  "$(repair_item R1 fp-alpha-extended false | sed 's/"verification":"done"/"verification":null/')" \
+  "$(repair_item R2 fp-beta false | sed 's/"verification":"done"/"verification":null/')" \
+  > "${TMP_DIR}/s6b/feature_list.json"
+run_checker "${TMP_DIR}/s6b/trace.jsonl" >/dev/null
+grep -q 'repair_items_missing fp-alpha' "${TMP_DIR}/out" \
+  || fail "S6b: substring item fingerprint must NOT silence fp-alpha (exact match only)"
+emit "routed findings silence the audit; matching is exact"
 
 # --- S7 pre-era spans and single findings => silent ---------------------------
+# The fixture MUST carry a feature list: without one the audit skips before
+# the era/threshold logic runs and the leg proves nothing (reviewer F1).
 mk_case "${TMP_DIR}/s7"
 {
   fail_span "2026-08-07T10:15:03Z" fp-old1 F1
   fail_span "2026-08-07T10:15:04Z" fp-old2 F2
   fail_span "2026-08-09T00:00:00Z" fp-solo F3
 } > "${TMP_DIR}/s7/trace.jsonl"
+printf '{"features":[]}\n' > "${TMP_DIR}/s7/feature_list.json"
 
 run_checker "${TMP_DIR}/s7/trace.jsonl" >/dev/null
 grep -q 'repair_items_missing' "${TMP_DIR}/out" \
@@ -193,5 +219,31 @@ grep -q 'repair_items_missing' "${ROOT}/.copilot/instructions/harness.instructio
 grep -q 'type: "repair"' "${ROOT}/.copilot/agents/code-review-subagent.agent.md" \
   || fail "S8: code-review-subagent.agent.md lacks the payload-to-item mapping"
 emit "doctrine carries the routing contract"
+
+# --- S9 tab in a fingerprint cannot shift the signal fields -------------------
+mk_case "${TMP_DIR}/s9"
+{
+  printf '{"schema_version":1,"timestamp":"2026-08-09T00:00:00Z","span":"agent","harness.issue":9,"harness.version":"0.0.0-test","span_id":"a44900000000009a","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"fail","harness.summary":"single finding one","harness.reviewed_sha":"%s","harness.failure_class":"validation-bypass","harness.finding_fingerprint":"fp\\twith-tab","harness.finding_baseline_state":"new","harness.actionable":"true","harness.finding_reproduction":"r","harness.finding_proposed_fix":"f"}\n' "$SHA"
+  fail_span "2026-08-09T00:00:01Z" fp-clean F2
+} > "${TMP_DIR}/s9/trace.jsonl"
+printf '{"features":[]}\n' > "${TMP_DIR}/s9/feature_list.json"
+
+run_checker "${TMP_DIR}/s9/trace.jsonl" >/dev/null
+[ "$(grep -c 'WARNING consistency: repair_items_missing' "${TMP_DIR}/out")" = "2" ] \
+  || fail "S9: a tab-carrying fingerprint must be sanitized, not shift fields into a false negative — got: $(grep 'repair_items_missing' "${TMP_DIR}/out")"
+emit "tab in fingerprint sanitized, audit intact"
+
+# --- S10 write-time: whitespace fingerprints rejected -------------------------
+set +e
+out="$(cd "$CFL_FIX" && env TRACE_ISSUE=66 TRACE_ACTIONABLE=true \
+  TRACE_FAILURE_CLASS=validation-bypass "TRACE_FINDING_FINGERPRINT=fp with space" \
+  TRACE_FINDING_BASELINE_STATE=new TRACE_FINDING_REPRODUCTION=r TRACE_FINDING_PROPOSED_FIX=f \
+  "${ROOT}/scripts/log-handback.sh" conductor review_verdict F1 fail "one finding" 2>&1)"
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "S10: whitespace fingerprint must be rejected at write time"
+grep -q 'must not contain whitespace' <<<"$out" \
+  || fail "S10: rejection must explain the whitespace rule — got: ${out}"
+emit "write-time: whitespace fingerprint rejected"
 
 tap_done
