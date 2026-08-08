@@ -101,6 +101,18 @@
 #                     TRACE_ALLOW_DARK_RUN=1 env (name kept for compatibility)
 #                     now governs this spine check and skips the block.
 #                         VIOLATION consistency: spine_incomplete <issue>
+#   aggregate_finding_span
+#                     one review_verdict/fail span must carry ONE finding
+#                     (issue #448). A fail span whose harness.summary declares
+#                     multiple findings — a count >= 2 immediately before
+#                     "critical"/"warning"/"finding" — is the aggregate shape
+#                     (one fingerprint standing for many defects) that starves
+#                     the repair of per-finding reproduction/fix context. Era
+#                     carve-out (#330 pattern): spans whose own timestamp is
+#                     provably before the #448 introduction instant
+#                     (2026-08-08T12:00:00Z) downgrade to
+#                     WARNING consistency: legacy_aggregate_finding_span.
+#                         VIOLATION consistency: aggregate_finding_span line <N>
 #
 # Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
 # a PR reference, the relevant spans) skip their rules with a NOTE — never
@@ -566,6 +578,12 @@ cat > "$STATE_FILTER" <<'JQ'
       end;
   ("2026-07-21T00:31:35Z" | fromdateiso8601) as $pr324_merge_epoch
 # <<< issue-330: legacy-fail-span era boundary
+# >>> issue-448: one-span-per-finding era boundary — the rule's introduction
+# instant; fail-verdict spans provably older downgrade the aggregate-finding
+# violation to a WARNING (same #330 own-timestamp pattern, fail-closed to
+# "current" on unparseable timestamps).
+| ("2026-08-08T12:00:00Z" | fromdateiso8601) as $pr448_intro_epoch
+# <<< issue-448: one-span-per-finding era boundary
 | [inputs] as $lines
 | range(0; $lines | length) as $i
 | ($i + 1) as $n
@@ -742,6 +760,24 @@ cat > "$STATE_FILTER" <<'JQ'
         | (($span["harness.repair_scope"] // "") | if . == "" then "__EMPTY__" else . end) as $rs
         | "::repairscope \($n)\t\($fid)\t\($rs)"
       else empty
+      end ),
+    # --- Aggregate-finding signals (issue #448) ---
+    # One review_verdict/fail span carries ONE finding. Emit the span's
+    # summary for the bash-side multi-finding-declaration check; newlines are
+    # flattened and the summary is the LAST field so free-text tabs cannot
+    # shift earlier fields.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+      then
+        (if ($span.timestamp | type) == "string"
+         then ($span.timestamp | ts_secs)
+         else null
+         end) as $agg_ts_secs
+        | (if $agg_ts_secs != null and $agg_ts_secs < $pr448_intro_epoch then "1" else "0" end) as $agg_legacy
+        | (($span["harness.summary"] // "") | gsub("[\r\n]"; " ")) as $agg_summary
+        | "::aggfinding \($n)\t\($agg_legacy)\t\($agg_summary)"
+      else empty
       end )
   end
 JQ
@@ -756,6 +792,7 @@ approve_sha=""
 pr_span_number=""
 failattr_lines=$'\n'
 repairscope_lines=$'\n'
+aggfinding_lines=$'\n'
 genfail_lines=$'\n'
 durable_lines=$'\n'
 countable_reject_records=$'\n'
@@ -772,6 +809,7 @@ while IFS= read -r out_line; do
     '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
     '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
     '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
+    '::aggfinding '*)  aggfinding_lines="${aggfinding_lines}${out_line#'::aggfinding '}"$'\n' ;;
     '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
     '::durable '*)  durable_lines="${durable_lines}${out_line#'::durable '}"$'\n' ;;
     '::research '*)
@@ -1167,6 +1205,30 @@ if [ "$repairscope_lines" != $'\n' ]; then
       violations=$((violations + 1))
     fi
   done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
+fi
+
+# --- State: aggregate finding spans (issue #448) ------------------------------
+# One review_verdict/fail span = ONE finding. A span whose summary DECLARES
+# multiple findings — a count >= 2 immediately before "critical"/"warning"/
+# "finding" — is the aggregate shape that starves the implementer of
+# per-finding reproduction/fix context and breaks per-fingerprint reject-cap
+# accounting (Unilever issue-9 round 1: "3 critical and 4 warning findings:
+# ..." under one fingerprint; round 3 then surfaced 4 NEW findings).
+# Era carve-out (#330 pattern): spans provably before the #448 introduction
+# instant downgrade to a WARNING; unparseable timestamps stay enforced.
+if [ "$aggfinding_lines" != $'\n' ]; then
+  while IFS= read -r agg_line; do
+    [ -n "$agg_line" ] || continue
+    IFS=$'\t' read -r agg_n agg_legacy agg_summary <<< "$agg_line"
+    if [[ "$agg_summary" =~ (^|[^0-9])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
+      if [ "$agg_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_aggregate_finding_span line %s\n' "$agg_n"
+      else
+        printf 'VIOLATION consistency: aggregate_finding_span line %s\n' "$agg_n"
+        violations=$((violations + 1))
+      fi
+    fi
+  done < <(printf '%s' "$aggfinding_lines" | grep -v '^$')
 fi
 
 # --- State: review rejection convergence (issues #300, #318, #388) -----------
