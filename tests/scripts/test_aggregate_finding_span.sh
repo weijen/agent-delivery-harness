@@ -82,8 +82,8 @@ grep -q 'WARNING consistency: aggregate_finding_span line 1' "${TMP_DIR}/out" \
   || fail "T1: missing 'WARNING consistency: aggregate_finding_span line 1'"
 grep -q 'VIOLATION consistency: aggregate_finding_span' "${TMP_DIR}/out" \
   && fail "T1: the aggregate rule must be WARN-ONLY (hard stop lives in log-handback.sh)"
-grep -Eq '[^0] warning\(s\)|1 warning\(s\)' "${TMP_DIR}/out" \
-  || fail "T1: the warning must be counted in the tail summary — got: $(tail -1 "${TMP_DIR}/out")"
+grep -q ' 2 warning(s)' "${TMP_DIR}/out" \
+  || fail "T1: expected exactly 2 counted warnings (path-mode baseline + aggregate) — got: $(tail -1 "${TMP_DIR}/out")"
 emit "post-boundary aggregate span warns and is counted (issue-9 round-1 shape)"
 
 # --- T2 pre-boundary => legacy warning name -----------------------------------
