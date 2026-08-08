@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v0.43.0 (2026-08-08)
+
+### Bug Fixes
+
+- **#450**: Close the re-review residuals — release-span teeth, fail-closed gh leg, dead _t0
+  ([#458](https://github.com/weijen/agent-delivery-harness/pull/458),
+  [`b7bd004`](https://github.com/weijen/agent-delivery-harness/commit/b7bd0042527d5f4536fb6f9a36f9f6d509f01f48))
+
+- **#450**: Close the review findings — per-PR budget, remote-head keying, stale-state paths
+  ([#458](https://github.com/weijen/agent-delivery-harness/pull/458),
+  [`b7bd004`](https://github.com/weijen/agent-delivery-harness/commit/b7bd0042527d5f4536fb6f9a36f9f6d509f01f48))
+
+### Chores
+
+- Refresh uv.lock for the latest release bump
+  ([#459](https://github.com/weijen/agent-delivery-harness/pull/459),
+  [`8763670`](https://github.com/weijen/agent-delivery-harness/commit/876367073a79017c32b420b9902a5842c04d65ca))
+
+### Features
+
+- **#450**: G1 post-PR round budget in create-pr.sh
+  ([#458](https://github.com/weijen/agent-delivery-harness/pull/458),
+  [`b7bd004`](https://github.com/weijen/agent-delivery-harness/commit/b7bd0042527d5f4536fb6f9a36f9f6d509f01f48))
+
+- **#450**: G2 structural-red and G3 green-freeze in merge-pr.sh
+  ([#458](https://github.com/weijen/agent-delivery-harness/pull/458),
+  [`b7bd004`](https://github.com/weijen/agent-delivery-harness/commit/b7bd0042527d5f4536fb6f9a36f9f6d509f01f48))
+
+- **#450**: Post-PR termination guardrails — round budget, structural-red, green-freeze
+  ([#458](https://github.com/weijen/agent-delivery-harness/pull/458),
+  [`b7bd004`](https://github.com/weijen/agent-delivery-harness/commit/b7bd0042527d5f4536fb6f9a36f9f6d509f01f48))
+
+
 ## v0.42.0 (2026-08-08)
 
 ### Bug Fixes
