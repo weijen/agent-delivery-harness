@@ -50,10 +50,22 @@ From the delivering agent:
 - Review mode: `full`, `concise`, or `repair`
 
 Return any substantive review action or verdict that the delivering agent should record in the issue progress Action Log.
-End every review handback (the `Action Log` field of your output) with the structured payload line defined in
-`.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions). The delivering conductor records
-that payload through `scripts/log-handback.sh`: role `conductor`, step `review_verdict`
-(`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
+End every review handback (the `Action Log` field of your output) with the structured payload line(s) defined in
+`.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions) — **one per finding** (see below).
+The delivering conductor records each payload through `scripts/log-handback.sh`: role `conductor`, step
+`review_verdict` (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
+
+### One Payload Per Finding (issue #448)
+
+A `NEEDS_REVISION` round with N findings hands back **N structured payloads — one per finding** — each with its
+own `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_REPRODUCTION`, and `TRACE_FINDING_PROPOSED_FIX`. Never collapse a
+round into one span whose summary reads "3 critical and 4 warning findings: …": one fingerprint standing for many
+defects starves the repair of per-finding reproduction/fix context and breaks per-fingerprint reject-cap and
+dedup accounting (the Unilever issue-9 round-1 shape — its batch repair then surfaced 4 NEW findings).
+`log-handback.sh` **rejects the aggregate shape at write time** (corrective error — split or reword before any
+span exists); `check-trace-consistency.sh`'s `aggregate_finding_span` warning audits historical traces. A fail
+span's summary states its ONE finding; counts ("2 critical …", "1 of 3 …") belong only in prose outside the
+span, if anywhere.
 
 ### FAIL Verdict Attribution Requirements (issue #318)
 
