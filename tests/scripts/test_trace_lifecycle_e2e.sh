@@ -199,6 +199,13 @@ git -C "$WT" add docs/PROGRESS.md
 git -C "$WT" commit -q -m "issue-42: progress update"
 
 run_step check "$WT" ./scripts/check-feature-list.sh 42 SLUG=e2e
+
+# The end-of-issue review records a passing per-feature verdict at HEAD before
+# approve — required since #447 (verdict currency): approve refuses when the
+# newest passing verdict does not cover HEAD's product content.
+printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":42,"harness.version":"0.0.0-e2e","span_id":"e2e0000000000001","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"a","harness.outcome":"pass","harness.review_mode":"full","harness.reviewed_sha":"%s"}\n' \
+  "$(git -C "$WT" rev-parse HEAD)" >> "$TRACE"
+
 run_step approve "$WT" ./scripts/review-gate.sh approve
 run_step create-pr "$WT" ./scripts/create-pr.sh --title "t" --body "b"
 run_step merge-pr "$WT" ./scripts/merge-pr.sh

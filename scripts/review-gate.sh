@@ -571,6 +571,190 @@ _patch_id_for_branch() {
   fi
 }
 
+# --- Verdict currency (issue #447) -------------------------------------------
+# review_verdict_gate (above) proves a verdict EXISTS for every completed
+# feature; it never proved the verdict covers the code being approved. Real-run
+# evidence (Unilever issue-21, 2026-08-07): 14 review_gate_approve spans rode
+# on 3 verdicts stamped hours earlier — 11 PRs of new code approved on stale
+# verdicts. These helpers restore the code-identity half of the review
+# invariant: the NEWEST verdict per passing feature must cover HEAD's PRODUCT
+# content.
+#
+# Anti-#442-loop carry rules (a verdict is never invalidated for free):
+#   * bookkeeping-only commits (paths under ${VERDICT_BOOKKEEPING_PATH}) never
+#     invalidate — the identity excludes those paths entirely;
+#   * content-preserving rebases carry — identity is the patch stream above
+#     merge-base(origin/main, X), not the tree;
+#   * anything else owes a REPAIR-MODE verdict at HEAD (scoped, cheap), never
+#     a full re-review.
+VERDICT_BOOKKEEPING_PATH=".copilot-tracking"
+
+# _content_patch_id <commit> — product-content patch identity for <commit>:
+# the stable patch-id stream of merge-base(origin/main,<commit>)..<commit>
+# with bookkeeping paths excluded, hashed to a single id. Same fail-closed
+# posture as _patch_id_for_branch: unavailable origin/main or merge-base, or
+# merge commits in the range, return 1 (the caller falls back to a tree diff).
+_content_patch_id() {
+  local commit="$1" top base raw merge_commits
+  # Anchor every pathspec at the repo toplevel: '.' and ':(exclude)…' are
+  # cwd-relative, so an approve from a subdirectory would otherwise compute
+  # the identity over that subtree only and miss root-level product changes.
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  base="$(git -C "$top" merge-base origin/main "$commit" 2>/dev/null)" || return 1
+  merge_commits="$(git -C "$top" rev-list --merges "${base}..${commit}" 2>/dev/null)" || return 1
+  [ -z "$merge_commits" ] || return 1
+  raw="$(set -o pipefail; git -C "$top" log --no-merges --reverse "${base}..${commit}" -p \
+      -- . ":(exclude)${VERDICT_BOOKKEEPING_PATH}" 2>/dev/null \
+    | git patch-id --stable 2>/dev/null \
+    | awk '{print $1}' 2>/dev/null)" || return 1
+  if [ -z "$raw" ]; then
+    git hash-object --stdin </dev/null 2>/dev/null || return 1
+  else
+    printf '%s\n' "$raw" | git hash-object --stdin 2>/dev/null || return 1
+  fi
+}
+
+# _verdict_content_current <reviewed_sha> — 0 iff the verdict recorded at
+# <reviewed_sha> still covers HEAD's product content: same commit, or equal
+# product patch identity (bookkeeping-only commits and content-preserving
+# rebases carry). When the identity is undefined for either side (no
+# origin/main, merge commits in range) fall back to a plain product tree diff:
+# empty diff carries, anything else — including a git error — is stale
+# (fail-closed).
+_verdict_content_current() {
+  local reviewed="$1" top="" id_reviewed="" id_head=""
+  [ "$reviewed" = "$head_sha" ] && return 0
+  if id_reviewed="$(_content_patch_id "$reviewed")" \
+      && id_head="$(_content_patch_id HEAD)"; then
+    [ "$id_reviewed" = "$id_head" ]
+    return
+  fi
+  # Toplevel-anchored for the same cwd-relative pathspec reason as
+  # _content_patch_id; an unresolvable toplevel is stale (fail-closed).
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  git -C "$top" diff --quiet "$reviewed" HEAD -- . ":(exclude)${VERDICT_BOOKKEEPING_PATH}" 2>/dev/null
+}
+
+# verdict_currency_gate — refuse approve when any passes:true feature's NEWEST
+# review_verdict does not cover HEAD content. Degrades to a skip (mirroring
+# review_verdict_gate) when the issue number, trace, feature list, or jq is
+# unavailable; a newest verdict WITHOUT harness.reviewed_sha is a legacy trace
+# and is tolerated with a warning. An unknown reviewed_sha object refuses
+# fail-closed.
+verdict_currency_gate() {
+  local issue_num issue_pad main_root trace_file feature_list
+  issue_num="$(resolve_issue_number || true)"
+  if [ -z "$issue_num" ]; then
+    yellow "⚠ verdict currency gate skipped: cannot resolve the issue number (set TRACE_ISSUE, or run from a feature/issue-NN-* branch)"
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    yellow "⚠ verdict currency gate skipped: jq unavailable"
+    return 0
+  fi
+  main_root="$(_main_root_from_common_dir 2>/dev/null)" || {
+    yellow "⚠ verdict currency gate skipped: cannot resolve the main checkout root"
+    return 0
+  }
+  issue_pad="$(printf '%02d' "$((10#$issue_num))")"
+  trace_file="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
+  # Live-run layout (#103): the trace is main-root-pinned but feature_list.json
+  # is scaffolded in the WORKTREE — resolve it worktree-first with the main
+  # root as fallback, the same split the trace checker works around. A gate
+  # that only looked at the main root silently skipped in every linked-
+  # worktree run (the exact Unilever issue-21 layout this gate exists for).
+  local wt_root=""
+  wt_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  feature_list=""
+  local candidate
+  for candidate in \
+      "${wt_root:+${wt_root}/.copilot-tracking/issues/issue-${issue_pad}/feature_list.json}" \
+      "${main_root}/.copilot-tracking/issues/issue-${issue_pad}/feature_list.json"; do
+    [ -n "$candidate" ] || continue
+    if [ -f "$candidate" ]; then
+      feature_list="$candidate"
+      break
+    fi
+  done
+  if [ ! -f "$trace_file" ] || [ -z "$feature_list" ]; then
+    yellow "⚠ verdict currency gate skipped: trace or feature list missing for issue ${issue_num}"
+    return 0
+  fi
+
+  local passing_ids
+  if ! passing_ids="$(jq -r \
+      '.features[]? | select(.passes == true) | .id | strings' \
+      "$feature_list" 2>/dev/null)"; then
+    yellow "⚠ verdict currency gate skipped: feature_list.json is not valid JSON"
+    return 0
+  fi
+  [ -n "$passing_ids" ] || return 0
+
+  # Newest PASSING verdict per feature, line-tolerantly parsed: jq -R +
+  # fromjson? skips malformed lines instead of failing the whole file — a
+  # single garbage line must not silently disable the gate (malformed review
+  # spans have occurred in real runs, #443). Only outcome=="pass" verdicts
+  # count as currency evidence: a rejection recorded at HEAD is not approval
+  # cover. The LAST matching line per feature wins (append-only trace).
+  local verdict_rows
+  verdict_rows="$(jq -Rr '
+      fromjson?
+      | select((.["harness.lifecycle_step"] // "") == "review_verdict")
+      | select((.["harness.outcome"] // "") == "pass")
+      | "\(.["harness.feature_id"] // "")\t\(.["harness.reviewed_sha"] // "")"' \
+      "$trace_file" 2>/dev/null | awk -F'\t' '$1 != ""')" || verdict_rows=""
+
+  local fid row sha stale=0
+  while IFS= read -r fid; do
+    [ -n "$fid" ] || continue
+    case "$fid" in
+      *[[:space:]]*)
+        # A whitespace-carrying feature id would corrupt the tab-joined
+        # lookup below — refuse rather than misclassify.
+        red "✗ verdict currency: feature id '${fid}' contains whitespace — cannot bind a verdict; fix the feature list."
+        stale=1
+        continue
+        ;;
+    esac
+    row="$(printf '%s\n' "$verdict_rows" | awk -F'\t' -v f="$fid" '$1==f' | tail -1)"
+    if [ -z "$row" ]; then
+      # No passing verdict span parsed for this feature: either it was never
+      # reviewed to a pass, or every span for it is malformed. Both refuse —
+      # carrying here would re-open the gate via a broken trace line.
+      red "✗ verdict currency: no passing review verdict found for feature ${fid} — record a review verdict at the current HEAD."
+      stale=1
+      continue
+    fi
+    sha="${row#*$'\t'}"
+    if [ -z "$sha" ]; then
+      # A parsed passing verdict WITHOUT reviewed_sha is a legacy trace
+      # predating the #447 binding — carry with a warning. The current span
+      # writer (log-handback.sh) always stamps reviewed_sha, so this
+      # tolerance only covers older traces.
+      yellow "⚠ verdict currency: newest passing verdict for feature ${fid} carries no reviewed_sha (legacy trace) — carrying"
+      continue
+    fi
+    if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+      # Refs like 'HEAD' would self-compare equal and stay current forever;
+      # only a full commit SHA is verdict identity.
+      red "✗ verdict currency: newest verdict for feature ${fid} names '${sha}', not a full commit SHA — record a repair-mode verdict at the current HEAD."
+      stale=1
+      continue
+    fi
+    if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+      red "✗ verdict currency: newest verdict for feature ${fid} names unknown commit ${sha} — record a repair-mode verdict at the current HEAD."
+      stale=1
+      continue
+    fi
+    if ! _verdict_content_current "$sha"; then
+      red "✗ verdict currency: product content changed since feature ${fid} was reviewed at ${sha} — record a repair-mode verdict at the current HEAD (bookkeeping-only commits and content-preserving rebases carry automatically)."
+      stale=1
+    fi
+  done <<< "$passing_ids"
+
+  return "$stale"
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 marker_issue="${REVIEW_GATE_ISSUE:-}"
 if [ -z "$marker_issue" ]; then
@@ -626,6 +810,15 @@ case "$command" in
     # written, so a blocked approve never leaves an approved-head marker behind.
     if ! review_verdict_gate; then
       red "✗ approve refused: a completed feature lacks a per-feature review verdict (see above) — not recording approval."
+      exit 1
+    fi
+    # Verdict currency gate (issue #447): the verdict must also COVER the code
+    # being approved — the newest per-feature verdict's reviewed_sha must match
+    # HEAD's product content. Bookkeeping-only commits and content-preserving
+    # rebases carry; any product change owes a repair-mode verdict at HEAD.
+    # Blocks by default and runs BEFORE the marker is written.
+    if ! verdict_currency_gate; then
+      red "✗ approve refused: a feature's newest review verdict does not cover the current HEAD (see above) — not recording approval."
       exit 1
     fi
     # Evidence re-bind gate (issue #442): approval is only recordable over gate
