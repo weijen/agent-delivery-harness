@@ -71,6 +71,8 @@ case "$1 ${2:-}" in
           printf 'OPEN\t\n'
         fi
         ;;
+      *headRefOid*) printf '%s\n' "${GH_TESTED_SHA:-shaA}" ;;
+      *"-q .state"*) printf '%s\n' "${GH_FROZEN_PR_STATE:-OPEN}" ;;
       *) echo 77 ;;
     esac
     exit 0
@@ -103,6 +105,9 @@ export PATH="${TMP_DIR}/bin:${PATH}"
 pr_create_span() { # <n>
   printf '{"schema_version":1,"timestamp":"2026-08-08T1%s:00:00Z","span":"lifecycle","harness.issue":77,"harness.version":"0.0.0-test","span_id":"a45000000000000%s","harness.commit":"c%s","harness.lifecycle_step":"pr_create","harness.outcome":"pass","harness.exit_status":0,"harness.duration_ms":10,"harness.pr_number":"77"}\n' "$1" "$1" "$1"
 }
+pr_merge_span() {
+  printf '{"schema_version":1,"timestamp":"2026-08-08T19:00:00Z","span":"lifecycle","harness.issue":77,"harness.version":"0.0.0-test","span_id":"a4500000000000aa","harness.commit":"cm","harness.lifecycle_step":"pr_merge","harness.outcome":"pass","harness.exit_status":0,"harness.duration_ms":10,"harness.pr_number":"77","harness.merge_state":"MERGED"}\n'
+}
 
 run_create() { # [env...]
   local rc=0
@@ -110,9 +115,10 @@ run_create() { # [env...]
     >"${TMP_DIR}/out" 2>&1 || rc=$?
   printf '%s' "$rc"
 }
-run_merge() { # <GH_MODE>
+run_merge() { # <GH_MODE> [env...]
+  local mode="$1"; shift
   local rc=0
-  (cd "$FIX" && env GH_MODE="$1" ./scripts/merge-pr.sh --squash) \
+  (cd "$FIX" && env GH_MODE="$mode" "$@" ./scripts/merge-pr.sh --squash) \
     >"${TMP_DIR}/out" 2>&1 || rc=$?
   printf '%s' "$rc"
 }
@@ -143,37 +149,65 @@ grep -q 'post-PR round budget exceeded' "${TMP_DIR}/out" \
   && fail "L3: release must lift the cap"
 grep -q 'released by RELEASE_POST_PR_ROUNDS=1' "${TMP_DIR}/out" \
   || fail "L3: the release must be logged loudly"
-emit "G1: human release lifts the cap, logged"
+grep -q '"gen_ai.tool.name":"create-pr.round-cap-release"' "${TRACK}/trace.jsonl" \
+  || fail "L3: the release must be recorded as a trace span"
+grep -q '"harness.round_count":"3"' "${TRACK}/trace.jsonl" \
+  || fail "L3: the release span must carry the round count"
+emit "G1: human release lifts the cap, logged and traced"
 
-# --- L4 G2: first red => plain refusal, history recorded ----------------------
+# --- L3b G1: a merged PR resets the budget (per-PR semantics) -----------------
+{ pr_create_span 1; pr_create_span 2; pr_create_span 3; pr_merge_span; } > "${TRACK}/trace.jsonl"
+run_create >/dev/null
+grep -q 'post-PR round budget exceeded' "${TMP_DIR}/out" \
+  && fail "L3b: rounds before the last successful pr_merge must not count"
+grep -Eqi 'approval|approve|review' "${TMP_DIR}/out" \
+  || fail "L3b: run must reach the review gate — got: $(tail -3 "${TMP_DIR}/out")"
+emit "G1: merge resets the budget"
+
+# --- L4 G2: first red => plain refusal, REMOTE head recorded ------------------
 : > "${TRACK}/trace.jsonl"
 rm -f "${TRACK}/ci-red-history.tsv"
-rc="$(run_merge checks_fail)"
+rc="$(run_merge checks_fail GH_TESTED_SHA=shaA)"
 [ "$rc" = "1" ] || fail "L4: first red must refuse plainly (exit 1), got ${rc}"
 grep -q 'structural CI failure' "${TMP_DIR}/out" \
   && fail "L4: one distinct sha must not escalate"
 [ -f "${TRACK}/ci-red-history.tsv" ] || fail "L4: red history must be recorded"
 [ "$(wc -l < "${TRACK}/ci-red-history.tsv" | tr -d ' ')" = "1" ] \
   || fail "L4: exactly the failing check is recorded (not the passing one)"
-emit "G2: first red refuses plainly and records history"
+grep -q '^shaA' "${TRACK}/ci-red-history.tsv" \
+  || fail "L4: the REMOTE tested head (headRefOid) must be recorded, not the local HEAD"
+emit "G2: first red refuses plainly and records the tested head"
 
-# --- L5 G2: same head red again => still plain -------------------------------
-rc="$(run_merge checks_fail)"
-[ "$rc" = "1" ] || fail "L5: same-sha repeat must stay plain (exit 1), got ${rc}"
-grep -q 'structural CI failure' "${TMP_DIR}/out" \
-  && fail "L5: same sha twice is ONE distinct sha — no escalation"
-emit "G2: same-head repeat does not escalate"
-
-# --- L6 G2: red at a second head => structural handback -----------------------
+# --- L5 G2: same TESTED head again (even with a local fix commit) => plain ----
+# The local commit models the ordering slip that fabricated structural
+# evidence pre-repair: merge-pr run before create-pr pushed the fix.
 printf 'v2\n' > "${FIX}/README.md"
-git -C "$FIX" add README.md; git -C "$FIX" commit -q -m "round 2"
-rc="$(run_merge checks_fail)"
+git -C "$FIX" add README.md; git -C "$FIX" commit -q -m "local fix not yet pushed"
+rc="$(run_merge checks_fail GH_TESTED_SHA=shaA)"
+[ "$rc" = "1" ] || fail "L5: same tested sha must stay plain (exit 1), got ${rc}: $(tail -4 "${TMP_DIR}/out")"
+grep -q 'structural CI failure' "${TMP_DIR}/out" \
+  && fail "L5: a local-only commit must not fabricate a second distinct sha"
+emit "G2: same tested head does not escalate despite local commits"
+
+# --- L6 G2: red at a second TESTED head => structural handback ----------------
+rc="$(run_merge checks_fail GH_TESTED_SHA=shaB)"
 [ "$rc" = "3" ] || fail "L6: structural suspicion must exit 3, got ${rc}: $(tail -4 "${TMP_DIR}/out")"
 grep -q 'structural CI failure suspected' "${TMP_DIR}/out" \
   || fail "L6: handback must name the structural suspicion"
 grep -q 'Harness smoke' "${TMP_DIR}/out" \
   || fail "L6: handback must name the repeating check"
-emit "G2: second head escalates to structural handback (issue-20 replay)"
+grep -q 'Two hypotheses' "${TMP_DIR}/out" \
+  || fail "L6: handback must present both hypotheses, not assert not-in-branch"
+emit "G2: second tested head escalates to structural handback (issue-20 replay)"
+
+# --- L6b G2: release retires the ruled-on rows --------------------------------
+rc="$(run_merge checks_fail GH_TESTED_SHA=shaC RELEASE_STRUCTURAL_CI=1)"
+[ "$rc" = "1" ] || fail "L6b: released red must refuse plainly (exit 1), got ${rc}"
+grep -q 'retiring the ruled-on history' "${TMP_DIR}/out" \
+  || fail "L6b: the release must be logged with the retirement"
+[ ! -f "${TRACK}/ci-red-history.tsv" ] \
+  || fail "L6b: the release must clear the ruled-on rows"
+emit "G2: human release retires the ruled-on history"
 
 # --- L7 G3: green checks + merge failure => freeze ----------------------------
 rm -f "${TRACK}/ci-red-history.tsv"
@@ -196,6 +230,18 @@ grep -q 'green-freeze active' "${TMP_DIR}/out" \
   && fail "L8: release must lift the freeze"
 [ ! -f "${TRACK}/green-freeze" ] || fail "L8: release must clear the marker"
 emit "G3: freeze blocks rounds; human release lifts and clears"
+
+# --- L8b G3: a stale marker (PR no longer OPEN) auto-clears -------------------
+printf 'sha=stale\npr=77\nreason=old\n' > "${TRACK}/green-freeze"
+printf 'stale\tHarness smoke\n' > "${TRACK}/ci-red-history.tsv"
+run_create GH_FROZEN_PR_STATE=MERGED >/dev/null
+grep -q 'green-freeze active' "${TMP_DIR}/out" \
+  && fail "L8b: a marker for a merged PR must not freeze the next round"
+grep -q 'stale, clearing' "${TMP_DIR}/out" \
+  || fail "L8b: the stale auto-clear must be logged"
+[ ! -f "${TRACK}/green-freeze" ] || fail "L8b: stale marker must be cleared"
+[ ! -f "${TRACK}/ci-red-history.tsv" ] || fail "L8b: stale history must be cleared with it"
+emit "G3: stale marker for a closed PR auto-clears (manual-merge path)"
 
 # --- L9 merge success clears all guardrail state ------------------------------
 printf 'seed\tHarness smoke\n' > "${TRACK}/ci-red-history.tsv"

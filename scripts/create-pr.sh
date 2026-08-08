@@ -203,9 +203,25 @@ fi
 TRACE_STAGE="round_budget"
 guardrail_dir="$(guardrail_state_dir 2>/dev/null || true)"
 if [ -n "$guardrail_dir" ] && [ -f "${guardrail_dir}/green-freeze" ]; then
-  if [ "${RELEASE_GREEN_FREEZE:-0}" = "1" ]; then
+  # A marker whose PR is no longer OPEN is stale — the human merged or closed
+  # it out-of-band (the handback explicitly offers manual merge) — auto-clear
+  # instead of freezing the NEXT PR of the issue on dead evidence
+  # (reviewer F3). Unresolvable state (no gh, no pr= line) keeps the freeze:
+  # fail-closed.
+  frozen_pr="$(sed -n 's/^pr=//p' "${guardrail_dir}/green-freeze" 2>/dev/null | head -1)"
+  frozen_pr_state=""
+  if [ -n "$frozen_pr" ] && command -v gh >/dev/null 2>&1; then
+    frozen_pr_state="$(gh pr view "$frozen_pr" --json state -q .state 2>/dev/null || true)"
+  fi
+  if [ -n "$frozen_pr_state" ] && [ "$frozen_pr_state" != "OPEN" ]; then
+    yellow "⚠ green-freeze marker referenced PR #${frozen_pr} which is now ${frozen_pr_state} — stale, clearing."
+    rm -f "${guardrail_dir}/green-freeze" "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null || true
+  elif [ "${RELEASE_GREEN_FREEZE:-0}" = "1" ]; then
     yellow "⚠ green-freeze released by RELEASE_GREEN_FREEZE=1 (human ruling, logged) — clearing the marker."
     rm -f "${guardrail_dir}/green-freeze"
+    trace_span tool \
+      "gen_ai.tool.name=create-pr.green-freeze-release" \
+      "harness.outcome=pass"
   else
     red "✗ green-freeze active (#450 G3): the last merge attempt failed while CI was green."
     sed 's/^/  /' "${guardrail_dir}/green-freeze" 2>/dev/null || true
@@ -218,16 +234,25 @@ fi
 round_cap="${POST_PR_ROUND_CAP:-3}"
 if [ -n "$guardrail_dir" ] && [ -f "${guardrail_dir}/trace.jsonl" ] \
     && command -v jq >/dev/null 2>&1; then
+  # Rounds are PER PR, not per issue: only pr_create pass spans AFTER the
+  # most recent successful pr_merge count — a merge is the natural budget
+  # reset, so a follow-up PR in the same issue starts fresh (reviewer F1).
   prior_rounds="$(jq -Rn \
-    '[inputs | fromjson?
-      | select((.["harness.lifecycle_step"] // "") == "pr_create")
-      | select((.["harness.outcome"] // "") == "pass")] | length' \
+    '[inputs | fromjson?] as $spans
+     | ([$spans | to_entries[]
+         | select((.value["harness.lifecycle_step"] // "") == "pr_merge")
+         | select((.value["harness.outcome"] // "") == "pass")
+         | .key] | max // -1) as $last_merge
+     | [$spans | to_entries[]
+        | select(.key > $last_merge)
+        | .value
+        | select((.["harness.lifecycle_step"] // "") == "pr_create")
+        | select((.["harness.outcome"] // "") == "pass")] | length' \
     "${guardrail_dir}/trace.jsonl" 2>/dev/null || printf '0')"
   if [ "${prior_rounds:-0}" -ge "$round_cap" ]; then
     if [ "${RELEASE_POST_PR_ROUNDS:-0}" = "1" ]; then
       yellow "⚠ post-PR round budget: ${prior_rounds} prior rounds >= cap ${round_cap} — released by RELEASE_POST_PR_ROUNDS=1 (human ruling, logged)."
-      _t0="$(trace_now_ms)"
-      TRACE_T0="$_t0" trace_span tool \
+      trace_span tool \
         "gen_ai.tool.name=create-pr.round-cap-release" \
         "harness.outcome=pass" \
         "harness.round_count=${prior_rounds}" \
@@ -237,9 +262,16 @@ if [ -n "$guardrail_dir" ] && [ -f "${guardrail_dir}/trace.jsonl" ] \
       echo "  Post-PR progress cannot be proven; the budget is the termination guarantee."
       echo "  Prior rounds (from the trace):"
       jq -Rrn \
-        '[inputs | fromjson?
-          | select((.["harness.lifecycle_step"] // "") == "pr_create")
-          | select((.["harness.outcome"] // "") == "pass")]
+        '[inputs | fromjson?] as $spans
+         | ([$spans | to_entries[]
+             | select((.value["harness.lifecycle_step"] // "") == "pr_merge")
+             | select((.value["harness.outcome"] // "") == "pass")
+             | .key] | max // -1) as $last_merge
+         | [$spans | to_entries[]
+            | select(.key > $last_merge)
+            | .value
+            | select((.["harness.lifecycle_step"] // "") == "pr_create")
+            | select((.["harness.outcome"] // "") == "pass")]
          | .[] | "    - \(.timestamp // "?")  commit \(.["harness.commit"] // "?")  PR #\(.["harness.pr_number"] // "?")"' \
         "${guardrail_dir}/trace.jsonl" 2>/dev/null || true
       echo "  Hand back to a human. If the human rules the direction sound, release with:"

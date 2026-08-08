@@ -32,7 +32,9 @@
 # HEAD in the current worktree first so no `main` checkout is ever attempted. A
 # cleanup failure warns with a follow-up command; it never fails the merge.
 #
-# Exit codes: 0 merged · 1 no PR / checks are not green / merge failure / merge
+# Exit codes: 0 merged · 3 structural-CI handback (#450 G2: the same check is
+# red at >= 2 distinct tested commits — human ruling owed) · 1 no PR / checks
+# are not green / merge failure / merge
 #             not confirmed MERGED by GitHub after `gh pr merge` returned 0. A
 #             post-merge cleanup failure warns but keeps exit 0 (the merge won).
 set -euo pipefail
@@ -155,23 +157,38 @@ if [ "$checks_rc" -ne 0 ]; then
   guardrail_dir="$(guardrail_state_dir 2>/dev/null || true)"
   if [ -n "$guardrail_dir" ]; then
     mkdir -p "$guardrail_dir"
-    head_sha_now="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+    # Record the head GitHub actually TESTED (the remote PR head), never the
+    # local HEAD: an unpushed local fix commit would otherwise fabricate a
+    # second "distinct sha" from a CI run that never judged it (reviewer F2).
+    tested_sha="$(gh pr view "$pr_number" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+    [ -n "$tested_sha" ] || tested_sha="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
     printf '%s\n' "$checks_out" \
-      | awk -F'\t' -v sha="$head_sha_now" 'tolower($2) == "fail" {print sha "\t" $1}' \
+      | awk -F'\t' -v sha="$tested_sha" 'tolower($2) == "fail" {print sha "\t" $1}' \
       >> "${guardrail_dir}/ci-red-history.tsv" || true
     structural_checks="$(sort -u "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null \
       | awk -F'\t' '{c[$2]++} END {for (k in c) if (c[k] >= 2) print k}')"
     if [ -n "$structural_checks" ]; then
       if [ "${RELEASE_STRUCTURAL_CI:-0}" = "1" ]; then
-        yellow "⚠ structural-CI suspicion released by RELEASE_STRUCTURAL_CI=1 (human ruling, logged)."
+        yellow "⚠ structural-CI suspicion released by RELEASE_STRUCTURAL_CI=1 (human ruling, logged) — retiring the ruled-on history."
+        # Retire the ruled-on rows: without this every later red would
+        # re-escalate on the old evidence and normalize passing the release
+        # flag on every run (reviewer F6).
+        rm -f "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null || true
+        _t0="$(trace_now_ms)"
+        trace_span tool \
+          "gen_ai.tool.name=merge-pr.structural-ci-release" \
+          "harness.outcome=pass"
       else
-        red "✗ structural CI failure suspected (#450 G2): the same check is red at >= 2 distinct commits:"
+        red "✗ structural CI failure suspected (#450 G2): the same check is red at >= 2 distinct tested commits:"
         while IFS= read -r sc; do
           [ -n "$sc" ] && echo "    - ${sc}"
         done <<< "$structural_checks"
-        echo "  Two different code states failed the same check — the defect is likely NOT in this branch."
-        echo "  Suspect the base branch's workflows, the runner environment, or a self-test blind spot."
-        echo "  Hand back to a human; after the ruling, re-run with RELEASE_STRUCTURAL_CI=1."
+        echo "  Two hypotheses — a human should judge which:"
+        echo "    (a) the repair attempts are not converging (in-branch defect, common case);"
+        echo "    (b) the defect is outside this branch: base workflows, runner environment,"
+        echo "        or a pull_request_target-style self-test blind spot."
+        echo "  Either way, more automated rounds are the wrong spend. Hand back to a human;"
+        echo "  after the ruling, re-run with RELEASE_STRUCTURAL_CI=1."
         exit 3
       fi
     fi
