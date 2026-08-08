@@ -73,18 +73,18 @@ JSON
 write_verdict() {
   local sha="${1:-}" mode="${2:-full}"
   if [ -n "$sha" ]; then
-    printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"span_id":"a000000000000001","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass","harness.review_mode":"%s","harness.repair_scope":"F1","harness.reviewed_sha":"%s"}\n' \
+    printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"harness.version":"0.0.0-test","span_id":"a000000000000001","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass","harness.review_mode":"%s","harness.repair_scope":"F1","harness.reviewed_sha":"%s"}\n' \
       "$mode" "$sha" > "${TRACK_DIR}/trace.jsonl"
   else
-    printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"span_id":"a000000000000002","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass"}\n' \
+    printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"harness.version":"0.0.0-test","span_id":"a000000000000002","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass"}\n' \
       > "${TRACK_DIR}/trace.jsonl"
   fi
 }
 
 append_verdict() {
-  local sha="$1" mode="${2:-repair}"
-  printf '{"schema_version":1,"timestamp":"2026-08-08T00:10:00Z","span":"agent","harness.issue":1,"span_id":"a000000000000003","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass","harness.review_mode":"%s","harness.repair_scope":"F1","harness.reviewed_sha":"%s"}\n' \
-    "$mode" "$sha" >> "${TRACK_DIR}/trace.jsonl"
+  local sha="$1" mode="${2:-repair}" outcome="${3:-pass}"
+  printf '{"schema_version":1,"timestamp":"2026-08-08T00:10:00Z","span":"agent","harness.issue":1,"harness.version":"0.0.0-test","span_id":"a000000000000003","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"%s","harness.review_mode":"%s","harness.repair_scope":"F1","harness.reviewed_sha":"%s"}\n' \
+    "$outcome" "$mode" "$sha" >> "${TRACK_DIR}/trace.jsonl"
 }
 
 approve() {
@@ -177,5 +177,92 @@ fi
 grep -q 'unknown commit' "${TMP_DIR}/approve.out" \
   || fail "S7: refusal must name the unknown commit"
 emit "unknown reviewed_sha refused"
+
+# --- S8 malformed trace line: tolerated for parsing, never disables the gate --
+write_verdict "$(git rev-parse HEAD)"
+printf 'NOT-JSON {broken\n' >> "${TRACK_DIR}/trace.jsonl"
+if ! approve; then
+  fail "S8: a malformed line beside a valid verdict at HEAD must still approve"
+  sed 's/^/# /' "${TMP_DIR}/approve.out" >&2
+fi
+printf 'v3\n' > product.txt
+git add product.txt
+git commit -q -m "feat: product v3 (unreviewed)"
+if approve; then
+  fail "S8: stale verdict must refuse even with a malformed line in the trace"
+fi
+grep -q 'verdict currency' "${TMP_DIR}/approve.out" \
+  || fail "S8: refusal must come from the verdict currency gate, not a skip"
+emit "malformed trace line never disables the gate"
+
+# --- S9 approve from a subdirectory still sees root-level staleness -----------
+mkdir -p sub
+if (cd sub && bash ../scripts/review-gate.sh approve >"${TMP_DIR}/approve.out" 2>&1); then
+  fail "S9: approve from a subdirectory must refuse the same stale state"
+fi
+grep -q 'verdict currency' "${TMP_DIR}/approve.out" \
+  || fail "S9: subdirectory refusal must come from the verdict currency gate"
+emit "subdirectory approve refuses stale state"
+
+# --- S10 a failing verdict at HEAD is not currency evidence -------------------
+append_verdict "$(git rev-parse HEAD)" repair fail
+if approve; then
+  fail "S10: a fail-outcome verdict at HEAD must not satisfy the gate"
+fi
+grep -q 'verdict currency' "${TMP_DIR}/approve.out" \
+  || fail "S10: refusal must come from the verdict currency gate"
+emit "fail-outcome verdict at HEAD refused"
+
+# --- S11 a ref name instead of a SHA is refused -------------------------------
+write_verdict "HEAD"
+if approve; then
+  fail "S11: reviewed_sha 'HEAD' must refuse — refs self-compare current"
+fi
+grep -q 'not a full commit SHA' "${TMP_DIR}/approve.out" \
+  || fail "S11: refusal must name the non-SHA identity"
+emit "ref-name reviewed_sha refused"
+
+# --- S12 linked-worktree layout: feature_list in the worktree, trace at the ---
+# main root (the live-run layout that produced Unilever issue-21). A gate that
+# resolves both from the main root skips silently here — the F1 regression.
+fixture_repo --worktree 1 --with-scripts review-gate.sh
+WT="$FIXTURE_WORKTREE"
+MAIN="$FIXTURE_MAIN"
+WT_TRACK="${WT}/.copilot-tracking/issues/issue-01"
+MAIN_TRACK="${MAIN}/.copilot-tracking/issues/issue-01"
+mkdir -p "$WT_TRACK" "$MAIN_TRACK"
+
+cd "$WT"
+printf 'wt-v1\n' > product.txt
+git add product.txt
+git commit -q -m "feat: worktree product v1"
+
+cat > "${WT_TRACK}/feature_list.json" <<'JSON'
+{
+  "issue": 1,
+  "features": [
+    { "id": "F1", "title": "fixture feature", "passes": true }
+  ]
+}
+JSON
+printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"harness.version":"0.0.0-test","span_id":"a000000000000004","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass","harness.review_mode":"full","harness.reviewed_sha":"%s"}\n' \
+  "$(git rev-parse HEAD)" > "${MAIN_TRACK}/trace.jsonl"
+
+if ! bash scripts/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
+  fail "S12: worktree approve with verdict at HEAD should pass"
+  sed 's/^/# /' "${FIXTURE_TMP_DIR}/approve.out" >&2
+fi
+grep -q 'verdict currency gate skipped' "${FIXTURE_TMP_DIR}/approve.out" \
+  && fail "S12: the gate must FIND the split-layout artifacts, not skip"
+
+printf 'wt-v2\n' > product.txt
+git add product.txt
+git commit -q -m "feat: worktree product v2 (unreviewed)"
+if bash scripts/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
+  fail "S12: stale verdict in the split layout must refuse, not skip-approve"
+fi
+grep -q 'verdict currency' "${FIXTURE_TMP_DIR}/approve.out" \
+  || fail "S12: refusal must come from the verdict currency gate"
+emit "linked-worktree split layout enforced (issue-21 regression)"
 
 tap_done
