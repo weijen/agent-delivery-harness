@@ -105,14 +105,17 @@
 #                     one review_verdict/fail span must carry ONE finding
 #                     (issue #448). A fail span whose harness.summary declares
 #                     multiple findings — a count >= 2 immediately before
-#                     "critical"/"warning"/"finding" — is the aggregate shape
-#                     (one fingerprint standing for many defects) that starves
-#                     the repair of per-finding reproduction/fix context. Era
-#                     carve-out (#330 pattern): spans whose own timestamp is
-#                     provably before the #448 introduction instant
-#                     (2026-08-08T12:00:00Z) downgrade to
-#                     WARNING consistency: legacy_aggregate_finding_span.
-#                         VIOLATION consistency: aggregate_finding_span line <N>
+#                     "critical"/"warning"/"finding" (case-insensitive, count
+#                     not glued to an identifier like CVE-2024/v2/F13) — is
+#                     the aggregate shape (one fingerprint standing for many
+#                     defects) that starves the repair of per-finding context.
+#                     WARN-ONLY: the HARD stop is log-handback.sh's write-time
+#                     rejection (#443 posture); this rule audits historical
+#                     traces and writer bypasses. Era carve-out (#330
+#                     pattern): spans provably before the #448 introduction
+#                     instant (2026-08-08T12:00:00Z) name the legacy variant.
+#                         WARNING consistency: aggregate_finding_span line <N>
+#                         WARNING consistency: legacy_aggregate_finding_span line <N>
 #
 # Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
 # a PR reference, the relevant spans) skip their rules with a NOTE — never
@@ -1220,13 +1223,19 @@ if [ "$aggfinding_lines" != $'\n' ]; then
   while IFS= read -r agg_line; do
     [ -n "$agg_line" ] || continue
     IFS=$'\t' read -r agg_n agg_legacy agg_summary <<< "$agg_line"
-    if [[ "$agg_summary" =~ (^|[^0-9])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
+    agg_summary_lc="$(printf '%s' "$agg_summary" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$agg_summary_lc" =~ (^|[^-0-9a-z])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
+      # WARN-ONLY by design: the HARD stop lives at write time in
+      # log-handback.sh (#443 posture — impossible to write, not punishable
+      # post-hoc), so this rule only audits historical traces and writer
+      # bypasses. A blocking post-hoc rule here would be unclearable (the
+      # span already exists) — the #441-#443 dead-end.
       if [ "$agg_legacy" = "1" ]; then
         printf 'WARNING consistency: legacy_aggregate_finding_span line %s\n' "$agg_n"
       else
-        printf 'VIOLATION consistency: aggregate_finding_span line %s\n' "$agg_n"
-        violations=$((violations + 1))
+        printf 'WARNING consistency: aggregate_finding_span line %s\n' "$agg_n"
       fi
+      warnings=$((warnings + 1))
     fi
   done < <(printf '%s' "$aggfinding_lines" | grep -v '^$')
 fi

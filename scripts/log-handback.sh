@@ -140,6 +140,18 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
     && [ -z "${TRACE_FINDING_REPRODUCTION:-}" ] && [ -z "${TRACE_FINDING_PROPOSED_FIX:-}" ]; then
     fail "TRACE_ACTIONABLE=true requires TRACE_FINDING_REPRODUCTION or TRACE_FINDING_PROPOSED_FIX (#318 actionable-without-evidence)"
   fi
+  # One span per finding (issue #448, same #443 write-time posture): a summary
+  # DECLARING multiple findings — a count >= 2 immediately before
+  # critical/warning/finding, case-insensitively, with the count not glued to
+  # an identifier (CVE-2024, v2, F13 stay legal) — is the aggregate shape
+  # that starves the repair of per-finding context and breaks
+  # per-fingerprint reject-cap accounting. Rejecting HERE keeps the defect
+  # impossible to write; the checker's aggregate_finding_span WARNING only
+  # audits historical traces. The cost of a false positive is one rephrase.
+  summary_lc="$(printf '%s' "$SUMMARY" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$summary_lc" =~ (^|[^-0-9a-z])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
+    fail "aggregate finding summary (#448) — one review_verdict/fail span per finding: split the round into one log-handback.sh call per finding (each with its own fingerprint/reproduction/fix), or reword the summary to state its single finding without a multi-finding count"
+  fi
 fi
 
 HAVE_TRACE_LIB=0

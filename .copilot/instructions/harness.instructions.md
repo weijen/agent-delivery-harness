@@ -186,9 +186,10 @@ baseline state — or any invalid closed-enum value — is rejected with a corre
 fix the invocation and re-run. **One `review_verdict`/fail span per finding (#448)**: a
 review round with N findings records N `log-handback.sh` calls, each with its own
 fingerprint, reproduction, and proposed fix — never one span summarizing "3 critical and 4
-warning findings" under a single fingerprint (the checker flags that aggregate shape as
-`aggregate_finding_span`; it starves the repair of per-finding context and breaks
-per-fingerprint reject-cap accounting). Telemetry-format defects in already-written spans are the CI
+warning findings" under a single fingerprint. The writer rejects that aggregate shape at
+write time (same #443 posture — reword or split, then re-run); the checker's
+`aggregate_finding_span` warning only audits historical traces. The aggregate shape starves
+the repair of per-finding context and breaks per-fingerprint reject-cap accounting. Telemetry-format defects in already-written spans are the CI
 trace gate's business, never review findings and never a rewrite-your-spans repair loop. The
 Action Log in `progress.md` is rendered from spans (#332) — never hand-written.
 
