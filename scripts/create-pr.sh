@@ -191,6 +191,64 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# --- 0b. Post-PR termination guardrails (issue #450) --------------------------
+# G3 green-freeze: the last merge attempt failed WITH green CI (branch
+# protection, required approval, conflict). Every commit after green has only
+# downside — refuse further rounds until a human acts.
+# G1 round budget: post-PR progress cannot be proven (CI is non-monotonic —
+# Unilever issue-20 went red→green→red), so rounds are BUDGETED. Unilever
+# issue-21 burned 11 PR rounds over ~8 unsupervised hours; the cap converts
+# that into one 30-second human direction check. A release is a human DESIGN
+# RULING (#416 pattern), never a fourth automated repair.
+TRACE_STAGE="round_budget"
+guardrail_dir="$(guardrail_state_dir 2>/dev/null || true)"
+if [ -n "$guardrail_dir" ] && [ -f "${guardrail_dir}/green-freeze" ]; then
+  if [ "${RELEASE_GREEN_FREEZE:-0}" = "1" ]; then
+    yellow "⚠ green-freeze released by RELEASE_GREEN_FREEZE=1 (human ruling, logged) — clearing the marker."
+    rm -f "${guardrail_dir}/green-freeze"
+  else
+    red "✗ green-freeze active (#450 G3): the last merge attempt failed while CI was green."
+    sed 's/^/  /' "${guardrail_dir}/green-freeze" 2>/dev/null || true
+    echo "  The block is not fixable by more commits (protection/approval/conflict)."
+    echo "  Hand back to a human; after the ruling, release with:"
+    echo "    RELEASE_GREEN_FREEZE=1 ./scripts/create-pr.sh ..."
+    exit 1
+  fi
+fi
+round_cap="${POST_PR_ROUND_CAP:-3}"
+if [ -n "$guardrail_dir" ] && [ -f "${guardrail_dir}/trace.jsonl" ] \
+    && command -v jq >/dev/null 2>&1; then
+  prior_rounds="$(jq -Rn \
+    '[inputs | fromjson?
+      | select((.["harness.lifecycle_step"] // "") == "pr_create")
+      | select((.["harness.outcome"] // "") == "pass")] | length' \
+    "${guardrail_dir}/trace.jsonl" 2>/dev/null || printf '0')"
+  if [ "${prior_rounds:-0}" -ge "$round_cap" ]; then
+    if [ "${RELEASE_POST_PR_ROUNDS:-0}" = "1" ]; then
+      yellow "⚠ post-PR round budget: ${prior_rounds} prior rounds >= cap ${round_cap} — released by RELEASE_POST_PR_ROUNDS=1 (human ruling, logged)."
+      _t0="$(trace_now_ms)"
+      TRACE_T0="$_t0" trace_span tool \
+        "gen_ai.tool.name=create-pr.round-cap-release" \
+        "harness.outcome=pass" \
+        "harness.round_count=${prior_rounds}" \
+        "harness.round_cap=${round_cap}"
+    else
+      red "✗ post-PR round budget exceeded (#450 G1): ${prior_rounds} prior pr_create rounds for this issue (cap ${round_cap})."
+      echo "  Post-PR progress cannot be proven; the budget is the termination guarantee."
+      echo "  Prior rounds (from the trace):"
+      jq -Rrn \
+        '[inputs | fromjson?
+          | select((.["harness.lifecycle_step"] // "") == "pr_create")
+          | select((.["harness.outcome"] // "") == "pass")]
+         | .[] | "    - \(.timestamp // "?")  commit \(.["harness.commit"] // "?")  PR #\(.["harness.pr_number"] // "?")"' \
+        "${guardrail_dir}/trace.jsonl" 2>/dev/null || true
+      echo "  Hand back to a human. If the human rules the direction sound, release with:"
+      echo "    RELEASE_POST_PR_ROUNDS=1 ./scripts/create-pr.sh ..."
+      exit 1
+    fi
+  fi
+fi
+
 # --- 1. Review approval gate ------------------------------------------------
 TRACE_STAGE="review_gate"
 TRACE_COLLAPSE_CHILD_SPANS=1 \
