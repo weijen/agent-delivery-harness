@@ -233,6 +233,31 @@ run_checker "${TMP_DIR}/s9/trace.jsonl" >/dev/null
   || fail "S9: a tab-carrying fingerprint must be sanitized, not shift fields into a false negative — got: $(grep 'repair_items_missing' "${TMP_DIR}/out")"
 emit "tab in fingerprint sanitized, audit intact"
 
+# --- S11 invalid-JSON list: NOTE, full run, no warnings (reviewer F3) ---------
+mk_case "${TMP_DIR}/s11"
+cp "${TMP_DIR}/s5/trace.jsonl" "${TMP_DIR}/s11/trace.jsonl"
+printf 'not json\n' > "${TMP_DIR}/s11/feature_list.json"
+
+run_checker "${TMP_DIR}/s11/trace.jsonl" >/dev/null
+grep -q 'NOTE: repair_items_missing check skipped (feature_list.json is not valid JSON)' "${TMP_DIR}/out" \
+  || fail "S11: invalid list must NOTE-skip the audit"
+grep -q 'repair_items_missing fp-' "${TMP_DIR}/out" \
+  && fail "S11: no audit warnings may fire on an unreadable list"
+grep -Eq '[0-9]+ span\(s\), [0-9]+ violation\(s\), [0-9]+ warning\(s\)' "${TMP_DIR}/out" \
+  || fail "S11: the checker must run to completion (summary line) — an invalid list must not abort the pass mid-run"
+emit "invalid-JSON list NOTE-skips without truncating the checker"
+
+# --- S12 missing list: NOTE, full run ----------------------------------------
+mk_case "${TMP_DIR}/s12"
+cp "${TMP_DIR}/s5/trace.jsonl" "${TMP_DIR}/s12/trace.jsonl"
+
+run_checker "${TMP_DIR}/s12/trace.jsonl" >/dev/null
+grep -q 'NOTE: repair_items_missing check skipped (no feature_list.json)' "${TMP_DIR}/out" \
+  || fail "S12: missing list must NOTE-skip the audit"
+grep -Eq '[0-9]+ span\(s\), [0-9]+ violation\(s\), [0-9]+ warning\(s\)' "${TMP_DIR}/out" \
+  || fail "S12: the checker must run to completion with no list"
+emit "missing list NOTE-skips without truncating the checker"
+
 # --- S10 write-time: whitespace fingerprints rejected -------------------------
 set +e
 out="$(cd "$CFL_FIX" && env TRACE_ISSUE=66 TRACE_ACTIONABLE=true \

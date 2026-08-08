@@ -1270,25 +1270,28 @@ if [ -n "$repair_candidates" ] && [ ! -f "$FEATURE_LIST_FILE" ]; then
   printf 'NOTE: repair_items_missing check skipped (no feature_list.json)\n'
 fi
 if [ -n "$repair_candidates" ] && [ -f "$FEATURE_LIST_FILE" ]; then
+  # NOTE-skip on unreadable JSON must leave the rest of the checker running:
+  # clearing state and falling through would feed grep empty input, whose
+  # rc=1 aborts the whole script under set -euo pipefail (reviewer F3).
   if ! repair_item_fps="$(jq -r \
     '.features[]? | select((.type // "feature") == "repair") | .finding_fingerprint // empty | strings' \
     "$FEATURE_LIST_FILE" 2>/dev/null)"; then
     printf 'NOTE: repair_items_missing check skipped (feature_list.json is not valid JSON)\n'
-    repair_candidates=""
+  else
+    qualifying_shas="$(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+      | awk -F'\t' '{count[$1]++} END {for (s in count) if (count[s] >= 2) print s}')"
+    while IFS= read -r q_sha; do
+      [ -n "$q_sha" ] || continue
+      while IFS= read -r q_fp; do
+        [ -n "$q_fp" ] || continue
+        if ! grep -Fxq "$q_fp" <<< "$repair_item_fps"; then
+          printf 'WARNING consistency: repair_items_missing %s\n' "$q_fp"
+          warnings=$((warnings + 1))
+        fi
+      done < <(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+        | awk -F'\t' -v s="$q_sha" '$1==s{print $2}')
+    done <<< "$qualifying_shas"
   fi
-  qualifying_shas="$(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
-    | awk -F'\t' '{count[$1]++} END {for (s in count) if (count[s] >= 2) print s}')"
-  while IFS= read -r q_sha; do
-    [ -n "$q_sha" ] || continue
-    while IFS= read -r q_fp; do
-      [ -n "$q_fp" ] || continue
-      if ! grep -Fxq "$q_fp" <<< "$repair_item_fps"; then
-        printf 'WARNING consistency: repair_items_missing %s\n' "$q_fp"
-        warnings=$((warnings + 1))
-      fi
-    done < <(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
-      | awk -F'\t' -v s="$q_sha" '$1==s{print $2}')
-  done <<< "$qualifying_shas"
 fi
 
 # --- State: review rejection convergence (issues #300, #318, #388) -----------
