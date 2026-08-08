@@ -55,6 +55,16 @@ End every review handback (the `Action Log` field of your output) with the struc
 that payload through `scripts/log-handback.sh`: role `conductor`, step `review_verdict`
 (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
 
+### One Payload Per Finding (issue #448)
+
+A `NEEDS_REVISION` round with N findings hands back **N structured payloads — one per finding** — each with its
+own `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_REPRODUCTION`, and `TRACE_FINDING_PROPOSED_FIX`. Never collapse a
+round into one span whose summary reads "3 critical and 4 warning findings: …": one fingerprint standing for many
+defects starves the repair of per-finding reproduction/fix context and breaks per-fingerprint reject-cap and
+dedup accounting (the Unilever issue-9 round-1 shape — its batch repair then surfaced 4 NEW findings).
+`check-trace-consistency.sh` flags the aggregate shape as `aggregate_finding_span`. A fail span's summary states
+that ONE finding; counts ("2 critical …") belong only in prose outside the span, if anywhere.
+
 ### FAIL Verdict Attribution Requirements (issue #318)
 
 Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following environment variables before calling
