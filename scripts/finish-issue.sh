@@ -171,6 +171,16 @@ best_effort_state_hygiene
 
 green "✓ Pruned stale worktree metadata"
 
+# --- Guardrail state retirement (issue #450) --------------------------------
+# The issue is closing: retire the post-PR guardrail files so a stale freeze
+# marker or red-history row can never block a future PR of a reopened issue
+# on dead evidence (a manual GitHub-UI merge bypasses merge-pr's own clear).
+# The trace and the rest of the tracking dir stay untouched (gitignored
+# local history — see the header note).
+_guardrail_pad="$(printf '%02d' "$((10#$ISSUE_NUM))")"
+rm -f "${ROOT}/.copilot-tracking/issues/issue-${_guardrail_pad}/green-freeze" 2>/dev/null || true
+rm -f "${ROOT}/.copilot-tracking/issues/issue-${_guardrail_pad}/ci-red-history.tsv" 2>/dev/null || true
+
 # --- Optional branch deletion ----------------------------------------------
 TRACE_STAGE="branch_delete"
 if [ "${DELETE_BRANCH:-0}" = "1" ]; then

@@ -32,7 +32,9 @@
 # HEAD in the current worktree first so no `main` checkout is ever attempted. A
 # cleanup failure warns with a follow-up command; it never fails the merge.
 #
-# Exit codes: 0 merged · 1 no PR / checks are not green / merge failure / merge
+# Exit codes: 0 merged · 3 structural-CI handback (#450 G2: the same check is
+# red at >= 2 distinct tested commits — human ruling owed) · 1 no PR / checks
+# are not green / merge failure / merge
 #             not confirmed MERGED by GitHub after `gh pr merge` returned 0. A
 #             post-merge cleanup failure warns but keeps exit 0 (the merge won).
 set -euo pipefail
@@ -145,6 +147,51 @@ if [ "$checks_rc" -ne 0 ]; then
   printf '%s\n' "$checks_out"
   red "✗ Refusing to merge PR #${pr_number}: required CI checks are not green (still pending or failing)."
   echo "  Wait for the harness CI run to conclude green, then re-run ./scripts/merge-pr.sh."
+  # G2 structural-red (issue #450): record each FAILING check against the
+  # current head, then look for any check red at >= 2 DISTINCT commits — two
+  # different code states failing the same check means the defect is likely
+  # NOT in this branch (base-branch workflow, environment, or a
+  # pull_request_target-style self-test blind spot; the #298 class-closure
+  # principle applied to CI). Unilever issue-20/21 burned hours repairing
+  # exactly this shape. Pending-only refusals record nothing.
+  guardrail_dir="$(guardrail_state_dir 2>/dev/null || true)"
+  if [ -n "$guardrail_dir" ]; then
+    mkdir -p "$guardrail_dir"
+    # Record the head GitHub actually TESTED (the remote PR head), never the
+    # local HEAD: an unpushed local fix commit would otherwise fabricate a
+    # second "distinct sha" from a CI run that never judged it (reviewer F2).
+    tested_sha="$(gh pr view "$pr_number" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+    [ -n "$tested_sha" ] || tested_sha="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+    printf '%s\n' "$checks_out" \
+      | awk -F'\t' -v sha="$tested_sha" 'tolower($2) == "fail" {print sha "\t" $1}' \
+      >> "${guardrail_dir}/ci-red-history.tsv" || true
+    structural_checks="$(sort -u "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null \
+      | awk -F'\t' '{c[$2]++} END {for (k in c) if (c[k] >= 2) print k}')"
+    if [ -n "$structural_checks" ]; then
+      if [ "${RELEASE_STRUCTURAL_CI:-0}" = "1" ]; then
+        yellow "⚠ structural-CI suspicion released by RELEASE_STRUCTURAL_CI=1 (human ruling, logged) — retiring the ruled-on history."
+        # Retire the ruled-on rows: without this every later red would
+        # re-escalate on the old evidence and normalize passing the release
+        # flag on every run (reviewer F6).
+        rm -f "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null || true
+        trace_span tool \
+          "gen_ai.tool.name=merge-pr.structural-ci-release" \
+          "harness.outcome=pass"
+      else
+        red "✗ structural CI failure suspected (#450 G2): the same check is red at >= 2 distinct tested commits:"
+        while IFS= read -r sc; do
+          [ -n "$sc" ] && echo "    - ${sc}"
+        done <<< "$structural_checks"
+        echo "  Two hypotheses — a human should judge which:"
+        echo "    (a) the repair attempts are not converging (in-branch defect, common case);"
+        echo "    (b) the defect is outside this branch: base workflows, runner environment,"
+        echo "        or a pull_request_target-style self-test blind spot."
+        echo "  Either way, more automated rounds are the wrong spend. Hand back to a human;"
+        echo "  after the ruling, re-run with RELEASE_STRUCTURAL_CI=1."
+        exit 3
+      fi
+    fi
+  fi
   exit 1
 fi
 # A zero exit with no reported checks is NOT green — `gh pr checks` exits 0 when a
@@ -157,10 +204,40 @@ if [ -z "${checks_out//[[:space:]]/}" ]; then
 fi
 green "✓ CI checks are green for PR #${pr_number}"
 
+# _green_freeze <reason> — G3 (issue #450): CI is verified green at this
+# point, so ANY merge failure here is non-CI by construction (branch
+# protection, required approval the agent cannot supply, a conflict). Every
+# commit after green has only downside (Unilever issue-20 went green at
+# 16:33, kept committing, and was red again by 17:02) — freeze further
+# create-pr rounds until a human acts.
+_green_freeze() {
+  local reason="$1" sd
+  sd="$(guardrail_state_dir 2>/dev/null || true)"
+  red "✗ green-freeze (#450 G3): CI is green but the merge did not complete — ${reason}."
+  echo "  This block is not fixable by more commits. Hand back to a human"
+  echo "  (approve/merge manually, or resolve the conflict), then either merge"
+  echo "  directly or release the freeze: RELEASE_GREEN_FREEZE=1 ./scripts/create-pr.sh"
+  if [ -n "$sd" ]; then
+    mkdir -p "$sd"
+    {
+      printf 'sha=%s\n' "$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+      printf 'pr=%s\n' "$pr_number"
+      printf 'reason=%s\n' "$reason"
+      printf 'date=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || printf 'unknown')"
+    } > "${sd}/green-freeze"
+    echo "  Freeze marker: ${sd}/green-freeze (cleared automatically on a successful merge)"
+  fi
+}
+
 # --- 3. Merge ---------------------------------------------------------------
 TRACE_STAGE="merge"
 bold "==> Merging PR #${pr_number}"
-gh pr merge "$pr_number" ${MERGE_FLAGS[@]+"${MERGE_FLAGS[@]}"}
+merge_cmd_rc=0
+gh pr merge "$pr_number" ${MERGE_FLAGS[@]+"${MERGE_FLAGS[@]}"} || merge_cmd_rc=$?
+if [ "$merge_cmd_rc" -ne 0 ]; then
+  _green_freeze "gh pr merge exited ${merge_cmd_rc} with green checks"
+  exit 1
+fi
 
 # --- 3b. Authoritative post-merge verification (issue #328) -----------------
 # `gh pr merge` returning 0 is NOT sufficient evidence of a merge: re-query
@@ -182,6 +259,11 @@ if [ "$merge_state" != "MERGED" ] || [ -z "$merge_sha" ]; then
 fi
 TRACE_STAGE="done"
 green "✓ PR #${pr_number} merged."
+# Successful merge retires the #450 guardrail state: the round converged.
+guardrail_dir="$(guardrail_state_dir 2>/dev/null || true)"
+if [ -n "$guardrail_dir" ]; then
+  rm -f "${guardrail_dir}/green-freeze" "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null || true
+fi
 
 # --- 4. Worktree-safe, decoupled branch cleanup (issue #167) ----------------
 # Reached ONLY after a successful merge, so remote-merge success is never masked

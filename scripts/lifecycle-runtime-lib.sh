@@ -31,3 +31,23 @@ lifecycle_runtime_trace_init() {
     trace_lifecycle_arm() { :; }
   fi
 }
+
+# --- Post-PR termination guardrail state (issue #450) -------------------------
+# Shared by create-pr.sh (G1 round budget, G3 freeze check) and merge-pr.sh
+# (G2 structural-red history, G3 freeze write/clear). All state lives in the
+# main-root tracking dir beside the trace. Prints the dir; returns 1 when no
+# issue context resolves — callers degrade to a skip so the guardrails never
+# block a non-issue repository.
+guardrail_state_dir() {
+  local issue_num issue_pad common root
+  declare -F trace__resolve_issue >/dev/null 2>&1 || return 1
+  issue_num="$(trace__resolve_issue 2>/dev/null)" || return 1
+  issue_pad="$(printf '%02d' "$((10#$issue_num))")"
+  common="$(git rev-parse --git-common-dir 2>/dev/null)" || return 1
+  case "$common" in
+    /*) ;;
+    *)  common="$(pwd)/$common" ;;
+  esac
+  root="$(cd "$(dirname "$common")" 2>/dev/null && pwd)" || return 1
+  printf '%s/.copilot-tracking/issues/issue-%s' "$root" "$issue_pad"
+}

@@ -390,6 +390,21 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   for the human); this gate is **not** GitHub auto-merge, which remains disabled as a standing
   practice. A repo admin should additionally enforce this as a branch-protection required check on
   `main`.
+- **Post-PR termination guardrails (#450).** Post-PR progress cannot be proven — CI is
+  non-monotonic (a real run went red→green→red) — so the loop is **budgeted**, never open-ended.
+  Three guardrails enforce it; each release is a **human design ruling** (the #416 pattern), never
+  a fourth automated repair:
+  - **G1 round budget** — `create-pr.sh` refuses at `POST_PR_ROUND_CAP` (default 3) prior
+    `pr_create` rounds, printing the per-round fact table from the trace. Release:
+    `RELEASE_POST_PR_ROUNDS=1`.
+  - **G2 structural-red** — `merge-pr.sh` records failing checks per head; the same check red at
+    ≥ 2 distinct commits means the defect is likely NOT in this branch (base workflow,
+    environment, self-test blind spot — the #298 class-closure principle applied to CI). Exit 3 +
+    handback. Release: `RELEASE_STRUCTURAL_CI=1`.
+  - **G3 green-freeze** — a merge failure with green checks (protection, missing approval,
+    conflict) writes a freeze marker; `create-pr.sh` refuses further rounds — every commit after
+    green has only downside. A successful merge clears all guardrail state. Release:
+    `RELEASE_GREEN_FREEZE=1`.
 - Conventional commits: `type(scope): summary` (≤ 50 chars) + bullet body. Don't reference
   internal workflow phases.
 - **Never disable commit signing** to dodge a passphrase. If signing fails, stop and ask the
