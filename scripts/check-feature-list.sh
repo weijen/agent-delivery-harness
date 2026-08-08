@@ -155,7 +155,8 @@ problems="$(jq -r '
       (if ($f | has("steps")) and (($f.steps | type) == "array") then empty else "feature[\($i)]: missing field or non-array: steps" end),
       (if ($f | has("passes")) and (($f.passes | type) == "boolean") then empty else "feature[\($i)]: missing field or non-boolean: passes" end),
       (if (($f.passes // false) == true) and (((($f.verification // "") | type) != "string") or ((($f.verification // "") | gsub("\\s";"") | length) == 0)) then "feature[\($i)]: passes:true requires non-empty verification text" else empty end),
-      (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end)
+      (if (($f.passes // false) == true) and (($f.blocked_on // "") | nonempty_trimmed_string) then "feature[\($i)]: blocked_on and passes:true are mutually exclusive — a replanned/blocked feature cannot also be passing (reset it to passes:false)" else empty end),
+      (if (($f.type // "feature") == "repair") and ((($f.finding_fingerprint // "") | nonempty_trimmed_string) | not) then "feature[\($i)]: type:repair requires a non-empty finding_fingerprint (#449 — the review finding this item repairs)" else empty end)
     ]
   | .[]
 ' "$feature_list")"
@@ -169,7 +170,10 @@ if [ -n "$problems" ]; then
 fi
 
 # --- Completion state -------------------------------------------------------
-feature_count="$(jq '(.features // []) | length' "$feature_list")"
+# Sizing counts only real features: type:repair items are review findings
+# routed through the list (#449), not scope — a well-reviewed issue must not
+# read as oversized because its findings were properly itemized.
+feature_count="$(jq '[.features[]? | select((.type // "feature") != "repair")] | length' "$feature_list")"
 if [ "$feature_count" -gt 5 ]; then
   yellow "  ! ${feature_count} features exceeds the sizing guideline — consider splitting this issue."
 fi

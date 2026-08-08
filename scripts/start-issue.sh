@@ -176,7 +176,9 @@ if [ ! -d "$TRACKING_DIR" ]; then
     "regression_sensor": null,
     "e2e_sensor": null,
     "blocked_on": null,
-    "verification": null
+    "verification": null,
+    "type": "feature (default) | repair — review findings routed as items (#449)",
+    "finding_fingerprint": "required non-empty on type:repair — the finding's fingerprint"
   },
   "features": []
 }
