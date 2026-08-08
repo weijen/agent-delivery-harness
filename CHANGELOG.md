@@ -2,6 +2,47 @@
 
 <!-- version list -->
 
+## v0.41.0 (2026-08-08)
+
+### Bug Fixes
+
+- **#448**: Move the hard stop to write time; checker demoted to counted warning
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+### Chores
+
+- Refresh uv.lock for the 0.40.1 release bump
+  ([#454](https://github.com/weijen/agent-delivery-harness/pull/454),
+  [`f6feece`](https://github.com/weijen/agent-delivery-harness/commit/f6feeceaa0055dabcc4587c4c5907ced23c66d0f))
+
+### Documentation
+
+- **#448**: One structured payload per finding in the reviewer contract
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+### Features
+
+- **#448**: Aggregate_finding_span — one review_verdict/fail span per finding
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+- **#448**: One review verdict span per finding — write-time stop, warn-only audit
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+### Testing
+
+- **#448**: Issue-9 round-1 fixture for the aggregate-finding rule
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+- **#448**: Pin the exact counted-warning tally (reviewer NEW-1)
+  ([#453](https://github.com/weijen/agent-delivery-harness/pull/453),
+  [`32a1c88`](https://github.com/weijen/agent-delivery-harness/commit/32a1c88c5fb61fce42c0387a48c0c691db779bee))
+
+
 ## v0.40.1 (2026-08-08)
 
 ### Bug Fixes
