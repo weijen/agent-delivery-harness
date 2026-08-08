@@ -171,6 +171,17 @@ a **design ruling**, not a fourth point repair; `review-gate.sh` remains its det
 post-repair re-reviews run the **`repair` review profile** scoped to the revised features only
 and defer the exposure sweep to the pre-PR review (§6).
 
+**Multi-finding rounds route through the feature list (#449).** When one review round yields
+**two or more findings**, author them as feature-list items — `type: "repair"`, ids `R1…Rn`,
+each carrying the finding's `finding_fingerprint` and steps derived from its
+reproduction/proposed-fix — then repair with the SAME discipline features get: **one item at a
+time, scoped sensors green per item before the next**, never a batch blob (batch repairs are
+how issue-9's 7-finding fix introduced 4 new defects). After the last item goes green, run
+**one** batch-end `repair`-mode review; its per-feature verdicts stamp the new HEAD (the
+evidence the #447 currency gate consumes at approve). Repair items count toward completion
+(no finish with an open repair item) but are excluded from the issue-sizing guideline; the
+checker's warn-only `repair_items_missing` audits the routing.
+
 #### Required per-feature handoff sequence
 
 Retired as choreography (#352). `feature_start` is not required for current

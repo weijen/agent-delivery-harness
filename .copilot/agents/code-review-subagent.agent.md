@@ -67,6 +67,11 @@ span exists); `check-trace-consistency.sh`'s `aggregate_finding_span` warning au
 span's summary states its ONE finding; counts ("2 critical …", "1 of 3 …") belong only in prose outside the
 span, if anywhere.
 
+When a round yields **two or more findings**, the per-finding payloads map 1:1 onto `type: "repair"`
+feature-list items (#449) — each item carries the payload's `finding_fingerprint` and derives its steps from the
+reproduction/proposed-fix. The delivering agent repairs them one at a time and returns for ONE batch-end
+`repair`-mode review.
+
 ### FAIL Verdict Attribution Requirements (issue #318)
 
 Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following environment variables before calling

@@ -116,6 +116,16 @@
 #                     instant (2026-08-08T12:00:00Z) name the legacy variant.
 #                         WARNING consistency: aggregate_finding_span line <N>
 #                         WARNING consistency: legacy_aggregate_finding_span line <N>
+#   repair_items_missing
+#                     WARN-ONLY routing audit (issue #449): when one
+#                     reviewed_sha carries >= 2 distinct post-#448 finding
+#                     fingerprints, each fingerprint must appear on a
+#                     type:repair feature-list item (finding_fingerprint);
+#                     doctrine routes multi-finding rounds through the
+#                     feature list for one-at-a-time repair. Authoring the
+#                     items clears the warning. Pre-#448-era spans are
+#                     silent.
+#                         WARNING consistency: repair_items_missing <fingerprint>
 #
 # Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
 # a PR reference, the relevant spans) skip their rules with a NOTE — never
@@ -778,8 +788,10 @@ cat > "$STATE_FILTER" <<'JQ'
          else null
          end) as $agg_ts_secs
         | (if $agg_ts_secs != null and $agg_ts_secs < $pr448_intro_epoch then "1" else "0" end) as $agg_legacy
+        | (($span["harness.finding_fingerprint"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_fp
+        | (($span["harness.reviewed_sha"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_sha
         | (($span["harness.summary"] // "") | gsub("[\r\n]"; " ")) as $agg_summary
-        | "::aggfinding \($n)\t\($agg_legacy)\t\($agg_summary)"
+        | "::aggfinding \($n)\t\($agg_legacy)\t\($agg_fp)\t\($agg_sha)\t\($agg_summary)"
       else empty
       end )
   end
@@ -1219,10 +1231,15 @@ fi
 # ..." under one fingerprint; round 3 then surfaced 4 NEW findings).
 # Era carve-out (#330 pattern): spans provably before the #448 introduction
 # instant downgrade to a WARNING; unparseable timestamps stay enforced.
+repair_candidates=""
 if [ "$aggfinding_lines" != $'\n' ]; then
   while IFS= read -r agg_line; do
     [ -n "$agg_line" ] || continue
-    IFS=$'\t' read -r agg_n agg_legacy agg_summary <<< "$agg_line"
+    IFS=$'\t' read -r agg_n agg_legacy agg_fp agg_sha agg_summary <<< "$agg_line"
+    # Collect post-#448-era finding identities for the #449 routing audit.
+    if [ "$agg_legacy" = "0" ] && [ "$agg_fp" != "__EMPTY__" ] && [ "$agg_sha" != "__EMPTY__" ]; then
+      repair_candidates="${repair_candidates}${agg_sha}"$'\t'"${agg_fp}"$'\n'
+    fi
     agg_summary_lc="$(printf '%s' "$agg_summary" | tr '[:upper:]' '[:lower:]')"
     if [[ "$agg_summary_lc" =~ (^|[^-0-9a-z])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
       # WARN-ONLY by design: the HARD stop lives at write time in
@@ -1238,6 +1255,43 @@ if [ "$aggfinding_lines" != $'\n' ]; then
       warnings=$((warnings + 1))
     fi
   done < <(printf '%s' "$aggfinding_lines" | grep -v '^$')
+fi
+
+# --- State: repair-item routing audit (issue #449) ----------------------------
+# Post-#448 a review round records one fail span per finding. When one
+# reviewed_sha carries >= 2 distinct finding fingerprints, doctrine routes the
+# findings through the feature list as type:repair items (one-at-a-time
+# discipline, batch-end repair review). WARN-ONLY audit — the #448 lesson:
+# a post-hoc block on already-written state is unclearable. Each qualifying
+# fingerprint with no matching repair item warns; authoring the items clears
+# it. Pre-#448-era spans are silent (historical multi-round traces, e.g.
+# Unilever issue-9's two rounds at one sha, predate the doctrine).
+if [ -n "$repair_candidates" ] && [ ! -f "$FEATURE_LIST_FILE" ]; then
+  printf 'NOTE: repair_items_missing check skipped (no feature_list.json)\n'
+fi
+if [ -n "$repair_candidates" ] && [ -f "$FEATURE_LIST_FILE" ]; then
+  # NOTE-skip on unreadable JSON must leave the rest of the checker running:
+  # clearing state and falling through would feed grep empty input, whose
+  # rc=1 aborts the whole script under set -euo pipefail (reviewer F3).
+  if ! repair_item_fps="$(jq -r \
+    '.features[]? | select((.type // "feature") == "repair") | .finding_fingerprint // empty | strings' \
+    "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+    printf 'NOTE: repair_items_missing check skipped (feature_list.json is not valid JSON)\n'
+  else
+    qualifying_shas="$(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+      | awk -F'\t' '{count[$1]++} END {for (s in count) if (count[s] >= 2) print s}')"
+    while IFS= read -r q_sha; do
+      [ -n "$q_sha" ] || continue
+      while IFS= read -r q_fp; do
+        [ -n "$q_fp" ] || continue
+        if ! grep -Fxq "$q_fp" <<< "$repair_item_fps"; then
+          printf 'WARNING consistency: repair_items_missing %s\n' "$q_fp"
+          warnings=$((warnings + 1))
+        fi
+      done < <(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+        | awk -F'\t' -v s="$q_sha" '$1==s{print $2}')
+    done <<< "$qualifying_shas"
+  fi
 fi
 
 # --- State: review rejection convergence (issues #300, #318, #388) -----------
