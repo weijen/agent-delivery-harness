@@ -72,7 +72,11 @@ case "$1 ${2:-}" in
         fi
         ;;
       *headRefOid*) printf '%s\n' "${GH_TESTED_SHA:-shaA}" ;;
-      *"-q .state"*) printf '%s\n' "${GH_FROZEN_PR_STATE:-OPEN}" ;;
+      *"-q .state"*)
+        # GH_FROZEN_PR_STATE=FAIL models a flaky gh (empty output, rc 1).
+        if [ "${GH_FROZEN_PR_STATE:-OPEN}" = "FAIL" ]; then exit 1; fi
+        printf '%s\n' "${GH_FROZEN_PR_STATE:-OPEN}"
+        ;;
       *) echo 77 ;;
     esac
     exit 0
@@ -230,6 +234,25 @@ grep -q 'green-freeze active' "${TMP_DIR}/out" \
   && fail "L8: release must lift the freeze"
 [ ! -f "${TRACK}/green-freeze" ] || fail "L8: release must clear the marker"
 emit "G3: freeze blocks rounds; human release lifts and clears"
+
+# --- L8c G3: a flaky gh state response must NOT clear a live freeze -----------
+printf 'sha=live\npr=77\nreason=real\n' > "${TRACK}/green-freeze"
+rc="$(run_create GH_FROZEN_PR_STATE=FAIL)"
+[ "$rc" = "1" ] || fail "L8c: a failed gh state lookup must keep the freeze (fail-closed), got ${rc}"
+grep -q 'green-freeze active' "${TMP_DIR}/out" \
+  || fail "L8c: the freeze must still be enforced on a flaky gh response"
+[ -f "${TRACK}/green-freeze" ] || fail "L8c: the live marker must not be cleared"
+rm -f "${TRACK}/green-freeze"
+emit "G3: flaky gh state keeps the freeze (fail-closed)"
+
+# --- L8d releases leave trace records (reviewer residual b) -------------------
+grep -q '"gen_ai.tool.name":"create-pr.green-freeze-release"' "${TRACK}/trace.jsonl" \
+  || fail "L8d: the green-freeze release (L8/10) must be trace-recorded"
+printf 'x\tHarness smoke\ny\tHarness smoke\n' > "${TRACK}/ci-red-history.tsv"
+run_merge checks_fail GH_TESTED_SHA=shaZ RELEASE_STRUCTURAL_CI=1 >/dev/null
+grep -q '"gen_ai.tool.name":"merge-pr.structural-ci-release"' "${TRACK}/trace.jsonl" \
+  || fail "L8d: the structural-ci release must be trace-recorded"
+emit "releases are trace-recorded"
 
 # --- L8b G3: a stale marker (PR no longer OPEN) auto-clears -------------------
 printf 'sha=stale\npr=77\nreason=old\n' > "${TRACK}/green-freeze"

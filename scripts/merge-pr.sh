@@ -174,7 +174,6 @@ if [ "$checks_rc" -ne 0 ]; then
         # re-escalate on the old evidence and normalize passing the release
         # flag on every run (reviewer F6).
         rm -f "${guardrail_dir}/ci-red-history.tsv" 2>/dev/null || true
-        _t0="$(trace_now_ms)"
         trace_span tool \
           "gen_ai.tool.name=merge-pr.structural-ci-release" \
           "harness.outcome=pass"
