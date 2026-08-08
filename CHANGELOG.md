@@ -2,6 +2,51 @@
 
 <!-- version list -->
 
+## v0.42.0 (2026-08-08)
+
+### Bug Fixes
+
+- **#449**: Close the review findings — type enum, NOTE contract, protocol sanitization, sensor
+  teeth ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+- **#449**: NOTE-skip on invalid list must not truncate the checker
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+### Chores
+
+- Refresh uv.lock for the 0.41.0 release bump
+  ([#456](https://github.com/weijen/agent-delivery-harness/pull/456),
+  [`847dc1a`](https://github.com/weijen/agent-delivery-harness/commit/847dc1a5a79d2ae896cf42f8204bc552f95cb521))
+
+### Documentation
+
+- **#449**: Multi-finding rounds route through the feature list
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+### Features
+
+- **#449**: Repair_items_missing — warn-only routing audit
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+- **#449**: Route review findings through feature-list discipline
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+- **#449**: Type:repair feature-list items — fingerprint required, sizing excludes them
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+### Testing
+
+- **#449**: Eight-leg sensor for repair-item routing
+  ([#457](https://github.com/weijen/agent-delivery-harness/pull/457),
+  [`e385d86`](https://github.com/weijen/agent-delivery-harness/commit/e385d86996a58de682a300b4c60bf3a0e40f316a))
+
+
 ## v0.41.0 (2026-08-08)
 
 ### Bug Fixes
