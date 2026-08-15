@@ -53,7 +53,7 @@ assert_agent_contract() {
   grep -qiE 'quality-skill battery no longer runs in any review mode' "$path" \
     || fail "${label} must state that no review mode runs the retired quality-skill battery (#350)"
   if grep -qiE 'audit-sweep' "$path"; then
-    fail "${label} must not advertise the retired audit-sweep entrypoint"
+    fail "${label} must not steer reviews to the audit-sweep entrypoint (owner-driven manual tool, not a review-mode step)"
   fi
   grep -qiE 'Review mode:.{0,60}repair' "$path" \
     || fail "${label} must add repair to the enumerated review-mode list (Review mode: full/concise/repair)"
