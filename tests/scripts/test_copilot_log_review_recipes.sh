@@ -36,19 +36,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-for retired in scripts/audit-sweep.sh .copilot/prompts/audit-sweep.prompt.md; do
-  [ ! -e "${ROOT}/${retired}" ] || {
-    printf 'FAIL: retired audit entrypoint still exists: %s\n' "$retired" >&2
-    exit 1
-  }
-done
-if grep -Eq 'audit-sweep' \
-  "${ROOT}/docs/HARNESS.md" \
-  "${ROOT}/.copilot/instructions/harness.instructions.md" \
-  "${ROOT}/.copilot/agents/code-review-subagent.agent.md"; then
-  printf 'FAIL: current doctrine still advertises the retired audit entrypoint\n' >&2
-  exit 1
-fi
+# The #434 "retired audit entrypoint" tombstone checks were removed when
+# audit-sweep was deliberately restored for owner-driven manual audits
+# (57b7a96): the sweep and its prompt are sanctioned assets again.
 SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
 FIX="${ROOT}/tests/fixtures/copilot-log-review/sample-transcript.jsonl"
 

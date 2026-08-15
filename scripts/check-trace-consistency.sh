@@ -127,6 +127,30 @@
 #                     silent.
 #                         WARNING consistency: repair_items_missing <fingerprint>
 #
+# Whole-repo rules (issue #460):
+#   merge_provenance_gap
+#                     WARN-ONLY reconciliation of the trace against git main
+#                     history (observe first, harden second — the #448
+#                     posture). Opt-in: when
+#                     <repository root>/config/harness/merge-audit-base holds
+#                     a full main SHA, every first-parent commit after that
+#                     baseline (origin/main preferred, main fallback) must be
+#                     referenced by EITHER a pr_merge pass span's
+#                     harness.merge_sha in ANY issue trace under the
+#                     repository root, OR a deviation span whose
+#                     harness.summary names at least the commit's 12-char SHA
+#                     prefix (the sanctioned emergency-merge record; a
+#                     RETROACTIVE deviation span clears the warning). An
+#                     unreferenced commit is an out-of-band merge the trace
+#                     never saw. Never blocks; no baseline file leaves the
+#                     rule inert.
+#                         WARNING consistency: merge_provenance_gap <sha>
+#   merge_audit_base_invalid
+#                     the baseline file exists but is not a full 40-hex SHA
+#                     resolvable to a commit, or no main ref exists — the
+#                     opt-in is broken and silently skipping would hide it.
+#                         WARNING consistency: merge_audit_base_invalid
+#
 # Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
 # a PR reference, the relevant spans) skip their rules with a NOTE — never
 # a violation, exit unaffected:
@@ -1507,6 +1531,57 @@ else
   elif [ "$spine_span_count" = "0" ]; then
     printf 'VIOLATION consistency: spine_incomplete %s\n' "${spine_issue:-unknown}"
     violations=$((violations + 1))
+  fi
+fi
+
+# --- Whole-repo pass: merge-provenance reconciliation (issue #460) ---------------
+# Warn-only by construction: the gap is immutable history, so the only sane
+# posture is surface-and-count (#448 lesson) — the remedy is a retroactive
+# deviation span naming the SHA, never re-work and never a blocked lifecycle.
+if [ -n "$REPOSITORY_ROOT" ]; then
+  MERGE_AUDIT_BASE_FILE="${REPOSITORY_ROOT}/config/harness/merge-audit-base"
+  if [ -f "$MERGE_AUDIT_BASE_FILE" ]; then
+    merge_audit_base="$(tr -d '[:space:]' < "$MERGE_AUDIT_BASE_FILE")"
+    merge_main_ref=""
+    if git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+      merge_main_ref="origin/main"
+    elif git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+      merge_main_ref="main"
+    fi
+    if ! [[ "$merge_audit_base" =~ ^[0-9a-f]{40}$ ]] \
+      || [ -z "$merge_main_ref" ] \
+      || ! git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet \
+             "${merge_audit_base}^{commit}" >/dev/null 2>&1; then
+      printf 'WARNING consistency: merge_audit_base_invalid\n'
+      warnings=$((warnings + 1))
+    else
+      merge_known_file="${TMP_DIR}/merge_provenance_known"
+      merge_deviation_file="${TMP_DIR}/merge_provenance_deviations"
+      : > "$merge_known_file"
+      : > "$merge_deviation_file"
+      while IFS= read -r merge_scan_trace; do
+        jq -Rrn '
+          [inputs | fromjson? | select(type == "object")] | .[]
+          | select((.["harness.lifecycle_step"] // "") == "pr_merge")
+          | select((.["harness.outcome"] // "") == "pass")
+          | .["harness.merge_sha"] // empty
+        ' < "$merge_scan_trace" >> "$merge_known_file" 2>/dev/null || true
+        jq -Rrn '
+          [inputs | fromjson? | select(type == "object")] | .[]
+          | select((.["harness.lifecycle_step"] // "") == "deviation")
+          | .["harness.summary"] // empty
+        ' < "$merge_scan_trace" >> "$merge_deviation_file" 2>/dev/null || true
+      done < <(find "${REPOSITORY_ROOT}/.copilot-tracking/issues" \
+                 -mindepth 2 -maxdepth 2 -name trace.jsonl -type f 2>/dev/null | sort)
+      while IFS= read -r merge_main_commit; do
+        [ -n "$merge_main_commit" ] || continue
+        grep -qxF "$merge_main_commit" "$merge_known_file" && continue
+        grep -qF "${merge_main_commit:0:12}" "$merge_deviation_file" && continue
+        printf 'WARNING consistency: merge_provenance_gap %s\n' "$merge_main_commit"
+        warnings=$((warnings + 1))
+      done < <(git -C "$REPOSITORY_ROOT" rev-list --first-parent \
+                 "${merge_audit_base}..${merge_main_ref}" 2>/dev/null)
+    fi
   fi
 fi
 

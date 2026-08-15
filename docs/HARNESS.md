@@ -436,6 +436,16 @@ A green run is a **hard precondition for merge**: merge through `./scripts/merge
 verifies `gh pr checks` is green before merging. For belt-and-braces enforcement, a repo admin
 should enable a **branch-protection required check** on `main` so the gate cannot be bypassed.
 
+**Merge covenant + provenance audit (#460).** Raw `gh pr merge` is never the sanctioned path.
+Real runs showed that under pressure (a CI bootstrap deadlock) admin merges over red required
+checks happened silently — so the trace checker reconciles `main` against the trace: opt in by
+committing a full main SHA to `config/harness/merge-audit-base`, and `check-trace-consistency.sh`
+warns (`merge_provenance_gap <sha>`, counted, warn-only, never blocking) for every first-parent
+commit after that baseline that no `pr_merge` pass span and no `deviation` span references. The
+sanctioned emergency procedure is: write a `log-handback.sh conductor deviation` span naming the
+reason and ≥ 12 chars of the SHA (before the merge, or retroactively — either clears the
+warning), then merge. Out-of-band merging is tolerated under necessity; being invisible is not.
+
 ### Project-CI coverage gate
 
 `harness-smoke.yml` owns the harness sensors and may also own a project profile gate explicitly.
