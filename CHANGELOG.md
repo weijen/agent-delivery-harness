@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v0.44.1 (2026-08-15)
+
+### Bug Fixes
+
+- **#455**: One uv everywhere — repair UV-LOCK-AUTHORITY-VERSION-SKEW
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+- **#455**: Post-release uv.lock sync safety net in release.yml
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+- **#455**: Refresh uv.lock in the release build command
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+- **#455**: Release flow keeps uv.lock in sync — build-command refresh + workflow safety net
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+### Chores
+
+- Refresh uv.lock for the 0.44.0 release bump
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+### Testing
+
+- **#455**: Release lock-sync sensor — five obligations
+  ([#463](https://github.com/weijen/agent-delivery-harness/pull/463),
+  [`967aa72`](https://github.com/weijen/agent-delivery-harness/commit/967aa7206464b32cdeb0e2d0a780c774feb4c448))
+
+
 ## v0.44.0 (2026-08-15)
 
 ### Bug Fixes
