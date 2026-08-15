@@ -68,17 +68,29 @@ jobs:
       # (0.39.0/0.40.0/0.40.1/0.43.0 all hit this). When the lock is already
       # consistent (a uv-capable release path refreshed it) this commits
       # nothing.
+      - name: Set up uv for the lock sync
+        if: steps.release.outputs.released == 'true'
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          # One uv everywhere (#455 repair UV-LOCK-AUTHORITY-VERSION-SKEW):
+          # this pin MUST match python-ci.yml's — the lock this step commits
+          # is the lock that check verifies. Sensor-enforced parity.
+          version: "0.12.3"
+
       - name: Sync uv.lock with the released version
         if: steps.release.outputs.released == 'true'
         run: |
           set -euo pipefail
           git pull --ff-only origin "${{ github.ref_name }}"
-          python3 -m pip install --quiet uv==0.8.6
           if uv lock --check >/dev/null 2>&1; then
             echo "uv.lock already consistent with the release bump"
             exit 0
           fi
           uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv lock --check flaked but the lock is unchanged — nothing to commit"
+            exit 0
+          fi
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
           git add uv.lock

@@ -19,6 +19,11 @@ jobs:
 
       - name: Set up uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          # One uv everywhere (#455 repair UV-LOCK-AUTHORITY-VERSION-SKEW):
+          # this pin MUST match release.yml's — the release safety net
+          # regenerates the lock this job checks. Sensor-enforced parity.
+          version: "0.12.3"
 
       - name: Verify dependency lock
         run: uv lock --check

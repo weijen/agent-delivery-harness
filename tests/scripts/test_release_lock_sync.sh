@@ -22,7 +22,11 @@
 #   D  assets contract     — pyproject assets include uv.lock (and VERSION)
 #   E  workflow contract   — release.yml gates the sync step on
 #                            released == 'true', checks lock consistency
-#                            first, and pushes a chore(release) commit
+#                            first, guards the empty-commit flake case, and
+#                            pushes a chore(release) commit
+#   F  uv version parity   — release.yml and python-ci.yml pin the SAME
+#                            explicit uv via the SHA-pinned setup-uv action
+#                            (fixer and checker must share one toolchain)
 #
 # Exit: 0 all legs pass · 1 any obligation missing.
 
@@ -105,13 +109,27 @@ grep -q '"VERSION"' <<<"$assets_line" \
 WF="${ROOT}/.github/workflows/release.yml"
 grep -q 'Sync uv.lock with the released version' "$WF" \
   || fail "E: release.yml must carry the post-release lock sync step"
-grep -A6 'Sync uv.lock with the released version' "$WF" \
-  | grep -q "released == 'true'" \
+# The full step block: from its name line to the next step's dash-name line —
+# robust to key ordering inside the step (review nit: -A windows false-fail on
+# cosmetic refactors).
+sync_block="$(awk '/Sync uv.lock with the released version/{grab=1} grab{print} grab && /^      - name:/ && !/Sync uv.lock/{exit}' "$WF")"
+grep -q "released == 'true'" <<<"$sync_block" \
   || fail "E: the sync step must be gated on released == 'true'"
-grep -q 'uv lock --check' "$WF" \
+grep -q 'uv lock --check' <<<"$sync_block" \
   || fail "E: the sync step must no-op when the lock is already consistent"
-grep -q 'chore(release): sync uv.lock' "$WF" \
+grep -q 'git diff --quiet -- uv.lock' <<<"$sync_block" \
+  || fail "E: a --check flake with an unchanged lock must not attempt an empty commit"
+grep -q 'chore(release): sync uv.lock' <<<"$sync_block" \
   || fail "E: the sync step must commit the refreshed lock as chore(release)"
+
+# --- Leg F: fixer/checker uv version parity (UV-LOCK-AUTHORITY-VERSION-SKEW) --
+CI_WF="${ROOT}/.github/workflows/python-ci.yml"
+uv_pins="$(grep -h -A8 'astral-sh/setup-uv@' "$WF" "$CI_WF" \
+  | sed -n 's/^[[:space:]]*version:[[:space:]]*"\([^"]*\)".*/\1/p' | sort -u)"
+[ "$(wc -l <<<"$uv_pins" | tr -d ' ')" = "1" ] && [ -n "$uv_pins" ] \
+  || fail "F: release.yml and python-ci.yml must pin the SAME explicit uv version (got: $(tr '\n' ' ' <<<"$uv_pins"))"
+grep -q 'astral-sh/setup-uv@d4b2f3b' "$WF" \
+  || fail "F: the release sync must provision uv via the SHA-pinned setup-uv action, not pip"
 
 if [ "$fails" -ne 0 ]; then
   printf '\n%d release-lock-sync obligation(s) failed.\n' "$fails" >&2
