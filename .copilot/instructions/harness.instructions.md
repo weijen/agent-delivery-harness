@@ -405,6 +405,15 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
     conflict) writes a freeze marker; `create-pr.sh` refuses further rounds — every commit after
     green has only downside. A successful merge clears all guardrail state. Release:
     `RELEASE_GREEN_FREEZE=1`.
+- **Merge covenant (#460).** Never merge with raw `gh pr merge` — every merge to `main` must
+  carry provenance: the `pr_merge` span that `merge-pr.sh` writes. If an emergency genuinely
+  requires an out-of-band merge (e.g. a CI bootstrap deadlock where the fix cannot green a CI it
+  is itself repairing), record it FIRST: write a `log-handback.sh conductor deviation` span whose
+  summary names the reason and at least the 12-character SHA prefix of the commit (retroactive
+  records are allowed and clear the audit). The `merge_provenance_gap` trace rule reconciles
+  `main` first-parent history against these records and surfaces every unreferenced merge as a
+  counted warning on each review-gate round — bypass is permitted under necessity, silence about
+  it is not.
 - Conventional commits: `type(scope): summary` (≤ 50 chars) + bullet body. Don't reference
   internal workflow phases.
 - **Never disable commit signing** to dodge a passphrase. If signing fails, stop and ask the
