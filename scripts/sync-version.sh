@@ -34,3 +34,19 @@ version="$(sed -n 's/^version[[:space:]]*=[[:space:]]*["'\'']\([^"'\'']*\)["'\''
 
 printf '%s\n' "$version" > "$VERSION_FILE"
 printf 'sync-version.sh: VERSION synced to %s\n' "$version"
+
+# Refresh uv.lock so the release commit is complete (issue #455): the PSR bump
+# changes [project].version, and a stale lock reds the Python-lock-integrity
+# check on every PR until a manual chore lands. Guarded: inside the PSR docker
+# action uv is absent — warn and leave the refresh to the release workflow's
+# post-release sync step (the safety net); locally and in uv-capable
+# environments the release commit carries the refreshed lock directly
+# (uv.lock is listed under [tool.semantic_release].assets).
+if [ -f "uv.lock" ]; then
+  if command -v uv >/dev/null 2>&1; then
+    uv lock
+    printf 'sync-version.sh: uv.lock refreshed for %s\n' "$version"
+  else
+    printf 'sync-version.sh: warning: uv not on PATH — uv.lock NOT refreshed; the post-release sync step must cover it\n' >&2
+  fi
+fi
