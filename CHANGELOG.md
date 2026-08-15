@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v0.44.0 (2026-08-15)
+
+### Bug Fixes
+
+- **tests**: Drop the stale audit-sweep tombstone from the recipes sensor
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+### Chores
+
+- Refresh uv.lock for the 0.43.0 release bump
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+- Restore audit-sweep for owner-driven manual audits
+  ([`57b7a96`](https://github.com/weijen/agent-delivery-harness/commit/57b7a9696ed0dad1a257bae50d15cfe64820ad8f))
+
+### Features
+
+- **#460**: Merge-provenance reconciliation — warn-only trace rule + covenant
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+- **#460**: Merge-provenance reconciliation — warn-only trace rule + merge covenant
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+### Testing
+
+- **#460**: Hermetic merge-provenance sensor — seven obligations
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+- **#460**: Pin review findings F1-F4 — pass-filter, prefix bound, exact tallies
+  ([#462](https://github.com/weijen/agent-delivery-harness/pull/462),
+  [`18af76d`](https://github.com/weijen/agent-delivery-harness/commit/18af76d0dd55ee2502088076971b0e474084a603))
+
+
 ## v0.43.0 (2026-08-08)
 
 ### Bug Fixes
