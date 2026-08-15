@@ -47,7 +47,7 @@ commit_parser = "conventional"
 commit_message = "chore(release): {version}"
 version_toml = ["pyproject.toml:project.version"]
 build_command = "bash scripts/sync-version.sh"
-assets = ["VERSION"]
+assets = ["VERSION", "uv.lock"]
 # Keep the harness on the 0.x line: PSR v10 defaults allow_zero_version to false,
 # which forces the first computed release to 1.0.0 regardless of change level
 # (the #257 -> premature 1.0.0 bug, see #260). allow_zero_version keeps us on
