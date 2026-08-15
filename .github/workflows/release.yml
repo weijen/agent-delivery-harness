@@ -60,3 +60,27 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.release.outputs.tag }}
+
+      # Safety net for issue #455: the PSR docker action has no uv, so the
+      # build_command's guarded refresh cannot run there and the release commit
+      # may land with a stale uv.lock — which reds the Python-lock-integrity
+      # required check for EVERY subsequent PR until a manual chore lands
+      # (0.39.0/0.40.0/0.40.1/0.43.0 all hit this). When the lock is already
+      # consistent (a uv-capable release path refreshed it) this commits
+      # nothing.
+      - name: Sync uv.lock with the released version
+        if: steps.release.outputs.released == 'true'
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin "${{ github.ref_name }}"
+          python3 -m pip install --quiet uv==0.8.6
+          if uv lock --check >/dev/null 2>&1; then
+            echo "uv.lock already consistent with the release bump"
+            exit 0
+          fi
+          uv lock
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore(release): sync uv.lock for ${{ steps.release.outputs.version }}"
+          git push origin "HEAD:${{ github.ref_name }}"
