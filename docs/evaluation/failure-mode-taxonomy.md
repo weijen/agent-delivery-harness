@@ -109,21 +109,35 @@ changes, and every existing trace and emitter stays valid.
 
 By convention the field belongs on deviation/failure spans — above all the
 `deviation` lifecycle handbacks emitted through `scripts/log-handback.sh`. The
-planned emission path (feature `failure-mode-span-plumbing`, a forward
-reference — not implemented by this feature) is a `TRACE_FAILURE_MODE`
-environment variable on `log-handback.sh`, following the closed-enum metadata
-convention: forwarded only when the value is in the frozen enum, omitted with
-a warning otherwise — omit, never fake. The standalone validator
-(`scripts/check-trace-consistency.sh`) will reject
-out-of-enum values as `schema_violation` when the key is present.
+emission path is the `TRACE_FAILURE_MODE` environment variable on
+`log-handback.sh` (shipped), following the closed-enum metadata convention:
+forwarded only when the value is in the frozen enum, omitted with a warning
+otherwise — omit, never fake. The standalone validator
+(`scripts/check-trace-consistency.sh`) reports out-of-enum values under the
+distinct rule name `failure_mode_violation` when the key is present.
+
+## Two vocabularies: failure *modes* vs failure *classes*
+
+This page defines the eight **`failure_modes`** — deviation-level, **optional**,
+warn-and-omit semantics. The harness enforces a DIFFERENT, ten-value closed enum,
+**`failure_classes`** (`trace-schema.v1.json` `.failure_classes`: spec-violation,
+validation-bypass, missing-coverage, regression, role-boundary, knowledge-gap,
+complexity, known-flaky, polling, other), which is **required and
+reject-on-invalid at write time** on every `review_verdict` fail span and
+validated on deviations (`log-handback.sh`, #443/#318). The names nearly collide
+(`role-violation` mode vs `role-boundary` class; `missing-context` vs
+`knowledge-gap`; `weak-sensor` vs `missing-coverage`) but the sets are distinct:
+picking a mode name for `TRACE_FAILURE_CLASS` writes a rejected span. When
+recording a finding, take the class from the schema's `failure_classes`; use this
+page only for the deviation-level `TRACE_FAILURE_MODE`.
 
 ## Governance
 
 Classification and everything downstream of it is **human-gated** and
-PEV-governed: an agent (or a human) may *propose* a mode on a deviation span,
+human-governed: an agent (or a human) may *propose* a mode on a deviation span,
 but clustering failures, diagnosing causes, and deciding that the harness
 should change are review acts performed by a human under the normal
-plan–execute–verify ritual. Taxonomy evidence is input to judgment, never a
+normal plan → implement → review flow. Taxonomy evidence is input to judgment, never a
 trigger.
 
 ### Non-Goals
@@ -135,4 +149,4 @@ trigger.
   become a rule, a gate, or a contract change.
 - Any proposed harness change arising from taxonomy evidence is a **normal
   GitHub issue**, citing the relevant traces and mode counts as evidence, and
-  travels the same PEV path as every other issue.
+  travels the same plan → implement → review path as every other issue.
