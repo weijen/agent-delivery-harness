@@ -145,7 +145,7 @@ Workflow per issue:
    script action at approve time. Same-class escalation (#317/#327) applies to your own repairs: on the second
    same-class failure stop point-fixing and fix the class.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
-   `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh` (authoritative MERGED + merge SHA,
+   `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
    gated on live merge evidence #316).
 
@@ -159,7 +159,7 @@ N test files passed requires the matching HEAD-bound
 the durable record of that output is the runner's own `sensor-evidence.jsonl` row (#441),
 not an agent transcription.
 
-**Review profile in Loop 2.** At issue completion (all features `passes:true`), the single end-of-issue review
+**Review profile at issue completion.** At issue completion (all features `passes:true`), the single end-of-issue review
 runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
 sweep (check #7, `public-exposure-audit`); the five quality skills are not part of the review
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
@@ -245,7 +245,7 @@ the moment to check whether an older rule it supersedes can be deleted.
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
 | GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + the `scripts/affected-sensors.sh` set (`FULL` report → whole suite) — **never the full suite by default** | — | **BLOCKING** for the feature's `passes:true` |
-| Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | `code-review` skill on the diff | **BLOCKING** — do not commit on red |
+| Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
 | Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
 | **Pre-PR verify gate** | full suite | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
 
@@ -297,7 +297,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
   truthful. Update `.copilot-tracking/issues/<issue>/plan.md` if the approach or remaining
   phases changed.
 
-5. **Commit and push after every completed feature** to the issue's working branch. If a
+4. **Commit and push after every completed feature** to the issue's working branch. If a
    verification-only feature produced no tracked diff (e.g. the gates were already green),
    do NOT manufacture an empty commit — fold its `passes:true` bump into the next
    code-bearing feature's commit body, or leave it for the issue-close commit.
@@ -360,7 +360,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    Loop until no Critical/Major/High remains and Medium items are fixed or explicitly deferred.
    Only then proceed.
 
-7. **Project-CI coverage is enforced deterministically.** The same `review-gate.sh check` call
+6. **Project-CI coverage is enforced deterministically.** The same `review-gate.sh check` call
    inside `./scripts/create-pr.sh` runs the fail-closed **`ci-gate`**: if the repo has a code
    surface (Python/Go/Node/Java/Ruby) but no `.github/workflows/*.y*ml` other than
    `harness-smoke.yml` running its gates, `create-pr.sh` refuses to open the PR — `harness-smoke.yml`
@@ -385,7 +385,9 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
 - **A green remote CI run is a hard precondition for merge.** After the PR is open and local
   gates/reviews are complete, do **not** merge until the harness CI run
   (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through
-  **`./scripts/merge-pr.sh`**, which verifies `gh pr checks` is green and then merges — it refuses
+  **`./scripts/merge-pr.sh --squash --delete-branch`** (flags forward to `gh pr merge`, which
+  non-interactively requires `--merge|--rebase|--squash`; a bare invocation fails and, with green
+  checks, manufactures a G3 green-freeze), which verifies `gh pr checks` is green and then merges — it refuses
   while checks are pending or failing. You still merge it yourself (do not leave manual merge work
   for the human); this gate is **not** GitHub auto-merge, which remains disabled as a standing
   practice. A repo admin should additionally enforce this as a branch-protection required check on
@@ -449,8 +451,10 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 Agents replicate existing patterns, including bad ones — drift is inevitable. Pay debt down in
 small increments, not painful bursts.
 
-- The inferential drift skills do **not** run per PR. Invoke them explicitly when a whole-repo
-  audit is requested; no periodic driver is currently shipped.
+- The inferential drift skills do **not** run per PR. For a whole-repo audit use the
+  owner-driven driver `scripts/audit-sweep.sh` (restored 57b7a96; report-only, all six audit
+  skills, `--dry-run` first, `--consolidate` for the roll-up) — deliberately manual, no CI
+  consumer.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
 - Keep `docs/` honest against the code: if a doc no longer reflects behaviour, fix it (or file

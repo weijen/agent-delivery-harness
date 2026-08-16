@@ -52,7 +52,7 @@ From the delivering agent:
 Return any substantive review action or verdict that the delivering agent should record in the issue progress Action Log.
 End every review handback (the `Action Log` field of your output) with the structured payload line(s) defined in
 `.copilot/instructions/harness.instructions.md` §3 (Agent-span conventions) — **one per finding** (see below).
-The delivering conductor records each payload through `scripts/log-handback.sh`: role `conductor`, step
+The delivering agent records each payload through `scripts/log-handback.sh`: role `conductor`, step
 `review_verdict` (`APPROVED` → `pass`, `NEEDS_REVISION` → `fail`).
 
 ### One Payload Per Finding (issue #448)
@@ -100,8 +100,8 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    same component or failure class; assign that new hole its own fingerprint. This distinction
    separates runaway repair loops from repaired designs that expose a different defect next.
 6. **`TRACE_REVIEW_EVENT_ID`** — groups all verdict/finding spans belonging to one logical review
-   event. **Required** for new reviews. All verdicts sharing the same event ID count as one
-   review round in economics.
+   event. Optional at write time (the writer passes it through when set) but expected on new
+   reviews — verdicts sharing the same event ID count as one review round in economics.
 7. **`TRACE_FINDING_BASELINE_STATE`** — one of the closed `finding_baseline_states` enum
    {`new`, `unchanged`, `updated`, `resolved`}. Tracks per-finding state across review events:
    - `new` — first appearance of this finding
@@ -109,7 +109,8 @@ Every `NEEDS_REVISION` (`fail`) verdict handback **must** set the following envi
    - `updated` — finding from a prior review, modified in scope or severity
    - `resolved` — prior finding is no longer present (emit as a PASS verdict with the same
      fingerprint)
-   **Required** on finding-level verdict spans that carry a `TRACE_FINDING_FINGERPRINT`.
+   **Required on every `review_verdict` fail span** (the writer rejects the span without it,
+   `log-handback.sh` #318); on pass spans it accompanies a fingerprint when resolving one.
 8. **`TRACE_REPAIR_SCOPE`** — a comma-separated list of feature-id tokens declaring the revised
    feature set for this repair review. **Required** on every `repair`-mode `review_verdict` call
    (both APPROVED and NEEDS_REVISION). Canonical format: `[A-Za-z0-9._-]+` tokens separated by
@@ -159,7 +160,7 @@ around a **six-dimension scorecard**. Failed blocking gates override scorecard s
 runnable-but-shallow work from production-ready changes and routes production or verification repair to
 the delivering agent. Scope and planning decisions remain with the **human gate**.
 
-**Applicable instruction files are part of the review contract (profile-aware routing).** Treat the `<language>.instructions.md` file(s) matching each changed file — selected from the single-source routing map in `.copilot/instructions/harness.instructions.md`, always with `.copilot/instructions/tdd.instructions.md` — as binding review criteria alongside the acceptance criteria; a diff that violates them (e.g. ignores pathlib, weakens or skips a sensor, abandons RED→GREEN) is a finding. You run in a fresh context, so read the applicable files from the repo when they are not in your prompt.
+**Applicable instruction files are part of the review contract (profile-aware routing).** Treat the `<language>.instructions.md` file(s) matching each changed file — selected from the language-file table in `AGENTS.md` § "Where to find things", always with `.copilot/instructions/tdd.instructions.md` — as binding review criteria alongside the acceptance criteria; a diff that violates them (e.g. ignores pathlib, weakens or skips a sensor, abandons RED→GREEN) is a finding. You run in a fresh context, so read the applicable files from the repo when they are not in your prompt.
 
 ## Review Verdicts
 
@@ -320,8 +321,8 @@ from behaviour: passing trace discipline **does not prove** the implementation i
 a **process violation**.
 
 1. **Locate and read local trace artifacts.** For issue `NN`, inspect
-   `.copilot-tracking/issues/issue-NN/trace.jsonl` and `.copilot-tracking/issues/issue-NN/trace-summary.json` when they
-   exist.
+   `.copilot-tracking/issues/issue-NN/trace.jsonl` when it exists (trace-summary.json retired, #419;
+   treat any leftover file as historical, never as evidence).
 2. **Run trace tooling when the local trace exists.** Use `scripts/check-trace-consistency.sh NN` for
    schema/redaction validation and lifecycle/process consistency.
 3. **Report trace coverage separately from behaviour.** State whether a trace exists and whether `schema` validation
@@ -357,12 +358,11 @@ a **process violation**.
      section. Do not convert them into per-feature `NEEDS_REVISION` verdicts, do not route the delivering agent to
      rewrite or replace its own spans, and never demand a "supported writer" re-write choreography — the CI trace gate
      owns their enforcement.
-   - **Cite the log failure detail, not just the span.** For any BLOCKING/CRITICAL **process** finding derived from
-     trace evidence (failed gate, `deviation`, red-first gap), quote the corresponding `log.jsonl` **failure record** —
-     the `error`-level record with `harness.outcome == "fail"` for that `harness.stage` — and cite its (redacted,
-     capped) `payload` (the actual failing output), instead of only the span's capped summary. When `log.jsonl` is
-     absent or carries no matching record, state `log evidence unavailable` — never inferred as a pass — mirroring the
-     `trace evidence unavailable` rule.
+   - **Cite the strongest available failure detail.** For any BLOCKING/CRITICAL **process** finding derived from
+     trace evidence (failed gate, `deviation`, red-first gap), cite the span's own attributes plus any durable
+     artifact it names (sensor-evidence rows, gate output committed in the PR). The `log.jsonl` detail stream was
+     removed in #333 — quote its records only when reviewing a historical trace that still carries the file, and
+     never treat its absence as evidence of anything.
 8. **Feed the verdict explicitly.** Blocking process violations produce `NEEDS_REVISION` (or `BLOCKED`). Unavailable
    trace evidence is explicit residual risk, never silently ignored.
 
@@ -526,8 +526,8 @@ For full mode:
 
 **Action Log:** {Paste-ready entry for the delivering agent's issue progress Action Log, including verdict and required follow-up.}
 
-**Next Steps:** {Approve and continue, or specific revisions needed. For each blocking finding, name the **route**
-(Loop 2): to the delivering agent when production or verification repair is needed, or to the
+**Next Steps:** {Approve and continue, or specific revisions needed. For each blocking finding, name the **route**:
+to the delivering agent when production or verification repair is needed, or to the
 human gate when it is a scope or planning decision. Give file/path, the
 problem, the expected fix direction, and the sensor or review to re-run on the new HEAD. You do not call other
 subagents directly — the delivering agent owns the loop.}

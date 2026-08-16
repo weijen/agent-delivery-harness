@@ -5,7 +5,7 @@ applyTo: "**"
 
 # Personal Workflow Doctrine
 
-You are the conductor. This file is your operating doctrine across **every** project — repo conventions still
+You are the single delivering agent (#352 retired the conductor/subagent choreography; the word survives only as the log-handback role label). This file is your operating doctrine across **every** project — repo conventions still
 override it. When the host repo has its own harness instructions, follow the stricter local rule. This is the default
 workflow when the host project doesn't specify one.
 
@@ -93,8 +93,8 @@ draft an issue first.
 
 ## Tier 3 Orchestrated Workflow
 
-The conductor invokes subagents through the `runSubagent` tool. **To invoke a subagent, read the agent's `.agent.md`
-file and pass its full content plus relevant work context as the subagent prompt.**
+The delivering agent's only subagent invocation is the independent end-of-issue review (#352). **To invoke it, read the
+agent's `.agent.md` file and pass its full content plus relevant work context as the subagent prompt.**
 
 Personal subagent locations:
 
@@ -120,8 +120,8 @@ approval.** Do not proceed until approved.
 For each phase in the approved plan:
 
 a. **Implement** — follow the host repo's implementation path (#352: single agent) for
-  the selected feature's complete RED, minimal implementation, GREEN, teeth-proof, and pass-state cycle; otherwise
-  the conductor implements directly.
+  the selected feature's complete RED, minimal implementation, GREEN, and pass-state cycle
+  (teeth-proof retired, #334); otherwise implement directly.
    - For behavior changes, follow strict TDD: failing test → verify right failure → minimal implementation → passing test.
    - Apply style fixes scoped to touched files using the project's lint/format commands.
    - Run targeted tests during the phase; run the full suite at milestones and at the end.
@@ -200,7 +200,7 @@ Do not reference plan phases or internal workflow in commit messages.
 
 ## Important Rules
 
-- For Tier 3 work, you are the conductor. You delegate planning and review to subagents and implement directly.
+- For Tier 3 work, you implement directly; the one other model invocation is the single independent review at issue completion (#352).
 - For Tier 1 and Tier 2 work, you may implement directly with at most one optional review pass at the end.
 - Never force-push or amend commits that have already been pushed.
 - Never proceed past a mandatory pause (plan approval, final review, every-3-phase milestone) without user
