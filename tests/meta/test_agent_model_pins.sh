@@ -254,10 +254,10 @@ assert_section 'NEEDS_REVISION|BLOCKED|verdict' "$review Trace / Process Evidenc
 
 # 11. Log-detail citation for BLOCKING/CRITICAL process findings (issue #221).
 assert_section 'log\.jsonl' "$review Trace / Process Evidence section must name log.jsonl"
-assert_section 'payload' "$review Trace / Process Evidence section must require citing the log failure payload (actual failing output)"
+assert_section 'sensor-evidence rows|durable artifact' "$review Trace / Process Evidence section must require citing durable failure artifacts (sensor-evidence rows, committed gate output)"
 assert_section 'failure record|failing output|failure detail|failure payload' "$review Trace / Process Evidence section must require citing the log failure record detail rather than only the span summary"
-assert_section 'log evidence unavailable' "$review Trace / Process Evidence section must use the exact absence phrase log evidence unavailable"
-assert_section 'log evidence unavailable[^.]*never inferred|log evidence unavailable[^.]*not inferred' "$review Trace / Process Evidence section must state log evidence unavailable is never inferred as pass"
+assert_section 'removed in #333' "$review Trace / Process Evidence section must state the log.jsonl detail stream was removed (#333)"
+assert_section 'never treat its absence as evidence' "$review Trace / Process Evidence section must forbid treating log.jsonl absence as evidence"
 
 if [ "$fail" -ne 0 ]; then
   echo "code-review trace-evidence sensor FAILED"

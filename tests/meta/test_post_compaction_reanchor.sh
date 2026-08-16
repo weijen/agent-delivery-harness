@@ -24,7 +24,7 @@ line_count="$(printf '%s\n' "${anchor}" | wc -l | tr -d ' ')"
 
 for term in \
   deviation review_verdict \
-  TRACE_SENSOR_SCOPE TRACE_SENSOR_COUNT \
+  TRACE_FAILURE_CLASS TRACE_FINDING_FINGERPRINT \
   harness_identity_activate 'gh auth switch'; do
   printf '%s\n' "${anchor}" | grep -qF "${term}" \
     || fail "post-compaction re-anchor lacks required term: ${term}"
