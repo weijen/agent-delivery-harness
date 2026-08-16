@@ -385,9 +385,9 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
 - **A green remote CI run is a hard precondition for merge.** After the PR is open and local
   gates/reviews are complete, do **not** merge until the harness CI run
   (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through
-  **`./scripts/merge-pr.sh --squash --delete-branch`** (flags forward to `gh pr merge`, which
-  non-interactively requires `--merge|--rebase|--squash`; a bare invocation fails and, with green
-  checks, manufactures a G3 green-freeze), which verifies `gh pr checks` is green and then merges — it refuses
+  **`./scripts/merge-pr.sh --squash --delete-branch`** (the method flag forwards to `gh pr merge`, which
+  non-interactively requires `--merge|--rebase|--squash`, while `--delete-branch` is handled by
+  the script itself; a bare invocation fails and, with green checks, manufactures a G3 green-freeze), which verifies `gh pr checks` is green and then merges — it refuses
   while checks are pending or failing. You still merge it yourself (do not leave manual merge work
   for the human); this gate is **not** GitHub auto-merge, which remains disabled as a standing
   practice. A repo admin should additionally enforce this as a branch-protection required check on

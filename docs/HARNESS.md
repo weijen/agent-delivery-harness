@@ -104,8 +104,8 @@ The normal path is:
    Keeping worktrees under the repository trust boundary avoids sibling-path
    sandbox denials. During migration, lifecycle scripts still resolve an
    already-existing sibling `<repo>-worktrees/issue-NN` worktree.
-4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions to the
-   **human-input gate**, then author `feature_list.json` from the confirmed plan (each feature
+4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions for the
+   **advisory human pause**, then author `feature_list.json` from the confirmed plan (each feature
    carrying its `regression_sensor` / `e2e_sensor`). See
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
@@ -140,7 +140,7 @@ decision:
 3. **Author the breakdown.** Once the human resolves the questions, author `feature_list.json`
    from the confirmed plan, each feature carrying its `regression_sensor` / `e2e_sensor`. The
    2–5-feature sizing cap (STOP and propose a split above 5) is single-sourced in
-   `harness.instructions.md` §2 step 1.
+   `harness.instructions.md` §3 step 1.
 4. **The GitHub issue stays the contract; `feature_list.json` is the derived breakdown.**
 
 This keeps decisions that need a human in front of the human *before* any breakdown is

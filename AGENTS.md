@@ -7,7 +7,7 @@
 
 After any context compaction, re-read this block before continuing.
 - Emit `deviation` when it happens and `review_verdict` at review handback.
-- On a `review_verdict` fail, `log-handback.sh` requires `TRACE_FAILURE_CLASS` and `TRACE_FINDING_FINGERPRINT` (plus a reproduction or proposed fix); omit optional attributes rather than guessing.
+- On a `review_verdict` fail, `log-handback.sh` requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE` (true demands a reproduction or proposed fix); omit optional attributes rather than guessing.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
 
 ## What this project is

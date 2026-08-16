@@ -137,7 +137,7 @@ Classification and everything downstream of it is **human-gated** and
 human-governed: an agent (or a human) may *propose* a mode on a deviation span,
 but clustering failures, diagnosing causes, and deciding that the harness
 should change are review acts performed by a human under the normal
-normal plan → implement → review flow. Taxonomy evidence is input to judgment, never a
+plan → implement → review flow. Taxonomy evidence is input to judgment, never a
 trigger.
 
 ### Non-Goals
