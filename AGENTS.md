@@ -7,7 +7,7 @@
 
 After any context compaction, re-read this block before continuing.
 - Emit `deviation` when it happens and `review_verdict` at review handback.
-- Export `TRACE_SENSOR_SCOPE` and `TRACE_SENSOR_COUNT` from runner evidence; omit them rather than guessing.
+- On a `review_verdict` fail, `log-handback.sh` requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE` (true demands a reproduction or proposed fix); omit optional attributes rather than guessing.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
 
 ## What this project is
@@ -45,7 +45,7 @@ sanitized, commit-safe fixture or specification.
 6. **GitHub Issues (description + comments) are the single source of truth** for issue
    requirements — fetch with `gh issue view <N> --comments`; there are no local issue-draft files.
 7. When an issue is complete and reviewed, **open the PR, then merge it once CI is green**;
-   wait for the harness CI run to pass, then merge with **`./scripts/merge-pr.sh`** (it verifies
+   wait for the harness CI run to pass, then merge with **`./scripts/merge-pr.sh --squash --delete-branch`** (non-interactive `gh pr merge` requires a method flag; it verifies
    `gh pr checks` is green before merging). A green CI run is a hard merge precondition. Don't
    leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
    auto-merge as a standing practice.
@@ -178,7 +178,7 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 
 | Asset | Purpose | Where the harness uses it |
 |---|---|---|
-| **Skill** `code-review` | Pre-commit / pre-PR review of a diff for spec compliance + bugs | `harness.instructions.md` § Verify gate (every commit, every PR) |
+| **Skill** `code-review` | Review of the branch diff for spec compliance + bugs | Once, at issue completion (pre-PR) — #303/#352; see `harness.instructions.md` § Verify gate |
 | **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `scripts/create-pr.sh` |
 | **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Pulled in by `code-review-subagent` review checklist |
 | **Skill** `find-duplicates` | Semantic duplication / DRY violations | Pulled in by `code-review-subagent` review checklist |
@@ -205,7 +205,7 @@ Which skill fires, who owns it, and at which lifecycle phase:
 | `dead-code-detection` | `code-review-subagent` | Review | Dead code among symbols the diff adds, renames, routes, or removes |
 | `sync-docs` | `code-review-subagent` | Review | Doc drift from touched commands, paths, agent/skill names |
 | `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
-| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Pre-commit / pre-PR diff review (every commit, every PR) |
+| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Single end-of-issue diff review (pre-PR, #303) |
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
 | `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
 

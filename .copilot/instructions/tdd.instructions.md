@@ -23,7 +23,7 @@ This is the "snapshot test" pattern — the fixture IS the test.
 - Full suite: `uv run pytest`
 - Single file: `uv run pytest tests/test_foo.py`
 - Single test: `uv run pytest tests/test_foo.py::test_name`
-- Watch coverage: coverage is on by default (`--cov` in `pyproject.toml`); aim to keep
+- Watch coverage when the project configures it (this repo currently does not); aim to keep
   meaningful lines covered, but don't chase 100% for trivial code.
 
 ## Test structure & naming

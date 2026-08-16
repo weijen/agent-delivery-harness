@@ -78,7 +78,7 @@ in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 flowchart TD
   A[GitHub issue] --> B[./scripts/start-issue.sh N]
   B --> C[Issue worktree]
-  C --> HG[Plan + Open Questions: human-input gate]
+  C --> HG[Plan + Open Questions: advisory human pause]
   HG --> D[Author feature_list.json]
   D --> E[Select one passes:false feature]
   E --> F[TDD: RED then implementation then GREEN, scoped sensors]
@@ -104,8 +104,8 @@ The normal path is:
    Keeping worktrees under the repository trust boundary avoids sibling-path
    sandbox denials. During migration, lifecycle scripts still resolve an
    already-existing sibling `<repo>-worktrees/issue-NN` worktree.
-4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions to the
-   **human-input gate**, then author `feature_list.json` from the confirmed plan (each feature
+4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions for the
+   **advisory human pause**, then author `feature_list.json` from the confirmed plan (each feature
    carrying its `regression_sensor` / `e2e_sensor`). See
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
@@ -134,10 +134,13 @@ decision:
 1. **Plan and surface decisions.** Research the issue, write the plan in
    `.copilot-tracking/issues/issue-NN/plan.md`, and list an explicit **Open Questions /
    Needs-Human-Input** section.
-2. **Run the human-input gate.** Relay open questions to the human and **pause**. No breakdown
-   is authored while any open question is unresolved.
+2. **Pause for human input (advisory).** Relay open questions to the human and pause while any
+   is unresolved. This pause is doctrine, not a mechanical gate — the contract's `gate_start`
+   does not enforce it (#424 aligned prose with the contract).
 3. **Author the breakdown.** Once the human resolves the questions, author `feature_list.json`
-   from the confirmed plan, each feature carrying its `regression_sensor` / `e2e_sensor`.
+   from the confirmed plan, each feature carrying its `regression_sensor` / `e2e_sensor`. The
+   2–5-feature sizing cap (STOP and propose a split above 5) is single-sourced in
+   `harness.instructions.md` §3 step 1.
 4. **The GitHub issue stays the contract; `feature_list.json` is the derived breakdown.**
 
 This keeps decisions that need a human in front of the human *before* any breakdown is
@@ -186,11 +189,11 @@ Do not look for either group in the other location. Closeout migrates the finali
 
 | Path | Purpose |
 | --- | --- |
-| `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `teeth_proof`, `blocked_on`, and `verification`. |
+| `.copilot-tracking/issues/issue-NN/feature_list.json` | Per-issue feature breakdown, including `steps`, `passes`, `regression_sensor`, `e2e_sensor`, `blocked_on`, `verification`, and (#449) `type`/`finding_fingerprint` on repair items. Historical lists may still carry the retired `teeth_proof` field (#334) — valid to read, never authored anew. |
 | `.copilot-tracking/issues/issue-NN/progress.md` | Running local log of completed features, verification, commits, and next work. |
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
 | `.copilot-tracking/plans/*.md` | Local deep-plan documents (multi-issue runs, prompts). |
-| `.copilot-tracking/review-gate/approved-head` | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
+| `.copilot-tracking/review-gate/issue-NN/approved-head` (issue-scoped; the un-scoped `review-gate/approved-head` survives only as a read-only legacy fallback) | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
 
 `progress.md` includes an Action Log section rendered from trace spans (#332), covering substantive lifecycle actions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
@@ -218,8 +221,7 @@ issue `progress.md` (between `<!-- delivery-economics:start -->` / `<!-- deliver
 idempotently) from the issue trace and `feature_list.json`. No lifecycle entrypoint invokes these helpers after
 the trace reporter's retirement in #419. When invoked directly, the block reports wall-clock span as both
 first→last elapsed time and active time (the sum of chronologically adjacent gaps up to and including 30 minutes;
-gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true and
-teeth-proof coverage). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
+gaps over 30 minutes are excluded in full), token totals with run coverage, review rounds, deviations logged, and feature counts (passes:true). Every row obeys the **omit-never-fake / null-never-0** rule: a metric that was not actually
 measured is **omitted entirely** and never fabricated as `0` or a half-present `n/a` placeholder. In particular the
 trace-derived token row appears only when a runtime adapter reported `gen_ai.usage.*` on model spans; otherwise it is
 omitted — issue #329 retired the old `- Tokens: n/a` line, because a half-present field is worse than an absent one.
@@ -393,11 +395,11 @@ with a whitespace-separated list of `NN` path templates. Each resolved run emits
 
 ### Sensor teeth-proof obligation (retired, #334)
 
-The teeth-proof evidence machinery — the `teeth_proof` object, the red-first ordered-triple check, and the
-`teeth_proof_missing` PR block — is retired. Measured yield across real runs was zero (every real catch came
+The teeth-proof evidence machinery (retired, #334) — the `teeth_proof` object (retired), the red-first ordered-triple check, and the
+`teeth_proof_missing` PR block (all retired) — is gone. Measured yield across real runs was zero (every real catch came
 from the independent end-of-issue review), while the ceremony taxed every green. TDD remains the working
 discipline; test quality is judged by the review. Historical feature lists carrying `teeth_proof`,
-`teeth_proof_waiver`, or `red_first_waiver` stay valid because the validator treats those fields as
+`teeth_proof_waiver`, or `red_first_waiver` (all retired) stay valid because the validator treats those fields as
 inert metadata. The `feature_start` selection-evidence gate is also retired (#370); historical spans
 remain schema-valid.
 
@@ -432,7 +434,7 @@ the failure as unrelated or flaky:
 - locale- or implementation-dependent `sort` behavior;
 - Git version-specific command and pipeline behavior.
 
-A green run is a **hard precondition for merge**: merge through `./scripts/merge-pr.sh`, which
+A green run is a **hard precondition for merge**: merge through `./scripts/merge-pr.sh --squash --delete-branch` (a method flag is required non-interactively), which
 verifies `gh pr checks` is green before merging. For belt-and-braces enforcement, a repo admin
 should enable a **branch-protection required check** on `main` so the gate cannot be bypassed.
 
@@ -483,14 +485,16 @@ truth that `scripts/trace-lib.sh` reads for the `harness.version` stamped on eve
 behind that release is carried separately by the optional `harness.commit` field (the short git SHA of the harness
 scripts at emit time).
 
-Bumping `VERSION` is **manual and deliberate** — there is no auto-increment. Bump only when observable behaviour or
-the lifecycle contract changes:
+Bumping `VERSION` is **automated** (#257): python-semantic-release computes the next SemVer from the
+Conventional Commits landed on `main`, writes `pyproject.toml [project].version` (the single source of
+truth), mirrors it into `VERSION` via `scripts/sync-version.sh` (which also refreshes `uv.lock`, #455),
+and tags + publishes the GitHub Release — see `.github/workflows/release.yml` and
+`docs/RELEASING.md`. Commit types map to bumps:
 
-- **MAJOR / MINOR** — a change to observable behaviour or the lifecycle contract (new or removed lifecycle steps,
-  gate boundaries, script entrypoints, feature-list schema, or trace-schema semantics).
-- **PATCH** — a behaviour-affecting bug fix that does not change the contract surface.
-- **No bump** — docs-only, test-only, or comment-only commits do **not** move `VERSION`. Keeping the release stable
-  across such commits is what makes `by_version` aggregation across traces meaningful.
+- **MINOR** — `feat:` (and, while on 0.x, `BREAKING CHANGE` — `major_on_zero=false`).
+- **PATCH** — `fix:`.
+- **No bump** — `chore:`/`docs:`/`test:`/`refactor:`/`ci:` commits do **not** move `VERSION`. Keeping the
+  release stable across such commits is what makes `by_version` aggregation across traces meaningful.
 
 This release version is **separate** from the `version:` field in `docs/harness-contract.yml`, which is the
 contract-schema version for the frozen lifecycle contract itself. The two evolve independently: a `VERSION` bump

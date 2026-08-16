@@ -56,7 +56,7 @@ harness contract and the AGENTS.md conventions.
   non-zero (e.g. preflight auth missing, a failed quality gate). A **warning** is
   advisory: print the note and continue with exit 0 (e.g. commit signing off, an
   optional surface tool absent). Keep the two paths distinct and intentional;
-  match the `kind: hard|warn` declarations in `docs/harness-contract.yml`.
+  match the `mode: hard|warn` declarations in `docs/harness-contract.yml`.
 
 ## Harness script tests (`tests/scripts/test_*.sh`)
 
@@ -85,11 +85,11 @@ A meta-test earns its keep only if it does one of these — this is the
 
 - **KEEP — machine-parsed structure**: validates a format a script actually
   parses (handback payload line, TAP rows, agent/skill frontmatter, schema
-  single-source/key-coverage, L0 gate driver behaviour, the teeth_proof
-  kind-set).
-- **KEEP — cross-file consistency**: asserts two artifacts agree (a routing map
-  vs the language files on disk, a doc vs the script/workflow that is its
-  authority). Cheap, and it catches drift a human review misses.
+  single-source/key-coverage, L0 gate driver behaviour, the trace-schema
+  enum single-source blocks).
+- **KEEP — cross-file consistency**: asserts two artifacts agree (the contract
+  vs gate scripts, a doc vs the script/workflow that is its authority). Cheap,
+  and it catches drift a human review misses.
 - **CONVERT — doctrine-critical prose**: guards core doctrine but pins it with
   sentence-level greps. Rewrite to assert the guarded **section/anchor exists**
   (a `^#` heading pattern) and its **closed vocabulary** is present; wording
