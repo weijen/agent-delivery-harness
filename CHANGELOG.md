@@ -2,6 +2,38 @@
 
 <!-- version list -->
 
+## v0.44.2 (2026-08-16)
+
+### Bug Fixes
+
+- **#424**: Purge retired concepts and false claims from always-injected doctrine
+  ([#464](https://github.com/weijen/agent-delivery-harness/pull/464),
+  [`21a8c78`](https://github.com/weijen/agent-delivery-harness/commit/21a8c7830f330b446d527629011809827677c677))
+
+- **#424**: Purge retired concepts from injected doctrine and the reviewer contract
+  ([#464](https://github.com/weijen/agent-delivery-harness/pull/464),
+  [`21a8c78`](https://github.com/weijen/agent-delivery-harness/commit/21a8c7830f330b446d527629011809827677c677))
+
+- **#424**: Repair review findings — cap section ref, gate leftover, anchor completeness
+  ([#464](https://github.com/weijen/agent-delivery-harness/pull/464),
+  [`21a8c78`](https://github.com/weijen/agent-delivery-harness/commit/21a8c7830f330b446d527629011809827677c677))
+
+- **#424**: Truth pass on HARNESS.md, eval docs, and doctrine examples
+  ([#464](https://github.com/weijen/agent-delivery-harness/pull/464),
+  [`21a8c78`](https://github.com/weijen/agent-delivery-harness/commit/21a8c7830f330b446d527629011809827677c677))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.44.1
+  ([`900bd19`](https://github.com/weijen/agent-delivery-harness/commit/900bd19992fff39c252d2762f4946d8edff63b50))
+
+### Testing
+
+- **#424**: Retired-vocabulary sensor + re-pin doctrine sensors to current text
+  ([#464](https://github.com/weijen/agent-delivery-harness/pull/464),
+  [`21a8c78`](https://github.com/weijen/agent-delivery-harness/commit/21a8c7830f330b446d527629011809827677c677))
+
+
 ## v0.44.1 (2026-08-15)
 
 ### Bug Fixes
