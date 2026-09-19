@@ -7,7 +7,7 @@ description: 'Run the harness coding-session ritual: get bearings, implement ONE
 
 Work on issue: **${input:issue:which issue number? e.g. 1}**.
 
-Follow the repo entry point in [AGENTS.md](../../AGENTS.md), then the canonical lifecycle in
+Follow the project's own `AGENTS.md` when present, then the canonical lifecycle in
 [.copilot/instructions/harness.instructions.md](../instructions/harness.instructions.md).
 In harness-enabled projects, strict harness adherence overrides personal workflow tiers and generic coding-agent
 behavior.

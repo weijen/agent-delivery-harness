@@ -23,7 +23,7 @@ separate from replaceable language support and project-specific conventions:
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
-  [docs/scripts-language-policy.md](scripts-language-policy.md).
+  [the upstream contributor policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md).
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
   that supply surface labels, dependency sync, and gate commands after
   `init.sh`'s explicit marker checks select a project surface. The
@@ -333,7 +333,7 @@ live in [harness.instructions.md §3](../.copilot/instructions/harness.instructi
 The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
 tool/model/skill analysis reads native records through the path documented in
 [runtime-adapters/github-copilot.md](github-copilot.md); the
-Claude Code adapter ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md))
+Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/docs/runtime-adapters/claude-code.md))
 remains a labeled reference example.
 
 The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the

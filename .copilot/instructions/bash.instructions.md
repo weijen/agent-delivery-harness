@@ -103,7 +103,7 @@ A meta-test earns its keep only if it does one of these — this is the
   skill and the fresh-context reviewer — never by these.
 
 The point-in-time triage that applied this rubric lives at
-[`docs/archive/evaluation/meta-test-triage.md`](../../docs/archive/evaluation/meta-test-triage.md).
+[`docs/archive/evaluation/meta-test-triage.md`](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/meta-test-triage.md).
 
 ## Validation before declaring work done
 

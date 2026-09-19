@@ -6,7 +6,7 @@ description: Adopt the harness, configure local identity, and start issue-driven
 This guide walks through standing up a new project on the harness: adopting the
 harness, choosing a language, scaffolding the matching profile, running
 preflight, and starting your first issue. It is the onboarding companion to the
-[README](../README.md) (overview and setup) and
+[upstream README](https://github.com/weijen/agent-delivery-harness/blob/main/README.md) (overview and setup) and
 [docs/HARNESS.md](HARNESS.md) (the full issue lifecycle).
 
 ## 1. Decide how to adopt the harness
@@ -18,13 +18,12 @@ descriptor. There are two common ways to start:
 - **Use this repository as the project root.** Clone it and start adding your
   code under `apps/`, `packages/`, or `infra/` as it lands. The harness scripts
   in `scripts/` and the profiles in `profiles/` stay where they are.
-- **Copy the harness into an existing project.** Run the installer, which copies
-  the real harness assets — `scripts/`, `profiles/`, `tests/scripts` and
-  `tests/meta`, `.copilot/instructions/`, `.copilot/agents/`, `.copilot/skills/`,
-  `.copilot/prompts/`, `.github/workflows/harness-smoke.yml`, and the lifecycle
-  and runtime contract docs. It also copies the trace and log schemas,
-  `docs/runtime-adapters/` guides and templates, and `VERSION` identity into a
-  target directory verbatim, touching nothing else:
+- **Copy the harness into an existing project.** Run the installer, whose default
+  payload is enumerated in `scripts/install-harness.assets`. It copies lifecycle
+  commands, profiles, core validation and its actual fixtures, discoverable
+  `.copilot/` guidance, the adopter smoke workflow, current runtime contract docs
+  and schemas, and `VERSION` identity. Files are copied verbatim from their
+  selected source; a shared directory never makes an unclassified asset eligible:
 
   ```sh
   ./scripts/install-harness.sh /path/to/project            # dry run — prints copies and retired-asset removals
@@ -72,8 +71,9 @@ descriptor. There are two common ways to start:
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,
   evaluation-authoring, meta, and top-level documentation obligation sensors.
-  The shipped `tests/harness-dev-sensors.txt` manifest is the machine-readable
-  exclusion source for the installer and adopter CI. Harness maintainers can
+  The shipped `tests/harness-dev-sensors.txt` classifies maintainer-only tests;
+  `scripts/install-harness.assets` is the authoritative default selection.
+  Harness maintainers can
   opt into the complete self-development suite with `--with-dev-sensors`.
 
   The installed `.github/workflows/harness-smoke.yml` is selected from
@@ -86,13 +86,26 @@ descriptor. There are two common ways to start:
   Environment examples are project-owned in both modes: the installer does not
   distribute `.env.example` or delete existing adopter copies.
 
+### Payload audiences
+
+| Audience | Assets and reason |
+| --- | --- |
+| Adopter | Exact manifest entries: lifecycle commands/libraries, profiles, current docs/contracts, discoverable guidance, core sensors, frontmatter validator, and the native-log fixtures those sensors actually read. |
+| Maintainer | Release/history and audit-sweep tooling, source-repository meta tests, evaluation runners/manifests/scorecards, research/archive docs, and maintainer CI/configuration. Not needed to operate a delivery worktree. |
+| Optional | Claude hooks and `docs/runtime-adapters/` guides and templates; not activated or installed by default. |
+| Project-owned | Root README/AGENTS, environment examples, runtime settings and debt records. Never imported from this repository as adopter state. |
+
+The source repository retains its complete CI and evaluation suite. Historical
+and optional citations in installed guidance point upstream instead of pulling
+their entire directories into the default payload.
+
 Either way, project-specific product specs, architecture notes, and delivery
-plans live under `docs/` and are linked from [AGENTS.md](../AGENTS.md).
+plans live under `docs/` and are linked from the project's own `AGENTS.md`.
 
 ## 2. Check prerequisites
 
 Before anything else, make sure the hard requirements from the
-[README](../README.md#prerequisites) are met:
+[upstream README](https://github.com/weijen/agent-delivery-harness/blob/main/README.md#prerequisites) are met:
 
 - macOS or Linux (Windows via WSL2 is untested).
 - [GitHub CLI](https://cli.github.com/) authenticated — `gh auth login`. **Hard-required.**
@@ -293,7 +306,7 @@ above, not a standing blanket rule.
 
 ## Where to go next
 
-- [AGENTS.md](../AGENTS.md) — the map agents and contributors start from.
+- The project's own `AGENTS.md` — its map for agents and contributors; the installer does not overwrite it.
 - [docs/HARNESS.md](HARNESS.md) — the full issue lifecycle and CI boundary.
 - [profiles/README.md](../profiles/README.md) — the profile descriptor contract.
-- [docs/evaluation/README.md](evaluation/README.md) — the harness evaluation strategy.
+- [Upstream evaluation index](https://github.com/weijen/agent-delivery-harness/blob/main/docs/evaluation/README.md) — maintainer research, not a default install dependency.

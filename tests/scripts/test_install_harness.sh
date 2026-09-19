@@ -32,7 +32,8 @@ REQUIRED_FILES=(
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
 	docs/product-quality-rubric.md
-	docs/evaluation/README.md
+	schemas/trace-schema.v1.json
+	scripts/install-harness.assets
 )
 
 # --- Case (a): script shape (executable, parses, shellcheck-clean) ------------

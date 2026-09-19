@@ -30,7 +30,7 @@ for term in \
     || fail "post-compaction re-anchor lacks required term: ${term}"
 done
 
-grep -qF '[Post-compaction re-anchor](../../AGENTS.md#post-compaction-re-anchor)' \
+grep -qF '[Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor)' \
   "${DOCTRINE}" \
   || fail "harness doctrine does not link to the re-anchor"
 grep -qiE 'after (any )?(context )?compaction' "${DOCTRINE}" \

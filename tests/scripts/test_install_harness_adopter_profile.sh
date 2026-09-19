@@ -28,6 +28,19 @@ default_target="${TMP_DIR}/default"
 	echo "default install shipped project-owned environment configuration"
 	exit 1
 }
+for excluded in scripts/sync-version.sh scripts/check-install-harness-tombstones.sh \
+	docs/RELEASING.md docs/evaluation docs/archive docs/runtime-adapters \
+	tests/evals/bin/run-evals.sh tests/evals/bin/run-l0-suite.sh tests/evals/manifests \
+	tests/evals/fixtures tests/evals/baselines tests/evals/scorecards; do
+	[ ! -e "${default_target}/${excluded}" ] || {
+		echo "default install shipped maintainer or optional asset: ${excluded}"
+		exit 1
+	}
+done
+[ -f "${default_target}/scripts/install-harness.assets" ] || {
+	echo "default install omitted its explicit asset manifest"
+	exit 1
+}
 cmp -s "${ROOT}/profiles/adopter-smoke.yml" \
 	"${default_target}/.github/workflows/harness-smoke.yml" || {
 	echo "default install did not select the adopter smoke workflow"
@@ -58,6 +71,80 @@ if ! "${default_target}/scripts/install-harness.sh" "$default_target" >"$OUT" 2>
 	echo "installed adopter-profile installer is not self-contained"
 	exit 1
 fi
+
+python3 - "$default_target" <<'PY'
+import pathlib
+import re
+import sys
+import urllib.parse
+
+root = pathlib.Path(sys.argv[1])
+for directory in ("docs", ".copilot", "profiles"):
+    for path in (root / directory).rglob("*.md"):
+        for target in re.findall(r"\]\(([^)]+)\)", path.read_text()):
+            url = target.split()[0]
+            if url.startswith(("#", "https:", "http:", "mailto:", "<")):
+                continue
+            local = urllib.parse.unquote(url.split("#")[0])
+            if local and not (path.parent / local).exists():
+                raise SystemExit(f"installed guidance link is broken: {path.relative_to(root)} -> {target}")
+PY
+
+# Newly colocated source assets must not enter an explicit default selection.
+mkdir -p "${default_target}/docs/evaluation" "${default_target}/tests/fixtures/unclassified"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${default_target}/scripts/unclassified-maintenance.sh"
+printf 'unclassified research\n' >"${default_target}/docs/evaluation/unclassified.md"
+printf 'unclassified data\n' >"${default_target}/tests/fixtures/unclassified/data.txt"
+probe_target="${TMP_DIR}/manifest-probe"
+mkdir -p "${probe_target}/docs" "${probe_target}/.claude"
+for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json; do
+	printf 'adopter-owned sentinel\n' >"${probe_target}/${owned}"
+done
+"${default_target}/scripts/install-harness.sh" "$probe_target" --write >"$OUT" 2>&1 || {
+	cat "$OUT"
+	echo "explicit installed manifest is not self-contained"
+	exit 1
+}
+for excluded in scripts/unclassified-maintenance.sh docs/evaluation/unclassified.md \
+	tests/fixtures/unclassified/data.txt; do
+	[ ! -e "${probe_target}/${excluded}" ] || {
+		echo "unclassified asset leaked into default payload: ${excluded}"
+		exit 1
+	}
+done
+for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json; do
+	[ "$(cat "${probe_target}/${owned}")" = "adopter-owned sentinel" ] || {
+		echo "installer changed adopter-owned ${owned}"
+		exit 1
+	}
+done
+cp "${default_target}/scripts/install-harness.assets" "${TMP_DIR}/manifest.before"
+printf '../outside\n' >>"${default_target}/scripts/install-harness.assets"
+if "${default_target}/scripts/install-harness.sh" "${TMP_DIR}/invalid-target" --write >"$OUT" 2>&1; then
+	echo "unsafe manifest path was accepted"
+	exit 1
+fi
+if ! grep -qF 'unsafe adopter asset path' "$OUT" || [ -e "${TMP_DIR}/invalid-target" ]; then
+	cat "$OUT"
+	echo "invalid selection must fail before creating the target"
+	exit 1
+fi
+cp "${TMP_DIR}/manifest.before" "${default_target}/scripts/install-harness.assets"
+mv "${default_target}/scripts/init.sh" "${TMP_DIR}/init.saved"
+if "${default_target}/scripts/install-harness.sh" "${TMP_DIR}/missing-target" --write >"$OUT" 2>&1; then
+	echo "missing required source asset was accepted"
+	exit 1
+fi
+grep -qF 'adopter asset missing from source: scripts/init.sh' "$OUT" || {
+	cat "$OUT"
+	echo "missing asset did not produce an actionable diagnostic"
+	exit 1
+}
+[ ! -e "${TMP_DIR}/missing-target" ] || {
+	echo "missing source dependency partially installed a target"
+	exit 1
+}
+mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
 
 # An old lock cannot make project-owned configuration eligible for deletion.
 printf 'adopter-owned configuration fixture\n' >"${TMP_DIR}/owned-config"

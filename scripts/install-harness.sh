@@ -25,10 +25,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TOMBSTONE_LEDGER="${SCRIPT_DIR}/install-harness.tombstones"
 DEV_SENSOR_MANIFEST="${REPO_ROOT}/tests/harness-dev-sensors.txt"
+ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.assets"
 
-# --- Harness asset manifest (paths relative to REPO_ROOT) --------------------
-# Directories are copied recursively (excluding compiled python artifacts); plain
-# files are copied as-is. These are the real harness assets, not skeletons.
+# Developer payload; default destinations are explicit in install-harness.assets.
 HARNESS_ASSETS=(
 	scripts
 	profiles
@@ -73,11 +72,11 @@ Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors]
                 install harness-repository development sensors in addition to
                 the default adopter-safe core sensor profile
 
-Copies the real harness assets verbatim (scripts/, profiles/, adopter-safe core
-sensors, .copilot/instructions, .copilot/agents, .copilot/skills,
-.copilot/prompts, the smoke workflow, lifecycle and runtime contract docs,
-trace and log schemas, runtime-adapter guides and templates, and VERSION
-identity). The default smoke workflow comes from profiles/adopter-smoke.yml;
+Default selection is explicit in scripts/install-harness.assets: lifecycle
+commands, profiles, core sensors and their fixtures, discoverable instructions,
+agents and skills, current runtime contract docs and schemas, and VERSION
+identity. Research, archive, release tooling and optional runtime-adapter guides
+and templates are not default assets. The smoke workflow comes from profiles/adopter-smoke.yml;
 --with-dev-sensors retains the maintainer workflow. Project language gates
 belong in the adopter's own CI. Never touches non-harness project files.
 Environment examples are project-owned: neither mode installs or retires them.
@@ -85,8 +84,8 @@ Updates lead with safe/kept/conflict counts. The generated .harness-lock records
 installed upstream hashes; .harness-keep globs permanently protect adopter-owned
 paths. Retired assets are pruned only when proven unmodified. Both-changed files
 and modified retired assets stay in place with adjacent .rej patches.
-The shipped tests/harness-dev-sensors.txt manifest drives the default exclusion
-and can also be consumed by adopter CI. Pass --with-dev-sensors only when
+The shipped tests/harness-dev-sensors.txt classifies maintainer-only sensors.
+Pass --with-dev-sensors only when
 developing the harness itself.
 USAGE
 }
@@ -373,18 +372,23 @@ is_harness_dev_sensor() {
 }
 
 list_selected_files() {
-	local asset="" rel=""
-	for asset in "${HARNESS_ASSETS[@]}"; do
-		if [ "$WITH_DEV_SENSORS" -eq 0 ] && [ "$asset" = "tests/meta" ]; then
-			continue
-		fi
-		while IFS= read -r rel; do
-			[ -n "$rel" ] || continue
-			if [ "$WITH_DEV_SENSORS" -eq 0 ] && is_harness_dev_sensor "$rel"; then
-				continue
-			fi
+	local asset="" rel="" files=""
+	if [ "$WITH_DEV_SENSORS" -eq 0 ]; then
+		[ -f "$ASSET_MANIFEST" ] || die "adopter asset manifest missing: ${ASSET_MANIFEST}"
+		while IFS= read -r rel || [ -n "$rel" ]; do
+			case "$rel" in "" | \#*) continue ;; esac
+			[[ "$rel" =~ ^[A-Za-z0-9_./-]+$ ]] || die "invalid adopter asset path: ${rel}"
+			case "$rel" in
+				/* | . | .. | ../* | */../* | */..) die "unsafe adopter asset path: ${rel}" ;;
+			esac
+			[ -f "$(source_file "$rel")" ] || die "adopter asset missing from source: ${rel}"
 			printf '%s\n' "$rel"
-		done < <(list_files "$asset")
+		done <"$ASSET_MANIFEST"
+		return
+	fi
+	for asset in "${HARNESS_ASSETS[@]}"; do
+		files="$(list_files "$asset")" || return 1
+		printf '%s\n' "$files"
 	done
 }
 
@@ -477,7 +481,7 @@ print_update_summary() {
 	while IFS= read -r rel; do
 		category="$(classify_active_for_summary "$rel")"
 		summary_increment "$category"
-	done < <(list_selected_files)
+	done <<<"$SELECTED_FILES"
 
 	if [ "$WITH_DEV_SENSORS" -eq 0 ]; then
 		while IFS= read -r rel; do
@@ -724,6 +728,9 @@ if [ -z "$TARGET_DIR" ]; then
 	die "no target directory given"
 fi
 
+SELECTED_FILES="$(list_selected_files)" || die "could not select a complete harness payload"
+[ -n "$SELECTED_FILES" ] || die "harness payload is empty"
+
 if [ "$MODE" != "dry" ]; then
 	mkdir -p "$TARGET_DIR"
 fi
@@ -750,7 +757,7 @@ while IFS= read -r rel; do
 	if ! reconcile "$rel"; then
 		rc=1
 	fi
-done < <(list_selected_files)
+done <<<"$SELECTED_FILES"
 
 if ! prune_harness_dev_sensors; then
 	rc=1

@@ -52,7 +52,7 @@ that the current runtime emits every type:
 Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
 ([runtime-adapters/github-copilot.md](github-copilot.md));
-[runtime-adapters/claude-code.md](runtime-adapters/claude-code.md) remains a
+[the optional Claude guide](https://github.com/weijen/agent-delivery-harness/blob/main/docs/runtime-adapters/claude-code.md) remains a
 labeled reference example. Historical traces may retain runtime-derived spans.
 
 ## Current operating contract
@@ -232,8 +232,8 @@ per-span required and optional field sets are in the contract):
 | `harness.session_id` | `sess-2f9c1a7b` | Harness-specific |
 
 Sensitive values (secrets, tokens, customer data) must be redacted before a span
-is written; see [security-evals.md](archive/evaluation/security-evals.md) and
-[dataset-governance.md](archive/evaluation/dataset-governance.md).
+is written; see [security-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/security-evals.md) and
+[dataset-governance.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/dataset-governance.md).
 
 Runtime spans may additionally carry the optional `harness.session_id` string,
 the runtime session / conversation identity of the GitHub Copilot session that
@@ -257,12 +257,12 @@ authority for the enum membership.
 The following research documents describe schema consumers and historical
 designs, not additional current lifecycle gates:
 
-- [trajectory-evals.md](archive/evaluation/trajectory-evals.md) match on the ordered sequence of
+- [trajectory-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/trajectory-evals.md) match on the ordered sequence of
   tool and lifecycle span names.
-- [trace-action-log-evals.md](archive/evaluation/trace-action-log-evals.md) check that required
+- [trace-action-log-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/trace-action-log-evals.md) check that required
   agent and lifecycle spans (handbacks, review verdict, approval SHA) are
   present and attributed to the right role.
-- [cost-efficiency-evals.md](evaluation/cost-efficiency-evals.md) sum `gen_ai.usage.*`
+- [cost-efficiency-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/evaluation/cost-efficiency-evals.md) sum `gen_ai.usage.*`
   tokens and count tool spans for cost and efficiency metrics.
 
 The common vocabulary permits these analyses when the relevant evidence exists.
@@ -320,7 +320,7 @@ The old cloud export leg derived a deterministic transport correlation id from
 `harness.issue` outside the raw trace. Issue #272 removed that exporter, but the
 schema decision remains: a future export/import exit ramp may derive a transport
 id, never store it on raw spans. See the retained mapping contract in
-[runtime-adapters/otlp-azure-monitor.md](archive/runtime-adapters/otlp-azure-monitor.md).
+[runtime-adapters/otlp-azure-monitor.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/runtime-adapters/otlp-azure-monitor.md).
 
 ## Public Trace Examples
 
@@ -347,7 +347,7 @@ historical agent roles so old traces remain readable. Those values describe
 past choreography, not current writer permissions or red-first proof.
 
 The separate `log.jsonl` stream and its writer were retired in #333.
-[log-schema.v1.json](archive/evaluation/log-schema.v1.json) preserves the
+[log-schema.v1.json](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/log-schema.v1.json) preserves the
 historical detail-record format, including `log_schema_version` rather than
 the span schema's `schema_version`. There is no current log writer to enable
 with the old `HARNESS_LOG` or payload-cap settings.
@@ -393,7 +393,7 @@ wired into `review-gate.sh trace` and closeout as a warn-only check by default.
 
 The standalone run reporter and its cross-run aggregation mode were retired in
 issue #419 because no in-repository or adopter workflow consumed their output.
-The versioned [trace-summary.v1.json](archive/evaluation/trace-summary.v1.json) file remains only as
+The versioned [trace-summary.v1.json](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/trace-summary.v1.json) file remains only as
 a frozen historical contract; no lifecycle entrypoint emits
 `trace-summary.json` or `finish-issue.economics` spans.
 

@@ -57,8 +57,6 @@ fi
 for active_doc in \
   .copilot/instructions/harness.instructions.md \
   docs/HARNESS.md \
-  docs/scripts-language-policy.md \
-  docs/evaluation/cost-efficiency-evals.md \
   docs/observability-and-trace-schema.md; do
   if grep -q 'trace-report\.sh' "${ROOT}/${active_doc}"; then
     fail "${active_doc} still advertises the retired trace reporter"
