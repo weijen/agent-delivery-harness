@@ -1,5 +1,6 @@
 # Generated from managed deletion history since install-harness.sh was introduced.
 # SHA-256 of final upstream content, followed by retired managed path.
+bb27fdc354a57a7d5fbb581a7dd5ea3fc7ac300ce5c68bcd99eef4655ec52b33	docs/evaluation/trace-schema.v1.json
 00f5f54e80a17596f45ed5f55d834c4893815b715852837bfe8b69f3cfe20fb3	tests/scripts/test_telemetry_retention_docs.sh
 006f4c6e5665751cc7a55e0e735bce2363dbebc1564094f8aa7584fd64dbc1fe	tests/scripts/test_trace_report_core.sh
 01c5838328558b96b5911ec668cd26c22a5315a290b49f15e22c83f5c67ec84b	tests/meta/test_product_quality_rubric.sh

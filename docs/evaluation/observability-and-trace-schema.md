@@ -3,7 +3,7 @@
 ## The Contract Is The Authority
 
 The frozen, machine-checkable trace schema v1 contract lives in
-[trace-schema.v1.json](trace-schema.v1.json). That file is the single
+[trace-schema.v1.json](../../schemas/trace-schema.v1.json). That file is the single
 vocabulary authority: span types, required fields, the closed lifecycle-step
 enumeration, optional fields, the trace-file path contract, and the redaction
 rule are all defined there, and sensors/validators read it with `jq`. This
@@ -19,7 +19,7 @@ invents its own ad-hoc format, the evals cannot share tooling and the traces
 cannot be inspected with standard tools. This page explains the trace schema,
 aligned with the OpenTelemetry GenAI semantic conventions, that all of those
 evals consume; the normative definition is
-[trace-schema.v1.json](trace-schema.v1.json).
+[trace-schema.v1.json](../../schemas/trace-schema.v1.json).
 
 ## Why Align With OpenTelemetry GenAI
 
@@ -47,7 +47,7 @@ that the current runtime emits every type:
   edit, web fetch).
 - **Lifecycle span** — harness-specific steps (e.g. review-gate approval, PR
   creation). The closed 13-step enumeration lives only in
-  [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
+  [trace-schema.v1.json](../../schemas/trace-schema.v1.json) under `lifecycle_steps`.
 
 Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
@@ -271,7 +271,7 @@ It does not imply that current runs emit runtime token/tool data or summaries.
 ## Trace Shape
 
 Illustrative only — required fields per span type are defined in
-[trace-schema.v1.json](trace-schema.v1.json). Note every line carries the
+[trace-schema.v1.json](../../schemas/trace-schema.v1.json). Note every line carries the
 mandatory common fields, including `schema_version` and `harness.version`:
 
 ```jsonl
@@ -283,7 +283,7 @@ mandatory common fields, including `schema_version` and `harness.version`:
 
 ## Span Linkage And Trace Identity
 
-`parent_span_id` (defined in [trace-schema.v1.json](trace-schema.v1.json),
+`parent_span_id` (defined in [trace-schema.v1.json](../../schemas/trace-schema.v1.json),
 "enabling span-tree linkage per cost-efficiency-evals.md") turns a flat span
 list into a tree. The harness sets it **only where the parent is deterministic
 at emission time** and otherwise omits it — omit, never fake. A flat span with
@@ -381,7 +381,7 @@ lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
 `scripts/check-trace-consistency.sh` (issue #97) is the standalone, report-only
 validator for this contract. Run it locally with an issue number (it resolves
 the per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
-checks every span line against [trace-schema.v1.json](trace-schema.v1.json)
+checks every span line against [trace-schema.v1.json](../../schemas/trace-schema.v1.json)
 (field presence, closed enums, and value types), checks current lifecycle
 consistency without requiring every historical enum value, audits redaction,
 and reports sanity warnings. Exit codes: `0` no violations, `1` violations
@@ -405,14 +405,14 @@ or summaries.
 
 The issues sketched in earlier drafts of this page now exist as the deep-trace
 workstream, issues #92–#99: #92 froze the schema v1 contract
-([trace-schema.v1.json](trace-schema.v1.json)) and repointed this page at it;
+([trace-schema.v1.json](../../schemas/trace-schema.v1.json)) and repointed this page at it;
 the follow-on issues cover span emission, redaction, validation (#97), and
 pointing the trajectory, trace, and cost evals at the shared schema. See the
 GitHub issue tracker for the live list.
 
 ## Acceptance Criteria
 
-- [trace-schema.v1.json](trace-schema.v1.json) is the single vocabulary
+- [trace-schema.v1.json](../../schemas/trace-schema.v1.json) is the single vocabulary
   authority; this page and the evals defer to it and carry no second
   competing copy.
 - A single trace per issue records the kept semantic spine; native-record

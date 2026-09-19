@@ -208,7 +208,7 @@ if ! source "${SCRIPT_DIR}/trace-lib.sh"; then
   exit 2
 fi
 
-CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+CONTRACT="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
 
 usage() {
   {
@@ -369,7 +369,7 @@ $contract[0] as $c
 # above stays diffable against test_trace_schema.sh). Numeric keys must be
 # JSON numbers; every other key must be a JSON string. Body lifted from the
 # #97 validate-types.jq, extended in #103 with the trace-gate count keys
-# (single-sourced by docs/evaluation/trace-schema.v1.json .numeric_keys +
+# (single-sourced by schemas/trace-schema.v1.json .numeric_keys +
 #  .structural_numeric_keys; drift-guarded by
 #  tests/meta/test_trace_schema_single_source.sh).
 def types_valid:
@@ -581,7 +581,7 @@ fi
 # Unparseable lines are skipped (schema conformance is validate-trace's job).
 STATE_FILTER="${TMP_DIR}/consistency-state.jq"
 cat > "$STATE_FILTER" <<'JQ'
-# >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+# >>> trace-schema:roles (authority schemas/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
 ["conductor", "planning-subagent", "generator-subagent", "implementation-subagent",
  "test-subagent", "code-review-subagent"] as $roles
 # <<< trace-schema:roles
@@ -862,7 +862,7 @@ done <<< "$state_out"
 # --- State: fail-verdict attribution (issue #318) -----------------------------
 # Closed failure_class enum — mirrored from the contract (single-source). Read
 # from the contract with jq when available; otherwise use the frozen fallback.
-# >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+# >>> trace-schema:failure_classes (authority schemas/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
 FAILURE_CLASSES_ENUM="spec-violation
 validation-bypass
 missing-coverage
@@ -874,7 +874,7 @@ known-flaky
 polling
 other"
 # <<< trace-schema:failure_classes
-SCHEMA_CONTRACT="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+SCHEMA_CONTRACT="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
 if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
   schema_classes="$(jq -r '(.failure_classes // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
   if [ -n "$schema_classes" ]; then
@@ -891,7 +891,7 @@ failure_class_valid() {
 }
 
 # Closed route enum, separate from failure class.
-# >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+# >>> trace-schema:failure_dispositions (authority schemas/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
 FAILURE_DISPOSITIONS_ENUM="point-fix
 class-fix
 research

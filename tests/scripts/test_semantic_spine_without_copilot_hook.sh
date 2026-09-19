@@ -54,7 +54,7 @@ case "$SELECTOR" in
   e2e)
     assert_capture_absent
     command -v jq >/dev/null 2>&1 || fail "jq is required"
-    mkdir -p "${SCRATCH}/repo/scripts" "${SCRATCH}/repo/docs/evaluation" "${SCRATCH}/bin"
+    mkdir -p "${SCRATCH}/repo/scripts" "${SCRATCH}/repo/schemas" "${SCRATCH}/repo/docs" "${SCRATCH}/bin"
     for tool in bash sh env git basename dirname mkdir rmdir rm cat sed tr cut grep \
       printf jq date od wc awk sort comm uniq head tail ls cp mv ln touch mktemp uname true false; do
       path="$(command -v "$tool" || true)"
@@ -74,8 +74,8 @@ SH
       check-trace-consistency.sh log-handback.sh; do
       cp "${ROOT}/scripts/${script}" "${SCRATCH}/repo/scripts/"
     done
-    cp "${ROOT}/docs/evaluation/trace-schema.v1.json" \
-      "${SCRATCH}/repo/docs/evaluation/trace-schema.v1.json"
+    cp "${ROOT}/schemas/trace-schema.v1.json" \
+      "${SCRATCH}/repo/schemas/trace-schema.v1.json"
     cat > "${SCRATCH}/repo/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0

@@ -2,7 +2,7 @@
 # test_trace_schema.sh — regression sensor for the frozen trace schema v1
 # contract (issue #92, feature trace-schema-v1-contract).
 #
-# docs/evaluation/trace-schema.v1.json is the machine-readable authority for the
+# schemas/trace-schema.v1.json is the machine-readable authority for the
 # harness trace vocabulary (span types, required fields, closed lifecycle-step
 # enum, trace-file path contract, redaction-by-reference). This sensor:
 #
@@ -35,7 +35,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -52,7 +52,9 @@ command -v jq >/dev/null 2>&1 \
 
 # --- 1. Contract exists, is valid JSON, declares schema_version 1 ------------
 [ -f "$CONTRACT" ] \
-  || { printf 'FAIL: contract not found at docs/evaluation/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+  || { printf 'FAIL: contract not found at schemas/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+[ ! -e "${ROOT}/docs/evaluation/trace-schema.v1.json" ] \
+  || fail "old research path must not remain a second live schema authority"
 jq empty "$CONTRACT" 2>/dev/null \
   || { printf 'FAIL: contract is not valid JSON: %s\n' "$CONTRACT" >&2; exit 1; }
 jq -e 'type == "object"' "$CONTRACT" >/dev/null \
@@ -140,7 +142,7 @@ done
 # --- 3. jq validation filter: contract-driven span accept/reject -------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
-# Usage: jq -e --slurpfile contract docs/evaluation/trace-schema.v1.json \
+# Usage: jq -e --slurpfile contract schemas/trace-schema.v1.json \
 #            -f validate-span.jq  <<< "$one_span_json_line"
 # A span line is valid iff the filter outputs true (jq -e exit 0). A non-JSON
 # line fails jq parsing itself (non-zero exit), which is also a rejection.
@@ -269,6 +271,37 @@ SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
 skill_flat="$(tr '\n' ' ' <"$SKILL" | tr -s ' ')"
 if printf '%s\n' "$skill_flat" | grep -qiE 'hooks log.*is a second|token usage is a cloud-only signal'; then
   fail "native-record guidance must not require the retired hook or cloud-only token capture"
+fi
+
+# The installed writer/checker must work without any research-directory schema.
+installed="${TMP_DIR}/adopter"
+mkdir -p "${installed}/docs/evaluation"
+cp "$CONTRACT" "${installed}/docs/evaluation/trace-schema.v1.json"
+git -C "$installed" init -q -b feature/issue-77-schema
+if ! bash "${ROOT}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
+  cat "${TMP_DIR}/install.log" >&2
+  fail "schema relocation install must succeed"
+else
+  [ -f "${installed}/schemas/trace-schema.v1.json" ] \
+    || fail "installed adopter must include dedicated schema"
+  [ ! -e "${installed}/docs/evaluation/trace-schema.v1.json" ] \
+    || fail "unchanged old managed schema must be pruned"
+  mkdir -p "${installed}/.copilot-tracking/issues/issue-77"
+  printf '# Issue 77\n\n## Action Log\n\n' >"${installed}/.copilot-tracking/issues/issue-77/progress.md"
+  (
+    cd "$installed"
+    TRACE_ISSUE=77 ./scripts/log-handback.sh conductor deviation F1 pass "schema migration fixture"
+    ./scripts/check-trace-consistency.sh 77
+  ) || fail "installed writer/checker must resolve the new schema"
+  mkdir -p "${installed}/docs/evaluation"
+  printf '{"customized":true}\n' >"${installed}/docs/evaluation/trace-schema.v1.json"
+  if bash "${ROOT}/scripts/install-harness.sh" "$installed" --update >"${TMP_DIR}/conflict.log" 2>&1; then
+    fail "customized retired schema must produce a conflict"
+  fi
+  grep -qF '{"customized":true}' "${installed}/docs/evaluation/trace-schema.v1.json" \
+    || fail "customized retired schema must survive migration"
+  grep -qF 'docs/evaluation/trace-schema.v1.json' "${TMP_DIR}/conflict.log" \
+    || fail "migration conflict must name the customized old authority"
 fi
 
 # --- Result ------------------------------------------------------------------

@@ -315,7 +315,7 @@ file `.copilot-tracking/issues/issue-NN/trace.jsonl` at the **main checkout** ro
 issue regardless of which worktree a script runs from, so the record survives worktree teardown. The trace is
 local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
-contract in `docs/evaluation/observability-and-trace-schema.md` (`docs/evaluation/trace-schema.v1.json`).
+contract in `docs/evaluation/observability-and-trace-schema.md` (`schemas/trace-schema.v1.json`).
 
 The retired trace reporter no longer generates `trace-summary.json`, version-bucket aggregates, or
 `finish-issue.economics` tool spans. The frozen summary schema and sourceable economics helpers remain for historical

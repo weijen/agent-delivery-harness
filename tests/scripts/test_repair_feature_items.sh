@@ -46,12 +46,12 @@ command -v jq >/dev/null 2>&1 || { printf 'Bail out! jq required\n'; exit 1; }
 # check-feature-list.sh resolves the list from the issue's tracking dir, so
 # drive it inside a minimal fixture repo on the issue branch.
 CFL_FIX="${TMP_DIR}/cfl-repo"
-mkdir -p "${CFL_FIX}/scripts" "${CFL_FIX}/docs/evaluation" \
+mkdir -p "${CFL_FIX}/scripts" "${CFL_FIX}/schemas" "${CFL_FIX}/docs" \
   "${CFL_FIX}/.worktrees/issue-66/.copilot-tracking/issues/issue-66"
 for s in check-feature-list.sh issue-lib.sh trace-lib.sh github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${CFL_FIX}/scripts/"
 done
-cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${CFL_FIX}/docs/evaluation/"
+cp "${ROOT}/schemas/trace-schema.v1.json" "${CFL_FIX}/schemas/"
 git -C "$CFL_FIX" init -q -b main
 git -C "$CFL_FIX" config user.name t; git -C "$CFL_FIX" config user.email t@example.invalid
 git -C "$CFL_FIX" add -A; git -C "$CFL_FIX" commit -q -m base

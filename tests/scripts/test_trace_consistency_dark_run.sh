@@ -40,7 +40,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 TMP_PARENT="${ROOT}/.copilot-tracking/test-tmp"
 mkdir -p "$TMP_PARENT"
 TMP_DIR="$(mktemp -d "${TMP_PARENT}/dark-run.XXXXXX")"
@@ -265,8 +265,8 @@ make_gate_fixture() {
   local dir="$1" issue="$2" pad wt tree commit
   pad="$(issue_pad "$issue")"
   wt="${dir}/.worktrees/issue-${pad}"
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/trace-schema.v1.json"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/trace-schema.v1.json"
   local s
   for s in issue-lib.sh lifecycle-runtime-lib.sh trace-lib.sh check-trace-consistency.sh review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
@@ -277,7 +277,7 @@ make_gate_fixture() {
   git -C "$dir" config commit.gpgsign false
   printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md docs scripts
+  git -C "$dir" add .gitignore README.md schemas scripts
   tree="$(git -C "$dir" write-tree)"
   commit="$(printf 'initial\n' | git -C "$dir" commit-tree "$tree")"
   git -C "$dir" update-ref refs/heads/main "$commit"

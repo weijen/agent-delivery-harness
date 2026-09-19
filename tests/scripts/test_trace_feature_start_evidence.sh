@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 
 if grep -qF 'feature_start_missing' "${CHECKER}"; then
   printf 'FAIL: checker still emits feature_start_missing\n' >&2

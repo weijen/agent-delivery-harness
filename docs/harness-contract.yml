@@ -38,7 +38,7 @@ scripts:
     role: Sourceable repository-bound GitHub token and local Git identity resolver.
   - id: trace-lib
     path: scripts/trace-lib.sh
-    role: Sourceable trace-span emitter for deep tracing; schema authority docs/evaluation/trace-schema.v1.json.
+    role: Sourceable trace-span emitter for deep tracing; schema authority schemas/trace-schema.v1.json.
   - id: lifecycle-runtime-lib
     path: scripts/lifecycle-runtime-lib.sh
     role: Shared terminal output and optional tracing bootstrap for lifecycle entrypoints.

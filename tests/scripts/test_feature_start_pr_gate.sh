@@ -12,14 +12,14 @@ fail() {
 }
 
 REPO="${TMP_DIR}/repo"
-mkdir -p "${REPO}/scripts" "${REPO}/docs/evaluation"
+mkdir -p "${REPO}/scripts" "${REPO}/schemas" "${REPO}/docs"
 for script in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh trace-lib.sh \
   issue-lib.sh ci-coverage-lib.sh \
   rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${script}" "${REPO}/scripts/"
 done
-cp "${ROOT}/docs/evaluation/trace-schema.v1.json" \
-  "${REPO}/docs/evaluation/"
+cp "${ROOT}/schemas/trace-schema.v1.json" \
+  "${REPO}/schemas/"
 
 git -C "${REPO}" init -q -b main
 git -C "${REPO}" config user.name "Harness Test"
@@ -27,7 +27,7 @@ git -C "${REPO}" config user.email "harness-test@example.invalid"
 git -C "${REPO}" config commit.gpgsign false
 printf '.copilot-tracking/\n' >"${REPO}/.gitignore"
 printf 'fixture\n' >"${REPO}/README.md"
-git -C "${REPO}" add .gitignore README.md scripts docs
+git -C "${REPO}" add .gitignore README.md scripts schemas
 git -C "${REPO}" commit -q -m initial
 git -C "${REPO}" checkout -q -b feature/issue-370-fixture
 printf 'feature\n' >>"${REPO}/README.md"

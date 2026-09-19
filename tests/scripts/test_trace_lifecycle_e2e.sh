@@ -34,7 +34,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -47,12 +47,12 @@ command -v jq >/dev/null 2>&1 \
   || fail "jq is required to validate the lifecycle trace trajectory"
 
 [ -f "$CONTRACT" ] \
-  || fail "trace schema contract not found at docs/evaluation/trace-schema.v1.json (${CONTRACT})"
+  || fail "trace schema contract not found at schemas/trace-schema.v1.json (${CONTRACT})"
 
 # --- Contract-driven span validation ------------------------------------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
-# Usage: jq -e --slurpfile contract docs/evaluation/trace-schema.v1.json \
+# Usage: jq -e --slurpfile contract schemas/trace-schema.v1.json \
 #            -f validate-span.jq  <<< "$one_span_json_line"
 # A span line is valid iff the filter outputs true (jq -e exit 0). A non-JSON
 # line fails jq parsing itself (non-zero exit), which is also a rejection.
@@ -148,7 +148,7 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
-mkdir -p "${R}/scripts" "${R}/docs/evaluation"
+mkdir -p "${R}/scripts" "${R}/schemas" "${R}/docs"
 for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
          finish-lib.sh economics-report-lib.sh trace-lib.sh \
@@ -156,7 +156,7 @@ for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list
          rebind-evidence.sh verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${s}" "${R}/scripts/"
 done
-cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${R}/docs/evaluation/trace-schema.v1.json"
+cp "${ROOT}/schemas/trace-schema.v1.json" "${R}/schemas/trace-schema.v1.json"
 cat > "${R}/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash
 echo "stub preflight ok"
@@ -169,7 +169,7 @@ git -C "$R" config user.email "harness-test@example.invalid"
 printf '/.worktrees/\n.copilot-tracking/\n' > "${R}/.gitignore"
 printf 'fixture\n' > "${R}/README.md"
 printf '# Progress\n\nbaseline\n' > "${R}/docs/PROGRESS.md"
-git -C "$R" add .gitignore README.md docs/PROGRESS.md scripts
+git -C "$R" add .gitignore README.md docs/PROGRESS.md scripts schemas
 git -C "$R" commit -q -m initial
 git clone -q --bare "$R" "${TMP_DIR}/origin.git"
 git -C "$R" remote add origin "${TMP_DIR}/origin.git"

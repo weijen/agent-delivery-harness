@@ -147,11 +147,11 @@ emit "unparseable timestamp stays current-era (fail-closed)"
 
 # --- Writer legs: write-time rejection is the hard stop -----------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/docs/evaluation"
+mkdir -p "${FIX}/scripts" "${FIX}/schemas" "${FIX}/docs"
 for s in log-handback.sh trace-lib.sh check-trace-consistency.sh issue-lib.sh github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
 done
-cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${FIX}/docs/evaluation/"
+cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 mkdir -p "${FIX}/.copilot-tracking/issues/issue-88"
 printf '# Issue 88\n\n## Action Log\n\n' > "${FIX}/.copilot-tracking/issues/issue-88/progress.md"
 git -C "$FIX" init -q -b main

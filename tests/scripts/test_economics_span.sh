@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 SCRATCH_ROOT="${ROOT}/.copilot-tracking/test-economics-span.$$"
 TMP_DIR="${SCRATCH_ROOT}/tmp"
 BIN="${SCRATCH_ROOT}/bin"
@@ -47,13 +47,13 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat grep printf jq d
 copy_fixture_scripts() {
   local dir="$1"
   local s
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
   for s in finish-lib.sh economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
-  cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"
+  cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   if [ -f "${ROOT}/VERSION" ]; then
     cp "${ROOT}/VERSION" "${dir}/VERSION"
   fi
@@ -70,7 +70,7 @@ make_economics_fixture() {
   git -C "$dir" config user.email "harness-test@example.invalid"
   printf '.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md docs scripts
+  git -C "$dir" add .gitignore README.md schemas scripts
   git -C "$dir" commit -q -m initial
 
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"

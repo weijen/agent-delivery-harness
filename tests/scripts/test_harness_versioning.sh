@@ -14,7 +14,7 @@
 #     of the git SHA;
 #   * a NEW optional span field harness.commit carries the short git SHA (the
 #     "which code" signal that harness.version used to carry), typed as a string;
-#   * docs/evaluation/trace-schema.v1.json declares harness.commit and drops the
+#   * schemas/trace-schema.v1.json declares harness.commit and drops the
 #     "harness.version is the git SHA" claim in favor of release/VERSION semantics;
 #   * docs document the versioning/bump policy.
 #
@@ -33,7 +33,7 @@
 #      repo's git rev-parse --short HEAD, typed as a JSON string.
 #   4. Fallback: in a hermetic repo with NO VERSION file, harness.version is the
 #      documented fallback 0.0.0-dev, and harness.commit is still the short SHA.
-#   5. Schema: docs/evaluation/trace-schema.v1.json declares
+#   5. Schema: schemas/trace-schema.v1.json declares
 #      .optional_fields["harness.commit"] as a non-empty string doc, and the
 #      harness.version semantics note no longer claims it is "the git SHA" — the
 #      note must mention VERSION or release (tolerant but real).
@@ -54,7 +54,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="${ROOT}/scripts/trace-lib.sh"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 VALIDATE="${ROOT}/scripts/check-trace-consistency.sh"
 VERSION_FILE="${ROOT}/VERSION"
 SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$'

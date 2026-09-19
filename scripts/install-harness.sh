@@ -44,6 +44,7 @@ HARNESS_ASSETS=(
 	.github/harness-identity.env.example
 	.github/workflows/harness-smoke.yml
 	VERSION
+	schemas/trace-schema.v1.json
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md

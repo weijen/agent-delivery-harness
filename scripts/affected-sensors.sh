@@ -21,7 +21,7 @@
 # radius cannot be bounded by textual reference —
 #   * shared sourced libraries: scripts/trace-lib.sh scripts/issue-lib.sh
 #     scripts/finish-lib.sh scripts/reconcile-lib.sh scripts/ci-coverage-lib.sh
-#   * schema/contract authorities: docs/evaluation/trace-schema.v1.json
+#   * schema/contract authorities: schemas/trace-schema.v1.json
 #     docs/harness-contract.yml
 #   * shared test scaffolding: anything under tests/scripts/lib/ or tests/lib/
 # When FULL is printed the caller runs the whole suite; the reason is written
@@ -91,7 +91,7 @@ full_trigger() {
   case "$1" in
     scripts/trace-lib.sh|scripts/issue-lib.sh|scripts/finish-lib.sh|\
 scripts/reconcile-lib.sh|scripts/ci-coverage-lib.sh) return 0 ;;
-    docs/evaluation/trace-schema.v1.json|docs/harness-contract.yml) return 0 ;;
+    schemas/trace-schema.v1.json|docs/harness-contract.yml) return 0 ;;
     tests/scripts/lib/*|tests/lib/*) return 0 ;;
   esac
   return 1

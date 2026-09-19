@@ -74,7 +74,7 @@ of `.message.model`, `.message.usage.input_tokens`, and
 
 All emission goes through `scripts/trace-lib.sh`, so spans land at the main
 checkout root (even from a linked worktree), match the schema contract in
-`docs/evaluation/trace-schema.v1.json`, and pass through `trace_redact` before
+`schemas/trace-schema.v1.json`, and pass through `trace_redact` before
 touching disk.
 
 ## Subagent capture
