@@ -2,6 +2,46 @@
 
 <!-- version list -->
 
+## v0.44.3 (2026-09-19)
+
+### Bug Fixes
+
+- **#467**: Align current operating guidance
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+- **#467**: Align independent review skill map
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+- **#467**: Align release and lock guidance
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+- **#467**: Distinguish current profile guidance
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+- **#467**: Keep identity bindings machine-local
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+- **#467**: Reconcile current trace guidance
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.44.2
+  ([`1e57ee2`](https://github.com/weijen/agent-delivery-harness/commit/1e57ee20734ae577435e8c72b332aeb6aeef8eb1))
+
+### Testing
+
+- **#467**: Isolate local identity expectations
+  ([#473](https://github.com/weijen/agent-delivery-harness/pull/473),
+  [`b8fa037`](https://github.com/weijen/agent-delivery-harness/commit/b8fa0379373083e4912d36b582d7f9478b8015ec))
+
+
 ## v0.44.2 (2026-08-16)
 
 ### Bug Fixes
