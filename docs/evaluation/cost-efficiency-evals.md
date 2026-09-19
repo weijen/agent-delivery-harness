@@ -160,7 +160,7 @@ baseline-derived threshold.
 ## Trace Requirements
 
 The cost evaluator depends on the shared trace in
-[observability-and-trace-schema.md](observability-and-trace-schema.md), but it
+[observability-and-trace-schema.md](../observability-and-trace-schema.md), but it
 needs enough fields to compute cost rather than merely display it. Cost-relevant
 spans should include:
 
@@ -286,7 +286,7 @@ steps.
 ## Graders
 
 - Deterministic counters from the run trace defined in
-  [observability-and-trace-schema.md](observability-and-trace-schema.md).
+  [observability-and-trace-schema.md](../observability-and-trace-schema.md).
 - Threshold comparison against recorded baselines.
 - Loop/thrash detectors over the tool-call sequence.
 - Quality-gated comparison that refuses to score efficiency improvements for
@@ -298,7 +298,7 @@ steps.
 ## Relationship To Other Pages
 
 - Efficiency is read from the same trace as trajectory and trace evals; the
-  schema is shared in [observability-and-trace-schema.md](observability-and-trace-schema.md).
+  schema is shared in [observability-and-trace-schema.md](../observability-and-trace-schema.md).
 - Historical cross-run cost and efficiency summaries remain frozen inputs.
   Issue #419 retired their reporter and aggregation path; no current lifecycle
   command emits those reports.

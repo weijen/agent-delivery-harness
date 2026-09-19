@@ -8,7 +8,7 @@ REVIEWER="${REVIEWER_OVERRIDE:-${ROOT}/.copilot/agents/code-review-subagent.agen
 AGENTS="${ROOT}/AGENTS.md"
 WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
 EVALUATION="${ROOT}/docs/evaluation/README.md"
-RUBRIC="${ROOT}/docs/evaluation/product-quality-rubric.md"
+RUBRIC="${ROOT}/docs/product-quality-rubric.md"
 GETTING_STARTED="${ROOT}/docs/getting-started.md"
 
 fail=0

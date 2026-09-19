@@ -59,7 +59,7 @@ for active_doc in \
   docs/HARNESS.md \
   docs/scripts-language-policy.md \
   docs/evaluation/cost-efficiency-evals.md \
-  docs/evaluation/observability-and-trace-schema.md \
+  docs/observability-and-trace-schema.md \
   docs/evaluation/trace-summary.v1.json; do
   if grep -q 'trace-report\.sh' "${ROOT}/${active_doc}"; then
     fail "${active_doc} still advertises the retired trace reporter"

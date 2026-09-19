@@ -9,7 +9,7 @@ cd "$ROOT"
 check_snapshot() {
   local path="$1"
   local expected_hash="$2"
-  local stripped
+  local stripped target
   stripped="${TMP_DIR}/$(basename "$path")"
 
   grep -qF '<!-- snapshot-retirement:start -->' "$path" \
@@ -27,17 +27,24 @@ check_snapshot() {
   grep -qF '[`docs/harness-contract.yml`](harness-contract.yml)' "$path" \
     || { echo "journey-retirement: current doctrine link missing from ${path}"; exit 1; }
 
+  while IFS= read -r target; do
+    case "$target" in https://*|http://*|mailto:*|\#*) continue ;; esac
+    [ -e "$(dirname "$path")/${target%%#*}" ] \
+      || { echo "journey-retirement: broken link ${target} in ${path}"; exit 1; }
+  done < <(grep -oE '\]\([^)]*\)' "$path" | sed -E 's/^\]\(//; s/\)$//')
+
+  # Link targets may relocate; preserve every other byte of the original narrative.
   awk '
     /<!-- snapshot-retirement:start -->/ { skip = 1; next }
     /<!-- snapshot-retirement:end -->/ { skip = 0; next }
     !skip
-  ' "$path" >"$stripped"
+  ' "$path" | sed -E 's/\]\([^)]*\)/](LINK)/g' >"$stripped"
   [ "$(shasum -a 256 "$stripped" | awk '{print $1}')" = "$expected_hash" ] \
     || { echo "journey-retirement: historical body changed in ${path}"; exit 1; }
 }
 
 check_snapshot docs/observability-journey.md \
-  c376b120012a5dc31c298433ac0080116c7d0bb0447fd3c7c9f077b74d76c238
+  f8fe63b0c1890865f62e82e9fe320dbdc5e0ab64a2dd945fb143516ede9cb583
 check_snapshot docs/deep-tracing-journey.md \
   7d694e36e0ed583572a2c1e44f2486e60f0b823fc8659881068bad255660023c
 

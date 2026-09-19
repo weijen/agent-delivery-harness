@@ -27,7 +27,7 @@ depends on them staying interpreter-free:
 - **Optional runtime adapter examples:** when present, their session-safety
   contract remains exit 0 with empty stdout on every path. Copilot deep
   analysis reads native records; see
-  [`runtime-adapters/github-copilot.md`](runtime-adapters/github-copilot.md).
+  [`runtime-adapters/github-copilot.md`](github-copilot.md).
 
 ## 2. May become Python — trigger-based, never wholesale
 

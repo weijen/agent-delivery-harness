@@ -55,7 +55,7 @@ Inputs:
 
 - Versioned fixture dataset or query/response dataset.
 - `trace.jsonl` following
-  [observability-and-trace-schema.md](../../evaluation/observability-and-trace-schema.md).
+  [observability-and-trace-schema.md](../../observability-and-trace-schema.md).
 - Harness run artifacts, such as diffs, test output summaries, Action Log
   excerpts, review verdicts, and feature status.
 - Evaluator configuration naming metrics, thresholds, trial count, and blocking

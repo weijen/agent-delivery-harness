@@ -211,7 +211,7 @@ attribution the hooks lack is present:
 So `events.jsonl` is the **only** source that joins a subagent span → its
 `toolCallId`/`agentId` → `agentName` + `model`. It is the internal, undocumented
 CLI format the adapter already treats as best-effort (see
-[`github-copilot.md`](github-copilot.md) §"the events.jsonl caveat"); its shape
+[`github-copilot.md`](../github-copilot.md) §"the events.jsonl caveat"); its shape
 may drift across CLI versions.
 
 ## §6 — Verdict for the binding (#227)

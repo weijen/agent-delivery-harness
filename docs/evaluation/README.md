@@ -53,10 +53,10 @@ and have their own pages below.
 | Page | Layer | Focus |
 | --- | --- | --- |
 | [cost-efficiency-evals.md](cost-efficiency-evals.md) | Cross-cutting | Tokens, turns, latency, thrash |
-| [observability-and-trace-schema.md](observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
-| [product-quality-rubric.md](product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
-| [l0-solution/](l0-solution/) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
-| [l1-solution/](l1-solution/) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
+| [observability-and-trace-schema.md](../observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
+| [product-quality-rubric.md](../product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
+| [l0-solution/](l0-solution) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
+| [l1-solution/](l1-solution) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
 | [archived prose set](../archive/evaluation/README.md) | — | Archived L1+ strategy prose with zero runtime/doctrine reference (decision 3a, epic #331): script/skill/subagent-role/feature-breakdown/trajectory/trace-action-log/outcome/mutation evals, judge evaluation, security evals, azure runtime, dataset governance, statistical methodology, evaluation matrix, research notes, telemetry retention, and the accuracy matrix |
 
 ## Scorecard Model
@@ -72,7 +72,7 @@ by #337); the trial and threshold math lives in
 [statistical-methodology.md](../archive/evaluation/statistical-methodology.md)
 (archived by #337). The
 coding-agent functionality product quality rubric lives in
-[product-quality-rubric.md](product-quality-rubric.md), where it frames useful,
+[product-quality-rubric.md](../product-quality-rubric.md), where it frames useful,
 complete, workflow-fit agent behavior; it is not a visual, aesthetic, or
 UI-design rubric.
 
@@ -107,7 +107,7 @@ sensitivity constraints.
 
 Cross-cutting pages (judge calibration, dataset governance, observability schema,
 statistical method, cost/efficiency, and the coding-agent functionality product
-quality rubric in [product-quality-rubric.md](product-quality-rubric.md)) are
+quality rubric in [product-quality-rubric.md](../product-quality-rubric.md)) are
 prerequisites that the layer work pulls in as needed rather than a separate
 phase.
 

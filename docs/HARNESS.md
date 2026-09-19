@@ -114,7 +114,7 @@ The normal path is:
    spans, and flip `passes:true` (#352: one agent, no handback choreography).
 7. Repeat until all features pass.
 8. Run `./scripts/run-sensors.sh --gate pre-review`, then `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
-  [docs/evaluation/product-quality-rubric.md](evaluation/product-quality-rubric.md), and performs an
+  [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
 9. Run `./scripts/review-gate.sh approve` for the current HEAD.
@@ -315,7 +315,7 @@ file `.copilot-tracking/issues/issue-NN/trace.jsonl` at the **main checkout** ro
 issue regardless of which worktree a script runs from, so the record survives worktree teardown. The trace is
 local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
 a missing `trace-lib.sh` — is a warn-and-continue no-op. The span vocabulary and shape are frozen by the schema
-contract in `docs/evaluation/observability-and-trace-schema.md` (`schemas/trace-schema.v1.json`).
+contract in `docs/observability-and-trace-schema.md` (`schemas/trace-schema.v1.json`).
 
 The retired trace reporter no longer generates `trace-summary.json`, version-bucket aggregates, or
 `finish-issue.economics` tool spans. The frozen summary schema and sourceable economics helpers remain for historical
@@ -332,7 +332,7 @@ live in [harness.instructions.md §3](../.copilot/instructions/harness.instructi
 
 The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
 tool/model/skill analysis reads native records through the path documented in
-[runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md); the
+[runtime-adapters/github-copilot.md](github-copilot.md); the
 Claude Code adapter ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md))
 remains a labeled reference example.
 

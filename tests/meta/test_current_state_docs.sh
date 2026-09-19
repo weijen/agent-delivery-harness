@@ -110,4 +110,23 @@ reject_regex profiles/README.md 'moves a language.s surface detection|does not h
 require scripts/init.sh 'pyproject.toml'
 require scripts/init.sh 'package.json'
 
+for doc in product-quality-rubric failure-mode-taxonomy observability-and-trace-schema github-copilot; do
+  [ -f "docs/${doc}.md" ] || fail "current operating guide missing: docs/${doc}.md"
+  [ ! -e "docs/evaluation/${doc}.md" ] \
+    || fail "research directory retains duplicate operating authority: ${doc}"
+  [ ! -e "docs/runtime-adapters/${doc}.md" ] \
+    || fail "adapter directory retains duplicate operating authority: ${doc}"
+  require scripts/install-harness.sh "docs/${doc}.md"
+done
+for consumer in AGENTS.md .copilot/instructions/harness.instructions.md \
+  .copilot/agents/code-review-subagent.agent.md docs/HARNESS.md \
+  schemas/trace-schema.v1.json; do
+  reject_regex "$consumer" 'docs/(evaluation/(product-quality-rubric|failure-mode-taxonomy|observability-and-trace-schema)|runtime-adapters/github-copilot)\.md'
+done
+require .copilot/agents/code-review-subagent.agent.md 'docs/product-quality-rubric.md'
+require .copilot/instructions/harness.instructions.md 'docs/observability-and-trace-schema.md'
+require docs/github-copilot.md '](observability-and-trace-schema.md)'
+require docs/observability-and-trace-schema.md '](../schemas/trace-schema.v1.json)'
+require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
+
 printf 'current-state documentation checks passed\n'

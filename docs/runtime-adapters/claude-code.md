@@ -2,7 +2,7 @@
 
 > **Reference example.** This document is the labeled reference example of
 > the runtime-adapter pattern. The repository's **primary runtime target is
-> GitHub Copilot** — see [github-copilot.md](github-copilot.md) for the
+> GitHub Copilot** — see [github-copilot.md](../github-copilot.md) for the
 > primary adapter guide, which follows the contract pinned here.
 
 The harness core is runtime-agnostic: its lifecycle scripts emit `agent` and
@@ -168,7 +168,7 @@ backfills nothing.
 
 ## The adapter pattern for other runtimes
 
-An adapter for another runtime — the [GitHub Copilot adapter](github-copilot.md)
+An adapter for another runtime — the [GitHub Copilot adapter](../github-copilot.md)
 is the first — should follow the same contract this one pins:
 
 - **Emit through `trace-lib.sh`** — source it and call `trace_span` so issue

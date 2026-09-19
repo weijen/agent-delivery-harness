@@ -3,7 +3,7 @@
 ## The Contract Is The Authority
 
 The frozen, machine-checkable trace schema v1 contract lives in
-[trace-schema.v1.json](../../schemas/trace-schema.v1.json). That file is the single
+[trace-schema.v1.json](../schemas/trace-schema.v1.json). That file is the single
 vocabulary authority: span types, required fields, the closed lifecycle-step
 enumeration, optional fields, the trace-file path contract, and the redaction
 rule are all defined there, and sensors/validators read it with `jq`. This
@@ -19,7 +19,7 @@ invents its own ad-hoc format, the evals cannot share tooling and the traces
 cannot be inspected with standard tools. This page explains the trace schema,
 aligned with the OpenTelemetry GenAI semantic conventions, that all of those
 evals consume; the normative definition is
-[trace-schema.v1.json](../../schemas/trace-schema.v1.json).
+[trace-schema.v1.json](../schemas/trace-schema.v1.json).
 
 ## Why Align With OpenTelemetry GenAI
 
@@ -47,12 +47,12 @@ that the current runtime emits every type:
   edit, web fetch).
 - **Lifecycle span** — harness-specific steps (e.g. review-gate approval, PR
   creation). The closed 13-step enumeration lives only in
-  [trace-schema.v1.json](../../schemas/trace-schema.v1.json) under `lifecycle_steps`.
+  [trace-schema.v1.json](../schemas/trace-schema.v1.json) under `lifecycle_steps`.
 
 Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
-([runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md));
-[runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) remains a
+([runtime-adapters/github-copilot.md](github-copilot.md));
+[runtime-adapters/claude-code.md](runtime-adapters/claude-code.md) remains a
 labeled reference example. Historical traces may retain runtime-derived spans.
 
 ## Current operating contract
@@ -73,7 +73,7 @@ Historical schema values do not authorize new writes or add completion gates.
 - Deeper Copilot analysis reads native records. Runtime tool/model spans are
   not required to prove that the kept semantic spine exists.
 - Independent review judges test quality and records attributed findings.
-  The current lifecycle authority is [HARNESS.md](../HARNESS.md), not an
+  The current lifecycle authority is [HARNESS.md](HARNESS.md), not an
   ordered triple of historical handbacks.
 
 ## The Layered Visibility Boundary
@@ -118,7 +118,7 @@ The absent signals fall into three kinds of boundary:
   exporter or duplicate stream.
 
 Where no trustworthy signal exists, omit the metric rather than fake it.
-The [native-record guide](../runtime-adapters/github-copilot.md) links the
+The [native-record guide](github-copilot.md) links the
 analysis recipes and their platform/version caveats.
 
 What the layering buys in return is what a direct-API agent does not have. A
@@ -169,9 +169,9 @@ Under multi-issue concurrency these capture paths went systemically dark and
 yielded no token, while native Copilot records are richer; runtime
 reconstruction is therefore retired in favour of native-record analysis. The
 replacement analysis path is the
-[copilot-log-review](../../.copilot/skills/copilot-log-review/SKILL.md) skill,
+[copilot-log-review](../.copilot/skills/copilot-log-review/SKILL.md) skill,
 and the deprecated capture path is marked in the adapter doc,
-[runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md).
+[runtime-adapters/github-copilot.md](github-copilot.md).
 
 **Deletion resolved.** The native-records-only L4 review found no missing kept
 signal, so the Copilot runtime reconstruction hook, template, and capture-only
@@ -232,8 +232,8 @@ per-span required and optional field sets are in the contract):
 | `harness.session_id` | `sess-2f9c1a7b` | Harness-specific |
 
 Sensitive values (secrets, tokens, customer data) must be redacted before a span
-is written; see [security-evals.md](../archive/evaluation/security-evals.md) and
-[dataset-governance.md](../archive/evaluation/dataset-governance.md).
+is written; see [security-evals.md](archive/evaluation/security-evals.md) and
+[dataset-governance.md](archive/evaluation/dataset-governance.md).
 
 Runtime spans may additionally carry the optional `harness.session_id` string,
 the runtime session / conversation identity of the GitHub Copilot session that
@@ -257,12 +257,12 @@ authority for the enum membership.
 The following research documents describe schema consumers and historical
 designs, not additional current lifecycle gates:
 
-- [trajectory-evals.md](../archive/evaluation/trajectory-evals.md) match on the ordered sequence of
+- [trajectory-evals.md](archive/evaluation/trajectory-evals.md) match on the ordered sequence of
   tool and lifecycle span names.
-- [trace-action-log-evals.md](../archive/evaluation/trace-action-log-evals.md) check that required
+- [trace-action-log-evals.md](archive/evaluation/trace-action-log-evals.md) check that required
   agent and lifecycle spans (handbacks, review verdict, approval SHA) are
   present and attributed to the right role.
-- [cost-efficiency-evals.md](cost-efficiency-evals.md) sum `gen_ai.usage.*`
+- [cost-efficiency-evals.md](evaluation/cost-efficiency-evals.md) sum `gen_ai.usage.*`
   tokens and count tool spans for cost and efficiency metrics.
 
 The common vocabulary permits these analyses when the relevant evidence exists.
@@ -271,7 +271,7 @@ It does not imply that current runs emit runtime token/tool data or summaries.
 ## Trace Shape
 
 Illustrative only — required fields per span type are defined in
-[trace-schema.v1.json](../../schemas/trace-schema.v1.json). Note every line carries the
+[trace-schema.v1.json](../schemas/trace-schema.v1.json). Note every line carries the
 mandatory common fields, including `schema_version` and `harness.version`:
 
 ```jsonl
@@ -283,7 +283,7 @@ mandatory common fields, including `schema_version` and `harness.version`:
 
 ## Span Linkage And Trace Identity
 
-`parent_span_id` (defined in [trace-schema.v1.json](../../schemas/trace-schema.v1.json),
+`parent_span_id` (defined in [trace-schema.v1.json](../schemas/trace-schema.v1.json),
 "enabling span-tree linkage per cost-efficiency-evals.md") turns a flat span
 list into a tree. The harness sets it **only where the parent is deterministic
 at emission time** and otherwise omits it — omit, never fake. A flat span with
@@ -320,7 +320,7 @@ The old cloud export leg derived a deterministic transport correlation id from
 `harness.issue` outside the raw trace. Issue #272 removed that exporter, but the
 schema decision remains: a future export/import exit ramp may derive a transport
 id, never store it on raw spans. See the retained mapping contract in
-[runtime-adapters/otlp-azure-monitor.md](../runtime-adapters/otlp-azure-monitor.md).
+[runtime-adapters/otlp-azure-monitor.md](runtime-adapters/otlp-azure-monitor.md).
 
 ## Public Trace Examples
 
@@ -347,7 +347,7 @@ historical agent roles so old traces remain readable. Those values describe
 past choreography, not current writer permissions or red-first proof.
 
 The separate `log.jsonl` stream and its writer were retired in #333.
-[log-schema.v1.json](../archive/evaluation/log-schema.v1.json) preserves the
+[log-schema.v1.json](archive/evaluation/log-schema.v1.json) preserves the
 historical detail-record format, including `log_schema_version` rather than
 the span schema's `schema_version`. There is no current log writer to enable
 with the old `HARNESS_LOG` or payload-cap settings.
@@ -365,7 +365,7 @@ to render the Action Log. Never hand-author a second event record.
 
 Research source notes record actual HTTP(S) URLs and summaries, never fetched
 content or invented provenance. Current same-class escalation and research
-rules live in [harness.instructions.md](../../.copilot/instructions/harness.instructions.md).
+rules live in [harness.instructions.md](../.copilot/instructions/harness.instructions.md).
 Historical generator research fields remain interpretable without restoring
 the retired generator handback protocol.
 
@@ -381,7 +381,7 @@ lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
 `scripts/check-trace-consistency.sh` (issue #97) is the standalone, report-only
 validator for this contract. Run it locally with an issue number (it resolves
 the per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
-checks every span line against [trace-schema.v1.json](../../schemas/trace-schema.v1.json)
+checks every span line against [trace-schema.v1.json](../schemas/trace-schema.v1.json)
 (field presence, closed enums, and value types), checks current lifecycle
 consistency without requiring every historical enum value, audits redaction,
 and reports sanity warnings. Exit codes: `0` no violations, `1` violations
@@ -393,7 +393,7 @@ wired into `review-gate.sh trace` and closeout as a warn-only check by default.
 
 The standalone run reporter and its cross-run aggregation mode were retired in
 issue #419 because no in-repository or adopter workflow consumed their output.
-The versioned [trace-summary.v1.json](trace-summary.v1.json) file remains only as
+The versioned [trace-summary.v1.json](evaluation/trace-summary.v1.json) file remains only as
 a frozen historical contract; no lifecycle entrypoint emits
 `trace-summary.json` or `finish-issue.economics` spans.
 
@@ -405,14 +405,14 @@ or summaries.
 
 The issues sketched in earlier drafts of this page now exist as the deep-trace
 workstream, issues #92–#99: #92 froze the schema v1 contract
-([trace-schema.v1.json](../../schemas/trace-schema.v1.json)) and repointed this page at it;
+([trace-schema.v1.json](../schemas/trace-schema.v1.json)) and repointed this page at it;
 the follow-on issues cover span emission, redaction, validation (#97), and
 pointing the trajectory, trace, and cost evals at the shared schema. See the
 GitHub issue tracker for the live list.
 
 ## Acceptance Criteria
 
-- [trace-schema.v1.json](../../schemas/trace-schema.v1.json) is the single vocabulary
+- [trace-schema.v1.json](../schemas/trace-schema.v1.json) is the single vocabulary
   authority; this page and the evals defer to it and carry no second
   competing copy.
 - A single trace per issue records the kept semantic spine; native-record

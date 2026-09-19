@@ -49,6 +49,10 @@ HARNESS_ASSETS=(
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
+	docs/product-quality-rubric.md
+	docs/failure-mode-taxonomy.md
+	docs/observability-and-trace-schema.md
+	docs/github-copilot.md
 	.env.example docs/RELEASING.md
 	docs/evaluation
 	docs/runtime-adapters

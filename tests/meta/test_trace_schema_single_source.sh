@@ -230,7 +230,7 @@ exit 0
 cd "$ROOT"
 
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
-DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+DOC="${ROOT}/docs/observability-and-trace-schema.md"
 
 fails=0
 fail() {
@@ -246,7 +246,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$CONTRACT" ] \
   || { printf 'FAIL: contract not found at schemas/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
 [ -f "$DOC" ] \
-  || { printf 'FAIL: prose doc not found at docs/evaluation/observability-and-trace-schema.md\n' >&2; exit 1; }
+  || { printf 'FAIL: prose doc not found at docs/observability-and-trace-schema.md\n' >&2; exit 1; }
 
 # --- 1. Prose doc defers to the frozen contract ------------------------------
 grep -qF 'trace-schema.v1.json' "$DOC" \

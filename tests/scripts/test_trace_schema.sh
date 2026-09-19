@@ -27,7 +27,7 @@
 #   5. (issue #99, feature failure-mode-taxonomy-contract) Asserts the contract
 #      freezes the eight-mode failure taxonomy as a closed .failure_modes enum,
 #      declares harness.failure_mode in .optional_fields, and that the prose
-#      authority docs/evaluation/failure-mode-taxonomy.md names every enum
+#      authority docs/failure-mode-taxonomy.md names every enum
 #      member and states the human-gated / non-goals governance stance.
 #
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
@@ -231,12 +231,12 @@ git -C "${ROOT}" check-ignore -q .copilot-tracking/issues/issue-99/trace.jsonl \
   || fail "per-issue trace files (.copilot-tracking/issues/issue-NN/trace.jsonl) must be gitignored"
 
 # --- 5. Failure-mode taxonomy doc (issue #99) ---------------------------------
-# docs/evaluation/failure-mode-taxonomy.md is the prose authority for the
+# docs/failure-mode-taxonomy.md is the prose authority for the
 # eight-mode enum: it must name every frozen enum member verbatim (iterated
 # from the hardcoded backstop, not the contract, so a shrunken contract cannot
 # also shrink this check) and state the governance stance — human-gated,
 # with explicit non-goals (no automated harness mutation).
-TAXONOMY_DOC="${ROOT}/docs/evaluation/failure-mode-taxonomy.md"
+TAXONOMY_DOC="${ROOT}/docs/failure-mode-taxonomy.md"
 if [ -f "$TAXONOMY_DOC" ]; then
   while IFS= read -r mode; do
     [ -n "$mode" ] || continue
@@ -248,12 +248,12 @@ if [ -f "$TAXONOMY_DOC" ]; then
   grep -qiE 'human[- ]gated' "$TAXONOMY_DOC" \
     || fail "failure-mode-taxonomy.md must state the human-gated governance stance"
 else
-  fail "taxonomy doc not found at docs/evaluation/failure-mode-taxonomy.md"
+  fail "taxonomy doc not found at docs/failure-mode-taxonomy.md"
 fi
 
 # Current operating guidance must not turn frozen historical vocabulary into
 # new writer obligations.
-GUIDE="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+GUIDE="${ROOT}/docs/observability-and-trace-schema.md"
 current="$(awk '/^## Current operating contract/ {capture=1; next} capture && /^## / {exit} capture {print}' "$GUIDE")"
 for term in 'delivering agent' 'independent reviewer' 'sensor-evidence.jsonl' deviation review_verdict 'native records'; do
   printf '%s\n' "$current" | grep -qiF "$term" \
@@ -276,7 +276,10 @@ fi
 # The installed writer/checker must work without any research-directory schema.
 installed="${TMP_DIR}/adopter"
 mkdir -p "${installed}/docs/evaluation"
-cp "$CONTRACT" "${installed}/docs/evaluation/trace-schema.v1.json"
+sed \
+  -e 's@docs/observability-and-trace-schema.md@docs/evaluation/observability-and-trace-schema.md@g' \
+  -e 's@docs/failure-mode-taxonomy.md@docs/evaluation/failure-mode-taxonomy.md@g' \
+  "$CONTRACT" >"${installed}/docs/evaluation/trace-schema.v1.json"
 git -C "$installed" init -q -b feature/issue-77-schema
 if ! bash "${ROOT}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
   cat "${TMP_DIR}/install.log" >&2
