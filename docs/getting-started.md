@@ -30,6 +30,7 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
   ./scripts/install-harness.sh /path/to/project --update   # apply safe changes; preserve adopter work; emit conflicts
   ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # portable developer/eval tools and sensors
+  ./scripts/install-harness.sh /path/to/project --write --with-claude  # optional Claude bundle, not hook activation
   ```
 
   It defaults to a dry run and leaves your project's own code in place. Each
@@ -104,6 +105,16 @@ descriptor. There are two common ways to start:
   ownership-safe upgrade policy, without deleting customized copies.
   Environment examples are project-owned in both modes: the installer does not
   distribute `.env.example` or delete existing adopter copies.
+
+  `--with-claude` independently selects `scripts/install-harness.claude.assets`,
+  including the hook, guide, inactive settings example and portable validation.
+  It may be combined with `--with-dev-sensors`. It never creates, merges or
+  overwrites `.claude/settings.json` or `.claude/settings.local.json`; activation
+  is a separate, manual choice described in the
+  [optional guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md).
+  Use a source checkout or existing Claude-enabled install and repeat the flag
+  on upgrades. Before omitting it, remove your hook settings manually: the same
+  ownership rules prune unchanged unselected assets, not your settings.
 
 ### Payload audiences
 

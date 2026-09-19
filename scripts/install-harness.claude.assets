@@ -1,0 +1,15 @@
+# Explicit Claude opt-in additions; core supplies trace-lib, VERSION and schema.
+scripts/install-harness.claude.assets
+optional/runtime-adapters/claude-code-trace-hook.sh
+optional/runtime-adapters/claude-code.md
+optional/runtime-adapters/claude-code.settings.example.json
+
+# Portable validation, run by the installed smoke without enabling live hooks.
+tests/scripts/test_claude_adapter.sh
+optional/runtime-adapters/tests/test_claude_hook_agent_id_state.sh
+optional/runtime-adapters/tests/test_claude_hook_noop.sh
+optional/runtime-adapters/tests/test_claude_hook_skill_inventory.sh
+optional/runtime-adapters/tests/test_claude_hook_stop_span.sh
+optional/runtime-adapters/tests/test_claude_hook_subagent_stamp.sh
+optional/runtime-adapters/tests/test_claude_hook_subagent_stop_enrich.sh
+optional/runtime-adapters/tests/test_claude_hook_tool_span.sh

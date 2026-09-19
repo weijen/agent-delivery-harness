@@ -50,8 +50,8 @@ script, sensor, and gate works exactly as before — the only difference is that
 the trace lacks `tool` and `model` spans (tool names, argument summaries,
 durations, and token usage are absent, not faked).
 
-With the adapter installed, a Claude Code session working inside a harness
-issue context automatically appends spans with zero manual agent effort:
+After you explicitly enable the hooks, supported events delivered inside a
+harness issue context produce the following observations:
 
 | Hook event | Emission |
 | --- | --- |
@@ -116,11 +116,21 @@ trace vocabulary. No exporter is enabled or required.
 
 ## Install (copy/merge — never overwrite)
 
-1. Ensure Bash, Git and `jq` are on your PATH (the hook silently no-ops without
-   required runtime dependencies). Keep the bundle under
-   `optional/runtime-adapters/` with the core `scripts/trace-lib.sh` and root
-   `VERSION` from the same harness checkout. The hook resolves its emitter at
-   `../../scripts/trace-lib.sh`, not beside itself.
+1. From a harness source checkout or an existing Claude-enabled installation,
+   install the explicit bundle with its core dependencies:
+
+   ```bash
+   ./scripts/install-harness.sh /path/to/project --write --with-claude
+   ```
+
+   This copies the hook, this guide, the **inactive** example and portable
+   sensors; it never creates or edits `.claude/settings.json` or
+   `.claude/settings.local.json`. Bash, Git and `jq` must be on PATH; validation
+   also uses ShellCheck. The hook resolves its emitter at
+   `../../scripts/trace-lib.sh`, with root `VERSION` from the same installation.
+   Repeat `--with-claude` on upgrades. Before omitting it, remove your own hook
+   entries: the installer prunes unchanged unselected bundle assets using its
+   ownership rules, but never changes your settings for you.
 2. Merge the hook entries from
    [`claude-code.settings.example.json`](claude-code.settings.example.json)
    into your project's `.claude/settings.json` (or `.claude/settings.local.json`
@@ -137,6 +147,9 @@ trace vocabulary. No exporter is enabled or required.
 4. Optionally verify live delivery: run a tool call from your Claude Code version inside an issue
    worktree (branch `feature/issue-NN-*` or an `issue-NN` worktree) and check
    that `.copilot-tracking/issues/issue-NN/trace.jsonl` gained a `tool` span.
+
+The installed smoke runs `tests/scripts/test_claude_adapter.sh` against isolated
+fixtures, not a live session. You can run that command directly with Bash.
 
 The template registers `optional/runtime-adapters/claude-code-trace-hook.sh` for all four
 events; the empty/omitted `matcher` means it observes every tool. The hook is
