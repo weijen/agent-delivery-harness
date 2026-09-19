@@ -47,10 +47,10 @@ jobs:
         run: ./scripts/python-gates.sh
 
       - name: Check shell syntax
-        run: bash -n scripts/*.sh tests/scripts/lib/*.sh tests/evals/bin/*.sh
+        run: ./scripts/check-shell.sh syntax
 
       - name: Run shellcheck
-        run: shellcheck scripts/*.sh tests/scripts/*.sh tests/scripts/lib/*.sh tests/meta/*.sh profiles/*.profile.sh tests/evals/bin/*.sh
+        run: ./scripts/check-shell.sh lint
 
       - name: Validate customization frontmatter
         shell: bash

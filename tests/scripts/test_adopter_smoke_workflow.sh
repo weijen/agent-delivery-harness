@@ -39,7 +39,7 @@ mkdir -p "${TARGET}/scripts" "${TARGET}/tests/scripts/lib" "${TARGET}/schemas" \
 	"${TARGET}/tests/evals/bin" "${TARGET}/.copilot/skills/fixture" "${TARGET}/profiles"
 for script in issue-lib.sh start-issue.sh lifecycle-runtime-lib.sh \
 	check-feature-list.sh init.sh trace-lib.sh ci-coverage-lib.sh github-identity-lib.sh \
-	affected-sensors.sh; do
+	affected-sensors.sh check-shell.sh; do
 	cp "${ROOT}/scripts/${script}" "${TARGET}/scripts/${script}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${TARGET}/schemas/"

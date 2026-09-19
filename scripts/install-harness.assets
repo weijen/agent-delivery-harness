@@ -71,6 +71,7 @@ schemas/trace-schema.v1.json
 .copilot/skills/sync-docs/SKILL.md
 
 # Core validation and only its actual fixture/helper dependencies.
+scripts/check-shell.sh
 tests/harness-dev-sensors.txt
 tests/evals/bin/validate-customization-frontmatter.sh
 tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl

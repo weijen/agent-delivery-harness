@@ -415,7 +415,10 @@ remain schema-valid.
 
 `.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
 (the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
-over `scripts/` and `tests/`, and validates Copilot customization frontmatter. The runner is
+through `scripts/check-shell.sh`, and validates Copilot customization frontmatter.
+The shared shell gate recursively covers scripts, profiles, sensor/library trees,
+eval tools and available optional adapters, excluding fixture subtrees. Syntax
+parses each file separately; lint consumes the same unique file set. The runner is
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
 
