@@ -2,6 +2,72 @@
 
 <!-- version list -->
 
+## v0.45.0 (2026-09-19)
+
+### Bug Fixes
+
+- **#469**: Preserve ownership when pruning excluded payload assets
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.44.3
+  ([`a925358`](https://github.com/weijen/agent-delivery-harness/commit/a925358dc71893acaffb90e29412491875e02952))
+
+### Documentation
+
+- **#468**: Reconcile project-owned debt tracking
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+- **#469**: Align portable developer guidance
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+### Features
+
+- **#469**: Make developer opt-in portable
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+- **#469**: Select an explicit dependency-complete adopter payload
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+- **#469**: Ship dependency-complete adopter and portable developer payloads
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+- **#469**: Validate installed adopters without maintainer CI dependencies
+  ([#476](https://github.com/weijen/agent-delivery-harness/pull/476),
+  [`44f3492`](https://github.com/weijen/agent-delivery-harness/commit/44f349260e6b1d016b7f1e97bf969c40418c576a))
+
+### Refactoring
+
+- **#468**: Archive historical docs and preserve active research
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+- **#468**: Give operating guidance canonical homes
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+- **#468**: Relocate live trace schema and consumers
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+- **#468**: Separate live contracts and guides from research history
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+### Testing
+
+- **#468**: Preserve schema in cloned economics fixtures
+  ([#475](https://github.com/weijen/agent-delivery-harness/pull/475),
+  [`6865f74`](https://github.com/weijen/agent-delivery-harness/commit/6865f74f9ad7f19bcfcc770de060eb4fd6952525))
+
+
 ## v0.44.3 (2026-09-19)
 
 ### Bug Fixes
