@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v0.45.1 (2026-09-19)
+
+### Bug Fixes
+
+- **#470**: Deliver a complete optional Claude integration
+  ([#477](https://github.com/weijen/agent-delivery-harness/pull/477),
+  [`16a83e6`](https://github.com/weijen/agent-delivery-harness/commit/16a83e6bec01afc4c37f781eaf8043014ec852da))
+
+- **#470**: Install Claude integration by explicit opt-in
+  ([#477](https://github.com/weijen/agent-delivery-harness/pull/477),
+  [`16a83e6`](https://github.com/weijen/agent-delivery-harness/commit/16a83e6bec01afc4c37f781eaf8043014ec852da))
+
+- **#470**: Restore runnable optional Claude bundle
+  ([#477](https://github.com/weijen/agent-delivery-harness/pull/477),
+  [`16a83e6`](https://github.com/weijen/agent-delivery-harness/commit/16a83e6bec01afc4c37f781eaf8043014ec852da))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.45.0
+  ([`9a3f610`](https://github.com/weijen/agent-delivery-harness/commit/9a3f610d413807de8b03265ade25d63a2facb496))
+
+
 ## v0.45.0 (2026-09-19)
 
 ### Bug Fixes
