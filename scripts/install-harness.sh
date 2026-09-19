@@ -64,7 +64,7 @@ Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors]
   <target-dir>  directory to install the harness assets into
   (no flag)     dry run — print what would be copied, write nothing
   --write       copy missing assets; no-op when already up to date;
-                remove unmodified retired assets; refuse (with diff, non-zero
+                remove proven unmodified retired/excluded assets; refuse (with diff, non-zero
                 exit) to overwrite or remove a modified asset
   --update      apply safe upstream-only changes; preserve adopter changes;
                 emit .rej patches and exit nonzero for both-changed conflicts
@@ -84,6 +84,9 @@ Updates lead with safe/kept/conflict counts. The generated .harness-lock records
 installed upstream hashes; .harness-keep globs permanently protect adopter-owned
 paths. Retired assets are pruned only when proven unmodified. Both-changed files
 and modified retired assets stay in place with adjacent .rej patches.
+Formerly shipped, now-excluded assets require a matching .harness-lock base
+before removal. Unknown ownership is a visible conflict, even for identical
+upstream content; .harness-keep protects exclusions as well as active assets.
 The shipped tests/harness-dev-sensors.txt classifies maintainer-only sensors.
 Pass --with-dev-sensors only when
 developing the harness itself.
@@ -400,6 +403,38 @@ sha256_file() {
 	fi
 }
 
+list_excluded_files() {
+	local asset="" files="" candidates="" digest="" rel="" extra="" managed=0
+	[ "$WITH_DEV_SENSORS" -eq 0 ] || return 0
+	for asset in "${HARNESS_ASSETS[@]}"; do
+		[ -e "${REPO_ROOT}/${asset}" ] || continue
+		files="$(list_files "$asset")" || return 1
+		candidates+="${files}"$'\n'
+	done
+	if [ -f "$LOCK_FILE" ]; then
+		while IFS=$'\t' read -r digest rel extra; do
+			case "$digest" in "" | \#*) continue ;; esac
+			candidates+="${rel}"$'\n'
+		done <"$LOCK_FILE"
+	fi
+	while IFS= read -r rel; do
+		case "$rel" in
+			"" | README.md | AGENTS.md | .env.example | docs/tech-debt-tracker.md | \
+			.github/harness-identity.env | .claude/settings.json) continue ;;
+		esac
+		grep -qxF "$rel" <<<"$SELECTED_FILES" && continue
+		# Historical retirements retain their existing ledger-based proof.
+		if awk -F '\t' -v path="$rel" '$2==path { found=1 } END { exit !found }' "$TOMBSTONE_LEDGER"; then
+			continue
+		fi
+		managed=0
+		for asset in "${HARNESS_ASSETS[@]}"; do
+			case "$rel" in "$asset" | "$asset"/*) managed=1; break ;; esac
+		done
+		[ "$managed" -eq 0 ] || printf '%s\n' "$rel"
+	done <<<"$(printf '%s' "$candidates" | sort -u)"
+}
+
 summary_increment() {
 	case "$1" in
 	safe) SUMMARY_SAFE=$((SUMMARY_SAFE + 1)) ;;
@@ -453,6 +488,10 @@ classify_deletion_for_summary() {
 		printf 'kept'
 		return
 	fi
+	if ! target_parent_is_safe "$rel" || ! target_destination_is_safe "$rel"; then
+		printf 'conflict'
+		return
+	fi
 	if [ -f "$dst" ] && [ ! -L "$dst" ]; then
 		actual="$(sha256_file "$dst")"
 	else
@@ -483,20 +522,12 @@ print_update_summary() {
 		summary_increment "$category"
 	done <<<"$SELECTED_FILES"
 
-	if [ "$WITH_DEV_SENSORS" -eq 0 ]; then
-		while IFS= read -r rel; do
-			[ -n "$rel" ] || continue
-			is_harness_dev_sensor "$rel" || continue
-			expected="$(sha256_file "${REPO_ROOT}/${rel}")"
-			category="$(classify_deletion_for_summary "$rel" "$expected")"
-			summary_increment "$category"
-		done < <(
-			list_files tests/scripts
-			if [ -d "${REPO_ROOT}/tests/meta" ]; then
-				list_files tests/meta
-			fi
-		)
-	fi
+	while IFS= read -r rel; do
+		[ -n "$rel" ] || continue
+		expected="$(lock_base_hash "$rel")"
+		category="$(classify_deletion_for_summary "$rel" "$expected")"
+		summary_increment "$category"
+	done <<<"$EXCLUDED_FILES"
 
 	while IFS=$'\t' read -r digest rel extra; do
 		case "$digest" in
@@ -518,15 +549,11 @@ print_tombstone_diff() {
 	printf '%s\n' "- sha256 ${expected}" "+ sha256 ${actual}"
 }
 
-# Remove harness-development sensors left by an older unprofiled install.
-# Current upstream content supplies the safe byte-identity reference.
-prune_harness_dev_sensors() {
-	local rel dst actual expected base_hash prune_rc=0
-	[ "$WITH_DEV_SENSORS" -eq 0 ] || return 0
-
+# Exclusion is not ownership: only a matching installed base permits removal.
+prune_excluded_assets() {
+	local rel dst actual base_hash label reason prune_rc=0
 	while IFS= read -r rel; do
 		[ -n "$rel" ] || continue
-		is_harness_dev_sensor "$rel" || continue
 		base_hash="$(lock_base_hash "$rel")"
 		if is_protected_path "$rel"; then
 			append_lock_entry "$base_hash" "$rel"
@@ -535,67 +562,59 @@ prune_harness_dev_sensors() {
 		fi
 		dst="${TARGET_DIR}/${rel}"
 		[ -e "$dst" ] || [ -L "$dst" ] || continue
-		expected="$(sha256_file "${REPO_ROOT}/${rel}")"
-		if [ -f "$dst" ] && [ ! -L "$dst" ]; then
-			actual="$(sha256_file "$dst")"
-		else
-			actual="not-a-regular-file"
+		reason=""
+		if ! target_parent_is_safe "$rel"; then
+			reason="symlinked parent directory"
+		elif ! target_destination_is_safe "$rel"; then
+			reason="destination is not a regular file"
 		fi
-
-		if [ "$actual" = "$expected" ]; then
+		if [ -n "$reason" ]; then
+			printf '  conflict %s — preserving unsafe destination: %s\n' "$rel" "$reason" >&2
+			append_lock_entry "$base_hash" "$rel"
+			[ "$MODE" = dry ] || prune_rc=1
+			continue
+		fi
+		if [ "$base_hash" = deleted ]; then
+			printf '  kept %s (adopter changed; upstream policy still excludes it)\n' "$rel"
+			append_lock_entry deleted "$rel"
+			continue
+		fi
+		label="excluded asset"
+		if is_harness_dev_sensor "$rel"; then label="harness-dev sensor"; fi
+		actual="$(sha256_file "$dst")"
+		if [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
 			if [ "$MODE" = "dry" ]; then
-				printf '  would remove harness-dev sensor %s\n' "$rel"
-			elif ! target_parent_is_safe "$rel"; then
-				printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
-				prune_rc=1
+				printf '  would remove %s %s\n' "$label" "$rel"
 			elif rm -f "$dst"; then
-				printf '  removed harness-dev sensor %s\n' "$rel"
+				printf '  removed %s %s\n' "$label" "$rel"
 			else
-				printf '  failed to remove harness-dev sensor %s\n' "$rel" >&2
+				printf '  failed to remove %s %s\n' "$label" "$rel" >&2
+				append_lock_entry "$base_hash" "$rel"
 				prune_rc=1
 			fi
 			continue
 		fi
-
+		reason="adopter changed"
+		[ -n "$base_hash" ] || reason="ownership unknown"
 		case "$MODE" in
 		update)
-			if [ "$base_hash" = "deleted" ]; then
-				printf '  kept %s (adopter changed; upstream policy still excludes it)\n' "$rel"
-				append_lock_entry "deleted" "$rel"
-			elif [ -n "$base_hash" ] && [ "$actual" = "$base_hash" ]; then
-				printf '  removing harness-dev sensor %s (upstream policy changed)\n' "$rel"
-				if ! target_parent_is_safe "$rel"; then
-					printf '  failed to remove harness-dev sensor %s: symlinked parent directory\n' "$rel" >&2
-					prune_rc=1
-				elif rm -f "$dst"; then
-					printf '  removed harness-dev sensor %s\n' "$rel"
-				else
-					printf '  failed to remove harness-dev sensor %s\n' "$rel" >&2
-					prune_rc=1
-				fi
+			printf '  conflict %s — kept adopter file (%s); rejected upstream deletion: %s.rej\n' \
+				"$rel" "$reason" "$rel"
+			if emit_reject "$rel" "$dst" /dev/null; then
+				append_lock_entry deleted "$rel"
 			else
-				printf '  conflict %s — kept adopter file; rejected upstream deletion: %s.rej\n' \
-					"$rel" "$rel"
-				if emit_reject "$rel" "$dst" /dev/null; then
-					append_lock_entry "deleted" "$rel"
-				else
-					append_lock_entry "$base_hash" "$rel"
-				fi
-				prune_rc=1
+				append_lock_entry "$base_hash" "$rel"
 			fi
+			prune_rc=1
 			;;
 		*)
-			printf '  preserving modified harness-dev sensor %s — pass --update to remove (diff):\n' "$rel"
-			print_tombstone_diff "$rel" "$expected" "$actual"
+			printf '  preserving modified %s %s (%s) — inspect with --update or protect in .harness-keep\n' \
+				"$label" "$rel" "$reason"
+			append_lock_entry "$base_hash" "$rel"
 			[ "$MODE" = "dry" ] || prune_rc=1
 			;;
 		esac
-	done < <(
-		list_files tests/scripts
-		if [ -d "${REPO_ROOT}/tests/meta" ]; then
-			list_files tests/meta
-		fi
-	)
+	done <<<"$EXCLUDED_FILES"
 	return "$prune_rc"
 }
 
@@ -742,6 +761,7 @@ LOCK_FILE="${TARGET_DIR}/.harness-lock"
 LOCK_NEXT="$(mktemp)"
 trap 'rm -f "$LOCK_NEXT"' EXIT
 validate_harness_lock
+EXCLUDED_FILES="$(list_excluded_files)" || die "could not classify excluded payload assets"
 
 printf 'Target: %s\n' "$TARGET_DIR"
 case "$MODE" in
@@ -759,7 +779,7 @@ while IFS= read -r rel; do
 	fi
 done <<<"$SELECTED_FILES"
 
-if ! prune_harness_dev_sensors; then
+if ! prune_excluded_assets; then
 	rc=1
 fi
 

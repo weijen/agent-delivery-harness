@@ -68,6 +68,14 @@ descriptor. There are two common ways to start:
   `.copilot/instructions/*` are installed, including the language-specific ones
   (`python`, `terraform-azure`) — delete whichever you do not need.
 
+  A reduced payload also reconciles formerly shipped assets. Only a file whose
+  contents match its recorded `.harness-lock` base can be removed for exclusion.
+  Modified, protected, and ownership-unknown files survive; unknown ownership
+  remains a conflict even if the file happens to match today's source. `--write`
+  retains the previous base on a refusal. `--update` records a rejected deletion
+  beside the preserved file and remembers that exclusion, making an unchanged
+  repeat idempotent. Symlinked destinations are refused, not followed.
+
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,
   evaluation-authoring, meta, and top-level documentation obligation sensors.
