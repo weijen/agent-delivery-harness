@@ -75,6 +75,10 @@ in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 The local runner and both workflow profiles share
 `scripts/affected-sensors.sh --list` discovery. Empty full suites fail; empty
 scoped selections remain valid.
+Affected resolution selects from that same sensor set, including relocated
+sensors but never helpers. Relocated shared libraries and schema/contract
+authorities retain conservative FULL fallback; discovery/read failures cannot
+silently reduce coverage.
 
 ## Lifecycle
 

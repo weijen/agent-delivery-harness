@@ -160,6 +160,27 @@ grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=0
 grep -qi 'resolver.*failed.*FULL' <<<"$out" \
   || fail "runner must warn that resolver failure forced FULL"
 
+# A failed filesystem discovery also promotes to FULL instead of under-selection.
+mkdir -p "${TMP_DIR}/bin"
+export REAL_FIND
+REAL_FIND="$(command -v find)"
+export FIND_FAILURE_MARKER="${TMP_DIR}/find-failed"
+cat >"${TMP_DIR}/bin/find" <<'SH'
+#!/usr/bin/env bash
+if [ ! -e "$FIND_FAILURE_MARKER" ]; then
+  touch "$FIND_FAILURE_MARKER"
+  exit 2
+fi
+exec "$REAL_FIND" "$@"
+SH
+chmod +x "${TMP_DIR}/bin/find"
+out="$(PATH="${TMP_DIR}/bin:${PATH}" run green \
+  --declared tests/scripts/test_widget.sh --diff HEAD 2>&1)" \
+  || fail "filesystem discovery error must recover through FULL"
+grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
+  || fail "filesystem discovery failure must not become a narrow passing run"
+grep -qi 'resolver.*failed.*FULL' <<<"$out" || fail "filesystem fallback must warn"
+
 # 9. Execute the actual source/adopter CI blocks against the same fixture.
 run_ci() {
   local workflow="$1"
