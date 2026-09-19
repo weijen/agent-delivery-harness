@@ -12,7 +12,8 @@ fail() {
 }
 
 REPO="${TMP_DIR}/repo"
-mkdir -p "${REPO}/scripts" "${REPO}/schemas" "${REPO}/docs"
+mkdir -p "${REPO}/scripts" "${REPO}/schemas" "${REPO}/docs" "${REPO}/tests/scripts"
+printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${REPO}/tests/scripts/test_review_syntax.sh"
 for script in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh trace-lib.sh \
   issue-lib.sh ci-coverage-lib.sh \
   rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
@@ -27,7 +28,7 @@ git -C "${REPO}" config user.email "harness-test@example.invalid"
 git -C "${REPO}" config commit.gpgsign false
 printf '.copilot-tracking/\n' >"${REPO}/.gitignore"
 printf 'fixture\n' >"${REPO}/README.md"
-git -C "${REPO}" add .gitignore README.md scripts schemas
+git -C "${REPO}" add .gitignore README.md scripts schemas tests
 git -C "${REPO}" commit -q -m initial
 git -C "${REPO}" checkout -q -b feature/issue-370-fixture
 printf 'feature\n' >>"${REPO}/README.md"

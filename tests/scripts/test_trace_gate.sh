@@ -118,7 +118,7 @@ link_tools() {
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
   grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
-  uname true false
+  uname true false find
 cat > "${BIN}/gh" <<'SH'
 #!/usr/bin/env bash
 exit 1
@@ -136,7 +136,8 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts"
+  printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${dir}/tests/scripts/test_review_syntax.sh"
   local s
   for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-feature-list.sh \
            review-gate.sh trace-lib.sh check-trace-consistency.sh \
@@ -151,7 +152,7 @@ make_gate_fixture() {
   printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
-  git -C "$dir" add .gitignore README.md docs scripts schemas
+  git -C "$dir" add .gitignore README.md docs scripts schemas tests
   git -C "$dir" commit -q -m initial
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \

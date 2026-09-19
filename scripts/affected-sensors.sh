@@ -4,6 +4,7 @@
 # Usage:
 #   scripts/affected-sensors.sh [--declared <list>] [--diff <base-ref>] [<changed-path>...]
 #   scripts/affected-sensors.sh --tests-root <dir> --repo-root <dir> ...   (fixture override)
+#   scripts/affected-sensors.sh --list   (canonical full-suite discovery, no execution)
 #
 # Given the set of changed repo-relative paths (explicit args, or derived from
 # git when --diff <base-ref> is passed: committed vs base, staged, and unstaged
@@ -38,6 +39,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TESTS_ROOT=""
 DECLARED=""
 DIFF_BASE=""
+LIST=0
 CHANGED=()
 
 usage() {
@@ -48,6 +50,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --declared) DECLARED="${2:-}"; shift 2 ;;
     --diff) DIFF_BASE="${2:-}"; shift 2 ;;
+    --list) LIST=1; shift ;;
     --repo-root) REPO_ROOT="$(cd "${2:?}" && pwd)"; shift 2 ;;
     --tests-root) TESTS_ROOT="$(cd "${2:?}" && pwd)"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -58,6 +61,28 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$TESTS_ROOT" ] || TESTS_ROOT="${REPO_ROOT}/tests"
+
+discover_sensors() (
+  local paths=() found directory
+  for directory in scripts meta; do
+    [ ! -d "${TESTS_ROOT}/${directory}" ] || paths+=("$directory")
+  done
+  [ "${#paths[@]}" -gt 0 ] || return 0
+  cd "$TESTS_ROOT" || return 2
+  if ! found="$(find "${paths[@]}" \
+    -type d \( -name lib -o -name helpers -o -name fixtures \) -prune -o \
+    -type f -name 'test_*.sh' -print)"; then
+    printf 'affected-sensors.sh: sensor discovery failed\n' >&2
+    return 2
+  fi
+  [ -n "$found" ] || return 0
+  printf '%s\n' "$found" | LC_ALL=C sort -u | sed 's|^|tests/|'
+)
+
+if [ "$LIST" -eq 1 ]; then
+  discover_sensors
+  exit $?
+fi
 
 if [ -n "$DIFF_BASE" ]; then
   discover_changed_paths() {

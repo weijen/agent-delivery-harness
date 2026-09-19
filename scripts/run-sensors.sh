@@ -142,11 +142,13 @@ record_evidence() { # <mode-label> <scope> <ran> <failed>
 }
 
 full_set() {
-  local t
-  for t in tests/scripts/test_*.sh tests/meta/test_*.sh; do
-    [ -e "${REPO_ROOT}/${t}" ] || continue
-    printf '%s\n' "$t"
-  done
+  local discovered
+  discovered="$("${SCRIPT_DIR}/affected-sensors.sh" --list)" || return 1
+  if [ -z "$discovered" ]; then
+    printf 'run-sensors.sh: no harness sensors found for full suite\n' >&2
+    return 1
+  fi
+  mapfile -t ALL <<< "$discovered"
 }
 
 cd "$REPO_ROOT"
@@ -154,7 +156,7 @@ HEAD_SHA="$(git rev-parse HEAD)"
 
 if [ "$MODE" = "gate" ]; then
   # The two owed full-suite points. Explicit, auditable, twice per issue.
-  mapfile -t ALL < <(full_set)
+  full_set
   run_list full "$GATE" "${ALL[@]}"
   exit $?
 fi
@@ -176,7 +178,7 @@ fi
 if [ "$RESOLVED" = "FULL" ]; then
   # Unbounded blast radius (shared lib / schema authority changed): the ONLY
   # path to a full run at green, chosen by the resolver, not the agent.
-  mapfile -t ALL < <(full_set)
+  full_set
   run_list full green-full-fallback "${ALL[@]}"
   exit $?
 fi

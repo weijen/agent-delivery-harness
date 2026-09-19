@@ -330,7 +330,7 @@ link_tools() {
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
   grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
-  uname true false
+  uname true false find
 
 # --- Fixture builder ----------------------------------------------------------
 # make_repo <dir> <issue>: a single git repo carrying review-gate.sh + deps at
@@ -538,7 +538,7 @@ link_tools() {
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
   grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
-  uname true false
+  uname true false find
 
 # --- Fixture builder ----------------------------------------------------------
 # make_repo <dir> <issue>: a single git repo carrying review-gate.sh + deps at

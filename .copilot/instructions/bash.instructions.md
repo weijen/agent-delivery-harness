@@ -72,6 +72,8 @@ harness contract and the AGENTS.md conventions.
   user.name/email` in the temp repo, and don't depend on ordering between tests.
 - When relocating fixture assets, migrate copy destinations and Git staging together;
   preserve directories needed by other fixture files and match complete path tokens.
+- Fixtures that run full approval gates need a real sensor payload and every
+  discovery tool on their isolated PATH; an empty suite is not successful evidence.
 - Assert **behavior**, not byte-for-byte snapshots. Prove an ordering or
   contract by observing side effects (a worktree that does/doesn't exist, a
   branch that was/wasn't pushed), and **mutation-test** each guard: confirm the

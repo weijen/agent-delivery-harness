@@ -150,6 +150,11 @@ fixture_repo() {
   for script in "${scripts[@]}"; do
     "$_fixture_cp" "${FIXTURE_SOURCE_ROOT}/scripts/${script}" "${repo}/scripts/${script}"
   done
+  if [ -f "${repo}/scripts/run-sensors.sh" ]; then
+    "$_fixture_mkdir" -p "${repo}/tests/scripts"
+    printf '#!/usr/bin/env bash\nbash -n scripts/run-sensors.sh\n' \
+      >"${repo}/tests/scripts/test_fixture_syntax.sh"
+  fi
 
   "$_fixture_git" -C "$repo" init -q -b main
   "$_fixture_git" -C "$repo" config user.name "Harness Test"
