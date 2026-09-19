@@ -171,28 +171,16 @@ if grep -qF $'\t.env.example' "${default_target}/.harness-lock"; then
 fi
 
 upgrade_target="${TMP_DIR}/upgrade"
-"$INSTALL" "$upgrade_target" --write --with-dev-sensors >"$OUT" 2>&1
-[ ! -e "${upgrade_target}/.env.example" ] || {
-	echo "developer install shipped project-owned environment configuration"
-	exit 1
-}
-cmp -s "${ROOT}/.github/workflows/harness-smoke.yml" \
-	"${upgrade_target}/.github/workflows/harness-smoke.yml" || {
-	echo "developer install did not retain the maintainer smoke workflow"
-	exit 1
-}
-[ -f "${upgrade_target}/tests/scripts/test_release_workflow.sh" ] || {
-	echo "dev-sensor opt-in omitted an explicit harness-dev sensor"
-	exit 1
-}
-[ -f "${upgrade_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
-	echo "dev-sensor opt-in omitted the symlinked-parent sensor"
-	exit 1
-}
-[ -f "${upgrade_target}/tests/meta/test_agent_model_pins.sh" ] || {
-	echo "dev-sensor opt-in omitted meta sensors"
-	exit 1
-}
+"$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1
+# Model the preceding broad payload; portable developer mode no longer ships it.
+for legacy in tests/scripts/test_release_workflow.sh \
+	tests/scripts/test_install_harness_symlinked_parent.sh \
+	tests/scripts/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
+	mkdir -p "${upgrade_target}/$(dirname "$legacy")"
+	cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
+	digest="$(shasum -a 256 "${upgrade_target}/${legacy}" | awk '{print $1}')"
+	printf '%s\t%s\n' "$digest" "$legacy" >>"${upgrade_target}/.harness-lock"
+done
 printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/test_init_gates.sh"
 if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
@@ -430,40 +418,9 @@ HELP_OUT="${TMP_DIR}/install-help.out"
 GETTING_STARTED="${ROOT}/docs/getting-started.md"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-MANDATORY_FILES=(
-	VERSION docs/RELEASING.md
-)
-
-MANDATORY_DIRS=(
-	docs/evaluation docs/runtime-adapters tests/fixtures
-	tests/evals/bin tests/evals/manifests tests/evals/fixtures tests/evals/baselines tests/evals/scorecards
-)
-
-INSTALLED_SENSORS=(
-	tests/scripts/test_eval_manifest_validator.sh
-	tests/scripts/test_run_evals_scorecard.sh
-	tests/evals/bin/run-l0-suite.sh
-)
-
 fail() {
 	printf 'FAIL: %s\n' "$*" >&2
 	exit 1
-}
-
-assert_verbatim() {
-	local rel="$1"
-	[ -f "${ROOT}/${rel}" ] \
-		|| fail "mandatory source asset is absent: ${rel}"
-	[ -f "${TARGET}/${rel}" ] \
-		|| fail "mandatory installed runtime asset is absent: ${rel}"
-	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
-		|| fail "installed runtime asset differs from source: ${rel}"
-	case "$rel" in
-	*.json)
-		jq empty "${TARGET}/${rel}" >/dev/null 2>&1 \
-			|| fail "installed runtime JSON asset does not parse: ${rel}"
-		;;
-	esac
 }
 
 assert_documented_category() {
@@ -476,20 +433,6 @@ assert_documented_category() {
 	done
 }
 
-run_installed_sensor() {
-	local sensor="$1"
-	local output
-	output="${TMP_DIR}/$(basename "$sensor").out"
-	if ! (cd "$TARGET" && bash "$sensor") >"$output" 2>&1; then
-		printf '%s\n' "--- installed sensor failed: ${sensor} ---" >&2
-		cat "$output" >&2
-		fail "installed sensor failed: ${sensor}"
-	fi
-	printf 'PASS: installed sensor %s\n' "$sensor"
-}
-
-command -v jq >/dev/null 2>&1 \
-	|| fail "jq is required to validate installed runtime JSON assets"
 [ -f "$INSTALL" ] || fail "installer source is absent: ${INSTALL}"
 [ -f "$GETTING_STARTED" ] \
 	|| fail "onboarding guide is absent: ${GETTING_STARTED}"
@@ -514,27 +457,16 @@ assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
 
 mkdir -p "$TARGET"
-if ! "$INSTALL" "$TARGET" --write --with-dev-sensors >"$INSTALL_OUT" 2>&1; then
+if ! "$INSTALL" "$TARGET" --write >"$INSTALL_OUT" 2>&1; then
 	cat "$INSTALL_OUT" >&2
-	fail "installer --write --with-dev-sensors failed"
+	fail "installer --write failed"
 fi
 
-for rel in "${MANDATORY_FILES[@]}"; do
-	assert_verbatim "$rel"
+for rel in VERSION schemas/trace-schema.v1.json docs/harness-contract.yml; do
+	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
+		|| fail "installed runtime identity/contract differs: ${rel}"
 done
+jq empty "${TARGET}/schemas/trace-schema.v1.json"
 
-for directory in "${MANDATORY_DIRS[@]}"; do
-	[ -d "${ROOT}/${directory}" ] \
-		|| fail "mandatory source directory is absent: ${directory}"
-	while IFS= read -r source_file; do
-		rel="${source_file#"${ROOT}/"}"
-		assert_verbatim "$rel"
-	done < <(find "${ROOT}/${directory}" -type f | sort)
-done
-
-for sensor in "${INSTALLED_SENSORS[@]}"; do
-	run_installed_sensor "$sensor"
-done
-
-printf 'installed harness runtime sensor passed\n'
+printf 'installed core runtime categories honored; developer execution has its own sensor\n'
 )

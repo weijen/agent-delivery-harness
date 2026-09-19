@@ -26,8 +26,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TOMBSTONE_LEDGER="${SCRIPT_DIR}/install-harness.tombstones"
 DEV_SENSOR_MANIFEST="${REPO_ROOT}/tests/harness-dev-sensors.txt"
 ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.assets"
+DEV_ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.dev.assets"
 
-# Developer payload; default destinations are explicit in install-harness.assets.
+# Legacy namespaces, used only to reconcile previously shipped assets.
 HARNESS_ASSETS=(
 	scripts
 	profiles
@@ -69,15 +70,17 @@ Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors]
   --update      apply safe upstream-only changes; preserve adopter changes;
                 emit .rej patches and exit nonzero for both-changed conflicts
   --with-dev-sensors
-                install harness-repository development sensors in addition to
-                the default adopter-safe core sensor profile
+                add portable eval tools, manifests and development sensors
+                from scripts/install-harness.dev.assets to the core profile
 
 Default selection is explicit in scripts/install-harness.assets: lifecycle
 commands, profiles, core sensors and their fixtures, discoverable instructions,
 agents and skills, current runtime contract docs and schemas, and VERSION
 identity. Research, archive, release tooling and optional runtime-adapter guides
 and templates are not default assets. The smoke workflow comes from profiles/adopter-smoke.yml;
---with-dev-sensors retains the maintainer workflow. Project language gates
+Both modes use that portable workflow, which runs all installed sensors.
+Developer mode also supplies tests/evals/bin/run-l0-suite.sh for explicit L0 runs.
+Source-only release/history/meta checks stay in the harness repository. Project language gates
 belong in the adopter's own CI. Never touches non-harness project files.
 Environment examples are project-owned: neither mode installs or retires them.
 Updates lead with safe/kept/conflict counts. The generated .harness-lock records
@@ -88,8 +91,8 @@ Formerly shipped, now-excluded assets require a matching .harness-lock base
 before removal. Unknown ownership is a visible conflict, even for identical
 upstream content; .harness-keep protects exclusions as well as active assets.
 The shipped tests/harness-dev-sensors.txt classifies maintainer-only sensors.
-Pass --with-dev-sensors only when
-developing the harness itself.
+Use --with-dev-sensors from a source checkout or an existing developer install;
+a core-only installation does not contain the optional developer payload.
 USAGE
 }
 
@@ -291,7 +294,7 @@ is_protected_path() {
 
 source_file() {
 	local rel="$1"
-	if [ "$WITH_DEV_SENSORS" -eq 0 ] && [ "$rel" = ".github/workflows/harness-smoke.yml" ]; then
+	if [ "$rel" = ".github/workflows/harness-smoke.yml" ]; then
 		printf '%s/profiles/adopter-smoke.yml\n' "$REPO_ROOT"
 	else
 		printf '%s/%s\n' "$REPO_ROOT" "$rel"
@@ -375,23 +378,25 @@ is_harness_dev_sensor() {
 }
 
 list_selected_files() {
-	local asset="" rel="" files=""
-	if [ "$WITH_DEV_SENSORS" -eq 0 ]; then
-		[ -f "$ASSET_MANIFEST" ] || die "adopter asset manifest missing: ${ASSET_MANIFEST}"
+	local manifest="" rel="" label="" entries=0
+	local manifests=("$ASSET_MANIFEST")
+	[ "$WITH_DEV_SENSORS" -eq 0 ] || manifests+=("$DEV_ASSET_MANIFEST")
+	for manifest in "${manifests[@]}"; do
+		label=adopter
+		[ "$manifest" != "$DEV_ASSET_MANIFEST" ] || label=developer
+		[ -f "$manifest" ] || die "${label} asset manifest missing: ${manifest}"
+		entries=0
 		while IFS= read -r rel || [ -n "$rel" ]; do
 			case "$rel" in "" | \#*) continue ;; esac
-			[[ "$rel" =~ ^[A-Za-z0-9_./-]+$ ]] || die "invalid adopter asset path: ${rel}"
+			[[ "$rel" =~ ^[A-Za-z0-9_./-]+$ ]] || die "invalid ${label} asset path: ${rel}"
 			case "$rel" in
-				/* | . | .. | ../* | */../* | */..) die "unsafe adopter asset path: ${rel}" ;;
+				/* | . | .. | ../* | */../* | */..) die "unsafe ${label} asset path: ${rel}" ;;
 			esac
-			[ -f "$(source_file "$rel")" ] || die "adopter asset missing from source: ${rel}"
+			[ -f "$(source_file "$rel")" ] || die "${label} asset missing from source: ${rel}"
 			printf '%s\n' "$rel"
-		done <"$ASSET_MANIFEST"
-		return
-	fi
-	for asset in "${HARNESS_ASSETS[@]}"; do
-		files="$(list_files "$asset")" || return 1
-		printf '%s\n' "$files"
+			entries=$((entries + 1))
+		done <"$manifest"
+		[ "$entries" -gt 0 ] || die "${label} asset manifest is empty: ${manifest}"
 	done
 }
 
@@ -405,7 +410,6 @@ sha256_file() {
 
 list_excluded_files() {
 	local asset="" files="" candidates="" digest="" rel="" extra="" managed=0
-	[ "$WITH_DEV_SENSORS" -eq 0 ] || return 0
 	for asset in "${HARNESS_ASSETS[@]}"; do
 		[ -e "${REPO_ROOT}/${asset}" ] || continue
 		files="$(list_files "$asset")" || return 1

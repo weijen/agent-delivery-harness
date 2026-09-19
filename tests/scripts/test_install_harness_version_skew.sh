@@ -73,21 +73,19 @@ for path in "${diverged_paths[@]}"; do
 		tests/scripts/test_install_harness_three_way.sh)
 			rejected_marker="Regression and e2e sensor"
 			;;
-		scripts/check-install-harness-tombstones.sh)
-			rejected_marker="shallow checkout"
-			;;
-		tests/scripts/test_install_harness_tombstone_history.sh)
-			rejected_marker="tombstone history contract honored"
-			;;
-		tests/scripts/test_install_harness_tombstone_exclusion.sh)
-			rejected_marker="tombstone exclusion policy honored"
-			;;
+		scripts/check-install-harness-tombstones.sh | \
+		tests/scripts/test_install_harness_tombstone_history.sh | \
+		tests/scripts/test_install_harness_tombstone_exclusion.sh | \
 		tests/scripts/test_tombstone_workflow_history.sh)
-			rejected_marker="workflow full-history contract honored"
+			rejected_marker="-# adopter issue-49 local divergence"
+			grep -qF '+++ /dev/null' "${TARGET}/${path}.rej" \
+				|| fail "${path}.rej must reject the source-only asset deletion"
+			grep -qF "deleted"$'\t'"${path}" "${TARGET}/.harness-lock" \
+				|| fail "excluded conflict must acknowledge deletion without losing the adopter copy"
 			;;
 		*) fail "missing rejection marker for ${path}" ;;
 	esac
-	grep -Fq "$rejected_marker" "${TARGET}/${path}.rej" \
+	grep -Fq -- "$rejected_marker" "${TARGET}/${path}.rej" \
 		|| fail "${path}.rej does not contain the rejected current change"
 done
 
@@ -103,7 +101,7 @@ grep -Eq '^  conflicts:[[:space:]]+0$' "$REPEAT_OUT" \
 	}
 
 for path in "${diverged_paths[@]}"; do
-	grep -Fq "kept ${path} (adopter changed)" "$REPEAT_OUT" \
+	grep -Fq "kept ${path} (adopter changed" "$REPEAT_OUT" \
 		|| fail "repeat update did not keep adopter-only ${path}"
 	grep -Fq '# adopter issue-49 local divergence' "${TARGET}/${path}" \
 		|| fail "repeat update overwrote adopter file ${path} despite logging it as kept"

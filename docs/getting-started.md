@@ -29,7 +29,7 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project            # dry run — prints copies and retired-asset removals
   ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
   ./scripts/install-harness.sh /path/to/project --update   # apply safe changes; preserve adopter work; emit conflicts
-  ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # full harness-repository sensor suite
+  ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # portable developer/eval tools and sensors
   ```
 
   It defaults to a dry run and leaves your project's own code in place. Each
@@ -79,10 +79,13 @@ descriptor. There are two common ways to start:
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,
   evaluation-authoring, meta, and top-level documentation obligation sensors.
-  The shipped `tests/harness-dev-sensors.txt` classifies maintainer-only tests;
+  The shipped `tests/harness-dev-sensors.txt` classifies tests omitted by default;
   `scripts/install-harness.assets` is the authoritative default selection.
-  Harness maintainers can
-  opt into the complete self-development suite with `--with-dev-sensors`.
+  `--with-dev-sensors` adds the portable developer assets enumerated in
+  `scripts/install-harness.dev.assets`: eval runners, validators, L0 manifests
+  and their sensors. This explicitly replaces the former all-maintainer-sensors
+  opt-in. Repository-specific release, history and documentation checks are
+  source-only; they remain in the harness repository and its complete CI.
 
   The installed `.github/workflows/harness-smoke.yml` is selected from
   `profiles/adopter-smoke.yml`. It validates installed shell files,
@@ -90,7 +93,15 @@ descriptor. There are two common ways to start:
   this repository's Python environment, release history, or L0 evaluation
   authoring assets. Keep your application's language gates in its own CI;
   harness smoke is not a substitute for application tests. Developer opt-in
-  retains the source repository's full smoke workflow.
+  uses the same portable workflow, including its additional installed sensors.
+  Run `bash tests/evals/bin/run-l0-suite.sh` from the developer installation
+  to execute the bundled L0 evaluations; a blocking case exits nonzero.
+  Both modes require Bash, Git, jq and ShellCheck; neither requires the
+  maintainer Python project, release credentials or this repository's history.
+  Install developer mode from a source checkout or an existing developer
+  installation: a core-only install does not contain the extra payload.
+  Switching back to default reconciles developer assets under the same
+  ownership-safe upgrade policy, without deleting customized copies.
   Environment examples are project-owned in both modes: the installer does not
   distribute `.env.example` or delete existing adopter copies.
 
@@ -99,6 +110,7 @@ descriptor. There are two common ways to start:
 | Audience | Assets and reason |
 | --- | --- |
 | Adopter | Exact manifest entries: lifecycle commands/libraries, profiles, current docs/contracts, discoverable guidance, core sensors, frontmatter validator, and the native-log fixtures those sensors actually read. |
+| Portable developer opt-in | Exact additional manifest entries: eval runner/validator, L0 driver and manifests, and eval-authoring sensors. Generated fixtures use core sensors already installed. |
 | Maintainer | Release/history and audit-sweep tooling, source-repository meta tests, evaluation runners/manifests/scorecards, research/archive docs, and maintainer CI/configuration. Not needed to operate a delivery worktree. |
 | Optional | Claude hooks and `docs/runtime-adapters/` guides and templates; not activated or installed by default. |
 | Project-owned | Root README/AGENTS, environment examples, runtime settings and debt records. Never imported from this repository as adopter state. |

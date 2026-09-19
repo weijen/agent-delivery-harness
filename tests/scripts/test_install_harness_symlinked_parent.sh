@@ -39,7 +39,12 @@ fi
 	|| fail "update changed a file through a symlinked parent"
 
 PRUNE_TARGET="${TMP_DIR}/prune-target"
-"${INSTALL}" "${PRUNE_TARGET}" --write --with-dev-sensors >/dev/null 2>&1
+"${INSTALL}" "${PRUNE_TARGET}" --write >/dev/null 2>&1
+legacy="tests/meta/test_skill_references_resolve.sh"
+mkdir -p "${PRUNE_TARGET}/tests/meta"
+cp "${ROOT}/${legacy}" "${PRUNE_TARGET}/${legacy}"
+digest="$(shasum -a 256 "${PRUNE_TARGET}/${legacy}" | awk '{print $1}')"
+printf '%s\t%s\n' "$digest" "$legacy" >>"${PRUNE_TARGET}/.harness-lock"
 mkdir -p "${OUTSIDE}/prune-tests"
 mv "${PRUNE_TARGET}/tests/meta" "${OUTSIDE}/prune-tests/meta"
 ln -s "${OUTSIDE}/prune-tests/meta" "${PRUNE_TARGET}/tests/meta"

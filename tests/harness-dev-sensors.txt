@@ -9,6 +9,7 @@ tests/scripts/test_doctrine_retired_vocab.sh
 tests/scripts/test_eval_manifest_validator.sh
 tests/scripts/test_init_gates.sh
 tests/scripts/test_install_harness_adopter_profile.sh
+tests/scripts/test_install_harness_dev_profile.sh
 tests/scripts/test_install_harness_symlinked_parent.sh
 tests/scripts/test_install_harness_tombstone_exclusion.sh
 tests/scripts/test_install_harness_tombstone_history.sh
