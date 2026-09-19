@@ -180,12 +180,12 @@ same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
 |---|---|---|
 | **Skill** `code-review` | Review of the branch diff for spec compliance + bugs | Once, at issue completion (pre-PR) — #303/#352; see `harness.instructions.md` § Verify gate |
 | **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `scripts/create-pr.sh` |
-| **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Pulled in by `code-review-subagent` review checklist |
-| **Skill** `find-duplicates` | Semantic duplication / DRY violations | Pulled in by `code-review-subagent` review checklist |
-| **Skill** `find-over-design` | Premature abstraction / unjustified complexity | Pulled in by `code-review-subagent` review checklist |
+| **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Owner-requested maintenance audit, outside issue review |
+| **Skill** `find-duplicates` | Semantic duplication / DRY violations | Owner-requested maintenance audit, outside issue review |
+| **Skill** `find-over-design` | Premature abstraction / unjustified complexity | Owner-requested maintenance audit, outside issue review |
 | **Skill** `dead-code-detection` | Unreachable code, stale flags, oxbow paths | On-demand during refactor issues |
 | **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
-| **Skill** `sync-docs` | Audit docs against the current code after refactors | Run before closing any issue that renamed paths or commands |
+| **Skill** `sync-docs` | Audit docs against the current code after refactors | On-demand documentation audit, outside issue review |
 | **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
 | **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, at issue completion (pre-PR), over the whole branch diff (#352: the only other model invocation in the lifecycle) |
 
@@ -199,11 +199,11 @@ Which skill fires, who owns it, and at which lifecycle phase:
 
 | Skill | Owner role | Stage / phase | Fires on |
 | --- | --- | --- | --- |
-| `find-brute-force` | `code-review-subagent` | Review | Hacks, swallowed errors, hardcoded values introduced by the diff |
-| `find-duplicates` | `code-review-subagent` | Review | Copy-paste / DRY violations introduced by the diff |
-| `find-over-design` | `code-review-subagent` | Review | Premature abstraction introduced by the diff |
-| `dead-code-detection` | `code-review-subagent` | Review | Dead code among symbols the diff adds, renames, routes, or removes |
-| `sync-docs` | `code-review-subagent` | Review | Doc drift from touched commands, paths, agent/skill names |
+| `find-brute-force` | owner-requested audit | Maintenance | Whole-repo workaround inventory |
+| `find-duplicates` | owner-requested audit | Maintenance | Whole-repo duplication inventory |
+| `find-over-design` | owner-requested audit | Maintenance | Whole-repo complexity inventory |
+| `dead-code-detection` | owner-requested audit | Maintenance | Targeted removal-safety investigation |
+| `sync-docs` | owner-requested audit | Maintenance | Documentation consistency investigation |
 | `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
 | `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Single end-of-issue diff review (pre-PR, #303) |
 | `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
@@ -211,7 +211,12 @@ Which skill fires, who owns it, and at which lifecycle phase:
 
 The delivering agent's quality bar comes from the applicable
 `<language>.instructions.md`, `.copilot/instructions/tdd.instructions.md`, and this AGENTS.md.
-The audit skills are concentrated in `code-review-subagent` so one fresh-context pass owns whole-diff quality.
+The five quality-skill protocols are not part of independent review or the
+pre-PR verify gate (#350). The reviewer uses ordinary quality judgment over the
+diff, including doc drift and obvious defects; this does not invoke those skill
+protocols. Exposure and the authoritative §6 verify-gate requirements remain.
+Path/command changes still require synchronized documentation and reference
+validation as part of delivery.
 
 The reviewer may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose
 a missing failure mode. Production stays read-only: `code-review-subagent` must not edit production or add a required

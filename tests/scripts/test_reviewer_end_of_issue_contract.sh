@@ -157,6 +157,22 @@ if grep -qiE 'Planner / implementer / tester / reviewer' "${EVALUATION}"; then
   fail "evaluation README must not teach four separated subagent roles as current"
 fi
 
+for skill in find-brute-force find-duplicates find-over-design dead-code-detection sync-docs; do
+  rows="$(grep -F "\`${skill}\`" "$AGENTS_MD" | grep '^|' || true)"
+  [ -n "$rows" ] || fail "AGENTS.md must retain ${skill} in the on-demand skill inventory"
+  if printf '%s\n' "$rows" | grep -qiE 'code-review-subagent|closeout verify gate'; then
+    fail "AGENTS.md must not assign ${skill} protocols to independent review or its gate"
+  fi
+done
+for contract in "$AGENTS_MD" "$AGENT" "${ROOT}/.copilot/instructions/harness.instructions.md"; do
+  grep -qiE 'judgment|judgement' "$contract" \
+    || fail "${contract} must retain ordinary reviewer quality judgment"
+done
+grep -qiE 'not part of.*review|not.*review.*protocols' "$AGENTS_MD" \
+  || fail "AGENTS.md must explicitly exclude the five quality-skill protocols from review"
+grep -qF 'public-exposure-audit' "$AGENTS_MD" \
+  || fail "AGENTS.md must retain the independent exposure boundary"
+
 if [ "${fails}" -ne 0 ]; then
   printf '\n%d assertion(s) failed — reviewer end-of-issue contract not satisfied.\n' \
     "${fails}" >&2
