@@ -411,9 +411,11 @@ over `scripts/` and `tests/`, and validates Copilot customization frontmatter. T
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
 
-Default installations select [the adopter workflow](../profiles/adopter-smoke.yml)
-for that destination. The source repository and developer opt-in retain the
-maintainer workflow, including Python profile, tombstone-history and L0 gates.
+Both installed profiles select [the adopter workflow](../profiles/adopter-smoke.yml)
+for that destination. Only the source repository retains the maintainer workflow,
+including Python profile, tombstone-history and L0 gates. Portable developer
+installations additionally provide `bash tests/evals/bin/run-l0-suite.sh`
+for explicit evaluation runs.
 Adopters supply their own application CI; the core smoke job does not assume
 the harness maintainer's language environment or release history.
 
