@@ -1,11 +1,10 @@
 # Harness language profiles
 
-This directory holds the harness's **language profile descriptors**. A profile
-moves a language's surface detection, dependency sync, and quality gates out of
-hard-coded branches in `scripts/init.sh` and into a declarative, committed file.
-The harness core loads profiles, detects the project surface, runs the declared
-gates, and reports warnings — it does not hard-code the details of Python, Go,
-Node.js, Java, or Ruby.
+This directory holds the harness's **language profile descriptors** and is the
+current descriptor-interface authority. `scripts/init.sh` still uses explicit marker
+checks to select project surfaces. The selected descriptor supplies the surface
+label, dependency sync and quality gates; detection metadata does not replace
+the preflight's marker branches. The lifecycle core stays language-neutral.
 
 **Shipped vs generator-supported (issue #274).** Only **Python** and **Node.js**
 ship committed descriptors (`python.profile.sh`, `node.profile.sh`). **Go,
@@ -31,12 +30,12 @@ Each profile is a Bash-sourced descriptor named `<id>.profile.sh` (for example
 variables / calls its functions. Bash was chosen so command invocation stays
 byte-identical to the previous hard-coded branches and no parser is required.
 
-A descriptor declares the spec's **Profile Interface** fields:
+A descriptor declares these **Profile Interface** fields:
 
 | Field | How it is expressed | Purpose |
 | --- | --- | --- |
 | `id` | `PROFILE_ID` | Stable profile name (`python`, `go`, `node`, `java`, `ruby`). |
-| `detect` | `PROFILE_DETECT` + `profile_detect()` | Files/patterns identifying the surface; the function returns success when the surface is present. |
+| `detect` | `PROFILE_DETECT` + `profile_detect()` | Descriptor metadata/helper for identifying the surface; `init.sh` selects profiles through its own explicit marker checks. |
 | `variants` | `PROFILE_VARIANTS` | Optional package-manager / build-tool / test-framework variants (e.g. pnpm vs npm, Maven vs Gradle, RSpec vs Minitest). May be empty. |
 | `sync` | `PROFILE_SYNC_*` + `profile_sync()` | Optional dependency synchronization command and its OK/FAIL/FIX messages. |
 | `format_check` | gate slot `format_check` | Optional formatting check command. |
