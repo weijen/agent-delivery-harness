@@ -2,6 +2,32 @@
 
 <!-- version list -->
 
+## v0.45.2 (2026-09-19)
+
+### Bug Fixes
+
+- **#471**: Bound affected resolution to canonical nested sensors
+  ([#478](https://github.com/weijen/agent-delivery-harness/pull/478),
+  [`a61ed9d`](https://github.com/weijen/agent-delivery-harness/commit/a61ed9daf830f31d251ac1bbbd35394ab089cb7e))
+
+- **#471**: Discover nested sensors and validate recursive shell surfaces
+  ([#478](https://github.com/weijen/agent-delivery-harness/pull/478),
+  [`a61ed9d`](https://github.com/weijen/agent-delivery-harness/commit/a61ed9daf830f31d251ac1bbbd35394ab089cb7e))
+
+- **#471**: Share recursive sensor discovery across full gates
+  ([#478](https://github.com/weijen/agent-delivery-harness/pull/478),
+  [`a61ed9d`](https://github.com/weijen/agent-delivery-harness/commit/a61ed9daf830f31d251ac1bbbd35394ab089cb7e))
+
+- **#471**: Validate recursive shell surfaces in both CI profiles
+  ([#478](https://github.com/weijen/agent-delivery-harness/pull/478),
+  [`a61ed9d`](https://github.com/weijen/agent-delivery-harness/commit/a61ed9daf830f31d251ac1bbbd35394ab089cb7e))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.45.1
+  ([`3b93fd0`](https://github.com/weijen/agent-delivery-harness/commit/3b93fd039ca415db1023f84c860999980d10dc7a))
+
+
 ## v0.45.1 (2026-09-19)
 
 ### Bug Fixes
