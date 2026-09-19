@@ -1,3 +1,7 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # GitHub Copilot subagent observability — spike finding (issue #226)
 
 This is the spike write-up for issue #226: **do Copilot CLI hooks fire for tool
@@ -211,7 +215,7 @@ attribution the hooks lack is present:
 So `events.jsonl` is the **only** source that joins a subagent span → its
 `toolCallId`/`agentId` → `agentName` + `model`. It is the internal, undocumented
 CLI format the adapter already treats as best-effort (see
-[`github-copilot.md`](github-copilot.md) §"the events.jsonl caveat"); its shape
+[`github-copilot.md`](../../github-copilot.md) §"the events.jsonl caveat"); its shape
 may drift across CLI versions.
 
 ## §6 — Verdict for the binding (#227)

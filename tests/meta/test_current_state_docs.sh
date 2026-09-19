@@ -100,8 +100,9 @@ for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-co
     *) [ -f "$authority" ] || fail "documented profile authority missing: ${authority}" ;;
   esac
 done
-grep -qE '^## Historical design' docs/multi-language-profiles.md \
-  || fail "old profile initiative must be explicitly historical"
+require docs/multi-language-profiles.md '](archive/multi-language-profiles.md)'
+require docs/archive/multi-language-profiles.md '# Language Profiles: Historical Design'
+reject docs/multi-language-profiles.md 'Before any profile generator'
 if printf '%s\n' "$profile_current" | grep -qiE 'before.*implemented|add a generator|review-gate/approved-head'; then
   fail "current profile workflow must not describe shipped work as pending or use unscoped approval"
 fi
@@ -109,5 +110,24 @@ require profiles/README.md 'explicit marker'
 reject_regex profiles/README.md 'moves a language.s surface detection|does not hard-code the details'
 require scripts/init.sh 'pyproject.toml'
 require scripts/init.sh 'package.json'
+
+for doc in product-quality-rubric failure-mode-taxonomy observability-and-trace-schema github-copilot; do
+  [ -f "docs/${doc}.md" ] || fail "current operating guide missing: docs/${doc}.md"
+  [ ! -e "docs/evaluation/${doc}.md" ] \
+    || fail "research directory retains duplicate operating authority: ${doc}"
+  [ ! -e "docs/runtime-adapters/${doc}.md" ] \
+    || fail "adapter directory retains duplicate operating authority: ${doc}"
+  require scripts/install-harness.sh "docs/${doc}.md"
+done
+for consumer in AGENTS.md .copilot/instructions/harness.instructions.md \
+  .copilot/agents/code-review-subagent.agent.md docs/HARNESS.md \
+  schemas/trace-schema.v1.json; do
+  reject_regex "$consumer" 'docs/(evaluation/(product-quality-rubric|failure-mode-taxonomy|observability-and-trace-schema)|runtime-adapters/github-copilot)\.md'
+done
+require .copilot/agents/code-review-subagent.agent.md 'docs/product-quality-rubric.md'
+require .copilot/instructions/harness.instructions.md 'docs/observability-and-trace-schema.md'
+require docs/github-copilot.md '](observability-and-trace-schema.md)'
+require docs/observability-and-trace-schema.md '](../schemas/trace-schema.v1.json)'
+require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
 
 printf 'current-state documentation checks passed\n'

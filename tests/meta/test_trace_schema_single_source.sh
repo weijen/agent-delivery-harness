@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Meta drift sensor (issue #173): the schema-derived enums that used to be
 # hand-copied into several scripts must stay byte-for-byte in step with the
-# single frozen authority, docs/evaluation/trace-schema.v1.json.
+# single frozen authority, schemas/trace-schema.v1.json.
 #
 # Authority arrays (added additively, open-world safe):
 #   .numeric_keys          — exact attribute keys trace-lib types as JSON numbers
@@ -24,7 +24,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-CONTRACT="$ROOT/docs/evaluation/trace-schema.v1.json"
+CONTRACT="$ROOT/schemas/trace-schema.v1.json"
 TRACE_LIB="$ROOT/scripts/trace-lib.sh"
 CONSISTENCY="$ROOT/scripts/check-trace-consistency.sh"
 LOG_HANDBACK="$ROOT/scripts/log-handback.sh"
@@ -100,7 +100,7 @@ tokens() { grep -oE "$1" | LC_ALL=C sort -u; }
 diff_or_fail() {
   local label="$1" want="$2" got="$3"
   if [ "$want" != "$got" ]; then
-    printf 'FAIL: %s drifted from the authority (docs/evaluation/trace-schema.v1.json)\n' "$label" >&2
+    printf 'FAIL: %s drifted from the authority (schemas/trace-schema.v1.json)\n' "$label" >&2
     printf '  authority:\n%s\n  found:\n%s\n' "$(printf '%s' "$want" | sed 's/^/    /')" "$(printf '%s' "$got" | sed 's/^/    /')" >&2
     exit 1
   fi
@@ -177,7 +177,7 @@ printf 'trace-schema single-source contract honored (numeric_keys, prefixes, rol
 (
 cd "$ROOT"
 
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 SCRIPTS="${ROOT}/scripts"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -229,8 +229,8 @@ exit 0
 (
 cd "$ROOT"
 
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
-DOC="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
+DOC="${ROOT}/docs/observability-and-trace-schema.md"
 
 fails=0
 fail() {
@@ -244,9 +244,9 @@ command -v jq >/dev/null 2>&1 \
   || { printf 'FAIL: jq is required to read the trace schema contract\n' >&2; exit 1; }
 
 [ -f "$CONTRACT" ] \
-  || { printf 'FAIL: contract not found at docs/evaluation/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+  || { printf 'FAIL: contract not found at schemas/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
 [ -f "$DOC" ] \
-  || { printf 'FAIL: prose doc not found at docs/evaluation/observability-and-trace-schema.md\n' >&2; exit 1; }
+  || { printf 'FAIL: prose doc not found at docs/observability-and-trace-schema.md\n' >&2; exit 1; }
 
 # --- 1. Prose doc defers to the frozen contract ------------------------------
 grep -qF 'trace-schema.v1.json' "$DOC" \

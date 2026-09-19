@@ -56,7 +56,7 @@ continuing the ritual.
      reconstructed runtime `tool span`s, which issue #305 **retired**; the kept semantic spine the
      harness emits about itself is written regardless of launch cwd, so a non-root launch no longer
      loses any kept signal. See **The Capture Retirement Boundary** in
-     [../../docs/evaluation/observability-and-trace-schema.md](../../docs/evaluation/observability-and-trace-schema.md),
+     [../../docs/observability-and-trace-schema.md](../../docs/observability-and-trace-schema.md),
      which owns this reconciliation. Listing the repository root under `trustedFolders` in
      `~/.copilot/config.json` and launching from it remains a harmless convention, not a
      requirement to avoid a lost run.
@@ -457,6 +457,8 @@ small increments, not painful bursts.
   consumer.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
+  This tracker is project-owned state, not a populated reusable harness asset;
+  installation must preserve an adopter's existing debt records.
 - Keep `docs/` honest against the code: if a doc no longer reflects behaviour, fix it (or file
   debt). The project docs are the contract — if reality drifts from a documented requirement or
   architecture component, update the relevant doc in the same PR that introduced the drift.

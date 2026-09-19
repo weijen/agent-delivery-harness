@@ -3,7 +3,7 @@
 Point-in-time decision record, dated **2026-07-10** batch (delivered under
 issue #273). This table is an auditable snapshot, **not** a live inventory —
 new meta-tests are governed by the rubric recorded in
-[`.copilot/instructions/bash.instructions.md`](../../.copilot/instructions/bash.instructions.md),
+[`.copilot/instructions/bash.instructions.md`](../../../.copilot/instructions/bash.instructions.md),
 not by keeping this file in sync.
 
 ## Rubric (the deletion criterion)

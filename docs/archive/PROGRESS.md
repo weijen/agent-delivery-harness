@@ -94,7 +94,7 @@ _Last updated: 2026-07-22 (#313)_
   description-discriminability proxy (#66), artifact schema evals (#67),
   code-review trigger dataset (#68), Azure Tier B runner + config/secret
   contract (#69). See
-  [docs/evaluation/l1-solution/](evaluation/l1-solution/).
+  [docs/evaluation/l1-solution/](../evaluation/l1-solution/).
 - **Deep-tracing remote-monitoring phase — #113 DELIVERED (see below):** the
   workbook + retention/PII spec + the two #112 carry-over hardenings landed.
   **Post-merge deploy step pending:** `terraform apply` the new
@@ -105,7 +105,7 @@ _Last updated: 2026-07-22 (#313)_
 - **Deep-trace tool-call + skill observability (#121 retired):** runtime
   reconstruction and its human Spike-Live capture task are retired. Deep tool,
   skill, model, and subagent analysis now reads Copilot native records through
-  [docs/runtime-adapters/github-copilot.md](runtime-adapters/github-copilot.md).
+  [docs/runtime-adapters/github-copilot.md](../github-copilot.md).
 - **In flight:** post-#113 hotfix — the workbook resource argument was
   `serialized_data` (wrong: fails `terraform validate`); corrected to
   `data_json`. The workbook is now DEPLOYED to the live sink (apply: 1 added,

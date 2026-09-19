@@ -111,7 +111,7 @@ without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — 
 > `tool span`s, which issue #305 **retired**. The kept semantic spine the harness emits about itself
 > is written regardless of launch cwd, so a non-root launch no longer loses any kept signal — see
 > **The Capture Retirement Boundary** in
-> [docs/evaluation/observability-and-trace-schema.md](docs/evaluation/observability-and-trace-schema.md),
+> [docs/observability-and-trace-schema.md](docs/observability-and-trace-schema.md),
 > which owns this reconciliation. Listing the repository root under `trustedFolders` in
 > `~/.copilot/config.json` and launching from it remains a harmless convention, no longer a
 > requirement to avoid a lost run.

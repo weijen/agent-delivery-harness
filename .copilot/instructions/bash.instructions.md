@@ -70,6 +70,8 @@ harness contract and the AGENTS.md conventions.
   rest) so results never depend on the developer's login or ambient toolchain.
 - Keep tests **deterministic and isolated**: pin `PATH`, set `git config
   user.name/email` in the temp repo, and don't depend on ordering between tests.
+- When relocating fixture assets, migrate copy destinations and Git staging together;
+  preserve directories needed by other fixture files and match complete path tokens.
 - Assert **behavior**, not byte-for-byte snapshots. Prove an ordering or
   contract by observing side effects (a worktree that does/doesn't exist, a
   branch that was/wasn't pushed), and **mutation-test** each guard: confirm the
@@ -101,7 +103,7 @@ A meta-test earns its keep only if it does one of these — this is the
   skill and the fresh-context reviewer — never by these.
 
 The point-in-time triage that applied this rubric lives at
-[`docs/evaluation/meta-test-triage.md`](../../docs/evaluation/meta-test-triage.md).
+[`docs/archive/evaluation/meta-test-triage.md`](../../docs/archive/evaluation/meta-test-triage.md).
 
 ## Validation before declaring work done
 

@@ -344,17 +344,17 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
   local s
   for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
            trace-lib.sh issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
+  cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/"
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
-  git -C "$dir" add docs scripts
+  git -C "$dir" add docs scripts schemas
   git -C "$dir" commit -q -m "add review fixture"
   git -C "$dir" checkout -q -b "feature/issue-${pad}-fixture"
   printf '# Progress\n\nissue-%s work\n' "$issue" > "${dir}/docs/PROGRESS.md"
@@ -551,17 +551,17 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
   local s
   for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
            trace-lib.sh issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
+  cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/"
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
-  git -C "$dir" add docs scripts
+  git -C "$dir" add docs scripts schemas
   git -C "$dir" commit -q -m "add review fixture"
   git -C "$dir" checkout -q -b "feature/issue-${pad}-fixture"
   printf '# Progress\n\nissue-%s work\n' "$issue" > "${dir}/docs/PROGRESS.md"

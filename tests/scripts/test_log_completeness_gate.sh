@@ -413,7 +413,7 @@ printf 'log-completeness paths contract honored\n'
 cd "$ROOT"
 
 CONTRACT_YML="${ROOT}/docs/harness-contract.yml"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 TMP_PARENT="${ROOT}/.copilot-tracking/tmp-tests"
 mkdir -p "${TMP_PARENT}"
 TMP_DIR="$(TMPDIR="${TMP_PARENT}" mktemp -d)"
@@ -470,20 +470,20 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
   local s
   for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
            review-gate.sh trace-lib.sh check-trace-consistency.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
-  cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"
+  cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   printf '/.worktrees/\n.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
-  git -C "$dir" add .gitignore README.md docs scripts
+  git -C "$dir" add .gitignore README.md docs scripts schemas
   git -C "$dir" commit -q -m initial
   (cd "$dir" && PATH="$BIN" SKIP_INIT=1 ./scripts/start-issue.sh "$issue" SLUG=fixture) \
     > "${TMP_DIR}/start-${issue}.out" 2>&1 \
@@ -608,7 +608,7 @@ fi
 
 # CASE E: schema single-source declares harness.finding_count numeric.
 jq -e '.numeric_keys | index("harness.finding_count") != null' "$SCHEMA" >/dev/null 2>&1 \
-  || fail "CASE E: docs/evaluation/trace-schema.v1.json numeric_keys must include harness.finding_count"
+  || fail "CASE E: schemas/trace-schema.v1.json numeric_keys must include harness.finding_count"
 
 # CASE F: HARNESS.md documents the gate and promotion flag.
 grep -q 'log-completeness' "${ROOT}/docs/HARNESS.md" \

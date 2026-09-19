@@ -79,7 +79,7 @@ grep -qx 'tests/scripts/test_gadget.sh' "$OUT" \
 # 3. FULL fallback: each unbounded-blast-radius class collapses to FULL with a
 #    stderr reason, regardless of fixture roots.
 for shared in scripts/trace-lib.sh scripts/finish-lib.sh \
-  docs/evaluation/trace-schema.v1.json docs/harness-contract.yml \
+  schemas/trace-schema.v1.json docs/harness-contract.yml \
   tests/scripts/lib/common.sh; do
   run_resolver "$OUT" "$ERR" scripts/widget.sh "$shared"
   [ "$(cat "$OUT")" = "FULL" ] \

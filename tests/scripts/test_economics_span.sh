@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 SCRATCH_ROOT="${ROOT}/.copilot-tracking/test-economics-span.$$"
 TMP_DIR="${SCRATCH_ROOT}/tmp"
 BIN="${SCRATCH_ROOT}/bin"
@@ -47,13 +47,13 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat grep printf jq d
 copy_fixture_scripts() {
   local dir="$1"
   local s
-  mkdir -p "${dir}/scripts" "${dir}/docs/evaluation"
+  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
   for s in finish-lib.sh economics-report-lib.sh trace-lib.sh log-handback.sh check-trace-consistency.sh issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
   done
-  cp "$SCHEMA" "${dir}/docs/evaluation/trace-schema.v1.json"
+  cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   if [ -f "${ROOT}/VERSION" ]; then
     cp "${ROOT}/VERSION" "${dir}/VERSION"
   fi
@@ -70,7 +70,7 @@ make_economics_fixture() {
   git -C "$dir" config user.email "harness-test@example.invalid"
   printf '.copilot-tracking/\n' > "${dir}/.gitignore"
   printf 'fixture\n' > "${dir}/README.md"
-  git -C "$dir" add .gitignore README.md docs scripts
+  git -C "$dir" add .gitignore README.md schemas scripts
   git -C "$dir" commit -q -m initial
 
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"
@@ -696,10 +696,12 @@ jq_span "$SP_BR" '."harness.economics.native_aiu_nano_delta" == 80000000000 and 
 # The span carries NO raw model-name string (numeric prefix stays numeric-only).
 jq_span "$SP_BR" '[to_entries[] | select(.key|startswith("harness.economics.native_")) | .value | type] | all(. == "number")' \
   || fail "BRACKET: every harness.economics.native_* span value must be numeric"
-# The consolidated checker must accept the resulting span's schema and types;
-# unrelated feature-state findings in this focused fixture are ignored.
+# The consolidated checker must execute and accept this complete fixture.
+checker_rc=0
 (cd "$F_BR" && env PATH="$BIN" ./scripts/check-trace-consistency.sh "$I_BR") \
-  >"${TMP_DIR}/vt-br.out" 2>&1 || true
+  >"${TMP_DIR}/vt-br.out" 2>&1 || checker_rc=$?
+[ "$checker_rc" -eq 0 ] \
+  || hard_fail "BRACKET: checker failed (exit ${checker_rc}: $(cat "${TMP_DIR}/vt-br.out"))"
 if grep -Eq 'schema_violation|type_violation|invalid_json|failure_mode_violation' \
     "${TMP_DIR}/vt-br.out"; then
   fail "BRACKET: consolidated checker rejected the native economics schema/types (out: $(tr '\n' '|' < "${TMP_DIR}/vt-br.out"))"

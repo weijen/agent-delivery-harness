@@ -4,6 +4,14 @@ This directory collects the evaluation strategy for the agent delivery harness:
 what we should measure, why, and how each measurement maps to a concrete harness
 boundary. It is written so that each page can become its own GitHub issue.
 
+This is maintainer research, not additional adopter lifecycle requirements.
+Current operation is governed by [HARNESS.md](../HARNESS.md), the
+[quality rubric](../product-quality-rubric.md), the
+[observability guide](../observability-and-trace-schema.md), and its
+[trace contract](../../schemas/trace-schema.v1.json). Completed plans, dated
+experiments and retired formats live under `docs/archive/`; they are not setup
+instructions. L0/L1 specifications below remain active research.
+
 The harness is an agentic system. Like any agentic system it needs evaluation
 that goes beyond unit tests: deterministic checks for its scripts, behavioral
 checks for its skills and subagents, and regression tripwires for the failures
@@ -53,10 +61,10 @@ and have their own pages below.
 | Page | Layer | Focus |
 | --- | --- | --- |
 | [cost-efficiency-evals.md](cost-efficiency-evals.md) | Cross-cutting | Tokens, turns, latency, thrash |
-| [observability-and-trace-schema.md](observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
-| [product-quality-rubric.md](product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
-| [l0-solution/](l0-solution/) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
-| [l1-solution/](l1-solution/) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
+| [observability-and-trace-schema.md](../observability-and-trace-schema.md) | Cross-cutting | OpenTelemetry GenAI-aligned trace schema |
+| [product-quality-rubric.md](../product-quality-rubric.md) | Cross-cutting | Coding-agent functionality product-quality rubric |
+| [l0-solution/](l0-solution) | L0 solution | Runnable architecture, spec, and shared eval framework for the foundation layer |
+| [l1-solution/](l1-solution) | L1 solution | Skills-layer architecture and spec, building on the L0 framework |
 | [archived prose set](../archive/evaluation/README.md) | — | Archived L1+ strategy prose with zero runtime/doctrine reference (decision 3a, epic #331): script/skill/subagent-role/feature-breakdown/trajectory/trace-action-log/outcome/mutation evals, judge evaluation, security evals, azure runtime, dataset governance, statistical methodology, evaluation matrix, research notes, telemetry retention, and the accuracy matrix |
 
 ## Scorecard Model
@@ -72,7 +80,7 @@ by #337); the trial and threshold math lives in
 [statistical-methodology.md](../archive/evaluation/statistical-methodology.md)
 (archived by #337). The
 coding-agent functionality product quality rubric lives in
-[product-quality-rubric.md](product-quality-rubric.md), where it frames useful,
+[product-quality-rubric.md](../product-quality-rubric.md), where it frames useful,
 complete, workflow-fit agent behavior; it is not a visual, aesthetic, or
 UI-design rubric.
 
@@ -107,7 +115,7 @@ sensitivity constraints.
 
 Cross-cutting pages (judge calibration, dataset governance, observability schema,
 statistical method, cost/efficiency, and the coding-agent functionality product
-quality rubric in [product-quality-rubric.md](product-quality-rubric.md)) are
+quality rubric in [product-quality-rubric.md](../product-quality-rubric.md)) are
 prerequisites that the layer work pulls in as needed rather than a separate
 phase.
 
@@ -128,3 +136,79 @@ into issues:
 - This is not a benchmark leaderboard.
 - This does not require uploading private issue content to any third party.
 - This does not replace human review; it calibrates and focuses it.
+
+## Documentation classification inventory
+
+This accounts for the 62 files audited in #465 at `1e57ee2`. Canonical homes
+reflect #468; classifications are the intended payload boundary for #469, not
+a claim that the current installer already applies that boundary. History is
+retained as provenance, research remains available to maintainers, and optional
+assets require explicit selection. The profile design is additionally split to
+[docs/archive/multi-language-profiles.md](../archive/multi-language-profiles.md).
+
+<!-- documentation-inventory:start -->
+| Audited original | Canonical home | Class |
+| --- | --- | --- |
+| `docs/HARNESS.md` | `docs/HARNESS.md` | adopter |
+| `docs/RELEASING.md` | `docs/RELEASING.md` | maintainer |
+| `docs/archive/PROGRESS.md` | `docs/archive/PROGRESS.md` | history |
+| `docs/archive/copilot-health-check.md` | `docs/archive/copilot-health-check.md` | history |
+| `docs/archive/evaluation/README.md` | `docs/archive/evaluation/README.md` | history |
+| `docs/archive/evaluation/agent-delivery-accuracy-matrix.md` | `docs/archive/evaluation/agent-delivery-accuracy-matrix.md` | history |
+| `docs/archive/evaluation/agent-delivery-accuracy-matrix.v1.json` | `docs/archive/evaluation/agent-delivery-accuracy-matrix.v1.json` | history |
+| `docs/archive/evaluation/azure-evaluation-runtime.md` | `docs/archive/evaluation/azure-evaluation-runtime.md` | history |
+| `docs/archive/evaluation/dashboards/README.md` | `docs/archive/evaluation/dashboards/README.md` | history |
+| `docs/archive/evaluation/dashboards/workbook-redesign.md` | `docs/archive/evaluation/dashboards/workbook-redesign.md` | history |
+| `docs/archive/evaluation/dataset-governance.md` | `docs/archive/evaluation/dataset-governance.md` | history |
+| `docs/archive/evaluation/evaluation-matrix.md` | `docs/archive/evaluation/evaluation-matrix.md` | history |
+| `docs/archive/evaluation/failure-review-template.md` | `docs/archive/evaluation/failure-review-template.md` | history |
+| `docs/archive/evaluation/feature-breakdown-evals.md` | `docs/archive/evaluation/feature-breakdown-evals.md` | history |
+| `docs/archive/evaluation/judge-evaluation.md` | `docs/archive/evaluation/judge-evaluation.md` | history |
+| `docs/archive/evaluation/log-schema.v1.json` | `docs/archive/evaluation/log-schema.v1.json` | history |
+| `docs/archive/evaluation/mutation-evals.md` | `docs/archive/evaluation/mutation-evals.md` | history |
+| `docs/archive/evaluation/outcome-evals.md` | `docs/archive/evaluation/outcome-evals.md` | history |
+| `docs/archive/evaluation/research-notes.md` | `docs/archive/evaluation/research-notes.md` | history |
+| `docs/archive/evaluation/script-lifecycle-evals.md` | `docs/archive/evaluation/script-lifecycle-evals.md` | history |
+| `docs/archive/evaluation/security-evals.md` | `docs/archive/evaluation/security-evals.md` | history |
+| `docs/archive/evaluation/skill-evals.md` | `docs/archive/evaluation/skill-evals.md` | history |
+| `docs/archive/evaluation/statistical-methodology.md` | `docs/archive/evaluation/statistical-methodology.md` | history |
+| `docs/archive/evaluation/subagent-role-evals.md` | `docs/archive/evaluation/subagent-role-evals.md` | history |
+| `docs/archive/evaluation/telemetry-retention-pii.md` | `docs/archive/evaluation/telemetry-retention-pii.md` | history |
+| `docs/archive/evaluation/trace-action-log-evals.md` | `docs/archive/evaluation/trace-action-log-evals.md` | history |
+| `docs/archive/evaluation/trajectory-evals.md` | `docs/archive/evaluation/trajectory-evals.md` | history |
+| `docs/archive/skill-prompt-modernization-review.md` | `docs/archive/skill-prompt-modernization-review.md` | history |
+| `docs/archive/subagent-prompt-modernization-review.md` | `docs/archive/subagent-prompt-modernization-review.md` | history |
+| `docs/boundary-gates-research.md` | `docs/archive/boundary-gates-research.md` | history |
+| `docs/deep-tracing-journey.md` | `docs/archive/deep-tracing-journey.md` | history |
+| `docs/evaluation/README.md` | `docs/evaluation/README.md` | research |
+| `docs/evaluation/cost-efficiency-evals.md` | `docs/evaluation/cost-efficiency-evals.md` | research |
+| `docs/evaluation/failure-mode-taxonomy.md` | `docs/failure-mode-taxonomy.md` | adopter |
+| `docs/evaluation/l0-solution/README.md` | `docs/evaluation/l0-solution/README.md` | research |
+| `docs/evaluation/l0-solution/architecture.md` | `docs/evaluation/l0-solution/architecture.md` | research |
+| `docs/evaluation/l0-solution/implementation-issues.md` | `docs/archive/evaluation/l0-solution/implementation-issues.md` | history |
+| `docs/evaluation/l0-solution/spec.md` | `docs/evaluation/l0-solution/spec.md` | research |
+| `docs/evaluation/l1-solution/README.md` | `docs/evaluation/l1-solution/README.md` | research |
+| `docs/evaluation/l1-solution/architecture.md` | `docs/evaluation/l1-solution/architecture.md` | research |
+| `docs/evaluation/l1-solution/implementation-issues.md` | `docs/evaluation/l1-solution/implementation-issues.md` | research |
+| `docs/evaluation/l1-solution/public-dataset-seeds.md` | `docs/evaluation/l1-solution/public-dataset-seeds.md` | research |
+| `docs/evaluation/l1-solution/spec.md` | `docs/evaluation/l1-solution/spec.md` | research |
+| `docs/evaluation/meta-test-triage.md` | `docs/archive/evaluation/meta-test-triage.md` | history |
+| `docs/evaluation/observability-and-trace-schema.md` | `docs/observability-and-trace-schema.md` | adopter |
+| `docs/evaluation/product-quality-rubric.md` | `docs/product-quality-rubric.md` | adopter |
+| `docs/evaluation/trace-schema.v1.json` | `schemas/trace-schema.v1.json` | adopter |
+| `docs/evaluation/trace-summary.v1.json` | `docs/archive/evaluation/trace-summary.v1.json` | history |
+| `docs/getting-started.md` | `docs/getting-started.md` | adopter |
+| `docs/harness-contract-v2-research.md` | `docs/archive/harness-contract-v2-research.md` | history |
+| `docs/harness-contract.yml` | `docs/harness-contract.yml` | adopter |
+| `docs/multi-language-profiles.md` | `docs/multi-language-profiles.md` | adopter |
+| `docs/observability-journey.md` | `docs/archive/observability-journey.md` | history |
+| `docs/runtime-adapters/claude-code.md` | `docs/runtime-adapters/claude-code.md` | optional |
+| `docs/runtime-adapters/claude-code.settings.example.json` | `docs/runtime-adapters/claude-code.settings.example.json` | optional |
+| `docs/runtime-adapters/github-copilot.md` | `docs/github-copilot.md` | adopter |
+| `docs/runtime-adapters/github-copilot.subagent-spike.md` | `docs/archive/runtime-adapters/github-copilot.subagent-spike.md` | history |
+| `docs/runtime-adapters/github-copilot.trace-spike.md` | `docs/archive/runtime-adapters/github-copilot.trace-spike.md` | history |
+| `docs/runtime-adapters/otlp-azure-monitor.md` | `docs/archive/runtime-adapters/otlp-azure-monitor.md` | history |
+| `docs/scripts-language-policy.md` | `docs/scripts-language-policy.md` | maintainer |
+| `docs/scripts-portfolio-review.md` | `docs/archive/scripts-portfolio-review.md` | history |
+| `docs/tech-debt-tracker.md` | `docs/tech-debt-tracker.md` | project-owned |
+<!-- documentation-inventory:end -->

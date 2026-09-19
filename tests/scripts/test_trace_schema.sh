@@ -2,7 +2,7 @@
 # test_trace_schema.sh — regression sensor for the frozen trace schema v1
 # contract (issue #92, feature trace-schema-v1-contract).
 #
-# docs/evaluation/trace-schema.v1.json is the machine-readable authority for the
+# schemas/trace-schema.v1.json is the machine-readable authority for the
 # harness trace vocabulary (span types, required fields, closed lifecycle-step
 # enum, trace-file path contract, redaction-by-reference). This sensor:
 #
@@ -27,7 +27,7 @@
 #   5. (issue #99, feature failure-mode-taxonomy-contract) Asserts the contract
 #      freezes the eight-mode failure taxonomy as a closed .failure_modes enum,
 #      declares harness.failure_mode in .optional_fields, and that the prose
-#      authority docs/evaluation/failure-mode-taxonomy.md names every enum
+#      authority docs/failure-mode-taxonomy.md names every enum
 #      member and states the human-gated / non-goals governance stance.
 #
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
@@ -35,7 +35,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -52,7 +52,9 @@ command -v jq >/dev/null 2>&1 \
 
 # --- 1. Contract exists, is valid JSON, declares schema_version 1 ------------
 [ -f "$CONTRACT" ] \
-  || { printf 'FAIL: contract not found at docs/evaluation/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+  || { printf 'FAIL: contract not found at schemas/trace-schema.v1.json (%s)\n' "$CONTRACT" >&2; exit 1; }
+[ ! -e "${ROOT}/docs/evaluation/trace-schema.v1.json" ] \
+  || fail "old research path must not remain a second live schema authority"
 jq empty "$CONTRACT" 2>/dev/null \
   || { printf 'FAIL: contract is not valid JSON: %s\n' "$CONTRACT" >&2; exit 1; }
 jq -e 'type == "object"' "$CONTRACT" >/dev/null \
@@ -140,7 +142,7 @@ done
 # --- 3. jq validation filter: contract-driven span accept/reject -------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
-# Usage: jq -e --slurpfile contract docs/evaluation/trace-schema.v1.json \
+# Usage: jq -e --slurpfile contract schemas/trace-schema.v1.json \
 #            -f validate-span.jq  <<< "$one_span_json_line"
 # A span line is valid iff the filter outputs true (jq -e exit 0). A non-JSON
 # line fails jq parsing itself (non-zero exit), which is also a rejection.
@@ -229,12 +231,12 @@ git -C "${ROOT}" check-ignore -q .copilot-tracking/issues/issue-99/trace.jsonl \
   || fail "per-issue trace files (.copilot-tracking/issues/issue-NN/trace.jsonl) must be gitignored"
 
 # --- 5. Failure-mode taxonomy doc (issue #99) ---------------------------------
-# docs/evaluation/failure-mode-taxonomy.md is the prose authority for the
+# docs/failure-mode-taxonomy.md is the prose authority for the
 # eight-mode enum: it must name every frozen enum member verbatim (iterated
 # from the hardcoded backstop, not the contract, so a shrunken contract cannot
 # also shrink this check) and state the governance stance — human-gated,
 # with explicit non-goals (no automated harness mutation).
-TAXONOMY_DOC="${ROOT}/docs/evaluation/failure-mode-taxonomy.md"
+TAXONOMY_DOC="${ROOT}/docs/failure-mode-taxonomy.md"
 if [ -f "$TAXONOMY_DOC" ]; then
   while IFS= read -r mode; do
     [ -n "$mode" ] || continue
@@ -246,12 +248,12 @@ if [ -f "$TAXONOMY_DOC" ]; then
   grep -qiE 'human[- ]gated' "$TAXONOMY_DOC" \
     || fail "failure-mode-taxonomy.md must state the human-gated governance stance"
 else
-  fail "taxonomy doc not found at docs/evaluation/failure-mode-taxonomy.md"
+  fail "taxonomy doc not found at docs/failure-mode-taxonomy.md"
 fi
 
 # Current operating guidance must not turn frozen historical vocabulary into
 # new writer obligations.
-GUIDE="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+GUIDE="${ROOT}/docs/observability-and-trace-schema.md"
 current="$(awk '/^## Current operating contract/ {capture=1; next} capture && /^## / {exit} capture {print}' "$GUIDE")"
 for term in 'delivering agent' 'independent reviewer' 'sensor-evidence.jsonl' deviation review_verdict 'native records'; do
   printf '%s\n' "$current" | grep -qiF "$term" \
@@ -269,6 +271,40 @@ SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
 skill_flat="$(tr '\n' ' ' <"$SKILL" | tr -s ' ')"
 if printf '%s\n' "$skill_flat" | grep -qiE 'hooks log.*is a second|token usage is a cloud-only signal'; then
   fail "native-record guidance must not require the retired hook or cloud-only token capture"
+fi
+
+# The installed writer/checker must work without any research-directory schema.
+installed="${TMP_DIR}/adopter"
+mkdir -p "${installed}/docs/evaluation"
+sed \
+  -e 's@docs/observability-and-trace-schema.md@docs/evaluation/observability-and-trace-schema.md@g' \
+  -e 's@docs/failure-mode-taxonomy.md@docs/evaluation/failure-mode-taxonomy.md@g' \
+  "$CONTRACT" >"${installed}/docs/evaluation/trace-schema.v1.json"
+git -C "$installed" init -q -b feature/issue-77-schema
+if ! bash "${ROOT}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
+  cat "${TMP_DIR}/install.log" >&2
+  fail "schema relocation install must succeed"
+else
+  [ -f "${installed}/schemas/trace-schema.v1.json" ] \
+    || fail "installed adopter must include dedicated schema"
+  [ ! -e "${installed}/docs/evaluation/trace-schema.v1.json" ] \
+    || fail "unchanged old managed schema must be pruned"
+  mkdir -p "${installed}/.copilot-tracking/issues/issue-77"
+  printf '# Issue 77\n\n## Action Log\n\n' >"${installed}/.copilot-tracking/issues/issue-77/progress.md"
+  (
+    cd "$installed"
+    TRACE_ISSUE=77 ./scripts/log-handback.sh conductor deviation F1 pass "schema migration fixture"
+    ./scripts/check-trace-consistency.sh 77
+  ) || fail "installed writer/checker must resolve the new schema"
+  mkdir -p "${installed}/docs/evaluation"
+  printf '{"customized":true}\n' >"${installed}/docs/evaluation/trace-schema.v1.json"
+  if bash "${ROOT}/scripts/install-harness.sh" "$installed" --update >"${TMP_DIR}/conflict.log" 2>&1; then
+    fail "customized retired schema must produce a conflict"
+  fi
+  grep -qF '{"customized":true}' "${installed}/docs/evaluation/trace-schema.v1.json" \
+    || fail "customized retired schema must survive migration"
+  grep -qF 'docs/evaluation/trace-schema.v1.json' "${TMP_DIR}/conflict.log" \
+    || fail "migration conflict must name the customized old authority"
 fi
 
 # --- Result ------------------------------------------------------------------

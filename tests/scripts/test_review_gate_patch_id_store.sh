@@ -420,15 +420,15 @@ make_pr_repo() {
   fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh,check-trace-consistency.sh,issue-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/docs/evaluation"
-  cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${dir}/docs/evaluation/"
+  mkdir -p "${dir}/schemas" "${dir}/docs"
+  cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/"
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
   git -C "$dir" config commit.gpgsign false
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
   mkdir -p "${dir}/.copilot-tracking/issues/issue-${pad}"
   printf '# Progress\n\nbaseline\n' > "${dir}/.copilot-tracking/issues/issue-${pad}/progress.md"
-  git -C "$dir" add docs
+  git -C "$dir" add docs schemas
   git -C "$dir" commit -q -m "add review fixture"
   git clone -q --bare "$dir" "${dir}-origin.git"
   git -C "$dir" remote add origin "${dir}-origin.git"

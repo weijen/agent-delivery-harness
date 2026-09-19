@@ -25,7 +25,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 

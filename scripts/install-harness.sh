@@ -44,10 +44,15 @@ HARNESS_ASSETS=(
 	.github/harness-identity.env.example
 	.github/workflows/harness-smoke.yml
 	VERSION
+	schemas/trace-schema.v1.json
 	docs/HARNESS.md
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
+	docs/product-quality-rubric.md
+	docs/failure-mode-taxonomy.md
+	docs/observability-and-trace-schema.md
+	docs/github-copilot.md
 	.env.example docs/RELEASING.md
 	docs/evaluation
 	docs/runtime-adapters

@@ -42,7 +42,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/trace-lib.sh}"
-CONTRACT="${ROOT}/docs/evaluation/trace-schema.v1.json"
+CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
@@ -58,7 +58,7 @@ command -v jq >/dev/null 2>&1 \
   || fail "jq is required to validate trace-lib redaction"
 
 [ -f "$CONTRACT" ] \
-  || fail "trace schema contract not found at docs/evaluation/trace-schema.v1.json (${CONTRACT})"
+  || fail "trace schema contract not found at schemas/trace-schema.v1.json (${CONTRACT})"
 
 [ -f "$LIB" ] \
   || fail "trace-lib not found (${LIB}) — the redacting emitter for feature trace-lib-redaction (issue #93) is not available"
@@ -66,7 +66,7 @@ command -v jq >/dev/null 2>&1 \
 # --- Contract-driven span validation ------------------------------------------
 # ============================================================================
 # TRACE SPAN VALIDATION FILTER (self-contained; issue #97 lifts this unchanged)
-# Usage: jq -e --slurpfile contract docs/evaluation/trace-schema.v1.json \
+# Usage: jq -e --slurpfile contract schemas/trace-schema.v1.json \
 #            -f validate-span.jq  <<< "$one_span_json_line"
 # A span line is valid iff the filter outputs true (jq -e exit 0). A non-JSON
 # line fails jq parsing itself (non-zero exit), which is also a rejection.

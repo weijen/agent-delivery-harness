@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # trace-lib.sh — single sourceable tracing primitive for the harness
-# (issue #93, schema contract: docs/evaluation/trace-schema.v1.json).
+# (issue #93, schema contract: schemas/trace-schema.v1.json).
 #
 # Exposes:
 #   trace_span <type> <key=value>...
@@ -190,7 +190,7 @@ trace_span() {
   fi
   shift
   case "$span_type" in
-    # >>> trace-schema:span_types (authority docs/evaluation/trace-schema.v1.json .span_types; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+    # >>> trace-schema:span_types (authority schemas/trace-schema.v1.json .span_types; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
     agent|model|tool|lifecycle) ;;
     # <<< trace-schema:span_types
     *)
@@ -337,7 +337,7 @@ trace_span() {
           | ($kv[:$i]) as $k
           | ($kv[$i + 1:]) as $v
           | . + { ($k):
-              # >>> trace-schema:numeric_keys (authority docs/evaluation/trace-schema.v1.json .numeric_keys + .numeric_key_prefixes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+              # >>> trace-schema:numeric_keys (authority schemas/trace-schema.v1.json .numeric_keys + .numeric_key_prefixes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
               (if (($k | startswith("gen_ai.usage."))
                    or ($k | startswith("harness.economics."))
                    or ($k == "harness.exit_status")

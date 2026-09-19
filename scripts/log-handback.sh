@@ -31,7 +31,7 @@ warn() {
 
 # Frozen compatibility enums are retained for schema drift detection even
 # though the current writer accepts only conductor-authored semantic spans.
-# >>> trace-schema:roles (authority docs/evaluation/trace-schema.v1.json .roles)
+# >>> trace-schema:roles (authority schemas/trace-schema.v1.json .roles)
 # conductor
 # planning-subagent
 # generator-subagent
@@ -40,7 +40,7 @@ warn() {
 # code-review-subagent
 # <<< trace-schema:roles
 #
-# >>> trace-schema:failure_classes (authority docs/evaluation/trace-schema.v1.json .failure_classes)
+# >>> trace-schema:failure_classes (authority schemas/trace-schema.v1.json .failure_classes)
 # spec-violation
 # validation-bypass
 # missing-coverage
@@ -53,7 +53,7 @@ warn() {
 # other
 # <<< trace-schema:failure_classes
 #
-# >>> trace-schema:failure_dispositions (authority docs/evaluation/trace-schema.v1.json .failure_dispositions)
+# >>> trace-schema:failure_dispositions (authority schemas/trace-schema.v1.json .failure_dispositions)
 # point-fix
 # class-fix
 # research
@@ -65,7 +65,7 @@ warn() {
 
 enum_valid() {
   local key="$1" value="$2" fallback="$3"
-  local contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+  local contract="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
   local values="" entry
   if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
     values="$(jq -r --arg key "$key" '.[$key] // [] | .[]' "$contract" 2>/dev/null || true)"
@@ -177,7 +177,7 @@ if [ "$HAVE_TRACE_LIB" = "1" ]; then
   DEVIATION_ARGS=()
   if [ "$STEP" = "deviation" ] && [ -n "${TRACE_FAILURE_MODE:-}" ]; then
     failure_mode_valid() {
-      local mode="$1" contract="${SCRIPT_DIR}/../docs/evaluation/trace-schema.v1.json"
+      local mode="$1" contract="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
       local enum="" entry
       if [ -f "$contract" ] && command -v jq >/dev/null 2>&1; then
         enum="$(jq -r '(.failure_modes // [])[]' "$contract" 2>/dev/null || true)"

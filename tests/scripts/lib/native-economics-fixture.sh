@@ -8,16 +8,19 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
 fi
 
 ROOT="${ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
-SCHEMA="${ROOT}/docs/evaluation/trace-schema.v1.json"
+SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 
 SCRATCH_ROOT="$FIXTURE_TMP_DIR"
 TEMPLATE_REPO="$FIXTURE_REPO"
 TMP_DIR="${SCRATCH_ROOT}/tmp"
 BIN="${SCRATCH_ROOT}/bin"
-mkdir -p "${TEMPLATE_REPO}/docs/evaluation"
-cp "$SCHEMA" "${TEMPLATE_REPO}/docs/evaluation/trace-schema.v1.json"
-[ -f "${ROOT}/VERSION" ] && cp "${ROOT}/VERSION" "${TEMPLATE_REPO}/VERSION"
-git -C "$TEMPLATE_REPO" add docs VERSION 2>/dev/null || git -C "$TEMPLATE_REPO" add docs
+mkdir -p "${TEMPLATE_REPO}/schemas" "${TEMPLATE_REPO}/docs"
+cp "$SCHEMA" "${TEMPLATE_REPO}/schemas/trace-schema.v1.json"
+git -C "$TEMPLATE_REPO" add schemas
+if [ -f "${ROOT}/VERSION" ]; then
+  cp "${ROOT}/VERSION" "${TEMPLATE_REPO}/VERSION"
+  git -C "$TEMPLATE_REPO" add VERSION
+fi
 git -C "$TEMPLATE_REPO" commit -q -m "add trace contract"
 
 fails=0
@@ -73,6 +76,8 @@ write_fake_gh "${BIN}/gh"
 copy_fixture_scripts() {
   local dir="$1"
   git clone -q "$TEMPLATE_REPO" "$dir"
+  [ -f "${dir}/schemas/trace-schema.v1.json" ] \
+    || hard_fail "cloned economics fixture is missing its schema"
   git -C "$dir" config user.name "Harness Test"
   git -C "$dir" config user.email "harness-test@example.invalid"
 }

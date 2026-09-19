@@ -40,14 +40,14 @@ command -v jq >/dev/null 2>&1 || { printf 'Bail out! jq required\n'; exit 1; }
 
 # --- Fixture repo -------------------------------------------------------------
 FIX="${TMP_DIR}/repo"
-mkdir -p "${FIX}/scripts" "${FIX}/docs/evaluation"
+mkdir -p "${FIX}/scripts" "${FIX}/schemas" "${FIX}/docs"
 for s in create-pr.sh merge-pr.sh lifecycle-runtime-lib.sh trace-lib.sh \
          review-gate.sh ci-coverage-lib.sh rebind-evidence.sh run-sensors.sh \
          affected-sensors.sh verify-sensor-evidence.sh check-trace-consistency.sh \
          issue-lib.sh github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
 done
-cp "${ROOT}/docs/evaluation/trace-schema.v1.json" "${FIX}/docs/evaluation/"
+cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 printf '/.worktrees/\n.copilot-tracking/\n' > "${FIX}/.gitignore"

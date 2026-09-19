@@ -1,3 +1,7 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # OTLP / Azure Monitor attribute mapping (decommissioned exporter)
 
 > **Decommissioned by #272.** The harness no longer ships spans or logs to a

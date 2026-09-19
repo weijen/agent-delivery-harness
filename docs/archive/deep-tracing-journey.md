@@ -18,7 +18,7 @@ estimated_reading_time: 8
 > operating guidance. The export scripts and `trace_tools` examples no longer run.
 > The generator/handback topology was retired by #352 and superseded by the
 > contract-v2 four-gate model in #394. See
-> [`docs/harness-contract.yml`](harness-contract.yml) for current doctrine.
+> [`docs/harness-contract.yml`](../harness-contract.yml) for current doctrine.
 
 <!-- snapshot-retirement:end -->
 ## 我們為什麼替 Agent Delivery Harness 做 Deep Tracing

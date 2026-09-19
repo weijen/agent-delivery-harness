@@ -3,7 +3,7 @@
 ## The Contract Freezes The Vocabulary
 
 The eight failure modes below are frozen as the closed `failure_modes` enum in
-[trace-schema.v1.json](trace-schema.v1.json), exactly as `lifecycle_steps`,
+[trace-schema.v1.json](../schemas/trace-schema.v1.json), exactly as `lifecycle_steps`,
 span types, roles, and outcomes are frozen. This page is the prose authority
 for what each mode *means*; the contract is the authority for the spelling and
 the closed membership. When prose and contract disagree, the contract wins.

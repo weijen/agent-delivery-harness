@@ -154,7 +154,7 @@ review every file the diff touches. Do not invent a scope wider than the diff.
 
 ## Product-Quality Rubric
 
-This subagent applies the **product-quality rubric** defined in `docs/evaluation/product-quality-rubric.md`. The rubric
+This subagent applies the **product-quality rubric** defined in `docs/product-quality-rubric.md`. The rubric
 structures Verdict 2 (test/sensor adequacy) around **four blocking gates** and Verdict 3 (code quality/maintainability)
 around a **six-dimension scorecard**. Failed blocking gates override scorecard scoring. The rubric distinguishes
 runnable-but-shallow work from production-ready changes and routes production or verification repair to
@@ -243,7 +243,7 @@ A passing build is not proof. Judge whether the sensors actually establish the c
 
 #### Four Blocking Gates (Product-Quality Rubric)
 
-Per the product-quality rubric (`docs/evaluation/product-quality-rubric.md`), a `passes:true` claim must clear **four
+Per the product-quality rubric (`docs/product-quality-rubric.md`), a `passes:true` claim must clear **four
 blocking gates** — Spec fidelity, Executable verification, Main workflow works, and No known critical breakage. Read
 the rubric for each gate's definition rather than restating it here. Failure at any gate is
 **BLOCKING** — it overrides a clean code-quality scorecard. When a gate fails, route production or verification
@@ -256,7 +256,7 @@ repair to the delivering agent, or scope and planning gaps to the human gate.
 Per the product-quality rubric, Verdict 3 uses a **six-dimension scorecard** — Workflow completeness,
 Failure and edge handling, State and data coherence, Integration depth, Recoverability and operability, and
 Verification adequacy — scored **0/1/2** per dimension, **after** the four blocking gates pass. Sum the scores and
-interpret the total against the rubric's score bands (`docs/evaluation/product-quality-rubric.md`); do not restate the
+interpret the total against the rubric's score bands (`docs/product-quality-rubric.md`); do not restate the
 bands here. **Failed blocking gates override the scorecard** — a failed blocking gate forces a `FAIL` verdict
 regardless of the dimension scores. Route production or verification scorecard findings to the delivering agent
 to the delivering agent, or route scope and planning decisions to the human gate.

@@ -31,7 +31,7 @@ REQUIRED_FILES=(
 	docs/getting-started.md
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
-	docs/evaluation/product-quality-rubric.md
+	docs/product-quality-rubric.md
 	docs/evaluation/README.md
 )
 
