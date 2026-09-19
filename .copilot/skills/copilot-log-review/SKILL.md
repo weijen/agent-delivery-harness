@@ -1,6 +1,6 @@
 ---
 name: copilot-log-review
-description: 'Report-only review of an agentic workflow reconstructed from GitHub Copilot''s native records (session transcripts and hook logs). Use to review a single issue run, a day''s work, or an L4 batch of runs — surfacing time decomposition, decision points, and workflow-adherence findings. Never edits the repo; emits a Markdown report only.'
+description: 'Report-only review of an agentic workflow reconstructed from GitHub Copilot''s native records (VS Code transcripts or CLI events). Use to review a single issue run, a day''s work, or an L4 batch of runs — surfacing time decomposition, decision points, and workflow-adherence findings. Never edits the repo; emits a Markdown report only.'
 argument-hint: 'review window or issue number, workspace/session scope, optional redaction tolerance'
 ---
 
@@ -9,7 +9,7 @@ argument-hint: 'review window or issue number, workspace/session scope, optional
 ## Purpose
 
 Review how an agentic workflow actually unfolded, reconstructed from GitHub Copilot's own
-records — the session transcripts and hook logs it writes locally — rather than from the repo's
+records — the session transcripts and CLI events it writes locally — rather than from the repo's
 committed artifacts. Use it to review a single issue run, a day's worth of work, or an L4 batch,
 and to surface where time went, which decisions mattered, and where the run diverged from the
 harness workflow.
@@ -164,7 +164,7 @@ the sessions whose span (first→last `timestamp`) overlaps either:
 
 ### Paths (macOS verified; other OSes unverified)
 
-The transcript and hook locations below were verified on macOS
+The VS Code transcript location below was verified on macOS
 (see [../../../docs/runtime-adapters/github-copilot.trace-spike.md](../../../docs/runtime-adapters/github-copilot.trace-spike.md)).
 **Only macOS paths are verified.** The Windows and Linux variants are the expected VS Code
 per-user layout but are **unverified** here — confirm them on the target OS before relying on
@@ -177,11 +177,12 @@ them.
 - **Linux (unverified)** —
   `~/.config/Code/User/workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sessionId>.jsonl`
 
-The workspace-root hooks log (`.github/hooks/harness-trace.json` output) is a second, hook-driven
-record of the same run, joinable by `sessionId`. The per-session chat / debug log
-(`debug-logs/<sessionId>/`) is a **candidate token/timing source to verify** — treat any
-token count there as unconfirmed until checked, since verified per-turn token usage is a
-cloud-only signal.
+The workspace-root reconstruction hook (`.github/hooks/harness-trace.json`)
+was retired and is not a current record source or setup requirement. The
+per-session VS Code chat / debug log (`debug-logs/<sessionId>/`) remains a
+**candidate token/timing source to verify**: do not infer token counts from
+its mere presence. CLI native usage observations below are separate and
+version-scoped, not a claim of verified VS Code token coverage.
 
 ### CLI native records (separate from VS Code transcripts)
 
