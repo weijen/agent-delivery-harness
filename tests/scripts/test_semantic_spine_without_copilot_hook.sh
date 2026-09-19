@@ -25,8 +25,9 @@ assert_capture_absent() {
   fi
   ! grep -Eq 'copilot-trace-hook|interval-attribution' "${ROOT}/docs/harness-contract.yml" \
     || fail "harness contract must not require retired Copilot capture"
-  ! grep -q '^COPILOT_OTEL_FILE_EXPORTER_PATH=' "${ROOT}/.env.example" \
-    || fail "retired local OTel hook sink must be removed"
+  ! grep -q 'COPILOT_OTEL_FILE_EXPORTER_PATH' "${ROOT}/scripts/trace-lib.sh" \
+    "${ROOT}/scripts/lifecycle-runtime-lib.sh" \
+    || fail "live tracing must not require the retired local OTel hook sink"
 }
 
 case "$SELECTOR" in

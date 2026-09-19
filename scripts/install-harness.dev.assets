@@ -1,0 +1,23 @@
+# Portable developer additions to install-harness.assets; exact paths only.
+# Eval authoring/validation tools and their independently runnable sensors.
+scripts/install-harness.dev.assets
+tests/evals/bin/run-evals.sh
+tests/evals/bin/run-l0-suite.sh
+tests/evals/bin/validate-manifest.sh
+tests/scripts/test_eval_manifest_validator.sh
+tests/scripts/test_run_evals_scorecard.sh
+
+# Each generated fixture/grader uses a sensor already in the core payload.
+tests/evals/manifests/scripts/l0-feature-list.json
+tests/evals/manifests/scripts/l0-harness-contract.json
+tests/evals/manifests/scripts/l0-issue-scaffold.json
+tests/evals/manifests/scripts/l0-lifecycle-order.json
+tests/evals/manifests/scripts/l0-review-gate.json
+
+# Portable eval workspace layout enforced by the manifest validator sensor.
+tests/evals/manifests/scripts/.gitkeep
+tests/evals/manifests/skills/.gitkeep
+tests/evals/fixtures/scripts/.gitkeep
+tests/evals/fixtures/skills/.gitkeep
+tests/evals/scorecards/.gitkeep
+tests/evals/baselines/.gitkeep

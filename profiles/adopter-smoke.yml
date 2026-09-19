@@ -1,0 +1,92 @@
+name: Harness Smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SHELLCHECK_VERSION: 0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+
+jobs:
+  smoke:
+    name: Harness smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Install shellcheck
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/shellcheck.tar.xz"
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            --output "${archive}"
+          printf '%s  %s\n' "${SHELLCHECK_SHA256}" "${archive}" | sha256sum --check -
+          tar -xJf "${archive}" -C "${RUNNER_TEMP}"
+          sudo install \
+            "${RUNNER_TEMP}/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" \
+            /usr/local/bin/shellcheck
+
+      - id: shell_syntax
+        name: Check installed shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scripts/*.sh profiles/*.profile.sh tests/scripts/*.sh tests/scripts/lib/*.sh)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No harness shell files found." >&2
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            bash -n "$file"
+          done
+
+      - id: shell_lint
+        name: Run shellcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scripts/*.sh profiles/*.profile.sh tests/scripts/*.sh tests/scripts/lib/*.sh)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No harness shell files found." >&2
+            exit 1
+          fi
+          shellcheck -x "${files[@]}"
+
+      - id: frontmatter
+        name: Validate customization frontmatter
+        shell: bash
+        run: |
+          bash tests/evals/bin/validate-customization-frontmatter.sh
+
+      - id: core_sensors
+        name: Run installed harness sensors
+        shell: bash
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          tests=(tests/scripts/test_*.sh tests/meta/test_*.sh)
+          if [ "${#tests[@]}" -eq 0 ]; then
+            echo "No harness sensor scripts found." >&2
+            exit 1
+          fi
+          rc=0
+          for test in "${tests[@]}"; do
+            echo "::group::${test}"
+            if bash "$test"; then
+              echo "PASS ${test}"
+            else
+              echo "FAIL ${test}"
+              rc=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$rc"

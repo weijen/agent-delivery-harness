@@ -18,19 +18,6 @@ if grep -Eq 'PROFILE_SYNC_|profile_sync[[:space:]]*\(\)' "$NODE_PROFILE"; then
 	fail "Node profile retains dependency-sync declarations that init.sh never consumes"
 fi
 
-SMOKE_WORKFLOW="${ROOT}/.github/workflows/harness-smoke.yml"
-PYTHON_WORKFLOW="${ROOT}/.github/workflows/python-ci.yml"
-grep -qF './scripts/python-gates.sh' "$SMOKE_WORKFLOW" \
-	|| fail "harness-smoke.yml bypasses the Python gate authority"
-if grep -qF './scripts/python-gates.sh' "$PYTHON_WORKFLOW"; then
-	fail "python-ci.yml duplicates the Python gate authority"
-fi
-for path in "$SMOKE_WORKFLOW" "$PYTHON_WORKFLOW"; do
-	if grep -Eq 'uv run (ruff|mypy|pytest)' "$path"; then
-		fail "$(basename "$path") duplicates a Python gate command"
-	fi
-done
-
 mkdir -p "${TMP_DIR}/bin"
 cat >"${TMP_DIR}/bin/uv" <<'EOF'
 #!/usr/bin/env bash

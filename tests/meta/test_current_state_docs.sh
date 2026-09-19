@@ -29,6 +29,9 @@ reject_regex() {
 }
 
 reject README.md "required only once Python code is added"
+for path in docs/scripts-language-policy.md docs/evaluation/cost-efficiency-evals.md; do
+  reject "$path" 'trace-report.sh'
+done
 reject README.md "docs-only repo (like this spec pack today)"
 reject README.md "suite (with coverage)"
 reject docs/getting-started.md "A docs-only repo (like this one today)"
@@ -100,7 +103,7 @@ for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-co
     *) [ -f "$authority" ] || fail "documented profile authority missing: ${authority}" ;;
   esac
 done
-require docs/multi-language-profiles.md '](archive/multi-language-profiles.md)'
+require docs/multi-language-profiles.md 'https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/multi-language-profiles.md'
 require docs/archive/multi-language-profiles.md '# Language Profiles: Historical Design'
 reject docs/multi-language-profiles.md 'Before any profile generator'
 if printf '%s\n' "$profile_current" | grep -qiE 'before.*implemented|add a generator|review-gate/approved-head'; then

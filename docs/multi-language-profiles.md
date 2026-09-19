@@ -26,4 +26,4 @@ marker is a read-only fallback, not the place to write new approvals.
 ## Design history
 
 The original implementation initiative is preserved as
-[historical design](archive/multi-language-profiles.md), not current interface authority.
+[historical design](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/multi-language-profiles.md), not current interface authority.

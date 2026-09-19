@@ -23,7 +23,7 @@ separate from replaceable language support and project-specific conventions:
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
-  [docs/scripts-language-policy.md](scripts-language-policy.md).
+  [the upstream contributor policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md).
 - **Language Profiles** — declarative descriptors in `profiles/<id>.profile.sh`
   that supply surface labels, dependency sync, and gate commands after
   `init.sh`'s explicit marker checks select a project surface. The
@@ -333,7 +333,7 @@ live in [harness.instructions.md §3](../.copilot/instructions/harness.instructi
 The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
 tool/model/skill analysis reads native records through the path documented in
 [runtime-adapters/github-copilot.md](github-copilot.md); the
-Claude Code adapter ([runtime-adapters/claude-code.md](runtime-adapters/claude-code.md))
+Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/docs/runtime-adapters/claude-code.md))
 remains a labeled reference example.
 
 The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
@@ -410,6 +410,14 @@ remain schema-valid.
 over `scripts/` and `tests/`, and validates Copilot customization frontmatter. The runner is
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
+
+Both installed profiles select [the adopter workflow](../profiles/adopter-smoke.yml)
+for that destination. Only the source repository retains the maintainer workflow,
+including Python profile, tombstone-history and L0 gates. Portable developer
+installations additionally provide `bash tests/evals/bin/run-l0-suite.sh`
+for explicit evaluation runs.
+Adopters supply their own application CI; the core smoke job does not assume
+the harness maintainer's language environment or release history.
 
 ### Platform parity and verification authority
 

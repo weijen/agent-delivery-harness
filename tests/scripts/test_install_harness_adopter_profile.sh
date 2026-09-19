@@ -9,6 +9,12 @@ TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
 
+if awk '/^HARNESS_ASSETS=\(/ { selected=1; next } selected && /^\)/ { exit } selected { print }' \
+	"$INSTALL" | grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
+	echo "project-owned environment example must not be an installer asset"
+	exit 1
+fi
+
 "$INSTALL" --help >"$OUT"
 grep -qF -- "--with-dev-sensors" "$OUT" || {
 	cat "$OUT"
@@ -18,6 +24,28 @@ grep -qF -- "--with-dev-sensors" "$OUT" || {
 
 default_target="${TMP_DIR}/default"
 "$INSTALL" "$default_target" --write >"$OUT" 2>&1
+[ ! -e "${default_target}/.env.example" ] || {
+	echo "default install shipped project-owned environment configuration"
+	exit 1
+}
+for excluded in scripts/sync-version.sh scripts/check-install-harness-tombstones.sh \
+	docs/RELEASING.md docs/evaluation docs/archive docs/runtime-adapters \
+	tests/evals/bin/run-evals.sh tests/evals/bin/run-l0-suite.sh tests/evals/manifests \
+	tests/evals/fixtures tests/evals/baselines tests/evals/scorecards; do
+	[ ! -e "${default_target}/${excluded}" ] || {
+		echo "default install shipped maintainer or optional asset: ${excluded}"
+		exit 1
+	}
+done
+[ -f "${default_target}/scripts/install-harness.assets" ] || {
+	echo "default install omitted its explicit asset manifest"
+	exit 1
+}
+cmp -s "${ROOT}/profiles/adopter-smoke.yml" \
+	"${default_target}/.github/workflows/harness-smoke.yml" || {
+	echo "default install did not select the adopter smoke workflow"
+	exit 1
+}
 [ -f "${default_target}/tests/harness-dev-sensors.txt" ] || {
 	echo "default install did not ship the sensor profile manifest"
 	exit 1
@@ -44,20 +72,115 @@ if ! "${default_target}/scripts/install-harness.sh" "$default_target" >"$OUT" 2>
 	exit 1
 fi
 
+python3 - "$default_target" <<'PY'
+import pathlib
+import re
+import sys
+import urllib.parse
+
+root = pathlib.Path(sys.argv[1])
+for directory in ("docs", ".copilot", "profiles"):
+    for path in (root / directory).rglob("*.md"):
+        for target in re.findall(r"\]\(([^)]+)\)", path.read_text()):
+            url = target.split()[0]
+            if url.startswith(("#", "https:", "http:", "mailto:", "<")):
+                continue
+            local = urllib.parse.unquote(url.split("#")[0])
+            if local and not (path.parent / local).exists():
+                raise SystemExit(f"installed guidance link is broken: {path.relative_to(root)} -> {target}")
+PY
+
+# Newly colocated source assets must not enter an explicit default selection.
+mkdir -p "${default_target}/docs/evaluation" "${default_target}/tests/fixtures/unclassified"
+printf '#!/usr/bin/env bash\nexit 0\n' >"${default_target}/scripts/unclassified-maintenance.sh"
+printf 'unclassified research\n' >"${default_target}/docs/evaluation/unclassified.md"
+printf 'unclassified data\n' >"${default_target}/tests/fixtures/unclassified/data.txt"
+probe_target="${TMP_DIR}/manifest-probe"
+mkdir -p "${probe_target}/docs" "${probe_target}/.claude"
+for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json; do
+	printf 'adopter-owned sentinel\n' >"${probe_target}/${owned}"
+done
+"${default_target}/scripts/install-harness.sh" "$probe_target" --write >"$OUT" 2>&1 || {
+	cat "$OUT"
+	echo "explicit installed manifest is not self-contained"
+	exit 1
+}
+for excluded in scripts/unclassified-maintenance.sh docs/evaluation/unclassified.md \
+	tests/fixtures/unclassified/data.txt; do
+	[ ! -e "${probe_target}/${excluded}" ] || {
+		echo "unclassified asset leaked into default payload: ${excluded}"
+		exit 1
+	}
+done
+for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json; do
+	[ "$(cat "${probe_target}/${owned}")" = "adopter-owned sentinel" ] || {
+		echo "installer changed adopter-owned ${owned}"
+		exit 1
+	}
+done
+cp "${default_target}/scripts/install-harness.assets" "${TMP_DIR}/manifest.before"
+printf '../outside\n' >>"${default_target}/scripts/install-harness.assets"
+if "${default_target}/scripts/install-harness.sh" "${TMP_DIR}/invalid-target" --write >"$OUT" 2>&1; then
+	echo "unsafe manifest path was accepted"
+	exit 1
+fi
+if ! grep -qF 'unsafe adopter asset path' "$OUT" || [ -e "${TMP_DIR}/invalid-target" ]; then
+	cat "$OUT"
+	echo "invalid selection must fail before creating the target"
+	exit 1
+fi
+cp "${TMP_DIR}/manifest.before" "${default_target}/scripts/install-harness.assets"
+mv "${default_target}/scripts/init.sh" "${TMP_DIR}/init.saved"
+if "${default_target}/scripts/install-harness.sh" "${TMP_DIR}/missing-target" --write >"$OUT" 2>&1; then
+	echo "missing required source asset was accepted"
+	exit 1
+fi
+grep -qF 'adopter asset missing from source: scripts/init.sh' "$OUT" || {
+	cat "$OUT"
+	echo "missing asset did not produce an actionable diagnostic"
+	exit 1
+}
+[ ! -e "${TMP_DIR}/missing-target" ] || {
+	echo "missing source dependency partially installed a target"
+	exit 1
+}
+mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
+
+# An old lock cannot make project-owned configuration eligible for deletion.
+printf 'adopter-owned configuration fixture\n' >"${TMP_DIR}/owned-config"
+cp "${TMP_DIR}/owned-config" "${TMP_DIR}/owned-config.before"
+ln -s "${TMP_DIR}/owned-config" "${default_target}/.env.example"
+printf '%064d\t.env.example\n' 0 >>"${default_target}/.harness-lock"
+for mode in dry write update; do
+	args=("$default_target")
+	[ "$mode" = dry ] || args+=("--${mode}")
+	"$INSTALL" "${args[@]}" >"$OUT" 2>&1 || {
+		cat "$OUT"
+		echo "project-owned environment configuration blocked ${mode}"
+		exit 1
+	}
+	if [ ! -L "${default_target}/.env.example" ] || \
+		! cmp -s "${TMP_DIR}/owned-config.before" "${TMP_DIR}/owned-config"; then
+		echo "installer changed existing project-owned environment configuration"
+		exit 1
+	fi
+done
+if grep -qF $'\t.env.example' "${default_target}/.harness-lock"; then
+	echo "installer retained ownership of project-owned environment configuration"
+	exit 1
+fi
+
 upgrade_target="${TMP_DIR}/upgrade"
-"$INSTALL" "$upgrade_target" --write --with-dev-sensors >"$OUT" 2>&1
-[ -f "${upgrade_target}/tests/scripts/test_release_workflow.sh" ] || {
-	echo "dev-sensor opt-in omitted an explicit harness-dev sensor"
-	exit 1
-}
-[ -f "${upgrade_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
-	echo "dev-sensor opt-in omitted the symlinked-parent sensor"
-	exit 1
-}
-[ -f "${upgrade_target}/tests/meta/test_agent_model_pins.sh" ] || {
-	echo "dev-sensor opt-in omitted meta sensors"
-	exit 1
-}
+"$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1
+# Model the preceding broad payload; portable developer mode no longer ships it.
+for legacy in tests/scripts/test_release_workflow.sh \
+	tests/scripts/test_install_harness_symlinked_parent.sh \
+	tests/scripts/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
+	mkdir -p "${upgrade_target}/$(dirname "$legacy")"
+	cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
+	digest="$(shasum -a 256 "${upgrade_target}/${legacy}" | awk '{print $1}')"
+	printf '%s\t%s\n' "$digest" "$legacy" >>"${upgrade_target}/.harness-lock"
+done
 printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/test_init_gates.sh"
 if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
@@ -295,40 +418,9 @@ HELP_OUT="${TMP_DIR}/install-help.out"
 GETTING_STARTED="${ROOT}/docs/getting-started.md"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
-MANDATORY_FILES=(
-	VERSION .env.example docs/RELEASING.md
-)
-
-MANDATORY_DIRS=(
-	docs/evaluation docs/runtime-adapters tests/fixtures
-	tests/evals/bin tests/evals/manifests tests/evals/fixtures tests/evals/baselines tests/evals/scorecards
-)
-
-INSTALLED_SENSORS=(
-	tests/scripts/test_eval_manifest_validator.sh
-	tests/scripts/test_run_evals_scorecard.sh
-	tests/evals/bin/run-l0-suite.sh
-)
-
 fail() {
 	printf 'FAIL: %s\n' "$*" >&2
 	exit 1
-}
-
-assert_verbatim() {
-	local rel="$1"
-	[ -f "${ROOT}/${rel}" ] \
-		|| fail "mandatory source asset is absent: ${rel}"
-	[ -f "${TARGET}/${rel}" ] \
-		|| fail "mandatory installed runtime asset is absent: ${rel}"
-	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
-		|| fail "installed runtime asset differs from source: ${rel}"
-	case "$rel" in
-	*.json)
-		jq empty "${TARGET}/${rel}" >/dev/null 2>&1 \
-			|| fail "installed runtime JSON asset does not parse: ${rel}"
-		;;
-	esac
 }
 
 assert_documented_category() {
@@ -341,20 +433,6 @@ assert_documented_category() {
 	done
 }
 
-run_installed_sensor() {
-	local sensor="$1"
-	local output
-	output="${TMP_DIR}/$(basename "$sensor").out"
-	if ! (cd "$TARGET" && bash "$sensor") >"$output" 2>&1; then
-		printf '%s\n' "--- installed sensor failed: ${sensor} ---" >&2
-		cat "$output" >&2
-		fail "installed sensor failed: ${sensor}"
-	fi
-	printf 'PASS: installed sensor %s\n' "$sensor"
-}
-
-command -v jq >/dev/null 2>&1 \
-	|| fail "jq is required to validate installed runtime JSON assets"
 [ -f "$INSTALL" ] || fail "installer source is absent: ${INSTALL}"
 [ -f "$GETTING_STARTED" ] \
 	|| fail "onboarding guide is absent: ${GETTING_STARTED}"
@@ -379,27 +457,16 @@ assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
 
 mkdir -p "$TARGET"
-if ! "$INSTALL" "$TARGET" --write --with-dev-sensors >"$INSTALL_OUT" 2>&1; then
+if ! "$INSTALL" "$TARGET" --write >"$INSTALL_OUT" 2>&1; then
 	cat "$INSTALL_OUT" >&2
-	fail "installer --write --with-dev-sensors failed"
+	fail "installer --write failed"
 fi
 
-for rel in "${MANDATORY_FILES[@]}"; do
-	assert_verbatim "$rel"
+for rel in VERSION schemas/trace-schema.v1.json docs/harness-contract.yml; do
+	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
+		|| fail "installed runtime identity/contract differs: ${rel}"
 done
+jq empty "${TARGET}/schemas/trace-schema.v1.json"
 
-for directory in "${MANDATORY_DIRS[@]}"; do
-	[ -d "${ROOT}/${directory}" ] \
-		|| fail "mandatory source directory is absent: ${directory}"
-	while IFS= read -r source_file; do
-		rel="${source_file#"${ROOT}/"}"
-		assert_verbatim "$rel"
-	done < <(find "${ROOT}/${directory}" -type f | sort)
-done
-
-for sensor in "${INSTALLED_SENSORS[@]}"; do
-	run_installed_sensor "$sensor"
-done
-
-printf 'installed harness runtime sensor passed\n'
+printf 'installed core runtime categories honored; developer execution has its own sensor\n'
 )

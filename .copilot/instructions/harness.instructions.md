@@ -6,7 +6,7 @@ applyTo: '**'
 # Harness Doctrine
 
 This file is the **full lifecycle** behind the golden rules in
-[AGENTS.md](../../AGENTS.md). The human-readable lifecycle overview and diagram live in
+[the upstream map](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md). The human-readable lifecycle overview and diagram live in
 [docs/HARNESS.md](../../docs/HARNESS.md). In harness-enabled projects, strict harness adherence is mandatory:
 these instructions override personal workflow tiers and override generic coding-agent behavior whenever they differ.
 Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model is borrowed from three sources:
@@ -26,7 +26,7 @@ required lifecycle step before continuing.
 
 The harness is designed for incremental, issue-driven delivery. It does not define the product
 domain itself; each repository supplies its own project contract under `docs/` and links the
-important sources of truth from [AGENTS.md](../../AGENTS.md).
+important sources of truth from its own `AGENTS.md`.
 
 - One issue ≈ one **deliverable** with clear acceptance criteria and verification sensors.
 - Project-specific phasing, milestones, and external commitments live in `docs/` or the GitHub
@@ -44,9 +44,13 @@ important sources of truth from [AGENTS.md](../../AGENTS.md).
 
 ## 2. Start-of-session ritual (always)
 
-After any context compaction, re-read the
-[Post-compaction re-anchor](../../AGENTS.md#post-compaction-re-anchor) before
-continuing the ritual.
+After any context compaction, re-read this section before continuing the ritual.
+Emit `deviation` when it happens and `review_verdict` at review handback.
+A failed review verdict requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`,
+`TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE`; actionable findings need
+a reproduction or proposed fix. Before authenticated GitHub operations, call
+`harness_identity_activate`; never run `gh auth switch`. These are the same rules
+as the upstream [Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor).
 
 1. **Get into the right worktree.**
    - **Launch topology (optional, historical):** starting the Copilot CLI conductor session from
@@ -73,7 +77,7 @@ continuing the ritual.
      `REQUIRE_AZ=1`, signing WARN, and project-surface gates run when their files exist. It detects
      docs-only, Python, Go, pnpm, and Terraform surfaces and reports explicit skip reasons for
      missing optional tools. Fix any hard failure before doing anything else.
-2. Read the project-specific contract docs linked from [AGENTS.md](../../AGENTS.md), then
+2. Read the project-specific contract docs linked from the project's `AGENTS.md`, then
   `.copilot-tracking/issues/<issue>/progress.md` and
    `.copilot-tracking/issues/<issue>/plan.md` (if present), and `git log --oneline -20` for
    this issue's working state.
@@ -451,10 +455,10 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 Agents replicate existing patterns, including bad ones — drift is inevitable. Pay debt down in
 small increments, not painful bursts.
 
-- The inferential drift skills do **not** run per PR. For a whole-repo audit use the
-  owner-driven driver `scripts/audit-sweep.sh` (restored 57b7a96; report-only, all six audit
-  skills, `--dry-run` first, `--consolidate` for the roll-up) — deliberately manual, no CI
-  consumer.
+- The inferential drift skills do **not** run per PR. Adopters can invoke the installed
+  audit skills on demand. Only the harness source checkout provides the owner-driven
+  `scripts/audit-sweep.sh` driver (`--dry-run` first, `--consolidate` for the roll-up);
+  it is a manual maintainer tool, not part of either installed profile or a CI dependency.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
   This tracker is project-owned state, not a populated reusable harness asset;

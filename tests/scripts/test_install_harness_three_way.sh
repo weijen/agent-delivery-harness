@@ -323,3 +323,100 @@ grep -Fq '.rej' "${ROOT}/docs/getting-started.md" \
 
 printf 'install-harness summary-first upgrade contract honored\n'
 )
+
+(
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+INSTALL="${ROOT}/scripts/install-harness.sh"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+TARGET="${TMP_DIR}/legacy"
+OUT="${TMP_DIR}/upgrade.out"
+SOURCE="${TMP_DIR}/source"
+
+fail() { printf 'payload-upgrade: %s\n' "$*" >&2; exit 1; }
+
+"$INSTALL" "$SOURCE" --write >"$OUT" 2>&1
+INSTALL="${SOURCE}/scripts/install-harness.sh"
+"$INSTALL" "$TARGET" --write >"$OUT" 2>&1
+clean="scripts/sync-version.sh"
+modified="docs/RELEASING.md"
+protected="docs/evaluation/README.md"
+unknown="docs/evaluation/l0-solution/spec.md"
+for path in "$clean" "$modified" "$protected" "$unknown"; do
+	mkdir -p "${SOURCE}/$(dirname "$path")" "${TARGET}/$(dirname "$path")"
+	printf 'legacy upstream asset: %s\n' "$path" >"${SOURCE}/${path}"
+	cp "${SOURCE}/${path}" "${TARGET}/${path}"
+	if [ "$path" != "$unknown" ]; then
+		digest="$(shasum -a 256 "${TARGET}/${path}" | awk '{print $1}')"
+		printf '%s\t%s\n' "$digest" "$path" >>"${TARGET}/.harness-lock"
+	fi
+done
+rm "${SOURCE}/${clean}"
+printf '\nadopter release notes\n' >>"${TARGET}/${modified}"
+printf '%s\n' "$protected" >"${TARGET}/.harness-keep"
+cp "${TARGET}/${modified}" "${TMP_DIR}/modified.before"
+cp "${TARGET}/${protected}" "${TMP_DIR}/protected.before"
+cp "${TARGET}/${unknown}" "${TMP_DIR}/unknown.before"
+cp "${TARGET}/.harness-lock" "${TMP_DIR}/lock.before"
+
+"$INSTALL" "$TARGET" >"$OUT" 2>&1
+[ -f "${TARGET}/${clean}" ] || fail "dry run deleted a former payload asset"
+cmp -s "${TMP_DIR}/lock.before" "${TARGET}/.harness-lock" || fail "dry run changed ownership state"
+cmp -s "${TMP_DIR}/modified.before" "${TARGET}/${modified}" || fail "dry run changed customization"
+[ ! -e "${TARGET}/${modified}.rej" ] || fail "dry run wrote a rejection artifact"
+grep -Fq "would remove excluded asset ${clean}" "$OUT" \
+	|| fail "dry run did not expose the safe payload removal"
+
+if "$INSTALL" "$TARGET" --write >"$OUT" 2>&1; then
+	fail "modified and unknown excluded assets must block --write"
+fi
+[ ! -e "${TARGET}/${clean}" ] || fail "unchanged installer-owned excluded asset survived"
+cmp -s "${TMP_DIR}/modified.before" "${TARGET}/${modified}" || fail "customized asset was overwritten"
+cmp -s "${TMP_DIR}/protected.before" "${TARGET}/${protected}" || fail "protected asset was removed"
+cmp -s "${TMP_DIR}/unknown.before" "${TARGET}/${unknown}" || fail "identical but ownership-unknown asset was removed"
+base="$(awk -F '\t' -v path="$modified" '$2==path {print $1}' "${TMP_DIR}/lock.before")"
+grep -qF "${base}"$'\t'"${modified}" "${TARGET}/.harness-lock" \
+	|| fail "refused --write lost the previous ownership base"
+grep -qi 'ownership unknown' "$OUT" || fail "unknown ownership was not explained"
+
+if "$INSTALL" "$TARGET" --update >"$OUT" 2>&1; then
+	fail "first update must expose preserved deletion conflicts"
+fi
+for path in "$modified" "$unknown"; do
+	[ -f "${TARGET}/${path}.rej" ] || fail "deletion conflict lacks a rejection: $path"
+	grep -qF "conflict ${path}" "$OUT" || fail "conflict path missing: $path"
+done
+cmp -s "${TMP_DIR}/modified.before" "${TARGET}/${modified}" || fail "update changed customized content"
+cmp -s "${TMP_DIR}/unknown.before" "${TARGET}/${unknown}" || fail "update changed unknown content"
+cmp -s "${TMP_DIR}/protected.before" "${TARGET}/${protected}" || fail "update changed protected content"
+if grep -qF $'\t'"${clean}" "${TARGET}/.harness-lock"; then
+	fail "removed asset retains an ownership claim"
+fi
+
+"$INSTALL" "$TARGET" --update >"$OUT" 2>&1 || {
+	cat "$OUT" >&2
+	fail "acknowledged exclusions must be idempotent"
+}
+grep -Eq '^  conflicts:[[:space:]]+0$' "$OUT" || fail "repeat upgrade reports phantom conflicts"
+cmp -s "${TMP_DIR}/modified.before" "${TARGET}/${modified}" || fail "repeat upgrade changed customization"
+cmp -s "${TMP_DIR}/unknown.before" "${TARGET}/${unknown}" || fail "repeat upgrade changed unknown content"
+
+unsafe="docs/runtime-adapters/claude-code.settings.example.json"
+mkdir -p "${SOURCE}/docs/runtime-adapters" "${TMP_DIR}/outside"
+printf 'outside sentinel\n' >"${TMP_DIR}/outside/claude-code.settings.example.json"
+printf 'upstream optional configuration\n' >"${SOURCE}/${unsafe}"
+ln -s "${TMP_DIR}/outside" "${TARGET}/docs/runtime-adapters"
+digest="$(shasum -a 256 "${TMP_DIR}/outside/claude-code.settings.example.json" | awk '{print $1}')"
+printf '%s\t%s\n' "$digest" "$unsafe" >>"${TARGET}/.harness-lock"
+if "$INSTALL" "$TARGET" --update >"$OUT" 2>&1; then
+	fail "excluded asset under a symlinked parent must fail closed"
+fi
+grep -Fq 'unsafe destination' "$OUT" || fail "unsafe excluded destination was not explained"
+[ "$(cat "${TMP_DIR}/outside/claude-code.settings.example.json")" = "outside sentinel" ] \
+	|| fail "pruning followed a symlink outside the target"
+[ ! -e "${TMP_DIR}/outside/claude-code.settings.example.json.rej" ] \
+	|| fail "pruning emitted a rejection outside the target"
+grep -qF "${digest}"$'\t'"${unsafe}" "${TARGET}/.harness-lock" \
+	|| fail "unsafe deletion failure lost its ownership base"
+printf 'excluded payload upgrades preserve ownership boundaries\n'
+)

@@ -32,7 +32,8 @@ REQUIRED_FILES=(
 	docs/multi-language-profiles.md
 	docs/harness-contract.yml
 	docs/product-quality-rubric.md
-	docs/evaluation/README.md
+	schemas/trace-schema.v1.json
+	scripts/install-harness.assets
 )
 
 # --- Case (a): script shape (executable, parses, shellcheck-clean) ------------
@@ -66,9 +67,11 @@ done
 	echo "case-c: default adopter install included a harness-dev meta sensor"
 	exit 1
 }
-# Files are copied verbatim (byte-for-byte), not regenerated/skeletonised.
+# The selected workflow template and all other assets are copied verbatim.
 for rel in "${REQUIRED_FILES[@]}"; do
-	cmp -s "$ROOT/$rel" "$c/$rel" || { echo "case-c: installed asset differs from source: $rel"; exit 1; }
+	source_rel="$rel"
+	[ "$rel" != ".github/workflows/harness-smoke.yml" ] || source_rel="profiles/adopter-smoke.yml"
+	cmp -s "$ROOT/$source_rel" "$c/$rel" || { echo "case-c: installed asset differs from selected source: $rel"; exit 1; }
 done
 # The REAL subagent file, not a placeholder (nb: the doctrine legitimately
 # contains the word "skeleton" post-#352, so key on a required contract line).
@@ -83,7 +86,9 @@ fi
 "$INSTALL" "$c" --write >"$OUT" 2>&1 || { cat "$OUT"; echo "case-d: second --write failed"; exit 1; }
 grep -qF "up to date" "$OUT" || { cat "$OUT"; echo "case-d: second --write did not report up-to-date"; exit 1; }
 for rel in "${REQUIRED_FILES[@]}"; do
-	cmp -s "$ROOT/$rel" "$c/$rel" || { echo "case-d: idempotent run changed an asset: $rel"; exit 1; }
+	source_rel="$rel"
+	[ "$rel" != ".github/workflows/harness-smoke.yml" ] || source_rel="profiles/adopter-smoke.yml"
+	cmp -s "$ROOT/$source_rel" "$c/$rel" || { echo "case-d: idempotent run changed an asset: $rel"; exit 1; }
 done
 
 # --- Case (e): no-clobber of a differing harness file without --update --------
