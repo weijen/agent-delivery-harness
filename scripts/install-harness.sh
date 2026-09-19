@@ -4,8 +4,8 @@
 # Adopting the harness into an existing project is otherwise a manual copy of
 # scripts/, profiles/, tests/, .copilot/, the smoke workflow, and the lifecycle
 # docs. This installer delivers those *real* assets — verbatim — into a target
-# directory and touches nothing else. Unlike scaffold-language.sh it copies real
-# files; it never emits generated skeletons.
+# directory and touches nothing else. The adopter workflow is selected from its
+# checked-in template; other files retain their source paths.
 #
 # It is conservative and visible (mirrors scaffold-language.sh):
 #
@@ -53,7 +53,7 @@ HARNESS_ASSETS=(
 	docs/failure-mode-taxonomy.md
 	docs/observability-and-trace-schema.md
 	docs/github-copilot.md
-	.env.example docs/RELEASING.md
+	docs/RELEASING.md
 	docs/evaluation
 	docs/runtime-adapters
 )
@@ -77,7 +77,10 @@ Copies the real harness assets verbatim (scripts/, profiles/, adopter-safe core
 sensors, .copilot/instructions, .copilot/agents, .copilot/skills,
 .copilot/prompts, the smoke workflow, lifecycle and runtime contract docs,
 trace and log schemas, runtime-adapter guides and templates, and VERSION
-identity). Never touches the target project's own non-harness files.
+identity). The default smoke workflow comes from profiles/adopter-smoke.yml;
+--with-dev-sensors retains the maintainer workflow. Project language gates
+belong in the adopter's own CI. Never touches non-harness project files.
+Environment examples are project-owned: neither mode installs or retires them.
 Updates lead with safe/kept/conflict counts. The generated .harness-lock records
 installed upstream hashes; .harness-keep globs permanently protect adopter-owned
 paths. Retired assets are pruned only when proven unmodified. Both-changed files
@@ -284,17 +287,26 @@ is_protected_path() {
 	return 1
 }
 
+source_file() {
+	local rel="$1"
+	if [ "$WITH_DEV_SENSORS" -eq 0 ] && [ "$rel" = ".github/workflows/harness-smoke.yml" ]; then
+		printf '%s/profiles/adopter-smoke.yml\n' "$REPO_ROOT"
+	else
+		printf '%s/%s\n' "$REPO_ROOT" "$rel"
+	fi
+}
+
 # Reconcile one source file against the target. Returns non-zero only when it
 # refuses to overwrite a differing file in --write mode.
 reconcile() {
 	local rel="$1" source_hash="" actual_hash="" base_hash=""
 	if is_protected_path "$rel"; then
-		source_hash="$(sha256_file "${REPO_ROOT}/${rel}")"
+		source_hash="$(sha256_file "$(source_file "$rel")")"
 		append_lock_entry "$source_hash" "$rel"
 		printf '  kept %s (.harness-keep)\n' "$rel"
 		return 0
 	fi
-	RC_SRC="${REPO_ROOT}/${rel}"
+	RC_SRC="$(source_file "$rel")"
 	RC_DST="${TARGET_DIR}/${rel}"
 	RC_REL="$rel"
 	source_hash="$(sha256_file "$RC_SRC")"
@@ -395,7 +407,7 @@ summary_increment() {
 classify_active_for_summary() {
 	local rel="$1" src="" dst=""
 	local source_hash="" actual_hash="" base_hash=""
-	src="${REPO_ROOT}/${rel}"
+	src="$(source_file "$rel")"
 	dst="${TARGET_DIR}/${rel}"
 	if is_protected_path "$rel"; then
 		printf 'kept'

@@ -21,13 +21,6 @@ fi
 "$CHECKER" "$ROOT" >/dev/null \
   || fail "checker must validate the repository with full history"
 
-git clone -q --depth 1 "file://${ROOT}" "${TMP_DIR}/shallow"
-if "$CHECKER" "${TMP_DIR}/shallow" >"${TMP_DIR}/shallow.out" 2>&1; then
-  fail "checker must fail closed for a shallow repository"
-fi
-grep -qi 'shallow checkout' "${TMP_DIR}/shallow.out" \
-  || { cat "${TMP_DIR}/shallow.out" >&2; fail "shallow refusal must explain the missing history"; }
-
 if grep -q 'tombstone ledger missing managed deletion history' "$THREE_WAY"; then
   fail "three-way installer sensor still embeds the extracted history check"
 fi
@@ -48,6 +41,13 @@ git -C "$FORMAT_REPO" commit -qm "add installer"
 printf 'placeholder\n' >"${FORMAT_REPO}/README"
 git -C "$FORMAT_REPO" add .
 git -C "$FORMAT_REPO" commit -qm "second commit"
+
+git clone -q --depth 1 "file://${FORMAT_REPO}" "${TMP_DIR}/shallow"
+if "$CHECKER" "${TMP_DIR}/shallow" >"${TMP_DIR}/shallow.out" 2>&1; then
+  fail "checker must fail closed for a shallow repository"
+fi
+grep -qi 'shallow checkout' "${TMP_DIR}/shallow.out" \
+  || { cat "${TMP_DIR}/shallow.out" >&2; fail "shallow refusal must explain the missing history"; }
 
 "$CHECKER" "$FORMAT_REPO" >/dev/null \
   || fail "checker rejected a well-formed, non-empty ledger baseline"

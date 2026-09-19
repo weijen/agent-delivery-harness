@@ -9,6 +9,12 @@ TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
 
+if awk '/^HARNESS_ASSETS=\(/ { selected=1; next } selected && /^\)/ { exit } selected { print }' \
+	"$INSTALL" | grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
+	echo "project-owned environment example must not be an installer asset"
+	exit 1
+fi
+
 "$INSTALL" --help >"$OUT"
 grep -qF -- "--with-dev-sensors" "$OUT" || {
 	cat "$OUT"
@@ -18,6 +24,15 @@ grep -qF -- "--with-dev-sensors" "$OUT" || {
 
 default_target="${TMP_DIR}/default"
 "$INSTALL" "$default_target" --write >"$OUT" 2>&1
+[ ! -e "${default_target}/.env.example" ] || {
+	echo "default install shipped project-owned environment configuration"
+	exit 1
+}
+cmp -s "${ROOT}/profiles/adopter-smoke.yml" \
+	"${default_target}/.github/workflows/harness-smoke.yml" || {
+	echo "default install did not select the adopter smoke workflow"
+	exit 1
+}
 [ -f "${default_target}/tests/harness-dev-sensors.txt" ] || {
 	echo "default install did not ship the sensor profile manifest"
 	exit 1
@@ -44,8 +59,41 @@ if ! "${default_target}/scripts/install-harness.sh" "$default_target" >"$OUT" 2>
 	exit 1
 fi
 
+# An old lock cannot make project-owned configuration eligible for deletion.
+printf 'adopter-owned configuration fixture\n' >"${TMP_DIR}/owned-config"
+cp "${TMP_DIR}/owned-config" "${TMP_DIR}/owned-config.before"
+ln -s "${TMP_DIR}/owned-config" "${default_target}/.env.example"
+printf '%064d\t.env.example\n' 0 >>"${default_target}/.harness-lock"
+for mode in dry write update; do
+	args=("$default_target")
+	[ "$mode" = dry ] || args+=("--${mode}")
+	"$INSTALL" "${args[@]}" >"$OUT" 2>&1 || {
+		cat "$OUT"
+		echo "project-owned environment configuration blocked ${mode}"
+		exit 1
+	}
+	if [ ! -L "${default_target}/.env.example" ] || \
+		! cmp -s "${TMP_DIR}/owned-config.before" "${TMP_DIR}/owned-config"; then
+		echo "installer changed existing project-owned environment configuration"
+		exit 1
+	fi
+done
+if grep -qF $'\t.env.example' "${default_target}/.harness-lock"; then
+	echo "installer retained ownership of project-owned environment configuration"
+	exit 1
+fi
+
 upgrade_target="${TMP_DIR}/upgrade"
 "$INSTALL" "$upgrade_target" --write --with-dev-sensors >"$OUT" 2>&1
+[ ! -e "${upgrade_target}/.env.example" ] || {
+	echo "developer install shipped project-owned environment configuration"
+	exit 1
+}
+cmp -s "${ROOT}/.github/workflows/harness-smoke.yml" \
+	"${upgrade_target}/.github/workflows/harness-smoke.yml" || {
+	echo "developer install did not retain the maintainer smoke workflow"
+	exit 1
+}
 [ -f "${upgrade_target}/tests/scripts/test_release_workflow.sh" ] || {
 	echo "dev-sensor opt-in omitted an explicit harness-dev sensor"
 	exit 1
@@ -296,7 +344,7 @@ GETTING_STARTED="${ROOT}/docs/getting-started.md"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 MANDATORY_FILES=(
-	VERSION .env.example docs/RELEASING.md
+	VERSION docs/RELEASING.md
 )
 
 MANDATORY_DIRS=(

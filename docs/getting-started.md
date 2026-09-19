@@ -76,6 +76,16 @@ descriptor. There are two common ways to start:
   exclusion source for the installer and adopter CI. Harness maintainers can
   opt into the complete self-development suite with `--with-dev-sensors`.
 
+  The installed `.github/workflows/harness-smoke.yml` is selected from
+  `profiles/adopter-smoke.yml`. It validates installed shell files,
+  customization frontmatter, and the installed harness sensors without assuming
+  this repository's Python environment, release history, or L0 evaluation
+  authoring assets. Keep your application's language gates in its own CI;
+  harness smoke is not a substitute for application tests. Developer opt-in
+  retains the source repository's full smoke workflow.
+  Environment examples are project-owned in both modes: the installer does not
+  distribute `.env.example` or delete existing adopter copies.
+
 Either way, project-specific product specs, architecture notes, and delivery
 plans live under `docs/` and are linked from [AGENTS.md](../AGENTS.md).
 

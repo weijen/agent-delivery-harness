@@ -411,6 +411,12 @@ over `scripts/` and `tests/`, and validates Copilot customization frontmatter. T
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
 
+Default installations select [the adopter workflow](../profiles/adopter-smoke.yml)
+for that destination. The source repository and developer opt-in retain the
+maintainer workflow, including Python profile, tombstone-history and L0 gates.
+Adopters supply their own application CI; the core smoke job does not assume
+the harness maintainer's language environment or release history.
+
 ### Platform parity and verification authority
 
 A green local sensor run on macOS is **advisory**, not proof that the same commands

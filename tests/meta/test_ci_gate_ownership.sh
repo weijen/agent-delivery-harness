@@ -37,6 +37,12 @@ assert_owner "frontmatter validation" 'validate-customization-frontmatter.sh' "$
 assert_owner "harness sensor suite" 'Run harness sensor suite' "$SMOKE"
 assert_owner "L0 suite" 'run-l0-suite.sh' "$SMOKE"
 
+for workflow in "$SMOKE" "$PYTHON"; do
+	if grep -Eq 'uv run (ruff|mypy|pytest)' "$workflow"; then
+		fail "$(basename "$workflow") duplicates a Python gate command"
+	fi
+done
+
 (
 	cd "$ROOT"
 	./scripts/review-gate.sh ci-gate >/dev/null

@@ -20,7 +20,12 @@ fail() {
 git -C "$ROOT" rev-parse --verify 'refs/tags/v0.36.0^{commit}' >/dev/null 2>&1 \
 	|| fail "v0.36.0 tag is unavailable; the rehearsal requires full repository history"
 mkdir -p "$SOURCE"
-git -C "$ROOT" archive v0.36.0 | tar -x -C "$SOURCE"
+# Rehearse reusable assets, not project-owned environment configuration.
+git -C "$ROOT" archive v0.36.0 scripts profiles tests .copilot docs VERSION \
+	.github/harness-identity.env.example .github/workflows/harness-smoke.yml \
+	| tar -x -C "$SOURCE"
+sed 's/\.env\.example //' "${SOURCE}/scripts/install-harness.sh" >"${TMP_DIR}/legacy-installer"
+cat "${TMP_DIR}/legacy-installer" >"${SOURCE}/scripts/install-harness.sh"
 "${SOURCE}/scripts/install-harness.sh" "$TARGET" --write --with-dev-sensors \
 	>"${TMP_DIR}/install.out" 2>&1 \
 	|| {
