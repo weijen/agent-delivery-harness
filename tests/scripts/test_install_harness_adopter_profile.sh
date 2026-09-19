@@ -452,7 +452,7 @@ assert_documented_category "installer --help" "$HELP_OUT" \
 assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"runtime contract/schema assets" "runtime contract" "schemas"
 assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
-	"runtime-adapter guidance/templates" "docs/runtime-adapters/" "guides" "templates"
+	"runtime-adapter guidance/templates" "optional/runtime-adapters/" "guide" "template"
 assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
 

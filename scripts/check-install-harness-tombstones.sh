@@ -35,7 +35,7 @@ if [ "$ledger_entries" -gt 0 ] && [ "$range_count" -eq 0 ]; then
 fi
 
 git -C "$ROOT" log --diff-filter=D --format= --name-only "${start_commit}..HEAD" -- \
-  scripts profiles tests .copilot .github/workflows docs VERSION |
+  scripts profiles tests .copilot .github/workflows docs optional VERSION |
   sort -u |
   while IFS= read -r path; do
     [ -n "$path" ] || continue

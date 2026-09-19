@@ -333,7 +333,7 @@ live in [harness.instructions.md §3](../.copilot/instructions/harness.instructi
 The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
 tool/model/skill analysis reads native records through the path documented in
 [runtime-adapters/github-copilot.md](github-copilot.md); the
-Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/docs/runtime-adapters/claude-code.md))
+Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md))
 remains a labeled reference example.
 
 The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the

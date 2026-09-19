@@ -52,7 +52,7 @@ that the current runtime emits every type:
 Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
 ([runtime-adapters/github-copilot.md](github-copilot.md));
-[the optional Claude guide](https://github.com/weijen/agent-delivery-harness/blob/main/docs/runtime-adapters/claude-code.md) remains a
+[the optional Claude guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md) remains a
 labeled reference example. Historical traces may retain runtime-derived spans.
 
 ## Current operating contract
