@@ -457,6 +457,8 @@ small increments, not painful bursts.
   consumer.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).
+  This tracker is project-owned state, not a populated reusable harness asset;
+  installation must preserve an adopter's existing debt records.
 - Keep `docs/` honest against the code: if a doc no longer reflects behaviour, fix it (or file
   debt). The project docs are the contract — if reality drifts from a documented requirement or
   architecture component, update the relevant doc in the same PR that introduced the drift.
