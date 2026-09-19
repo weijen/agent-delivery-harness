@@ -696,10 +696,12 @@ jq_span "$SP_BR" '."harness.economics.native_aiu_nano_delta" == 80000000000 and 
 # The span carries NO raw model-name string (numeric prefix stays numeric-only).
 jq_span "$SP_BR" '[to_entries[] | select(.key|startswith("harness.economics.native_")) | .value | type] | all(. == "number")' \
   || fail "BRACKET: every harness.economics.native_* span value must be numeric"
-# The consolidated checker must accept the resulting span's schema and types;
-# unrelated feature-state findings in this focused fixture are ignored.
+# The consolidated checker must execute and accept this complete fixture.
+checker_rc=0
 (cd "$F_BR" && env PATH="$BIN" ./scripts/check-trace-consistency.sh "$I_BR") \
-  >"${TMP_DIR}/vt-br.out" 2>&1 || true
+  >"${TMP_DIR}/vt-br.out" 2>&1 || checker_rc=$?
+[ "$checker_rc" -eq 0 ] \
+  || hard_fail "BRACKET: checker failed (exit ${checker_rc}: $(cat "${TMP_DIR}/vt-br.out"))"
 if grep -Eq 'schema_violation|type_violation|invalid_json|failure_mode_violation' \
     "${TMP_DIR}/vt-br.out"; then
   fail "BRACKET: consolidated checker rejected the native economics schema/types (out: $(tr '\n' '|' < "${TMP_DIR}/vt-br.out"))"
