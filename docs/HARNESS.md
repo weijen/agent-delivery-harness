@@ -69,8 +69,16 @@ script, keep these sensors green:
 - `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.
 
-The full sensor suite (`tests/scripts/test_*.sh` and `tests/meta/test_*.sh`) runs
+The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
+`tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
 in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
+The local runner and both workflow profiles share
+`scripts/affected-sensors.sh --list` discovery. Empty full suites fail; empty
+scoped selections remain valid.
+Affected resolution selects from that same sensor set, including relocated
+sensors but never helpers. Relocated shared libraries and schema/contract
+authorities retain conservative FULL fallback; discovery/read failures cannot
+silently reduce coverage.
 
 ## Lifecycle
 
@@ -406,8 +414,11 @@ remain schema-valid.
 ## CI Boundary
 
 `.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
-(`tests/scripts/test_*.sh` and `tests/meta/test_*.sh`), checks shell parsing, runs `shellcheck`
-over `scripts/` and `tests/`, and validates Copilot customization frontmatter. The runner is
+(the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
+through `scripts/check-shell.sh`, and validates Copilot customization frontmatter.
+The shared shell gate recursively covers scripts, profiles, sensor/library trees,
+eval tools and available optional adapters, excluding fixture subtrees. Syntax
+parses each file separately; lint consumes the same unique file set. The runner is
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.
 

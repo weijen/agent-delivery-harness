@@ -132,7 +132,7 @@ SH
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
   grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
-  uname true false
+  uname true false find
 write_fake_gh "${BIN}/gh"
 export GH_STATE="${TMP_DIR}/gh.state"
 export GH_LOG="${TMP_DIR}/gh.log"
@@ -148,7 +148,8 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
-mkdir -p "${R}/scripts" "${R}/schemas" "${R}/docs"
+mkdir -p "${R}/scripts" "${R}/schemas" "${R}/docs" "${R}/tests/scripts"
+printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
 for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
          finish-lib.sh economics-report-lib.sh trace-lib.sh \
@@ -169,7 +170,7 @@ git -C "$R" config user.email "harness-test@example.invalid"
 printf '/.worktrees/\n.copilot-tracking/\n' > "${R}/.gitignore"
 printf 'fixture\n' > "${R}/README.md"
 printf '# Progress\n\nbaseline\n' > "${R}/docs/PROGRESS.md"
-git -C "$R" add .gitignore README.md docs/PROGRESS.md scripts schemas
+git -C "$R" add .gitignore README.md docs/PROGRESS.md scripts schemas tests
 git -C "$R" commit -q -m initial
 git clone -q --bare "$R" "${TMP_DIR}/origin.git"
 git -C "$R" remote add origin "${TMP_DIR}/origin.git"

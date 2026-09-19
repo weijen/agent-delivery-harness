@@ -37,29 +37,13 @@ jobs:
         name: Check installed shell syntax
         shell: bash
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(scripts/*.sh profiles/*.profile.sh tests/scripts/*.sh tests/scripts/lib/*.sh)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No harness shell files found." >&2
-            exit 1
-          fi
-          for file in "${files[@]}"; do
-            bash -n "$file"
-          done
+          ./scripts/check-shell.sh syntax
 
       - id: shell_lint
         name: Run shellcheck
         shell: bash
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(scripts/*.sh profiles/*.profile.sh tests/scripts/*.sh tests/scripts/lib/*.sh)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No harness shell files found." >&2
-            exit 1
-          fi
-          shellcheck -x "${files[@]}"
+          ./scripts/check-shell.sh lint
 
       - id: frontmatter
         name: Validate customization frontmatter
@@ -72,12 +56,12 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          shopt -s nullglob
-          tests=(tests/scripts/test_*.sh tests/meta/test_*.sh)
-          if [ "${#tests[@]}" -eq 0 ]; then
+          discovered="$(./scripts/affected-sensors.sh --list)" || exit 1
+          if [ -z "$discovered" ]; then
             echo "No harness sensor scripts found." >&2
             exit 1
           fi
+          mapfile -t tests <<< "$discovered"
           rc=0
           for test in "${tests[@]}"; do
             echo "::group::${test}"

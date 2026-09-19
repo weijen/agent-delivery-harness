@@ -134,4 +134,50 @@ run_resolver "$OUT" "$ERR" scripts/widget.sh \
 grep -q 'SENSOR EXECUTED' "$ERR" \
   && fail "the resolver must never execute the sensors it selects"
 
+# 9. Nested and moved sensors use the same identities as full discovery.
+mkdir -p "${FIX}/tests/scripts/validation" "${FIX}/tests/meta/nested" \
+  "${FIX}/tests/scripts/validation/helpers" "${FIX}/tests/meta/fixtures"
+mv "${FIX}/tests/scripts/test_widget.sh" "${FIX}/tests/scripts/validation/test_widget.sh"
+printf '# widget.sh\n' >"${FIX}/tests/meta/nested/test_widget.sh"
+for helper in tests/scripts/validation/helper.sh \
+  tests/scripts/validation/helpers/test_helper.sh tests/meta/fixtures/test_widget.sh; do
+  printf '# widget.sh\nexit 97\n' >"${FIX}/${helper}"
+done
+run_resolver "$OUT" "$ERR" --declared tests/scripts/validation/test_widget.sh \
+  scripts/widget.sh tests/scripts/test_widget.sh tests/scripts/validation/test_widget.sh
+printf '%s\n' tests/meta/nested/test_widget.sh tests/meta/test_widget_doc.sh \
+  tests/scripts/test_loud.sh tests/scripts/validation/test_widget.sh >"${TMP_DIR}/expected"
+cmp -s "$OUT" "${TMP_DIR}/expected" \
+  || fail "moved/nested references must select only canonical sensors exactly once: $(cat "$OUT")"
+
+run_resolver "$OUT" "$ERR" --declared tests/scripts/validation/helpers/test_helper.sh \
+  tests/scripts/validation/helper.sh
+[ ! -s "$OUT" ] || fail "declared or changed helpers must never become sensors: $(cat "$OUT")"
+grep -qi 'not.*sensor' "$ERR" || fail "excluded declared helper must have a diagnostic"
+
+for shared in scripts/lib/trace-lib.sh scripts/trace/trace-lib.sh \
+  scripts/install/reconcile-lib.sh scripts/lifecycle/issue-lib.sh \
+  scripts/validation/ci-coverage-lib.sh scripts/lifecycle/finish-lib.sh \
+  schemas/trace/trace-schema.v1.json docs/contracts/harness-contract.yml \
+  tests/scripts/validation/lib/common.sh; do
+  run_resolver "$OUT" "$ERR" "$shared"
+  [ "$(cat "$OUT")" = FULL ] || fail "relocated shared authority lost FULL fallback: ${shared}"
+done
+
+# Discovery failures cannot masquerade as an empty, successful scoped result.
+mkdir -p "${TMP_DIR}/bin"
+printf '#!/usr/bin/env bash\nexit 2\n' >"${TMP_DIR}/bin/find"
+chmod +x "${TMP_DIR}/bin/find"
+rc=0
+PATH="${TMP_DIR}/bin:${PATH}" run_resolver "$OUT" "$ERR" scripts/widget.sh || rc=$?
+[ "$rc" = 2 ] || fail "failed sensor discovery must return 2 for the runner FULL fallback"
+grep -qi 'discovery failed' "$ERR" || fail "discovery error must be visible"
+rm "${TMP_DIR}/bin/find"
+printf '#!/usr/bin/env bash\nexit 2\n' >"${TMP_DIR}/bin/grep"
+chmod +x "${TMP_DIR}/bin/grep"
+rc=0
+PATH="${TMP_DIR}/bin:${PATH}" run_resolver "$OUT" "$ERR" scripts/widget.sh || rc=$?
+[ "$rc" = 2 ] || fail "failed reference reads must return 2, not silently omit coverage"
+grep -qi 'reference discovery failed' "$ERR" || fail "reference read error must be visible"
+
 printf 'PASS: affected-sensors resolver honors the #343 scoped/FULL contract\n'

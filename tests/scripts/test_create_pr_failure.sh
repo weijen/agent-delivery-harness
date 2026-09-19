@@ -44,7 +44,7 @@ fail() {
 # succeeds unless GH_CREATE_FAIL=1.
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch; do
+for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch find sort mktemp; do
   p="$(command -v "$t" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${t}"
 done
@@ -181,7 +181,7 @@ fi
 # --- Restricted bin with a controllable fake gh ------------------------------
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch; do
+for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch find sort mktemp; do
   p="$(command -v "$t" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${t}"
 done
@@ -657,7 +657,7 @@ grep -q 'git rebase origin/main' "${ROOT}/scripts/create-pr.sh" \
 # answers number/url queries. `pr create` always succeeds and records the call.
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch; do
+for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch find sort mktemp; do
   p="$(command -v "$t" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${t}"
 done
@@ -852,7 +852,7 @@ fail() {
 # --- Restricted bin with a fake gh that rejects every call -------------------
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch; do
+for t in bash sh env git basename dirname mkdir rm cat sed tr cut grep printf date wc touch find sort mktemp; do
   p="$(command -v "$t" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${t}"
 done

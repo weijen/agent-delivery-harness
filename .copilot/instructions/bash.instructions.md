@@ -60,9 +60,10 @@ harness contract and the AGENTS.md conventions.
 
 ## Harness script tests (`tests/scripts/test_*.sh`)
 
-- Tests are discovered by the `tests/scripts/test_*.sh` glob — there is **no
-  aggregator or runner**. Each test is a standalone `set -euo pipefail` script
-  with `fail()`/`note()` helpers.
+- Tests are standalone `set -euo pipefail` scripts with `fail()`/`note()` helpers.
+  `scripts/affected-sensors.sh --list` discovers `test_*.sh` recursively below
+  `tests/scripts/` and `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/`.
+  The local `run-sensors.sh` runner and both CI profiles use this same set.
 - Build a throwaway repo per test with `mktemp -d` + `git init`; never touch the
   developer's real checkout or network.
 - **Fake every external CLI.** Provide fake `gh`/tool binaries on an isolated
@@ -72,6 +73,8 @@ harness contract and the AGENTS.md conventions.
   user.name/email` in the temp repo, and don't depend on ordering between tests.
 - When relocating fixture assets, migrate copy destinations and Git staging together;
   preserve directories needed by other fixture files and match complete path tokens.
+- Fixtures that run full approval gates need a real sensor payload and every
+  discovery tool on their isolated PATH; an empty suite is not successful evidence.
 - Assert **behavior**, not byte-for-byte snapshots. Prove an ordering or
   contract by observing side effects (a worktree that does/doesn't exist, a
   branch that was/wasn't pushed), and **mutation-test** each guard: confirm the
@@ -107,9 +110,12 @@ The point-in-time triage that applied this rubric lives at
 
 ## Validation before declaring work done
 
-- `bash -n scripts/*.sh` — syntax check (CI runs this).
-- `shellcheck scripts/*.sh tests/scripts/*.sh` — lint; touched shell must be
-  shellcheck-clean. Suppress a finding only with a justified, scoped directive
+- `./scripts/check-shell.sh syntax` — recursively parse each intended shell file
+  separately; never pass a filename list to one `bash -n` invocation.
+- `./scripts/check-shell.sh lint` — lint the same recursive scripts, profiles,
+  sensors, libraries, eval tools and installed optional adapter surface once.
+  Fixture subtrees are excluded. Touched shell must be shellcheck-clean.
+  Suppress a finding only with a justified, scoped directive
   (e.g. `# shellcheck source=/dev/null` for a dynamically sourced file).
 - Run the **targeted** `tests/scripts/test_*.sh` covering the behavior you
   touched, then the full suite before closeout. Confirm `git diff --quiet

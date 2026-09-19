@@ -160,4 +160,101 @@ grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=0
 grep -qi 'resolver.*failed.*FULL' <<<"$out" \
   || fail "runner must warn that resolver failure forced FULL"
 
+# A failed filesystem discovery also promotes to FULL instead of under-selection.
+mkdir -p "${TMP_DIR}/bin"
+export REAL_FIND
+REAL_FIND="$(command -v find)"
+export FIND_FAILURE_MARKER="${TMP_DIR}/find-failed"
+cat >"${TMP_DIR}/bin/find" <<'SH'
+#!/usr/bin/env bash
+if [ ! -e "$FIND_FAILURE_MARKER" ]; then
+  touch "$FIND_FAILURE_MARKER"
+  exit 2
+fi
+exec "$REAL_FIND" "$@"
+SH
+chmod +x "${TMP_DIR}/bin/find"
+out="$(PATH="${TMP_DIR}/bin:${PATH}" run green \
+  --declared tests/scripts/test_widget.sh --diff HEAD 2>&1)" \
+  || fail "filesystem discovery error must recover through FULL"
+grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
+  || fail "filesystem discovery failure must not become a narrow passing run"
+grep -qi 'resolver.*failed.*FULL' <<<"$out" || fail "filesystem fallback must warn"
+
+# 9. Execute the actual source/adopter CI blocks against the same fixture.
+run_ci() {
+  local workflow="$1"
+  awk '
+    /name: Run (harness sensor suite|installed harness sensors)$/ { selected=1; next }
+    selected && /run: \|/ { body=1; next }
+    body && /^      - / { exit }
+    body { sub(/^          /, ""); print }
+  ' "$workflow" >"${TMP_DIR}/ci-step.sh"
+  [ -s "${TMP_DIR}/ci-step.sh" ] || fail "missing sensor execution block in ${workflow}"
+  (cd "$FIX" && bash "${TMP_DIR}/ci-step.sh")
+}
+
+mkdir -p "${FIX}/tests/scripts/nested" "${FIX}/tests/meta/nested" \
+  "${FIX}/tests/scripts/lib" "${FIX}/tests/meta/fixtures" \
+  "${FIX}/tests/scripts/nested/helpers"
+for sensor in tests/scripts/nested/test_nested.sh tests/meta/nested/test_nested.sh; do
+  cat >"${FIX}/${sensor}" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "${0#*/fixture-repo/}" >>"${SENSOR_RUN_LOG:?}"
+SH
+done
+for helper in tests/scripts/lib/test_helper.sh tests/meta/fixtures/test_fixture.sh \
+  tests/scripts/nested/helpers/test_helper.sh tests/scripts/nested/helper.sh; do
+  cat >"${FIX}/${helper}" <<'SH'
+#!/usr/bin/env bash
+echo helper-executed >>"${SENSOR_RUN_LOG:?}"
+exit 1
+SH
+done
+for mode in local source adopter; do
+  : >"$SENSOR_RUN_LOG"
+  case "$mode" in
+    local) out="$(run --gate pre-review)" ;;
+    source) out="$(run_ci "${ROOT}/.github/workflows/harness-smoke.yml")" ;;
+    adopter) out="$(run_ci "${ROOT}/profiles/adopter-smoke.yml")" ;;
+  esac
+  [ "$(wc -l <"$SENSOR_RUN_LOG" | tr -d ' ')" = 5 ] \
+    || fail "${mode} must execute exactly five intended sensor identities (got: $out)"
+  [ -z "$(sort "$SENSOR_RUN_LOG" | uniq -d)" ] \
+    || fail "${mode} executed a sensor twice"
+  for sensor in tests/scripts/nested/test_nested.sh tests/meta/nested/test_nested.sh; do
+    grep -qx "$sensor" "$SENSOR_RUN_LOG" || fail "${mode} omitted ${sensor}"
+  done
+  ! grep -q helper-executed "$SENSOR_RUN_LOG" || fail "${mode} executed a helper"
+done
+
+printf '\nexit 1\n' >>"${FIX}/tests/meta/nested/test_nested.sh"
+for mode in local source adopter; do
+  if case "$mode" in
+    local) run --gate pre-pr ;;
+    source) run_ci "${ROOT}/.github/workflows/harness-smoke.yml" ;;
+    adopter) run_ci "${ROOT}/profiles/adopter-smoke.yml" ;;
+  esac >"${TMP_DIR}/nested-red.log" 2>&1; then
+    fail "${mode} must fail for a nested red sensor"
+  fi
+  grep -q '^FAIL tests/meta/nested/test_nested.sh$' "${TMP_DIR}/nested-red.log" \
+    || fail "${mode} must report the actual nested failure"
+done
+
+# 10. Empty full discovery is not a passing gate; an empty scoped set is valid.
+mv "${FIX}/tests" "${TMP_DIR}/saved-tests"
+mkdir -p "${FIX}/tests/scripts" "${FIX}/tests/meta"
+for mode in local source adopter; do
+  if case "$mode" in
+    local) run --gate pre-review ;;
+    source) run_ci "${ROOT}/.github/workflows/harness-smoke.yml" ;;
+    adopter) run_ci "${ROOT}/profiles/adopter-smoke.yml" ;;
+  esac >"${TMP_DIR}/empty.log" 2>&1; then
+    fail "${mode} must reject an unexpectedly empty full suite"
+  fi
+  grep -qi 'no.*sensor' "${TMP_DIR}/empty.log" || fail "${mode} must explain empty discovery"
+done
+out="$(run green --diff HEAD)" || fail "empty scoped run must remain valid"
+grep -q 'scope=scoped ran=0 failed=0$' <<<"$out" || fail "empty scoped summary is missing"
+
 printf 'PASS: run-sensors tier enforcement honors the #347 contract\n'
