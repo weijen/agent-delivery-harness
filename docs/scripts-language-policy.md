@@ -1,7 +1,7 @@
 # Scripts language & structure policy
 
 **Status:** policy of record for `scripts/`.
-**Rationale:** [docs/scripts-portfolio-review.md](scripts-portfolio-review.md) (§2.5, P-6, P-7, P-8).
+**Rationale:** [docs/archive/scripts-portfolio-review.md](archive/scripts-portfolio-review.md) (§2.5, P-6, P-7, P-8).
 
 This page records, in one place, what language `scripts/` is written in, what may
 change, and when the directory is allowed to grow structure — so future sessions
@@ -88,4 +88,4 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
 
 For the full analysis, line counts, and the staged Phase 0 / Phase 1 / Phase 2
 plan behind these decisions, see
-[docs/scripts-portfolio-review.md](scripts-portfolio-review.md).
+[docs/archive/scripts-portfolio-review.md](archive/scripts-portfolio-review.md).

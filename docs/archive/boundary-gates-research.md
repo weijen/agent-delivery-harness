@@ -1,3 +1,7 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # Hard Gates at Irreversible Boundaries: Evidence Predicates over `trace.jsonl`, Not Prompt Obligations
 
 **Date:** 2026-07-22

@@ -1,3 +1,7 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # GitHub Copilot deep-trace signal spike (issue #148)
 
 This is a spike report, scoped to **GitHub Copilot only**. Its purpose is to

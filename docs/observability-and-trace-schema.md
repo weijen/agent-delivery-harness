@@ -320,7 +320,7 @@ The old cloud export leg derived a deterministic transport correlation id from
 `harness.issue` outside the raw trace. Issue #272 removed that exporter, but the
 schema decision remains: a future export/import exit ramp may derive a transport
 id, never store it on raw spans. See the retained mapping contract in
-[runtime-adapters/otlp-azure-monitor.md](runtime-adapters/otlp-azure-monitor.md).
+[runtime-adapters/otlp-azure-monitor.md](archive/runtime-adapters/otlp-azure-monitor.md).
 
 ## Public Trace Examples
 
@@ -393,7 +393,7 @@ wired into `review-gate.sh trace` and closeout as a warn-only check by default.
 
 The standalone run reporter and its cross-run aggregation mode were retired in
 issue #419 because no in-repository or adopter workflow consumed their output.
-The versioned [trace-summary.v1.json](evaluation/trace-summary.v1.json) file remains only as
+The versioned [trace-summary.v1.json](archive/evaluation/trace-summary.v1.json) file remains only as
 a frozen historical contract; no lifecycle entrypoint emits
 `trace-summary.json` or `finish-issue.economics` spans.
 

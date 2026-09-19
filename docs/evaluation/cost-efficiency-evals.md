@@ -1,5 +1,12 @@
 # Cost And Efficiency Evals
 
+> Maintainer research, not current operating requirements. The proposed metrics,
+> multi-agent topology and retired-report assumptions below preserve their
+> original research context. Current operation uses one delivering agent and
+> one independent reviewer; see the
+> [observability guide](../observability-and-trace-schema.md). No retired
+> handback, capture, reporter or exporter is required by this proposal.
+
 ## Purpose
 
 Correctness is necessary but not sufficient. An agent that reaches the right

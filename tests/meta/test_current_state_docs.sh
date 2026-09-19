@@ -100,8 +100,9 @@ for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-co
     *) [ -f "$authority" ] || fail "documented profile authority missing: ${authority}" ;;
   esac
 done
-grep -qE '^## Historical design' docs/multi-language-profiles.md \
-  || fail "old profile initiative must be explicitly historical"
+require docs/multi-language-profiles.md '](archive/multi-language-profiles.md)'
+require docs/archive/multi-language-profiles.md '# Language Profiles: Historical Design'
+reject docs/multi-language-profiles.md 'Before any profile generator'
 if printf '%s\n' "$profile_current" | grep -qiE 'before.*implemented|add a generator|review-gate/approved-head'; then
   fail "current profile workflow must not describe shipped work as pending or use unscoped approval"
 fi

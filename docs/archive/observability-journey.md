@@ -20,7 +20,7 @@ estimated_reading_time: 15
 > operating guidance. The export scripts and `trace_tools` examples no longer run.
 > The generator/handback topology was retired by #352 and superseded by the
 > contract-v2 four-gate model in #394. See
-> [`docs/harness-contract.yml`](harness-contract.yml) for current doctrine.
+> [`docs/harness-contract.yml`](../harness-contract.yml) for current doctrine.
 
 <!-- snapshot-retirement:end -->
 ## 為什麼要替一個 AI Agent 工作流加上 Trace 和 Log
@@ -58,7 +58,7 @@ Schema 本身是機器可驗證的 contract（`docs/evaluation/trace-schema.v1.j
 
 TDD 的 handback 也寫成 agent span，讓 `red_handback → impl_handback → green_handback` 的順序變成機器可檢查的 evidence。如果一個 feature 標了 `passes: true` 但 trace 裡找不到 red-first 證據，review gate 可以直接擋下來。
 
-Runtime 那一側不再把 Copilot 原生紀錄重建成 span。深層的工具、skill、model 與 subagent 分析直接讀 Copilot native records；trace 保留由 lifecycle scripts、`trace-lib.sh` 與 `log-handback.sh` 自己 emit 的 semantic spine。入口見 [`runtime-adapters/github-copilot.md`](github-copilot.md)。
+Runtime 那一側不再把 Copilot 原生紀錄重建成 span。深層的工具、skill、model 與 subagent 分析直接讀 Copilot native records；trace 保留由 lifecycle scripts、`trace-lib.sh` 與 `log-handback.sh` 自己 emit 的 semantic spine。入口見 [`runtime-adapters/github-copilot.md`](../github-copilot.md)。
 
 ### 第二層：匯出到 Application Insights
 

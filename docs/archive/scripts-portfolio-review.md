@@ -1,3 +1,7 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # `scripts/` Portfolio Review — Bash at Scale: Inventory, Language Choice, Consolidation
 
 **Date:** 2026-07-09
@@ -12,7 +16,7 @@ language before maintenance gets hard? (2) does the portfolio need re-planning/c
 > **2026-07-22 note:** The Copilot runtime reconstruction and interval
 > attribution described below were retired. The kept semantic spine comes from
 > `trace-lib.sh` and `log-handback.sh`; see
-> [runtime-adapters/github-copilot.md](github-copilot.md).
+> [runtime-adapters/github-copilot.md](../github-copilot.md).
 
 ---
 

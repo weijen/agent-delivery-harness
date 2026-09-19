@@ -49,7 +49,7 @@ if [ -f "$TRACE_LIB" ]; then
 fi
 
 # Hardcoded secret-shape backstop, independent of trace_redact working — mirrors
-# the exporter's output audit in docs/runtime-adapters/otlp-azure-monitor.md.
+# the exporter's output audit in docs/archive/runtime-adapters/otlp-azure-monitor.md.
 # A match in the captured evidence is treated as a redaction event regardless of
 # whether trace_redact is available or functioning.
 SECRET_SHAPE_RE='gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|InstrumentationKey=|ConnectionString=|[Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+[A-Za-z0-9._~+/=-]{8,}'

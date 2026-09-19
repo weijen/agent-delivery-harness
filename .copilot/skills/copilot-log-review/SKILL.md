@@ -165,7 +165,7 @@ the sessions whose span (first→last `timestamp`) overlaps either:
 ### Paths (macOS verified; other OSes unverified)
 
 The VS Code transcript location below was verified on macOS
-(see [../../../docs/runtime-adapters/github-copilot.trace-spike.md](../../../docs/runtime-adapters/github-copilot.trace-spike.md)).
+(see [../../../docs/archive/runtime-adapters/github-copilot.trace-spike.md](../../../docs/archive/runtime-adapters/github-copilot.trace-spike.md)).
 **Only macOS paths are verified.** The Windows and Linux variants are the expected VS Code
 per-user layout but are **unverified** here — confirm them on the target OS before relying on
 them.

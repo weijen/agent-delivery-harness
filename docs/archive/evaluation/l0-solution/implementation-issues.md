@@ -1,12 +1,16 @@
+> Historical snapshot archived by #468. Dates, measurements and pending-work
+> wording below describe the original document, not current runtime promises
+> or issue status. GitHub issues and current operating guides remain authoritative.
+
 # L0 Evaluation — Implementation Issue Backlog
 
 This page enumerates the GitHub issues required to implement the L0 solution and
-the shared eval framework defined in [README.md](README.md),
-[architecture.md](architecture.md), and [spec.md](spec.md). These issues are open
+the shared eval framework defined in [README.md](../../../evaluation/l0-solution/README.md),
+[architecture.md](../../../evaluation/l0-solution/architecture.md), and [spec.md](../../../evaluation/l0-solution/spec.md). These issues are open
 — see the GitHub mapping below.
 
 The L1 skills backlog (Issues 5–9) is tracked separately in
-[../l1-solution/implementation-issues.md](../l1-solution/implementation-issues.md).
+[../l1-solution/implementation-issues.md](../../../evaluation/l1-solution/implementation-issues.md).
 The doc issue numbers and GitHub issue numbers are unchanged by the L0/L1 split;
 only the documentation is split.
 
@@ -25,7 +29,7 @@ The framework + L0 backlog (doc Issues 1–4) is tracked on GitHub as issues
 Implementation order (strict): **#61 → #63 → #65 → #62 → #64 → …**. Issue #65 is
 the first L1 issue (SKILL.md frontmatter lint) and slots into the global order
 between #63 and #62; see the
-[L1 backlog](../l1-solution/implementation-issues.md) for #65–#69.
+[L1 backlog](../../../evaluation/l1-solution/implementation-issues.md) for #65–#69.
 
 ## Scope And Rationale
 
@@ -33,7 +37,7 @@ Recommended for this backlog: **4 issues across 2 phases** — framework foundat
 then L0 script lifecycle.
 
 The count follows the issue guidance in the parent
-[evaluation README](../README.md): one capability and one boundary per issue, so
+[evaluation README](../../../evaluation/README.md): one capability and one boundary per issue, so
 that a failure points at a single target. The phases are dependency-ordered and
 mirror the committed runtime split — **Tier A (deterministic, blocking, GitHub
 Actions / CI) is built before Tier B (model-driven, report-only, Azure)** —
@@ -140,13 +144,13 @@ Phases: **1–2** framework foundation · **3–4** L0.
 - **Grader**: deterministic shell/git/file-state, via the runner.
 - **Mode / blocking**: regression / blocking.
 - **Tier / runtime**: A / local + GitHub Actions (extends
-  [harness-smoke.yml](../../../.github/workflows/harness-smoke.yml)).
+  [harness-smoke.yml](../../../../.github/workflows/harness-smoke.yml)).
 - **Fixtures**: reuse the existing sensor fixtures.
 - **Dependencies**: Issues 1, 2, 3.
 - **Acceptance**:
   - Manifests for `l0-harness-contract`, `l0-lifecycle-order`, `l0-review-gate`,
     `l0-feature-list`, `l0-issue-scaffold` exist and **reference
-    [harness-contract.yml](../../harness-contract.yml) IDs** rather than
+    [harness-contract.yml](../../../harness-contract.yml) IDs** rather than
     restating capabilities (no third source of truth).
   - CI runs the runner and blocks on any L0 regression, with no Azure
     configuration required.
@@ -160,4 +164,4 @@ Phases: **1–2** framework foundation · **3–4** L0.
 - **Issues 2 and 4** turn L0 into case-level blocking gates once 1 and 3 land.
 - Once Issue 2 lands, the shared scorecard contract is available, which unblocks
   the L1 backlog in
-  [../l1-solution/implementation-issues.md](../l1-solution/implementation-issues.md).
+  [../l1-solution/implementation-issues.md](../../../evaluation/l1-solution/implementation-issues.md).
