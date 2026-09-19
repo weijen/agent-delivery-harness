@@ -37,11 +37,11 @@ local JSON or JSONL trace whose field names follow the convention.
 
 ## Span Types
 
-Model the run as a tree of spans:
+The schema can represent the following spans; schema support does not imply
+that the current runtime emits every type:
 
-- **Agent span** — one per subagent invocation (planner, generator, reviewer)
-  and one root span per issue/conductor run. Historical traces retain their
-  original implementer and tester role names.
+- **Agent span** — current semantic decisions and review verdicts. Historical
+  traces retain their original planner, generator, implementer and tester roles.
 - **Model span** — one per LLM call, with token usage.
 - **Tool span** — one per tool or command invocation (git, `gh`, shell, file
   edit, web fetch).
@@ -49,37 +49,32 @@ Model the run as a tree of spans:
   creation). The closed 13-step enumeration lives only in
   [trace-schema.v1.json](trace-schema.v1.json) under `lifecycle_steps`.
 
-Current harness traces carry lifecycle and handback spans emitted by the
+Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
 ([runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md));
 [runtime-adapters/claude-code.md](../runtime-adapters/claude-code.md) remains a
 labeled reference example. Historical traces may retain runtime-derived spans.
 
-## Evidence Authority Split
+## Current operating contract
 
-Not every span type carries the same evidentiary weight. There is a deliberate
-**authority split** between the two sources of tool-execution evidence:
+One delivering agent owns each issue, followed by one independent reviewer
+at issue completion. TDD remains the working discipline, but trace-level
+red-first proof and red/impl/green handback choreography are retired (#334/#352).
+Historical schema values do not authorize new writes or add completion gates.
 
-- **Handback `agent span`s are the accepted red-first proof.** The
-  role-attributed handback spans written through `scripts/log-handback.sh`
-  (`red_handback` → `impl_handback` → `green_handback`) are the harness's
-  authoritative evidence that a feature was driven **red-first**. Because each
-  handback names its role, feature, and outcome, the ordered triple is
-  self-attributing: the consistency checker can prove a feature failed before
-  it passed straight from these `agent spans`. New runs attribute all three
-  handbacks to `generator-subagent`. The checker also accepts the complete
-  historical `test-subagent` → `implementation-subagent` → `test-subagent`
-  profile without rewriting old provenance. A triple that mixes the active
-  and historical profiles is not accepted.
-- **Runtime hook `tool span`s are not yet accepted as fail/pass proof.** The
-  per-tool-call `tool spans` contributed by a runtime adapter are valuable for
-  trajectory and cost evals, but in v1 they are **not** accepted as red-first
-  fail-then-pass evidence on their own. A `tool span` records that *some*
-  command ran with *some* outcome; it does not, without **deterministic**
-  **per-feature** (or per-sensor) **attribution**, prove *which* feature's
-  sensor went red and then green. Until that deterministic attribution links a
-  `tool span` to a specific feature/sensor, the handback `agent spans` remain
-  the authority and `tool spans` stay corroborating context, not proof.
+- `scripts/log-handback.sh` accepts the `conductor` role and semantic
+  `deviation` / `review_verdict` events. It also accepts optional `feature_start`;
+  that event is not a required selection-evidence gate (#370).
+- Lifecycle scripts record their own worktree, approval, PR and closeout events.
+- `scripts/run-sensors.sh` records observed green results in
+  `sensor-evidence.jsonl`. Gate evidence is HEAD-bound and mode-specific;
+  `scripts/verify-sensor-evidence.sh` verifies it and review approval rebinds it
+  through `scripts/rebind-evidence.sh`. Agent prose is not substitute evidence.
+- Deeper Copilot analysis reads native records. Runtime tool/model spans are
+  not required to prove that the kept semantic spine exists.
+- Independent review judges test quality and records attributed findings.
+  The current lifecycle authority is [HARNESS.md](../HARNESS.md), not an
+  ordered triple of historical handbacks.
 
 ## The Layered Visibility Boundary
 
@@ -90,7 +85,7 @@ loses a degree of visibility into the one below:
 
 ```text
 ┌─────────────────────────────────────────────┐
-│  this harness — lifecycle / handback / gate  │  the layer we own
+│  this harness — lifecycle / semantic / gate │  the layer we own
 ├─────────────────────────────────────────────┤
 │  coding agent (Copilot / Claude Code)        │  prompt assembly, RAG,
 │    prompt assembly, context management,      │  tool routing, permission
@@ -111,36 +106,29 @@ from the trace — not oversight, but the cost of the layer we chose to stand on
 
 The absent signals fall into three kinds of boundary:
 
-- **Architectural boundary** — the runtime never exposes the signal. Tool and
-  model latency (no correlation id links a pre-call to its post-call event),
-  permission requests, sandbox snapshots, and the raw prompt with its
-  retrieved context sit here. A direct-API agent gets these for free; this
-  harness cannot reach them without the runtime opening an API.
-- **Interface boundary** — the data reaches an adapter hook, but only through
-  an undocumented or unstable format. Token usage is the example: the Copilot
-  CLI adapter reads it best-effort from an internal `events.jsonl` whose shape
-  can drift across versions, and the VS Code surface exposes no verified token
-  source at all.
-- **Not yet captured** — the runtime already hands the data to a hook, and the
-  harness simply does not field it yet. Command outputs, test result detail,
-  and some edited-file content live here (for example the Copilot adapter
-  receives `toolResult.textResultForLlm` but keeps only the pass/fail
-  outcome). This boundary is ours to move, not the runtime's.
+- **Architectural boundary** — this harness does not own the model request,
+  retrieved context, permission state or sandbox. It cannot assume that a
+  runtime exposes those signals.
+- **Interface boundary** — native records such as CLI `events.jsonl` have
+  version-dependent internal shapes. Correlated tool events can support
+  duration analysis when both endpoints exist; missing or partial events
+  cannot establish a duration or token count.
+- **Deliberately not captured** — Copilot runtime reconstruction was removed.
+  Available native tool results do not create a backlog to restore a hook,
+  exporter or duplicate stream.
 
-Only the third kind is the harness's own backlog. The first two are the tax of
-building above another harness, and the schema pays that tax honestly: where a
-runtime exposes no trustworthy signal, the adapter omits the key rather than
-fake it (see the capability matrix in
-[runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md)).
+Where no trustworthy signal exists, omit the metric rather than fake it.
+The [native-record guide](../runtime-adapters/github-copilot.md) links the
+analysis recipes and their platform/version caveats.
 
 What the layering buys in return is what a direct-API agent does not have. A
 direct-API agent sees everything at the model layer but must implement context
 management, sandboxing, permissions, and retries itself, and its telemetry only
 ever holds the model's point of view. Standing one layer up trades that
 model-level visibility for signals the model layer has no concept of: a
-runtime-portable span vocabulary (the same lifecycle and handback spans survive
+runtime-portable span vocabulary (the same lifecycle and semantic spans survive
 swapping Copilot for Claude Code without touching an eval), process-layer truth
-(review-gate SHA, role-attributed handbacks, the TDD red-to-green order, PR
+(review-gate SHA, attributed review findings, observed sensor results, PR
 merge), and a contract that keeps the low coverage **known and labeled** instead
 of papered over. The harness is not competing with a direct-API agent on
 telemetry completeness; it records the process layer that such an agent has no
@@ -155,19 +143,18 @@ runtime are RETIRED.** The two prior sections describe *why* the runtime signals
 are hard to reach; this section records the *decision* about them.
 
 **Kept — the semantic spine.** These are the spans the harness scripts write
-about their own execution, plus every deterministic check built on them. The
+about their own execution and the surviving checks built on them. The
 semantic spine is process-layer truth the harness owns directly, so it is
 **not deprecated**:
 
-- The role-attributed handback `agent span`s written through
-  `scripts/log-handback.sh` (`red_handback` → `impl_handback` →
-  `green_handback`).
+- The `deviation` and `review_verdict` agent spans written through
+  `scripts/log-handback.sh`.
 - The lifecycle spans (`worktree_create`, review-gate approval, PR creation,
   finish) and the human-readable Action Log they mirror.
-- The review-gate state and the deterministic checks that read the spine: the
-  3-rejection cap (#302), review-verdict provenance / dedup / discipline (#304),
-  red-first evidence, feature-start, and the rescoped `spine_incomplete`
-  completeness check introduced by this issue.
+- HEAD-bound review approval, review-verdict provenance and deduplication,
+  rejection guardrails, and lifecycle consistency checks. Later issues
+  retired red-first proof (#334) and feature-start selection evidence (#370);
+  neither is a kept obligation today.
 
 **Retired — runtime capture.** These are the spans reconstructed from the
 runtime rather than emitted by the harness about itself:
@@ -187,8 +174,9 @@ and the deprecated capture path is marked in the adapter doc,
 [runtime-adapters/github-copilot.md](../runtime-adapters/github-copilot.md).
 
 **Deletion resolved.** The native-records-only L4 review found no missing kept
-signal, so the runtime reconstruction hook, template, and capture-only sensors
-were deleted. The semantic spine and every deterministic gate above remain.
+signal, so the Copilot runtime reconstruction hook, template, and capture-only
+sensors were deleted. The semantic spine remains; historical gate descriptions
+must still be read in light of subsequent retirements.
 
 **Launch topology is no longer a dark-run risk.** This section is the
 authoritative resolution of the old launch-topology warning; AGENTS.md, the
@@ -196,11 +184,10 @@ harness session ritual, and the observability-journey narrative defer to it.
 The Copilot CLI trace hook under `.github/hooks/` only ever fired when a session
 launched from a trusted repository root, and all it did was reconstruct the
 **retired** runtime `tool span`s — launching from `$HOME` or any untrusted cwd
-skipped nothing kept. The kept **semantic spine** (handback + lifecycle spans)
+skipped nothing kept. The kept **semantic spine** (semantic agent + lifecycle spans)
 is emitted by the harness scripts themselves **regardless of cwd**, and its
-completeness is now guarded by the rescoped `spine_incomplete` check rather than
-by the presence of a runtime span. So a non-root launch is **no longer a dark
-run** of anything kept; at worst it forgoes deprecated runtime capture, and
+consistency is checked without requiring runtime capture. So a non-root launch
+is **no longer a dark run** of anything kept, and
 starting from the repository root remains only a harmless convention.
 
 ## Mandatory Common Fields
@@ -255,8 +242,8 @@ is optional and backward-compatible — legacy traces and script-emitted
 lifecycle/handback spans omit it and stay valid. It is distinct from
 `harness.issue`: a single runtime session can span multiple issues, so runtime
 spans are attributed to an issue by time window rather than by session. The id
-is stamped by future runtime capture (transcript reconstruction / hooks),
-giving evals a stable join key across a conversation's spans.
+can occur in historical or optional-adapter records; this is not a promise
+to restore Copilot runtime capture.
 
 Deviation/failure spans may additionally carry the optional
 `harness.failure_mode` attribute (issue #99), whose value is constrained to
@@ -267,6 +254,9 @@ authority for the enum membership.
 
 ## How The Evals Consume This Schema
 
+The following research documents describe schema consumers and historical
+designs, not additional current lifecycle gates:
+
 - [trajectory-evals.md](../archive/evaluation/trajectory-evals.md) match on the ordered sequence of
   tool and lifecycle span names.
 - [trace-action-log-evals.md](../archive/evaluation/trace-action-log-evals.md) check that required
@@ -275,8 +265,8 @@ authority for the enum membership.
 - [cost-efficiency-evals.md](cost-efficiency-evals.md) sum `gen_ai.usage.*`
   tokens and count tool spans for cost and efficiency metrics.
 
-Because all three read the same spans, a single emitted trace powers ordering,
-audit, and cost evals at once.
+The common vocabulary permits these analyses when the relevant evidence exists.
+It does not imply that current runs emit runtime token/tool data or summaries.
 
 ## Trace Shape
 
@@ -350,70 +340,34 @@ runs:
 Do not mix third-party trace fields into harness scorecards without mapping them
 to the local schema and recording the mapping version.
 
-## Step-level Logs (log.jsonl)
+## Historical compatibility and retired streams
 
-The trace is the **shape** stream; it is not the whole story. Alongside
-`trace.jsonl` the harness writes a second, separately-governed **detail** stream,
-`log.jsonl`, whose closed vocabulary lives in its own machine-readable contract,
-[log-schema.v1.json](../archive/evaluation/log-schema.v1.json) (retired with the log.jsonl stream, #333). This is the classic OpenTelemetry
-two-stream split: **traces carry shape** (the span vocabulary, closed enums, one
-line per span) and **logs carry detail** (a free-form `message` plus an optional
-structured `payload`, one line per step-level event). Keeping detail out of the
-span schema is what lets the trace stay a stable, low-cardinality shape contract
-while step-level diagnostics grow freely in the log stream. A log record is
-**never** a span: it is versioned by `log_schema_version` (a JSON number),
-**not** the span schema's `schema_version`, so a shared validator can never
-mistake a log line for a span. Where a record belongs to a span it may reference
-it with `span_id`/`parent_span_id`, linking detail back to shape.
+The schema retains `red_handback`, `impl_handback`, `green_handback` and the
+historical agent roles so old traces remain readable. Those values describe
+past choreography, not current writer permissions or red-first proof.
 
-Every record carries the five `required_common` fields —
-`log_schema_version`, `timestamp`, `level` (the closed `info` | `warn` | `error`
-enum), `harness.issue`, and `message` — with optional fields such as
-`harness.lifecycle_step`, `harness.stage`, `harness.outcome`, and `payload`
-adding structured context.
+The separate `log.jsonl` stream and its writer were retired in #333.
+[log-schema.v1.json](../archive/evaluation/log-schema.v1.json) preserves the
+historical detail-record format, including `log_schema_version` rather than
+the span schema's `schema_version`. There is no current log writer to enable
+with the old `HARNESS_LOG` or payload-cap settings.
 
-Governance mirrors the trace stream, with one stricter twist:
-
-- **Local-only, main-root-pinned.** `log.jsonl` is written beside `trace.jsonl`
-  at `.copilot-tracking/issues/issue-NN/log.jsonl`, pinned to the main checkout
-  root, and is **gitignored** by the same `.copilot-tracking/issues/issue-*/`
-  rule. It is never committed.
-- **On by default, with a kill switch.** Log emission is on by default; set
-  `HARNESS_LOG=0` to disable it entirely.
-- **Redact-before-cap.** The log stream's free-form `message`/`payload` demand a
-  stricter discipline than the trace stream: secret-shaped input is **redacted
-  before** any truncation, so a truncation boundary can never bisect and leak a
-  partially-redacted secret. Only after redaction is a per-record `payload`
-  truncated to its default 4096-byte cap (`HARNESS_LOG_PAYLOAD_CAP`). Redaction
-  always precedes the cap.
+The cloud exporter was removed in #272 and the standalone reporter in #419.
+Historical formats and references are retained for interpretation, not as
+instructions to generate, export or upload these records.
 
 ## Relationship To The Action Log
 
 The human-readable Action Log in `progress.md` and the structured trace are two
-views of the same run. The Action Log stays the primary human artifact; the trace
-is the machine-readable projection that evals parse. Where practical, generate
-the trace and the Action Log from the same events so they cannot disagree.
+views of the same run. The trace is the canonical record;
+`scripts/log-handback.sh` emits the span and calls `scripts/render-action-log.sh`
+to render the Action Log. Never hand-author a second event record.
 
-Generator research provenance follows that single-source rule.
-`scripts/log-handback.sh` accepts `TRACE_RESEARCH_URL` and
-`TRACE_RESEARCH_SUMMARY` as globally optional, open-world fields. They become
-mandatory as a valid pair on generator `red_handback`, `impl_handback`, and
-`green_handback` spans whose disposition is `research`, meaning an external
-action was actually performed. The helper requires a valid HTTP(S) URL and a
-non-empty one-line content summary; a missing, partial, malformed, or multiline
-pair hard-fails before either the span or Action Log row is emitted. A direct
-trace carrying the same disposition without a valid pair fails consistency.
-The other branch of the same conditional matrix requires both fields to be
-absent for every non-`research` disposition; partial pairs and ambient fields
-on those routes also fail direct-trace consistency. Unrelated roles and
-lifecycle steps remain outside this generator handback contract.
-
-A `research-requested` disposition means web was unavailable and is therefore
-ineligible for provenance. Supplied fake provenance warns and is omitted
-because no source was consulted. Valid provenance is written to both the
-handback span and its one Action Log row. These fields are local-only and
-excluded from trace export. They are source notes, not a content archive:
-fetched page content must never enter the trace.
+Research source notes record actual HTTP(S) URLs and summaries, never fetched
+content or invented provenance. Current same-class escalation and research
+rules live in [harness.instructions.md](../../.copilot/instructions/harness.instructions.md).
+Historical generator research fields remain interpretable without restoring
+the retired generator handback protocol.
 
 Closeout also separates an in-flight `Status:` from its terminal
 `Conclusion:`. `finish-issue.sh` writes the conclusion before teardown using
@@ -428,11 +382,12 @@ lifecycle span still has a surviving top-level `Status:` line in `progress.md`.
 validator for this contract. Run it locally with an issue number (it resolves
 the per-issue `trace.jsonl` in the main checkout) or an explicit file path. It
 checks every span line against [trace-schema.v1.json](trace-schema.v1.json)
-(field presence, closed enums, and value types), requires all non-exceptional
-lifecycle steps for a finished run, audits redaction on the file as written,
+(field presence, closed enums, and value types), checks current lifecycle
+consistency without requiring every historical enum value, audits redaction,
 and reports sanity warnings. Exit codes: `0` no violations, `1` violations
 found, `2` usage or environment error. It runs without network access and is
-not wired into lifecycle gates (that wiring is issue #103).
+wired into `review-gate.sh trace` and closeout as a warn-only check by default.
+`REQUIRE_TRACE_CONSISTENCY=1` promotes findings to a hard failure.
 
 ## Reporting A Trace
 
@@ -460,7 +415,8 @@ GitHub issue tracker for the live list.
 - [trace-schema.v1.json](trace-schema.v1.json) is the single vocabulary
   authority; this page and the evals defer to it and carry no second
   competing copy.
-- A single trace per issue powers trajectory, trace, and cost evals.
+- A single trace per issue records the kept semantic spine; native-record
+  analysis supplies deeper runtime detail only when actually available.
 - Field names follow the OpenTelemetry GenAI conventions where they exist.
 - Every span carries the mandatory common fields, including `schema_version`
   and `harness.version`.

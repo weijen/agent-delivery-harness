@@ -249,6 +249,28 @@ else
   fail "taxonomy doc not found at docs/evaluation/failure-mode-taxonomy.md"
 fi
 
+# Current operating guidance must not turn frozen historical vocabulary into
+# new writer obligations.
+GUIDE="${ROOT}/docs/evaluation/observability-and-trace-schema.md"
+current="$(awk '/^## Current operating contract/ {capture=1; next} capture && /^## / {exit} capture {print}' "$GUIDE")"
+for term in 'delivering agent' 'independent reviewer' 'sensor-evidence.jsonl' deviation review_verdict 'native records'; do
+  printf '%s\n' "$current" | grep -qiF "$term" \
+    || fail "current operating contract must describe ${term}"
+done
+guide_flat="$(tr '\n' ' ' <"$GUIDE" | tr -s ' ')"
+if printf '%s\n' "$guide_flat" | grep -qiE 'accepted red-first proof|new runs attribute all three|harness writes a second|log emission is on by default|not wired into lifecycle gates|requires all non-exceptional lifecycle steps'; then
+  fail "current guide retains retired evidence/log/gate obligations"
+fi
+grep -qiE '^## Historical.*(retired|compatibility)' "$GUIDE" \
+  || fail "guide must distinguish historical compatibility from current operation"
+grep -qF 'conductor only' "${ROOT}/scripts/log-handback.sh" \
+  || fail "documented single-agent writer must match the implementation"
+SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
+skill_flat="$(tr '\n' ' ' <"$SKILL" | tr -s ' ')"
+if printf '%s\n' "$skill_flat" | grep -qiE 'hooks log.*is a second|token usage is a cloud-only signal'; then
+  fail "native-record guidance must not require the retired hook or cloud-only token capture"
+fi
+
 # --- Result ------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
   printf '\n%d trace-schema contract violation(s).\n' "$fails" >&2

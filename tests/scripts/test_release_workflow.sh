@@ -166,6 +166,22 @@ grep -qiE 'semantic-release version --major|--major|BREAKING CHANGE' "$DOC" \
 grep -qiF 'python-semantic-release' "$DOC" \
   || fail "RELEASING.md must reference python-semantic-release as the release tool"
 
+lock_notes="$(sed -n '/^## Lock integrity/,/^## /p' "$DOC")"
+for authority in scripts/sync-version.sh release.yml python-ci.yml 'uv lock --check'; do
+  printf '%s\n' "$lock_notes" | grep -qF "$authority" \
+    || fail "release lock guidance must reference ${authority}"
+done
+grep -qF 'major_on_zero=false' "$DOC" \
+  || fail "release guidance must explain the configured zero-major policy"
+doc_flat="$(tr '\n' ' ' <"$DOC" | tr -s ' ')"
+if printf '%s\n' "$doc_flat" | grep -qiE 'this is harmless|self-heals|not.{0,12}on the release path|or by landing a commit that carries an explicit'; then
+  fail "release guidance must not permit stale locks or a breaking footer to override zero-major policy"
+fi
+for owner in scripts/sync-version.sh .github/workflows/release.yml .github/workflows/python-ci.yml; do
+  grep -qF 'uv lock' "${ROOT}/${owner}" \
+    || fail "documented lock owner ${owner} must implement lock management"
+done
+
 if [ "$fails" -ne 0 ]; then
   printf '\n%d release-policy-doc obligation(s) missing.\n' "$fails" >&2
   exit 1

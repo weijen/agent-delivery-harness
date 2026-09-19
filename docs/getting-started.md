@@ -1,4 +1,7 @@
-# Starting a New Project
+---
+title: Starting a New Project
+description: Adopt the harness, configure local identity, and start issue-driven delivery.
+---
 
 This guide walks through standing up a new project on the harness: adopting the
 harness, choosing a language, scaffolding the matching profile, running
@@ -101,9 +104,15 @@ cp .github/harness-identity.env.example .github/harness-identity.env
 gh auth login --hostname github.com # authenticate that account if needed
 ```
 
-The binding is repository configuration and may be tracked when it contains
-only a public account, author name, and GitHub noreply address. Never put a
-token in it. Lifecycle scripts mint the bound account's token with
+The binding is **machine-local**: keep it **untracked** and **gitignored**.
+Commit only the placeholder `.github/harness-identity.env.example`, never a
+developer's filled-in binding. Add `.github/harness-identity.env` to your
+`.gitignore` before committing. An installer rerun appends this rule when the
+target is a Git repository with an existing binding and `.gitignore`; it does
+not create the ignore file for you. Cloned repositories need the same rule.
+A tracked binding can select an account unavailable on another developer's
+machine, even when its values are public. Never put a token in it.
+Lifecycle scripts mint the bound account's token with
 `gh auth token --user` and inject it only into their own process. The harness
 never runs `gh auth switch`; another repository can therefore use a different
 account without changing global state. `start-issue.sh` (and an installer rerun when a

@@ -140,11 +140,28 @@ grep -Fq '.github/harness-identity.env' "${ROOT}/docs/getting-started.md" \
   || fail "getting-started must document repository identity binding"
 grep -Fq "never runs \`gh auth switch\`" "${ROOT}/docs/getting-started.md" \
   || fail "documentation must state the non-mutating global-account contract"
+if git -C "$ROOT" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
+	fail "the source repository must not track a machine-local identity binding"
+fi
+
+identity_guide="$(awk '
+	/^### Bind the repository/ { capture = 1; next }
+	capture && /^## / { exit }
+	capture { print }
+' "${TARGET}/docs/getting-started.md" | tr '\n' ' ')"
+for identity_rule in 'machine-local' 'untracked' 'gitignored'; do
+	printf '%s\n' "$identity_guide" | grep -qiF "$identity_rule" \
+		|| fail "installed identity guide must describe the binding as ${identity_rule}"
+done
+if printf '%s\n' "$identity_guide" | grep -qiE 'may be tracked|binding is repository configuration'; then
+	fail "installed guide must not authorize committing a machine-local identity"
+fi
 
 BOUND_TARGET="${TMP_DIR}/bound-target"
 mkdir -p "${BOUND_TARGET}/.github"
 git -C "$BOUND_TARGET" init -q -b main
 git -C "$BOUND_TARGET" remote add origin https://github.com/example/adopter.git
+printf '# Adopter ignore rules\n' >"${BOUND_TARGET}/.gitignore"
 cat >"${BOUND_TARGET}/.github/harness-identity.env" <<'EOF'
 HARNESS_GH_ACCOUNT=adopter-account
 HARNESS_GIT_NAME=Adopter Author
@@ -160,6 +177,12 @@ EOF
 [ "$(git -C "$BOUND_TARGET" remote get-url origin)" = \
   "https://adopter-account@github.com/example/adopter.git" ] \
   || fail "installer must route the target origin through its own bound account"
+
+git -C "$BOUND_TARGET" check-ignore -q .github/harness-identity.env \
+	|| fail "installed identity ignore rule must agree with the guide"
+if git -C "$BOUND_TARGET" check-ignore -q .github/harness-identity.env.example; then
+	fail "the placeholder identity example must remain trackable"
+fi
 
 printf 'installer identity template contract honored\n'
 )

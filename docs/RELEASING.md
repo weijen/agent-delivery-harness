@@ -26,7 +26,7 @@ required commit format.
 |---|---|
 | `fix:` | patch |
 | `feat:` | minor |
-| `feat!:` / `BREAKING CHANGE:` | major |
+| `feat!:` / `BREAKING CHANGE:` | minor on `0.x`; major after `1.0.0` |
 
 ## The 1.0.0 policy — a manual decision
 
@@ -36,8 +36,10 @@ surface (its lifecycle scripts, sensor contract, and profile interface), so it i
 cut on purpose — the planned trigger is the skill-eval milestone — never as an
 accidental side effect of a `BREAKING CHANGE` footer slipping into a routine commit.
 
-Until that decision is made, keep breaking changes on the `0.x` track (they bump the
-minor while `0.x`). When the maintainer decides the surface is stable, cut `1.0.0`
+The configuration in `pyproject.toml` sets `allow_zero_version=true` and
+`major_on_zero=false`: breaking changes bump the minor while on `0.x`.
+A `BREAKING CHANGE:` footer does not override that policy. When the maintainer
+decides the surface is stable, cut `1.0.0`
 manually, for example:
 
 ```sh
@@ -45,9 +47,27 @@ manually, for example:
 semantic-release version --major
 ```
 
-or by landing a commit that carries an explicit `BREAKING CHANGE:` footer once the
-maintainer has agreed it is time. Out of scope for automation: PyPI publishing and
-backfilling historical tags.
+This explicit major override requires the maintainer's approval. Out of scope
+for automation: PyPI publishing and backfilling historical tags.
+
+## Lock integrity
+
+[`scripts/sync-version.sh`](../scripts/sync-version.sh) mirrors the bumped
+project version into `VERSION`. When `uv.lock` exists and `uv` is available,
+it also runs `uv lock`; both files are PSR release assets. If `uv` is absent
+(notably inside the PSR Docker action), it warns that the lock was not refreshed.
+
+The post-release safety net in
+[`release.yml`](../.github/workflows/release.yml) runs only when a release was
+made. It pulls the released branch, checks `uv lock --check`, and refreshes and
+commits `uv.lock` only if necessary. That follow-up commit may therefore appear
+after the release tag; it is not another version bump.
+
+[`python-ci.yml`](../.github/workflows/python-ci.yml) enforces
+`uv lock --check` without repairing the lock. Its pinned `uv` version matches
+the release safety net. A stale lock blocks PR validation: fix the release
+refresh or commit a lock refresh with that same tool version, rather than
+relying on an unlocked environment sync to hide the inconsistency.
 
 ## Operational notes
 
@@ -58,8 +78,3 @@ backfilling historical tags.
   or Release — wire in a PAT / GitHub App token with bypass and pass it to both
   `actions/checkout` and the PSR action. (A `GITHUB_TOKEN` push does **not** retrigger
   workflows, which is what stops `release.yml` from looping on its own release commit.)
-- **`uv.lock`.** The virtual-root package version pinned in `uv.lock` is **not** on the
-  release path — PSR only rewrites `pyproject.toml` + `VERSION`. After a release it lags
-  by one version until the next unlocked `uv sync`; this is harmless because
-  `[tool.uv].package = false` (nothing is built from the pin) and both CI workflows run
-  plain `uv sync --all-groups`, which self-heals it.

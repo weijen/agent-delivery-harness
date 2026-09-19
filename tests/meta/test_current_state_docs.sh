@@ -86,4 +86,28 @@ require docs/getting-started.md 'repeat update classified each as adopter-only'
 reject docs/getting-started.md 'v0.17.0'
 reject_regex docs/getting-started.md 'tested[^.]*all[^.]*versions'
 
+profile_current="$(awk '
+  /^## Current profile workflow/ {capture=1; next}
+  capture && /^## / {exit}
+  capture {print}
+' docs/multi-language-profiles.md)"
+for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-contract.yml \
+  tests/scripts/test_harness_contract.sh .copilot-tracking/review-gate/issue-NN/approved-head; do
+  printf '%s\n' "$profile_current" | grep -qF "$authority" \
+    || fail "current profile workflow must reference ${authority}"
+  case "$authority" in
+    .copilot-tracking/*) ;;
+    *) [ -f "$authority" ] || fail "documented profile authority missing: ${authority}" ;;
+  esac
+done
+grep -qE '^## Historical design' docs/multi-language-profiles.md \
+  || fail "old profile initiative must be explicitly historical"
+if printf '%s\n' "$profile_current" | grep -qiE 'before.*implemented|add a generator|review-gate/approved-head'; then
+  fail "current profile workflow must not describe shipped work as pending or use unscoped approval"
+fi
+require profiles/README.md 'explicit marker'
+reject_regex profiles/README.md 'moves a language.s surface detection|does not hard-code the details'
+require scripts/init.sh 'pyproject.toml'
+require scripts/init.sh 'package.json'
+
 printf 'current-state documentation checks passed\n'

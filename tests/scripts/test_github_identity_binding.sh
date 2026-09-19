@@ -220,7 +220,10 @@ printf 'start-issue GitHub identity contract honored\n'
 (
 cd "$ROOT"
 
-BINDING="${ROOT}/.github/harness-identity.env"
+FIXTURE_DIR="$(mktemp -d)"
+trap 'rm -rf "$FIXTURE_DIR"' EXIT
+REPO="${FIXTURE_DIR}/repository-contract"
+BINDING="${REPO}/.github/harness-identity.env"
 TEMPLATE="${ROOT}/.github/harness-identity.env.example"
 
 fail() {
@@ -228,32 +231,34 @@ fail() {
   exit 1
 }
 
-# The pinned-identity leg is a regression check for THIS repository only (its
-# binding is deliberately committed, #348). Adopters bind their own accounts —
-# machine-local and gitignored (#386) — so for them assert only that any
-# present binding actually loads (an unfilled template must not pass as one).
-origin_url="$(git config --get remote.origin.url 2>/dev/null || true)"
-case "$origin_url" in
-*weijen/agent-delivery-harness*)
-  [ -f "$BINDING" ] || fail "repository identity binding is missing"
-  grep -Fxq 'HARNESS_GH_ACCOUNT=weijen' "$BINDING" \
-    || fail "repository must bind the weijen GitHub account"
-  grep -Fxq 'HARNESS_GIT_NAME=Wei Jen Lu' "$BINDING" \
-    || fail "repository Git author name is incorrect"
-  grep -Fxq 'HARNESS_GIT_EMAIL=11629+weijen@users.noreply.github.com' "$BINDING" \
-    || fail "repository Git noreply email is incorrect"
-  ;;
-*)
-  if [ -f "$BINDING" ]; then
-    load_rc=0
-    # shellcheck source=scripts/github-identity-lib.sh
-    ( . "${ROOT}/scripts/github-identity-lib.sh" \
-        && harness_identity_load "$ROOT" ) >/dev/null 2>&1 || load_rc=$?
-    [ "$load_rc" -eq 0 ] \
-      || fail "identity binding is present but does not load cleanly (rc=${load_rc}); fill in .github/harness-identity.env from the template"
-  fi
-  ;;
-esac
+# Repository identity is machine-local even for the harness's own origin.
+mkdir -p "${REPO}/.github"
+git -C "$REPO" init -q -b main
+git -C "$REPO" remote add origin https://github.com/weijen/agent-delivery-harness.git
+load_rc=0
+harness_identity_load "$REPO" || load_rc=$?
+[ "$load_rc" -eq 2 ] || fail "a clean checkout must not require a local binding"
+__HARNESS_IDENTITY_WARNING_EMITTED=0
+harness_identity_activate "$REPO" 2>"${FIXTURE_DIR}/clean-checkout.err" \
+  || fail "a clean checkout must preserve the current gh authentication"
+grep -qF 'using current gh authentication' "${FIXTURE_DIR}/clean-checkout.err" \
+  || fail "a clean checkout must explain the missing-binding fallback"
+
+cat >"$BINDING" <<'EOF'
+HARNESS_GH_ACCOUNT=fixture-account
+HARNESS_GIT_NAME=Fixture Author
+HARNESS_GIT_EMAIL=123+fixture-account@users.noreply.github.com
+EOF
+HARNESS_GH_ACCOUNT=wrong-account
+HARNESS_GIT_NAME="Wrong Author"
+HARNESS_GIT_EMAIL=wrong@example.invalid
+harness_identity_load "$REPO" || fail "a populated local binding must load"
+[ "$HARNESS_GH_ACCOUNT" = fixture-account ] \
+  || fail "local binding must select the configured GitHub account"
+[ "$HARNESS_GIT_NAME" = "Fixture Author" ] \
+  || fail "local binding must preserve the configured author name"
+[ "$HARNESS_GIT_EMAIL" = "123+fixture-account@users.noreply.github.com" ] \
+  || fail "local binding must preserve the configured noreply email"
 
 [ -f "$TEMPLATE" ] || fail "adopter identity template is missing"
 if grep -Eq 'weijen|11629' "$TEMPLATE"; then
