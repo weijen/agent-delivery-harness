@@ -2,28 +2,37 @@
 
 > **Reference example.** This document is the labeled reference example of
 > the runtime-adapter pattern. The repository's **primary runtime target is
-> GitHub Copilot** — see [github-copilot.md](../github-copilot.md) for the
-> primary adapter guide, which follows the contract pinned here.
+> GitHub Copilot** — see [github-copilot.md](../../docs/github-copilot.md)
+> for its native-record analysis boundary, not an equivalent capture adapter.
 
 The harness core is runtime-agnostic: its lifecycle scripts emit `agent` and
 `lifecycle` spans to the per-issue `trace.jsonl` on their own. Tool latency,
 per-tool-call arguments, and token usage exist only inside the agent runtime,
-so capturing them as `tool` and `model` spans requires a **runtime adapter** —
-this document describes the first one, for Claude Code, built on its
+so this optional **runtime adapter** can add available `tool` and `model` spans.
+It uses Claude Code's
 PreToolUse / PostToolUse / Stop / SubagentStop hooks.
 
 The adapter is **opt-in**. The repository ships it as a copyable template
-under `docs/runtime-adapters/`; it never ships a tracked `.claude/settings.json`,
-and no core harness script references the hook.
+under `optional/runtime-adapters/`, beside the actual hook; it never installs
+`.claude/settings.json`. Default harness operation does not invoke the hook.
 
-## Generator research capability
+## Verification and native-record boundary
+
+The committed sensors use isolated representative JSON payloads. Their success
+is **not live Claude session certification** or a version compatibility claim.
+Confirm hook delivery in your own Claude version before relying on this optional
+stream. Core gates and the semantic spine do not require it. Copilot runtime
+reconstruction and trace export remain retired; deeper Copilot analysis reads
+native records rather than enabling this Claude-only integration.
+
+## External research capability
 
 **Unavailable through the repository adapter; native binding unknown.** This
 adapter observes Claude Code hook events but does not provision external
 research tools, and this repository contains no locally verified Claude Code
 agent-tool binding for web research. The Copilot custom-agent identifiers
 `web/fetch` and `web/githubRepo` must not be assumed to work on Claude Code.
-Without a separately verified project/runtime binding, the generator fails
+Without a separately verified project/runtime binding, the delivering agent fails
 closed with the blocked `research-requested` route and performs no web action.
 
 If a downstream project later documents and verifies such a binding, it must
@@ -51,19 +60,21 @@ issue context automatically appends spans with zero manual agent effort:
 | `Stop` | One `agent` span (`gen_ai.operation.name=invoke_agent`, `gen_ai.agent.name=claude-code`), plus one conditional `model` span (see below). |
 | `SubagentStop` | One `agent` span using the real `agent_type` as `gen_ai.agent.name` (falling back to `claude-code-subagent`) plus `harness.session_id` linking back to the parent session; the conditional `model` span; and a **skill inventory backstop** (see below). |
 
-**Privacy note on `harness.args_summary`:** the summary is an excerpt of the
+**Privacy note on summaries:** `harness.args_summary` is an excerpt of the
 raw `tool_input` — for Edit/Write tools that can include file contents, and
 for Bash it is the full command line. Excerpts are redacted before the size
 cap and again on the serialized line, but redaction is pattern-based, not
-exhaustive. The trace is a **local-only, gitignored** artifact under
+exhaustive. `harness.result_summary` can also contain tool output or file content
+(redacted before its 500-character cap). Stop events may read the supplied local
+transcript, and SubagentStop may read the supplied subagent transcript.
+The trace is a **local-only, gitignored** artifact under
 `.copilot-tracking/` — never commit or upload trace files.
 
 **Attribution note on Stop spans:** the adapter's `agent` spans
-(`gen_ai.agent.name=claude-code` / `claude-code-subagent`) are *runtime turn
-markers* — they fire once per assistant turn, every time the session or a
-subagent stops. They are distinct from the *role handback* `agent` spans
-emitted via `scripts/log-handback.sh` (named for harness roles such as the
-conductor and its subagents). Trace consumers counting `invoke_agent` spans
+(`gen_ai.agent.name=claude-code` / the available subagent identity) are *runtime turn
+markers* for the received Stop/SubagentStop events. They are distinct from the
+semantic `agent` spans emitted via `scripts/log-handback.sh` for deviations
+and review verdicts. Trace consumers counting `invoke_agent` spans
 must not conflate the two populations.
 
 The `model` span is emitted **only** when the payload's `transcript_path`
@@ -79,11 +90,10 @@ touching disk.
 
 ## Subagent capture
 
-Claude Code fires `PreToolUse`/`PostToolUse` for tool calls made **inside a
-subagent**, and those payloads carry `agent_id` (present only in subagent
-context) and `agent_type`; `SubagentStop` additionally carries the subagent's
-own `agent_transcript_path`. The adapter uses these to make subagent activity
-first-class:
+When Claude Code delivers `PreToolUse`/`PostToolUse` with `agent_id` and
+`agent_type`, or `SubagentStop` with `agent_transcript_path`, the adapter uses
+the available fields to distinguish subagent activity. Missing fields are not
+evidence that no subagent ran:
 
 - **Split conductor vs. subagent.** Every subagent `tool`/skill span is
   stamped `harness.subagent` (the `agent_type`, or `"true"` when the type is
@@ -101,13 +111,16 @@ first-class:
   `harness.subagent` value), backfilled names are redacted and capped, and an
   unreadable or corrupt transcript backfills **nothing** — *omit, never fake*.
 
-These attributes (`harness.subagent`, `harness.skill.name`) are allowlisted
-for export and shared with the Copilot adapter, so a mixed-runtime trace reads
-uniformly.
+These attributes (`harness.subagent`, `harness.skill.name`) use the existing
+trace vocabulary. No exporter is enabled or required.
 
 ## Install (copy/merge — never overwrite)
 
-1. Ensure `jq` is on your PATH (the hook silently no-ops without it).
+1. Ensure Bash, Git and `jq` are on your PATH (the hook silently no-ops without
+   required runtime dependencies). Keep the bundle under
+   `optional/runtime-adapters/` with the core `scripts/trace-lib.sh` and root
+   `VERSION` from the same harness checkout. The hook resolves its emitter at
+   `../../scripts/trace-lib.sh`, not beside itself.
 2. Merge the hook entries from
    [`claude-code.settings.example.json`](claude-code.settings.example.json)
    into your project's `.claude/settings.json` (or `.claude/settings.local.json`
@@ -118,10 +131,10 @@ uniformly.
 
    ```bash
    mkdir -p .claude
-   cp docs/runtime-adapters/claude-code.settings.example.json .claude/settings.local.json
+   cp -n optional/runtime-adapters/claude-code.settings.example.json .claude/settings.local.json
    ```
 
-4. Verify: run any tool call from a Claude Code session inside an issue
+4. Optionally verify live delivery: run a tool call from your Claude Code version inside an issue
    worktree (branch `feature/issue-NN-*` or an `issue-NN` worktree) and check
    that `.copilot-tracking/issues/issue-NN/trace.jsonl` gained a `tool` span.
 
@@ -139,10 +152,9 @@ are tiny, bounded by the number of interrupted tool calls, gitignored, and
 never read again — it is safe to delete the `.hook-state/` directory at any
 time.
 
-**Overhead:** each hooked tool call spawns roughly 10–15 short-lived
-processes (bash, `jq`, `git`, `sed`), and each Stop/SubagentStop runs one
-whole-transcript `jq` pass — negligible for interactive use, but worth
-knowing on very large transcripts or constrained machines.
+**Overhead:** hooked calls spawn shell, JSON and Git processes; Stop/SubagentStop
+may parse whole transcripts. No current live overhead measurement is claimed.
+Consider the cost on large transcripts or constrained machines before enabling.
 
 ## Transcript-shape compatibility caveat
 
@@ -168,8 +180,8 @@ backfills nothing.
 
 ## The adapter pattern for other runtimes
 
-An adapter for another runtime — the [GitHub Copilot adapter](../github-copilot.md)
-is the first — should follow the same contract this one pins:
+Any separately proposed adapter should preserve these boundaries. This is not
+a request to restore [retired Copilot capture](../../docs/github-copilot.md):
 
 - **Emit through `trace-lib.sh`** — source it and call `trace_span` so issue
   resolution, main-root pinning, schema stamping, and redaction stay uniform.
@@ -181,5 +193,5 @@ is the first — should follow the same contract this one pins:
 - **Silent no-op outside harness runs**: exit `0` with empty stdout on every
   path — missing dependencies, malformed payloads, unresolvable issue context.
   The adapter must be impossible to notice when it has nothing to do.
-- **Zero core coupling**: shipped as an opt-in template under
-  `docs/runtime-adapters/`; no core script may reference it.
+- **No mandatory core coupling**: the bundle lives under
+  `optional/runtime-adapters/`; core lifecycle and validation do not require it.

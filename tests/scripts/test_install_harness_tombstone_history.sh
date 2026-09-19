@@ -93,4 +93,21 @@ fi
 grep -qi 'history is empty' "${TMP_DIR}/empty-range.out" \
   || { cat "${TMP_DIR}/empty-range.out" >&2; fail "empty-range refusal must explain the empty history"; }
 
+cp "${TMP_DIR}/ledger.baseline" "$ledger"
+mkdir -p "${FORMAT_REPO}/docs/runtime-adapters" "${FORMAT_REPO}/optional/runtime-adapters"
+printf 'Optional adapter fixture guide\n' >"${FORMAT_REPO}/docs/runtime-adapters/fixture.md"
+git -C "$FORMAT_REPO" add docs/runtime-adapters/fixture.md
+git -C "$FORMAT_REPO" commit -qm "add optional guide"
+git -C "$FORMAT_REPO" mv docs/runtime-adapters/fixture.md optional/runtime-adapters/fixture.md
+git -C "$FORMAT_REPO" commit -qm "co-locate optional guide"
+"$CHECKER" "$FORMAT_REPO" >"${TMP_DIR}/relocation.out" 2>&1 \
+  || { cat "${TMP_DIR}/relocation.out" >&2; fail "optional relocation must not look like retirement"; }
+git -C "$FORMAT_REPO" rm -q optional/runtime-adapters/fixture.md
+git -C "$FORMAT_REPO" commit -qm "retire optional guide"
+if "$CHECKER" "$FORMAT_REPO" >"${TMP_DIR}/retirement.out" 2>&1; then
+  fail "a real optional-asset deletion must still require a tombstone"
+fi
+grep -qF 'optional/runtime-adapters/fixture.md' "${TMP_DIR}/retirement.out" \
+  || fail "missing optional retirement was not identified"
+
 printf 'install-harness tombstone history contract honored\n'

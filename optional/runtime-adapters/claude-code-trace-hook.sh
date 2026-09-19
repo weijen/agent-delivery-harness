@@ -7,7 +7,7 @@
 # to the per-issue trace.jsonl through scripts/trace-lib.sh.
 #
 # HARD SESSION-SAFETY CONTRACT (plan D2; sensor
-# tests/scripts/test_claude_hook_noop.sh): this script runs inside a LIVE
+# optional/runtime-adapters/tests/test_claude_hook_noop.sh): this script runs inside a LIVE
 # Claude Code session for every tool call, in any repo. Claude Code
 # interprets non-zero exit codes and stdout content, so on EVERY path this
 # script exits 0 and writes nothing to stdout. Outside a harness issue run
@@ -16,7 +16,7 @@
 # Pinned guard order (G1–G5, conductor-resolved):
 #   G1. jq available (checked BEFORE any jq invocation)
 #   G2. stdin (slurped exactly once) parses as a JSON object
-#   G3. trace-lib.sh exists beside this script
+#   G3. ../../scripts/trace-lib.sh exists relative to this optional bundle
 #   G4. issue context resolves from the payload cwd (fallback: $PWD) with
 #       trace-lib precedence: TRACE_ISSUE → feature/issue-NN-* branch →
 #       issue-NN worktree basename; unresolvable = not a harness run
@@ -31,7 +31,7 @@ set -euo pipefail
 # Absolute safety net: whatever path leads here, the session sees exit 0.
 trap 'exit 0' EXIT
 
-# Directory holding this hook (trace-lib.sh must live beside it, G3).
+# Resolve dependencies from the bundle, independently of the payload cwd.
 if ! HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" >/dev/null 2>&1 && pwd -P)"; then
   exit 0
 fi
@@ -47,7 +47,7 @@ HOOK_ARGS_SUMMARY_CAP=200
 # Hard cap for harness.result_summary (issue #130): 500 characters TOTAL
 # including the `...` marker. Separate from HOOK_ARGS_SUMMARY_CAP (owner
 # decision) because tool RESULTS run longer than arguments; the field is
-# excluded from the export allowlist, so the larger cap never ships.
+# kept local; the harness no longer exports trace data.
 HOOK_RESULT_SUMMARY_CAP=500
 
 # Duration-correlation state file path (plan D5, tool-span sensor C2):
@@ -115,7 +115,7 @@ hook__on_post_tool_use() {
 
   # Skill identity (#228 Task 1, parity with the Copilot adapter #138): Claude
   # Code surfaces a skill invocation as a first-class tool call named "Skill".
-  # Mint harness.skill.name (an enum-like identifier, allowlisted for export)
+  # Mint harness.skill.name (an enum-like identifier in the trace vocabulary)
   # and normalize gen_ai.tool.name to the canonical lowercase "skill" so live
   # skill spans are the identity F3's SubagentStop transcript inventory dedups
   # against. The skill name field is not strongly documented, so read it
@@ -397,7 +397,7 @@ hook__on_stop() {
 
 hook__main() {
   local payload="${1-}"
-  local lib="${HOOK_DIR}/trace-lib.sh"
+  local lib="${HOOK_DIR}/../../scripts/trace-lib.sh"
   local cwd=""
   local event=""
 
@@ -407,7 +407,7 @@ hook__main() {
   # G2 — the slurped stdin must be a single JSON object.
   printf '%s' "$payload" | jq -e 'type == "object"' >/dev/null 2>&1 || return 0
 
-  # G3 — the emitter must live beside this hook.
+  # G3 — the emitter is part of the core harness, not duplicated in the bundle.
   [ -f "$lib" ] || return 0
 
   # G4 — issue context from the payload cwd (fallback: current $PWD).

@@ -4,6 +4,7 @@
 tests/meta/test_*.sh
 tests/scripts/test_adopter_smoke_workflow.sh
 tests/scripts/test_audit_sweep.sh
+tests/scripts/test_claude_adapter.sh
 tests/scripts/test_customization_frontmatter_validator.sh
 tests/scripts/test_doctrine_retired_vocab.sh
 tests/scripts/test_eval_manifest_validator.sh

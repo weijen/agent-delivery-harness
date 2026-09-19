@@ -73,7 +73,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
 LIB="${ROOT}/scripts/trace-lib.sh"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
@@ -126,12 +126,13 @@ nth_line() { sed -n "${2}p" "$1"; }
 
 # --- Fixture: issue-worktree-shaped repo ----------------------------------------
 REPO="${TMP_DIR}/issuerepo"
-mkdir -p "${REPO}/scripts"
+mkdir -p "${REPO}/scripts" "${REPO}/optional/runtime-adapters"
 cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
 cp "$LIB" "${REPO}/scripts/trace-lib.sh"
 (
   cd "$REPO" || exit 1
   git init -q -b main
+  git config commit.gpgsign false
   git config user.name "Harness Test"
   git config user.email "harness-test@example.invalid"
   printf 'fixture\n' > README.md
