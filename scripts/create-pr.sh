@@ -8,6 +8,7 @@
 # Usage:
 #   ./scripts/create-pr.sh -h|--help          # print this usage and exit 0 —
 #                                              # side-effect free: no git/gh call
+#   ./scripts/create-pr.sh --prepare          # sync before final review/tests; no push
 #   ./scripts/create-pr.sh --title "feat: ..." --body-file body.md
 #   ./scripts/create-pr.sh --title "fix: ..."  --body "..."
 #   ./scripts/create-pr.sh                       # PR already exists: just re-sync + push
@@ -142,6 +143,10 @@ for arg in "$@"; do
     -h|--help)
       cat <<'EOF'
 Usage: ./scripts/create-pr.sh [--title TITLE] [--body BODY | --body-file FILE] [gh pr create args...]
+       ./scripts/create-pr.sh --prepare
+
+Run --prepare before final review and full pre-PR validation. It synchronizes
+the issue branch without requiring approval, running sensors or publishing.
 
 Sync the current branch onto latest main, push it, and open (or re-sync) its
 PR. Any argument other than -h/--help is passed straight through to
@@ -153,6 +158,13 @@ EOF
       ;;
   esac
 done
+
+PREPARE_ONLY=0
+if [ "${1:-}" = "--prepare" ]; then
+  [ "$#" -eq 1 ] || { printf 'create-pr.sh: --prepare takes no other arguments\n' >&2; exit 2; }
+  PREPARE_ONLY=1
+  shift
+fi
 
 if [ -f "${SCRIPT_DIR}/lib/github-identity-lib.sh" ]; then
   # shellcheck source=scripts/lib/github-identity-lib.sh
@@ -184,7 +196,7 @@ if [ "$branch" = "main" ] || [ "$branch" = "HEAD" ]; then
   exit 1
 fi
 TRACE_STAGE="preconditions"
-trace_lifecycle_arm
+if [ "$PREPARE_ONLY" -eq 0 ]; then trace_lifecycle_arm; fi
 if [ -n "$(git status --porcelain)" ]; then
   red "✗ Working tree is dirty. Commit or stash before syncing onto main."
   git status --short
@@ -283,8 +295,10 @@ fi
 
 # --- 1. Review approval gate ------------------------------------------------
 TRACE_STAGE="review_gate"
-TRACE_COLLAPSE_CHILD_SPANS=1 \
-  "$(dirname "${BASH_SOURCE[0]}")/validation/review-gate.sh" check
+if [ "$PREPARE_ONLY" -eq 0 ]; then
+  TRACE_COLLAPSE_CHILD_SPANS=1 \
+    "$(dirname "${BASH_SOURCE[0]}")/validation/review-gate.sh" check
+fi
 
 # --- 2. Sync onto the latest main -------------------------------------------
 # CREATE_PR_NO_REWRITE=1 is the explicit, proactive non-rewriting mode (issue
@@ -396,6 +410,12 @@ else
       exit 1
     fi
   fi
+fi
+
+if [ "$PREPARE_ONLY" -eq 1 ]; then
+  trace_span tool "gen_ai.tool.name=create-pr.prepare" "harness.outcome=pass"
+  green "✓ Prepared $(git rev-parse HEAD). Complete review and the full pre-PR gate before publishing."
+  exit 0
 fi
 
 # --- 3. Review approval for the final HEAD ----------------------------------

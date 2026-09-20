@@ -367,6 +367,13 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
+Before final review and full pre-PR validation, run
+`./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
+does not require an approval, execute sensors, push, or open a PR. It aborts
+conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
+merge instead of a rebase. Review and validate the resulting HEAD, not the
+candidate that existed before synchronization.
+
 `./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
 `./scripts/create-pr.sh` runs `./scripts/validation/review-gate.sh check` before syncing, then after
 `git fetch origin main` + `git rebase origin/main`, attempts to carry the prior approval forward
