@@ -134,16 +134,14 @@ assert_runs docs
 grep -q '^FAIL tests/scripts/test_docs.sh$' "$OUT" || fail "failed feature sensor not identified"
 
 # These are miniature hermetic suites, not real source/installed regressions.
-for gate in pre-review pre-pr; do
-  : >"$SENSOR_RUN_LOG"
-  rc=0
-  run --gate "$gate" || rc=$?
-  [ "$rc" = 1 ] || fail "${gate} must retain full-suite failures"
-  assert_runs shared docs staged unstaged untracked unrelated boundary
-  grep -q '^FAIL tests/scripts/test_boundary.sh$' "$OUT" || fail "${gate} omitted boundary integration"
-  grep -q "SENSORS ${gate} .*scope=full ran=8 failed=3$" "$OUT" \
-    || fail "${gate} did not retain all fixture sensors"
-done
+: >"$SENSOR_RUN_LOG"
+rc=0
+run --gate pre-pr || rc=$?
+[ "$rc" = 1 ] || fail "pre-pr must retain full-suite failures"
+assert_runs shared docs staged unstaged untracked unrelated boundary
+grep -q '^FAIL tests/scripts/test_boundary.sh$' "$OUT" || fail "pre-pr omitted boundary integration"
+grep -q 'SENSORS pre-pr .*scope=full ran=8 failed=3$' "$OUT" \
+  || fail "pre-pr did not retain all fixture sensors"
 
 # The actual whole-suite wrappers must be explicitly classified, not renamed.
 for sensor in tests/scripts/test_adopter_smoke_workflow.sh \

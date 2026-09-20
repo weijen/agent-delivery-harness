@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.46.1 (2026-09-20)
+
+### Bug Fixes
+
+- **#486**: Keep review approval and evidence checks execution-free
+  ([#500](https://github.com/weijen/agent-delivery-harness/pull/500),
+  [`e713558`](https://github.com/weijen/agent-delivery-harness/commit/e713558cd5fa726538042b91be9c9e7a36be116e))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.46.0
+  ([`0ee0229`](https://github.com/weijen/agent-delivery-harness/commit/0ee0229f78bd2471cfb5ad938845f74f08faeecf))
+
+### Performance Improvements
+
+- **#486**: Review before final full local validation
+  ([#500](https://github.com/weijen/agent-delivery-harness/pull/500),
+  [`e713558`](https://github.com/weijen/agent-delivery-harness/commit/e713558cd5fa726538042b91be9c9e7a36be116e))
+
+- **#486**: Review before final full validation
+  ([#500](https://github.com/weijen/agent-delivery-harness/pull/500),
+  [`e713558`](https://github.com/weijen/agent-delivery-harness/commit/e713558cd5fa726538042b91be9c9e7a36be116e))
+
+
 ## v0.46.0 (2026-09-20)
 
 ### Bug Fixes

@@ -48,8 +48,13 @@ grep -qF 'sensor-evidence.jsonl' <<<"${trace_norm}" \
   || note "reviewer trace guidance lacks the script-recorded sensor-evidence.jsonl authority (#441)"
 grep -qF 'verify-sensor-evidence.sh' <<<"${trace_norm}" \
   || note "reviewer trace guidance lacks the verify-sensor-evidence.sh validation step (#441)"
-grep -qE 'verify-sensor-evidence\.sh[^.!?]{0,80}--mode pre-review' <<<"${trace_norm}" \
-  || note "reviewer trace guidance must pin --mode pre-review so scoped green rows cannot pass as gate evidence (#441)"
+grep -qE 'verify-sensor-evidence\.sh[^.!?]{0,80}--mode green' <<<"${trace_norm}" \
+  || note "reviewer trace guidance must verify scoped feature evidence with --mode green"
+grep -qiE 'pre-pr.{0,80}after approval' <<<"${trace_norm}" \
+  || note "reviewer must defer final pre-PR evidence until after approval"
+if grep -qiE -- '--mode pre-review|pre-review full-suite result|require a full suite before review|requires? full pre-review evidence' "$REVIEWER"; then
+  note "reviewer affirmatively requires full pre-review evidence"
+fi
 grep -qiE '(do not|must not|never).{0,60}(require|demand).{0,120}(hand-cop|agent-transcrib|transcri)' <<<"${trace_norm}" \
   || note "reviewer trace guidance does not forbid requiring hand-copied sensor summaries (#441)"
 grep -qiE 'one.{0,40}process finding.{0,160}(never|not).{0,80}(per-feature|cascade)|(never|not).{0,80}per-feature.{0,80}(missing-coverage|cascade)' <<<"${trace_norm}" \
@@ -149,6 +154,16 @@ if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
       "${REVIEWER}" >"${kill_fixture}"
     DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="${kill_fixture}" bash "${BASH_SOURCE[0]}" >/dev/null 2>&1 \
       || note "kill-check: sensor false-positived on a benign mention: ${benign}"
+  done
+  for poison in \
+    'Additionally require a full suite before review.' \
+    'The reviewer requires full pre-review evidence.'; do
+    awk -v poison="$poison" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
+      "$REVIEWER" >"$kill_fixture"
+    kill_out="$(DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="$kill_fixture" \
+      bash "${BASH_SOURCE[0]}" 2>&1)" && note "kill-check: accepted full pre-review prerequisite"
+    grep -qF 'affirmatively requires full pre-review evidence' <<<"$kill_out" \
+      || note "kill-check: pre-review mutation failed for the wrong reason"
   done
 fi
 

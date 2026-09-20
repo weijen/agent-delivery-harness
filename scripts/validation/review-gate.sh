@@ -821,23 +821,8 @@ case "$command" in
       red "✗ approve refused: a feature's newest review verdict does not cover the current HEAD (see above) — not recording approval."
       exit 1
     fi
-    # Evidence re-bind gate (issue #442): approval is only recordable over gate
-    # evidence bound to the CURRENT HEAD. rebind-evidence.sh carries when a
-    # green pre-review row already exists for this HEAD and otherwise re-runs
-    # the owed gate (re-recording via #441) — so a repair commit followed by
-    # the standard approve path can never leave stale evidence for the
-    # reviewer to find. HARD gate (harness-contract.yml evidence-rebind):
-    # a missing rebind script refuses approval — the installer ships
-    # scripts/ as one unit, so absence means a broken installation, and a
-    # silent downgrade here would recreate the fake-hard-gate class.
-    if [ ! -f "${SCRIPT_DIR}/validation/rebind-evidence.sh" ]; then
-      red "✗ approve refused: scripts/validation/rebind-evidence.sh is missing — the #442 evidence re-bind gate is hard; repair the installation."
-      exit 1
-    fi
-    if ! bash "${SCRIPT_DIR}/validation/rebind-evidence.sh" --gate pre-review; then
-      red "✗ approve refused: gate evidence could not be re-bound to the current HEAD (sensors red or no issue context) — not recording approval."
-      exit 1
-    fi
+    # Approval attests to review. The explicit final pre-PR gate produces the
+    # separate computational evidence required by publication.
     # Compute stable branch patch identity (issue #310); see _patch_id_for_branch.
     # Returns blank when origin/main is unavailable: carry fails closed later.
     _patch_id=""

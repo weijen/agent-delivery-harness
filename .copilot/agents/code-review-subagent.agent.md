@@ -25,9 +25,13 @@ and executing focused sensors. This keeps your verdict independent of the discus
 
 ## Trust Recorded Evidence — Do Not Re-Verify It
 
-The delivering agent's computational gates are RECORDED: the pre-review full-suite result
-(`SENSORS pre-review head=<reviewed-sha> scope=full ran=N failed=0` output and its trace span) is evidence, not a
-claim. Do NOT re-run the full sensor suite — audit the recorded output, then spend your
+The delivering agent's scoped feature gates are RECORDED in `sensor-evidence.jsonl`.
+Audit those rows and their command/log-to-feature mapping, including changes since
+each run. Feature greens precede commits: their recorded SHA need not equal the
+final review SHA and does not attest to final full-suite success.
+Do NOT require or run a full suite before review. Final full pre-PR evidence is
+owed after review approval, never as a prerequisite for this review.
+Audit the recorded output, then spend your
 execution budget where recorded evidence does NOT reach: adversarial probes of the diff's edge
 cases, targeted re-runs of at most a handful of sensors your findings implicate, and checks the
 deliverer could not have self-run (exposure, spec re-reading). A wholesale re-run of an
@@ -223,7 +227,7 @@ Block only when the difference changes scope, misses acceptance criteria, or cre
 A passing build is not proof. Judge whether the sensors actually establish the claims:
 
 1. **Were the named sensors actually run?** Check whether each `regression_sensor`/`e2e_sensor` from the issue body and
-   the `feature_list` was genuinely executed for the reviewed HEAD, and whether its **result is recorded** (in the
+   the `feature_list` was genuinely executed for that feature's tested changes, and whether its **result is recorded** (in the
    feature `verification` field and/or the Action Log). A `passes:true` with no recorded run of its sensor is a
    **BLOCKING** finding. If the claim is `passes:true`, you must be able to point at the exact sensor evidence that
    proves it.
@@ -294,8 +298,9 @@ outside this subagent (#350).
 
 When the issue workflow is active, also judge whether the work respected the harness contract:
 
-1. **Four-gate order** — did `gate_start`, `gate_sensors`, `gate_review`, and
-   `gate_merge_closeout` occur in sequence? A current change that reorders or skips a hard lifecycle gate is a
+1. **Four-gate order** — did `gate_start`, scoped `gate_sensors`, `gate_review`, then final
+   full validation and `gate_merge_closeout` occur in sequence? Final full validation
+   is due only after approval. A current change that reorders or skips a hard lifecycle gate is a
    **BLOCKING** finding.
 2. **One-agent topology** — did one delivering agent own the issue through scoped feature verification, followed by
    this one independent end-of-issue review? Nobody may weaken, delete, or skip a declared sensor to pass.
@@ -332,8 +337,12 @@ a **process violation**.
 4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
    `gate_sensors` feature-green evidence in the **script-recorded** row set —
    `.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl`, written by `run-sensors.sh` itself and validated with
-   `scripts/validation/verify-sensor-evidence.sh <NN> --head <reviewed-sha> --mode pre-review` (`--mode pre-pr` at the pre-PR
-   gate — the mode filter is required: a scoped mid-loop green row is NOT gate evidence) (#441); `gate_review`, where this review handback
+   `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha> --mode green`.
+   Match each recorded row's command/log to the tested feature changes; do not
+   substitute scoped evidence for a final full result. Final current-HEAD
+   `--mode pre-pr` evidence is due after approval, not before this review.
+   Historical pre-review rows remain readable but are not required (#486).
+   `gate_review`, where this review handback
    supplies the `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
    `gate_merge_closeout` CI,
    merge, and finish evidence when reviewing a completed closeout. Require only evidence due at the current phase.

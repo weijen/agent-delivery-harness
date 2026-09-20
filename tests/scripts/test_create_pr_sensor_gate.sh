@@ -83,25 +83,26 @@ reject_before_push() {
   ! grep -q '^push ' "$WRAPPER_GIT_LOG" || fail "$1: refusal happened after push"
 }
 
-# The actual approve command produced pre-review evidence, not pre-PR evidence.
-reject_before_push pre-review-only
-grep -qi 'pre-pr' "$OUT" || fail "missing pre-PR diagnostic is not actionable"
-mv "$EVIDENCE" "${FIXTURE_TMP_DIR}/pre-review"
+# Approval alone must not produce or substitute for computational evidence.
 reject_before_push missing
-cp "${FIXTURE_TMP_DIR}/pre-review" "$EVIDENCE"
+grep -qi 'pre-pr' "$OUT" || fail "missing pre-PR diagnostic is not actionable"
+(cd "$REPO" && ./scripts/run-sensors.sh green --declared tests/scripts/test_counted.sh --diff HEAD) \
+  >"$OUT" 2>&1 || fail "fixture feature green failed"
+reject_before_push feature-green-only
 (cd "$REPO" && ./scripts/run-sensors.sh --gate pre-pr) >"$OUT" 2>&1 \
   || fail "fixture pre-PR failed"
 cp "$EVIDENCE" "$SAVED"
 
 # Mutate real recorder output, re-signing semantic-shape cases to isolate them
 # from the checksum guard; these are adversarial fixture rows, not gate evidence.
-for mutation in malformed malformed-tail tampered wrong-scope empty-count negative-count string-count failed; do
+for mutation in malformed malformed-tail tampered wrong-mode wrong-scope empty-count negative-count string-count failed; do
   case "$mutation" in
     malformed) printf 'not json\n' >"$EVIDENCE" ;;
     malformed-tail) { cat "$SAVED"; printf '{"schema_version":'; } >"$EVIDENCE" ;;
     tampered) jq -c '.checksum="sha256:invalid"' "$SAVED" >"$EVIDENCE" ;;
     *)
       case "$mutation" in
+        wrong-mode) filter='.mode="pre-review"' ;;
         wrong-scope) filter='.scope="scoped"' ;;
         empty-count) filter='.ran=0' ;;
         negative-count) filter='.ran=-1' ;;

@@ -86,7 +86,7 @@ not a FULL fallback. Discovery/read errors and invalid declarations stop the run
 
 Real source, installed-profile and L0 whole-suite wrappers declare
 `# harness-sensor-stage: boundary` in their leading comment header. They remain
-in full discovery for pre-review, pre-PR and CI, but are deferred from feature
+in full discovery for final pre-PR and CI, but are deferred from feature
 selection. Declaring one as feature coverage fails explicitly rather than
 silently dropping it. Feature greens retain targeted runtime e2e and miniature
 hermetic fixtures that exercise full-runner behavior. This stage separation
@@ -108,7 +108,7 @@ flowchart TD
   I --> J{All issue features pass?}
   J -- no --> E
   J -- yes --> S[./scripts/create-pr.sh --prepare]
-  S --> K[pre-review gate + code-review-subagent, once]
+  S --> K[code-review-subagent, once; scoped repair if needed]
   K --> L[./scripts/validation/review-gate.sh approve]
   L --> V[Full pre-pr gate]
   V --> M[./scripts/create-pr.sh: evidence-only publication]
@@ -135,8 +135,9 @@ The normal path is:
    with scoped sensors (`./scripts/run-sensors.sh green`), record any `deviation`
    spans, and flip `passes:true` (#352: one agent, no handback choreography).
 7. Repeat until all features pass.
-8. Run `./scripts/create-pr.sh --prepare`, then `./scripts/run-sensors.sh --gate pre-review`
-   and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
+8. Run `./scripts/create-pr.sh --prepare`, then
+   `code-review-subagent` on the completed diff using recorded scoped feature evidence.
+   Do not run a full suite before review. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
@@ -378,12 +379,17 @@ conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
 merge instead of a rebase. Review and validate the resulting HEAD, not the
 candidate that existed before synchronization.
 
-`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
+`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state
+without running sensors. After review and repairs, explicitly run the final
+`./scripts/run-sensors.sh --gate pre-pr` once on the successful unchanged candidate.
+If that gate fails, repair with scoped checks, obtain relevant re-review, then
+run it again on the repaired final candidate; a failed attempt is never green evidence.
 Normal `./scripts/create-pr.sh` checks that approval and verifies a successful,
 full, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
 tampered, wrong-mode or wrong-scope evidence stops publication with a diagnostic.
 It never runs sensors, fetches main, rebases or merges during publication.
-Pre-review evidence does not replace the separate full pre-PR gate.
+Historical pre-review evidence remains readable but cannot replace final pre-PR
+evidence. New `--gate pre-review` execution is rejected with migration guidance.
 
 The published source is pinned to the verified commit. Later main changes do not
 trigger another local rewrite/test cycle inside the wrapper; remote PR CI owns
