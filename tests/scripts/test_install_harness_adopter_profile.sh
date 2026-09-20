@@ -16,6 +16,10 @@ fail_layout() {
 	printf 'FAIL: layout upgrade: %s\n' "$*" >&2
 	exit 1
 }
+install_layout() {
+	layout_install_calls=$((layout_install_calls + 1))
+	"$@" >"$layout_log" 2>&1
+}
 legacy_source="${TMP_DIR}/previous-layout"
 mkdir -p "$legacy_source"
 # The pre-layout release is an explicit reusable-asset fixture, not a checkout
@@ -31,14 +35,15 @@ awk '
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
 
 for profile in default developer claude; do
+	layout_install_calls=0
 	options=()
 	case "$profile" in
 		developer) options=(--with-dev-sensors) ;;
 		claude) options=(--with-claude) ;;
 	esac
 	target="${TMP_DIR}/layout-${profile}"
-	"${legacy_source}/scripts/install-harness.sh" "$target" --write "${options[@]}" \
-		>"$layout_log" 2>&1 || fail_layout "${profile} baseline installation"
+	install_layout "${legacy_source}/scripts/install-harness.sh" "$target" --write "${options[@]}" \
+		|| fail_layout "${profile} baseline installation"
 	[ -f "${target}/scripts/trace-lib.sh" ] && \
 		[ ! -e "${target}/scripts/lib/trace-lib.sh" ] \
 		|| fail_layout "${profile} fixture is not the actual previous layout"
@@ -49,15 +54,15 @@ for profile in default developer claude; do
 		awk -F '\t' '$2 != "scripts/issue-lib.sh"' "${target}/.harness-lock" >"${TMP_DIR}/lock"
 		mv "${TMP_DIR}/lock" "${target}/.harness-lock"
 	fi
-	find "$target" -type f -exec shasum -a 256 {} \; | sort >"${TMP_DIR}/before-dry"
-	"$INSTALL" "$target" "${options[@]}" >"$layout_log" 2>&1 \
+	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/before-dry"
+	install_layout "$INSTALL" "$target" "${options[@]}" \
 		|| fail_layout "${profile} dry-run"
-	find "$target" -type f -exec shasum -a 256 {} \; | sort >"${TMP_DIR}/after-dry"
+	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/after-dry"
 	cmp -s "${TMP_DIR}/before-dry" "${TMP_DIR}/after-dry" \
 		|| fail_layout "${profile} dry-run changed files or ownership"
 
 	status=0
-	"$INSTALL" "$target" --update "${options[@]}" >"$layout_log" 2>&1 || status=$?
+	install_layout "$INSTALL" "$target" --update "${options[@]}" || status=$?
 	if [ "$profile" = default ]; then
 		[ "$status" -ne 0 ] || fail_layout "modified/unknown old paths must conflict"
 		for old in scripts/trace-lib.sh scripts/issue-lib.sh; do
@@ -84,14 +89,21 @@ for profile in default developer claude; do
 		fi
 		[ ! -e "${target}/${old}" ] || fail_layout "${profile} left an owned clean old copy: ${old}"
 	done <"${TMP_DIR}/layout-moves"
-	"$INSTALL" "$target" --update "${options[@]}" >"$layout_log" 2>&1 \
-		|| fail_layout "${profile} repeat update"
-	find "$target" -type f -exec shasum -a 256 {} \; | sort >"${TMP_DIR}/before-repeat"
-	"$INSTALL" "$target" --update "${options[@]}" >"$layout_log" 2>&1 \
+	if [ "$profile" = default ]; then
+		# Conflicts must first transition to an acknowledged, successful update.
+		install_layout "$INSTALL" "$target" --update "${options[@]}" \
+			|| fail_layout "${profile} repeat update"
+	fi
+	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/before-repeat"
+	install_layout "$INSTALL" "$target" --update "${options[@]}" \
 		|| fail_layout "${profile} idempotent update"
-	find "$target" -type f -exec shasum -a 256 {} \; | sort >"${TMP_DIR}/after-repeat"
+	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/after-repeat"
 	cmp -s "${TMP_DIR}/before-repeat" "${TMP_DIR}/after-repeat" \
 		|| fail_layout "${profile} repeated update changed installed content"
+	expected_calls=4
+	[ "$profile" != default ] || expected_calls=5
+	[ "$layout_install_calls" -eq "$expected_calls" ] \
+		|| fail_layout "${profile} performed ${layout_install_calls} installer calls; expected ${expected_calls}"
 
 	mkdir -p "${target}/unrelated/nested"
 	git -C "$target" init -q -b main
