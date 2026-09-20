@@ -24,14 +24,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v git >/dev/null 2>&1 || fail "git is required"
-[ -f "$LIB" ] || fail "scripts/trace-lib.sh not found (${LIB})"
+[ -f "$LIB" ] || fail "scripts/lib/trace-lib.sh not found (${LIB})"
 [ -f "$HOOK" ] || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK})"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 
@@ -39,9 +39,9 @@ line_count() { if [ -f "$1" ]; then wc -l < "$1" | tr -d '[:space:]'; else print
 nth_line() { sed -n "${2}p" "$1"; }
 
 REPO="${TMP_DIR}/issuerepo"
-mkdir -p "${REPO}/scripts" "${REPO}/optional/runtime-adapters"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/optional/runtime-adapters"
 cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
-cp "$LIB" "${REPO}/scripts/trace-lib.sh"
+cp "$LIB" "${REPO}/scripts/lib/trace-lib.sh"
 (
   cd "$REPO" || exit 1
   git init -q -b main

@@ -30,9 +30,9 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/schemas" "${FIX}/docs"
-for s in log-handback.sh trace-lib.sh check-trace-consistency.sh issue-lib.sh github-identity-lib.sh; do
-  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/schemas" "${FIX}/docs"
+for s in log-handback.sh lib/trace-lib.sh check-trace-consistency.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
+  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 mkdir -p "${FIX}/.copilot-tracking/issues/issue-77"

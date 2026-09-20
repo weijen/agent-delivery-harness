@@ -30,13 +30,13 @@ emit() {
   _sfail=0
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts"
-cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
+mkdir -p "${TMP_DIR}/repo/scripts/lib"
+cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
-cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
+cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
-cp "${ROOT}/scripts/trace-lib.sh" "${TMP_DIR}/repo/scripts/trace-lib.sh"
+cp "${ROOT}/scripts/lib/trace-lib.sh" "${TMP_DIR}/repo/scripts/lib/trace-lib.sh"
 
 cd "${TMP_DIR}/repo"
 git init -q -b main
@@ -167,13 +167,13 @@ emit() {
   _sfail=0
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts"
-cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
+mkdir -p "${TMP_DIR}/repo/scripts/lib"
+cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
-cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
+cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
-cp "${ROOT}/scripts/trace-lib.sh" "${TMP_DIR}/repo/scripts/trace-lib.sh"
+cp "${ROOT}/scripts/lib/trace-lib.sh" "${TMP_DIR}/repo/scripts/lib/trace-lib.sh"
 
 cd "${TMP_DIR}/repo"
 git init -q -b main
@@ -277,11 +277,11 @@ link_tools() {
 # make_repo <dir> <with_trace_lib:0|1>
 make_repo() {
   local dir="$1" with_lib="$2"
-  mkdir -p "${dir}/scripts"
-  cp "${ROOT}/scripts/issue-lib.sh" "${dir}/scripts/"
+  mkdir -p "${dir}/scripts/lib"
+  cp "${ROOT}/scripts/lib/issue-lib.sh" "${dir}/scripts/lib/"
   cp "${ROOT}/scripts/check-feature-list.sh" "${dir}/scripts/"
   if [ "$with_lib" = "1" ]; then
-    cp "${ROOT}/scripts/trace-lib.sh" "${dir}/scripts/"
+    cp "${ROOT}/scripts/lib/trace-lib.sh" "${dir}/scripts/lib/"
   fi
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
@@ -409,7 +409,7 @@ check_tool_span "malformed JSON" "${R1}/.copilot-tracking/issues/issue-53/trace.
 # ============================================================================
 R2="${TMP_DIR}/r2"
 make_repo "$R2" 0
-[ ! -e "${R2}/scripts/trace-lib.sh" ] || fail "fixture bug: R2 must not contain trace-lib.sh"
+[ ! -e "${R2}/scripts/lib/trace-lib.sh" ] || fail "fixture bug: R2 must not contain trace-lib.sh"
 write_feature_list "$R2" 60 "$COMPLETE_LIST"
 cd "$R2"
 PATH="$BIN" ./scripts/check-feature-list.sh 60 SLUG=x >"${TMP_DIR}/nolib.out" 2>&1 \

@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 fail=0
-if grep -Eq 'legacy_worktree|-[Ww]orktrees/issue-' scripts/issue-lib.sh; then
+if grep -Eq 'legacy_worktree|-[Ww]orktrees/issue-' scripts/lib/issue-lib.sh; then
   printf 'FAIL: issue-lib.sh retains sibling-worktree resolution\n' >&2
   fail=1
 fi

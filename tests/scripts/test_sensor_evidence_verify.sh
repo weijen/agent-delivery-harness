@@ -29,12 +29,12 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 # --- Fixture repo with real recorder output -----------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" \
    "${ROOT}/scripts/verify-sensor-evidence.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/trace-lib.sh" ] && cp "${ROOT}/scripts/trace-lib.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/issue-lib.sh" ] && cp "${ROOT}/scripts/issue-lib.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/github-identity-lib.sh" ] && cp "${ROOT}/scripts/github-identity-lib.sh" "${FIX}/scripts/"
+[ -f "${ROOT}/scripts/lib/trace-lib.sh" ] && cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
+[ -f "${ROOT}/scripts/lib/issue-lib.sh" ] && cp "${ROOT}/scripts/lib/issue-lib.sh" "${FIX}/scripts/lib/"
+[ -f "${ROOT}/scripts/lib/github-identity-lib.sh" ] && cp "${ROOT}/scripts/lib/github-identity-lib.sh" "${FIX}/scripts/lib/"
 printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid

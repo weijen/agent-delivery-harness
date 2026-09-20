@@ -16,7 +16,7 @@
 PROFILE_ID="node"
 PROFILE_DETECT="package.json"
 # Grep signatures (extended regex) proving a project-CI workflow runs this
-# surface's gates (issue #129); consumed by scripts/ci-coverage-lib.sh.
+# surface's gates (issue #129); consumed by scripts/lib/ci-coverage-lib.sh.
 PROFILE_CI_SIGNATURES="eslint|prettier|tsc|vitest|jest|run test|run lint|npm test|pnpm test|yarn test"
 PROFILE_VARIANTS="pnpm npm"
 PROFILE_TOOL_REQUIREMENTS="node"

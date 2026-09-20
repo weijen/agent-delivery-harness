@@ -26,9 +26,9 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
   || fail "scripts/rebind-evidence.sh not found — #442 not implemented yet"
 
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh trace-lib.sh; do
-  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
+for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh lib/trace-lib.sh; do
+  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 # The sensor logs each execution so a carried rebind is provably run-free.
 cat > "${FIX}/tests/scripts/test_green.sh" <<'SH'

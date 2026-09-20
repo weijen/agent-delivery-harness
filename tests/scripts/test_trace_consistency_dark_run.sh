@@ -265,10 +265,10 @@ make_gate_fixture() {
   local dir="$1" issue="$2" pad wt tree commit
   pad="$(issue_pad "$issue")"
   wt="${dir}/.worktrees/issue-${pad}"
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
   cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/trace-schema.v1.json"
   local s
-  for s in issue-lib.sh lifecycle-runtime-lib.sh trace-lib.sh check-trace-consistency.sh review-gate.sh; do
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh lib/trace-lib.sh check-trace-consistency.sh review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   git -C "$dir" init -q -b main

@@ -81,7 +81,7 @@ chmod +x "${BIN}/gh"
 # make_pr_repo <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
 make_pr_repo() {
   local pad="$1" dir=""
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
   dir="$FIXTURE_REPO"
   mkdir -p "${dir}/docs"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
@@ -210,7 +210,7 @@ chmod +x "${BIN}/gh"
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"
@@ -688,7 +688,7 @@ chmod +x "${BIN}/gh"
 # conflict.txt (merge-conflict raw material, mirroring test_trace_create_pr.sh).
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"
@@ -867,7 +867,7 @@ chmod +x "${BIN}/gh"
 # origin, with the review gate otherwise satisfied.
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"

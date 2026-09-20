@@ -40,12 +40,12 @@ command -v jq >/dev/null 2>&1 || { printf 'Bail out! jq required\n'; exit 1; }
 
 # --- Fixture repo -------------------------------------------------------------
 FIX="${TMP_DIR}/repo"
-mkdir -p "${FIX}/scripts" "${FIX}/schemas" "${FIX}/docs"
-for s in create-pr.sh merge-pr.sh lifecycle-runtime-lib.sh trace-lib.sh \
-         review-gate.sh ci-coverage-lib.sh rebind-evidence.sh run-sensors.sh \
+mkdir -p "${FIX}/scripts/lib" "${FIX}/schemas" "${FIX}/docs"
+for s in create-pr.sh merge-pr.sh lib/lifecycle-runtime-lib.sh lib/trace-lib.sh \
+         review-gate.sh lib/ci-coverage-lib.sh rebind-evidence.sh run-sensors.sh \
          affected-sensors.sh verify-sensor-evidence.sh check-trace-consistency.sh \
-         issue-lib.sh github-identity-lib.sh; do
-  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
+         lib/issue-lib.sh lib/github-identity-lib.sh; do
+  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 git -C "$FIX" init -q -b main

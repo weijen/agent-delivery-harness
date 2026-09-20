@@ -20,7 +20,7 @@ set -euo pipefail
 
 ISSUE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${ISSUE_LIB_DIR}/github-identity-lib.sh" ]; then
-  # shellcheck source=scripts/github-identity-lib.sh
+  # shellcheck source=scripts/lib/github-identity-lib.sh
   source "${ISSUE_LIB_DIR}/github-identity-lib.sh"
 fi
 

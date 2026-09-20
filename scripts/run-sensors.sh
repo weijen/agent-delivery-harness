@@ -29,9 +29,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Guarded source: evidence recording (issue #441) reuses the trace-lib issue
 # and main-root resolution; a missing trace-lib.sh only disables recording.
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/trace-lib.sh" ]; then
+  # shellcheck source=scripts/lib/trace-lib.sh
+  source "${SCRIPT_DIR}/lib/trace-lib.sh"
 fi
 
 usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }

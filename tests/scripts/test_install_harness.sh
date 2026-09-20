@@ -15,8 +15,8 @@ trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
 REQUIRED_FILES=(
 	scripts/install-harness.sh
 	scripts/init.sh
-	scripts/github-identity-lib.sh
-	scripts/issue-lib.sh
+	scripts/lib/github-identity-lib.sh
+	scripts/lib/issue-lib.sh
 	profiles/python.profile.sh
 	tests/scripts/test_install_harness.sh
 	tests/harness-dev-sensors.txt
@@ -92,7 +92,7 @@ for rel in "${REQUIRED_FILES[@]}"; do
 done
 
 # --- Case (e): no-clobber of a differing harness file without --update --------
-e="${TMP_DIR}/e"; mkdir -p "$e/scripts" "$e/src"
+e="${TMP_DIR}/e"; mkdir -p "$e/scripts/lib" "$e/src"
 printf 'PROJECT LOCAL EDIT — do not overwrite\n' >"$e/scripts/init.sh"
 sentinel="$e/scripts/init.sh"
 sentinel_before="$(cat "$sentinel")"

@@ -35,7 +35,7 @@ fail() {
 
 # --- Fixture repo: two subject scripts, three sensors --------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta" "${FIX}/docs"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta" "${FIX}/docs"
 printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 printf '#!/usr/bin/env bash\necho gadget\n' > "${FIX}/scripts/gadget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
@@ -78,7 +78,7 @@ grep -qx 'tests/scripts/test_gadget.sh' "$OUT" \
 
 # 3. FULL fallback: each unbounded-blast-radius class collapses to FULL with a
 #    stderr reason, regardless of fixture roots.
-for shared in scripts/trace-lib.sh scripts/finish-lib.sh \
+for shared in scripts/lib/trace-lib.sh scripts/lib/finish-lib.sh \
   schemas/trace-schema.v1.json docs/harness-contract.yml \
   tests/scripts/lib/common.sh; do
   run_resolver "$OUT" "$ERR" scripts/widget.sh "$shared"

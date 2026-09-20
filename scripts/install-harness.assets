@@ -3,29 +3,29 @@
 scripts/affected-sensors.sh
 scripts/check-feature-list.sh
 scripts/check-trace-consistency.sh
-scripts/ci-coverage-lib.sh
+scripts/lib/ci-coverage-lib.sh
 scripts/create-pr.sh
-scripts/economics-report-lib.sh
+scripts/lib/economics-report-lib.sh
 scripts/finish-issue.sh
-scripts/finish-lib.sh
-scripts/github-identity-lib.sh
+scripts/lib/finish-lib.sh
+scripts/lib/github-identity-lib.sh
 scripts/init.sh
 scripts/install-harness.sh
 scripts/install-harness.assets
 scripts/install-harness.tombstones
-scripts/issue-lib.sh
-scripts/lifecycle-runtime-lib.sh
+scripts/lib/issue-lib.sh
+scripts/lib/lifecycle-runtime-lib.sh
 scripts/log-handback.sh
 scripts/merge-pr.sh
 scripts/python-gates.sh
 scripts/rebind-evidence.sh
-scripts/reconcile-lib.sh
+scripts/lib/reconcile-lib.sh
 scripts/render-action-log.sh
 scripts/review-gate.sh
 scripts/run-sensors.sh
 scripts/scaffold-language.sh
 scripts/start-issue.sh
-scripts/trace-lib.sh
+scripts/lib/trace-lib.sh
 scripts/verify-sensor-evidence.sh
 
 # Profiles and reusable workflow template; source_file selects its destination.

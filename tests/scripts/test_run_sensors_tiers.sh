@@ -31,7 +31,7 @@ fail() {
 
 # --- Hermetic fixture repo: runner + resolver + two sensors ---------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" "${FIX}/scripts/"
 printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
@@ -88,7 +88,7 @@ grep -q '^FAIL tests/scripts/test_always_red.sh$' <<<"$out" \
 
 # 4. Resolver FULL fallback is the ONLY green path to a full run: change a
 #    shared lib → green runs the whole fixture suite with the fallback label.
-printf '# touched\n' >> "${FIX}/scripts/trace-lib.sh" 2>/dev/null || printf '#!/usr/bin/env bash\n' > "${FIX}/scripts/trace-lib.sh"
+printf '# touched\n' >> "${FIX}/scripts/lib/trace-lib.sh" 2>/dev/null || printf '#!/usr/bin/env bash\n' > "${FIX}/scripts/lib/trace-lib.sh"
 set +e
 out="$(run green --diff HEAD)"
 rc=$?
@@ -96,7 +96,7 @@ set -e
 grep -q "^SENSORS green-full-fallback head=${head_sha} scope=full ran=3 failed=1$" <<<"$out" \
   || fail "shared-lib change must escalate green to the full fixture suite via the resolver (got: $out)"
 [ "$rc" = "1" ] || fail "full-fallback run containing a red sensor must exit 1 (got ${rc})"
-rm -f "${FIX}/scripts/trace-lib.sh"
+rm -f "${FIX}/scripts/lib/trace-lib.sh"
 
 # 5. Gate mode runs the full set; only pre-review/pre-pr are valid.
 set +e

@@ -24,7 +24,7 @@
 # shellcheck shell=bash
 
 CI_COVERAGE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CI_COVERAGE_PROFILES_DIR="${CI_COVERAGE_LIB_DIR}/../profiles"
+CI_COVERAGE_PROFILES_DIR="${CI_COVERAGE_LIB_DIR}/../../profiles"
 
 # The ordered code surfaces subject to the project-CI coverage check. Terraform
 # is a code surface but has no unit-test/lint gate-signature model, so it is out

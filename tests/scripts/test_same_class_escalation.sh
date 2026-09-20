@@ -7,7 +7,7 @@ CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts log-handback.sh,trace-lib.sh,render-action-log.sh,issue-lib.sh
+fixture_repo --with-scripts log-handback.sh,lib/trace-lib.sh,render-action-log.sh,lib/issue-lib.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {

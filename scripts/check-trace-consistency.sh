@@ -189,22 +189,22 @@ green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ ! -r "${SCRIPT_DIR}/issue-lib.sh" ]; then
-  red "error: cannot load scripts/issue-lib.sh" >&2
+if [ ! -r "${SCRIPT_DIR}/lib/issue-lib.sh" ]; then
+  red "error: cannot load scripts/lib/issue-lib.sh" >&2
   exit 2
 fi
-# shellcheck source=scripts/issue-lib.sh
-if ! source "${SCRIPT_DIR}/issue-lib.sh"; then
-  red "error: cannot load scripts/issue-lib.sh" >&2
+# shellcheck source=scripts/lib/issue-lib.sh
+if ! source "${SCRIPT_DIR}/lib/issue-lib.sh"; then
+  red "error: cannot load scripts/lib/issue-lib.sh" >&2
   exit 2
 fi
-if [ ! -r "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  red "error: cannot load scripts/trace-lib.sh" >&2
+if [ ! -r "${SCRIPT_DIR}/lib/trace-lib.sh" ]; then
+  red "error: cannot load scripts/lib/trace-lib.sh" >&2
   exit 2
 fi
-# shellcheck source=scripts/trace-lib.sh
-if ! source "${SCRIPT_DIR}/trace-lib.sh"; then
-  red "error: cannot load scripts/trace-lib.sh" >&2
+# shellcheck source=scripts/lib/trace-lib.sh
+if ! source "${SCRIPT_DIR}/lib/trace-lib.sh"; then
+  red "error: cannot load scripts/lib/trace-lib.sh" >&2
   exit 2
 fi
 
@@ -236,7 +236,7 @@ if [ ! -f "$CONTRACT" ]; then
   exit 2
 fi
 if ! declare -F trace_redact >/dev/null 2>&1; then
-  red "error: scripts/trace-lib.sh (trace_redact) is required for the redaction audit" >&2
+  red "error: scripts/lib/trace-lib.sh (trace_redact) is required for the redaction audit" >&2
   exit 2
 fi
 
@@ -594,7 +594,7 @@ cat > "$STATE_FILTER" <<'JQ'
 # The span's own `timestamp` is the one field every span is contractually
 # required to carry and is stamped once, deterministically, by trace-lib.sh's
 # own `date -u +%Y-%m-%dT%H:%M:%SZ` call at write time — reuse it instead.
-# ts_secs mirrors scripts/economics-report-lib.sh's economics_time_summary idiom
+# ts_secs mirrors scripts/lib/economics-report-lib.sh's economics_time_summary idiom
 # (fromdateiso8601 with an optional fractional-second suffix) so mixed-
 # precision timestamps still compare correctly; do not invent a new parser.
 # def and the $pr324_merge_epoch binding below are chained with `|` (no

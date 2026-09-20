@@ -93,9 +93,9 @@ fi
 
 # Project-CI coverage detection (issue #129) — guarded source so a checkout that
 # predates the lib still runs preflight.
-CI_COVERAGE_LIB="${SCRIPT_DIR}/ci-coverage-lib.sh"
+CI_COVERAGE_LIB="${SCRIPT_DIR}/lib/ci-coverage-lib.sh"
 if [ -f "$CI_COVERAGE_LIB" ]; then
-  # shellcheck source=scripts/ci-coverage-lib.sh
+  # shellcheck source=scripts/lib/ci-coverage-lib.sh
   . "$CI_COVERAGE_LIB"
 fi
 
@@ -109,9 +109,9 @@ for tool in git gh; do
     note_fail "$tool not found" "install it before continuing"
   fi
 done
-if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ] && command -v gh >/dev/null 2>&1; then
-  # shellcheck source=scripts/github-identity-lib.sh
-  source "${SCRIPT_DIR}/github-identity-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/github-identity-lib.sh" ] && command -v gh >/dev/null 2>&1; then
+  # shellcheck source=scripts/lib/github-identity-lib.sh
+  source "${SCRIPT_DIR}/lib/github-identity-lib.sh"
   if ! harness_identity_activate "$(harness_identity_repo_root)"; then
     gh_identity_ready=0
     note_fail \

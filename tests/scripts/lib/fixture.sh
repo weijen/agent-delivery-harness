@@ -95,20 +95,20 @@ fixture_repo() {
     case ",${scripts_csv}," in
       *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,review-gate.sh,*)
         case ",${scripts_csv}," in
-          *,lifecycle-runtime-lib.sh,*) ;;
-          *) scripts+=("lifecycle-runtime-lib.sh") ;;
+          *,lib/lifecycle-runtime-lib.sh,*) ;;
+          *) scripts+=("lib/lifecycle-runtime-lib.sh") ;;
         esac
         ;;
     esac
     case ",${scripts_csv}," in
       *,review-gate.sh,*)
         case ",${scripts_csv}," in
-          *,ci-coverage-lib.sh,*) ;;
-          *) scripts+=("ci-coverage-lib.sh") ;;
+          *,lib/ci-coverage-lib.sh,*) ;;
+          *) scripts+=("lib/ci-coverage-lib.sh") ;;
         esac
         # approve runs the #442 evidence re-bind gate (hard): ship its chain.
         for dep in rebind-evidence.sh run-sensors.sh affected-sensors.sh \
-          verify-sensor-evidence.sh trace-lib.sh; do
+          verify-sensor-evidence.sh lib/trace-lib.sh; do
           case ",${scripts_csv}," in
             *,"${dep}",*) ;;
             *) scripts+=("${dep}") ;;
@@ -129,7 +129,7 @@ fixture_repo() {
         ;;
     esac
     for script in "${scripts[@]}"; do
-      [[ "$script" =~ ^[A-Za-z0-9._-]+\.sh$ ]] || {
+      [[ "$script" =~ ^(lib/)?[A-Za-z0-9._-]+\.sh$ ]] || {
         _fixture_usage_error "invalid script name: $script"
         return 2
       }
@@ -148,6 +148,7 @@ fixture_repo() {
   "$_fixture_mkdir" -p "${repo}/scripts"
 
   for script in "${scripts[@]}"; do
+    "$_fixture_mkdir" -p "${repo}/scripts/$(dirname "$script")"
     "$_fixture_cp" "${FIXTURE_SOURCE_ROOT}/scripts/${script}" "${repo}/scripts/${script}"
   done
   if [ -f "${repo}/scripts/run-sensors.sh" ]; then

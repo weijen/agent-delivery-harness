@@ -13,7 +13,7 @@ assets. Your job covers spec compliance, test/sensor adequacy, code quality, and
 verdicts of one review, not separate subagents.
 
 Before any authenticated GitHub or Git operation, source
-`scripts/github-identity-lib.sh` and call `harness_identity_activate` so the
+`scripts/lib/github-identity-lib.sh` and call `harness_identity_activate` so the
 repository-bound identity and per-process GitHub token are used. Never mutate
 global GitHub CLI state or run `gh auth switch`.
 Scratch output goes to `.copilot-tracking/tmp/` (gitignored); `/tmp` is read-only in sandboxed runs.

@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
 fixture_repo --with-scripts \
-  create-pr.sh,review-gate.sh,trace-lib.sh,run-sensors.sh,affected-sensors.sh
+  create-pr.sh,review-gate.sh,lib/trace-lib.sh,run-sensors.sh,affected-sensors.sh
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

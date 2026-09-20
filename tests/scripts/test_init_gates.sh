@@ -77,7 +77,7 @@ if grep -q "docs-only project" "$OUT"; then
 fi
 
 # --- Docs-only path (fixture repo with no language/infra surface) -------------
-mkdir -p "${TMP_DIR}/docsrepo/scripts"
+mkdir -p "${TMP_DIR}/docsrepo/scripts/lib"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/docsrepo/scripts/init.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
 (
@@ -97,7 +97,7 @@ if grep -q "markdownlint" "$OUT"; then
 	exit 1
 fi
 
-mkdir -p "${TMP_DIR}/repo/scripts" "${TMP_DIR}/fakebin"
+mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/fakebin"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 cp "${ROOT}/scripts/python-gates.sh" "${TMP_DIR}/repo/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/repo/profiles"
@@ -174,7 +174,7 @@ grep -qF "terraform fmt -check -recursive" "${TMP_DIR}/gate.log" || { cat "${TMP
 # (exit 1), not be swallowed. Use a Python-only repo with a fake uv whose
 # `ruff format --check` gate fails while `sync` succeeds.
 FAILBIN="${TMP_DIR}/failbin"
-mkdir -p "${TMP_DIR}/failrepo/scripts" "$FAILBIN"
+mkdir -p "${TMP_DIR}/failrepo/scripts/lib" "$FAILBIN"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/failrepo/scripts/init.sh"
 cp "${ROOT}/scripts/python-gates.sh" "${TMP_DIR}/failrepo/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/failrepo/profiles"
@@ -256,7 +256,7 @@ chmod +x "${BIN}/az"
 # new_repo <name> — a fresh docs-only git repo carrying a copy of init.sh.
 new_repo() {
   local dir="${TMP_DIR}/$1"
-  mkdir -p "${dir}/scripts"
+  mkdir -p "${dir}/scripts/lib"
   cp "${ROOT}/scripts/init.sh" "${dir}/scripts/init.sh"
   cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" init -q -b main
@@ -344,7 +344,7 @@ SH
 
 # --- Case (a): wiring — init.sh must read the descriptor, not a hard-coded string
 a="${TMP_DIR}/a"
-mkdir -p "$a/scripts" "$a/profiles" "$a/bin"
+mkdir -p "$a/scripts/lib" "$a/profiles" "$a/bin"
 cp "${ROOT}/scripts/init.sh" "$a/scripts/init.sh"
 cat > "$a/profiles/python.profile.sh" <<'SH'
 # shellcheck shell=bash
@@ -383,7 +383,7 @@ grep -q "STUB-TEST-OK" "$OUT" || { cat "$OUT"; echo "case-a: gate OK not read fr
 
 # --- Case (b): Python parity with the REAL descriptor ------------------------
 b="${TMP_DIR}/b"
-mkdir -p "$b/scripts" "$b/bin"
+mkdir -p "$b/scripts/lib" "$b/bin"
 cp "${ROOT}/scripts/init.sh" "$b/scripts/init.sh"
 cp "${ROOT}/scripts/python-gates.sh" "$b/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "$b/profiles"
@@ -402,7 +402,7 @@ done
 
 # --- Case (c): a failing gate hard-fails -------------------------------------
 c="${TMP_DIR}/c"
-mkdir -p "$c/scripts" "$c/bin"
+mkdir -p "$c/scripts/lib" "$c/bin"
 cp "${ROOT}/scripts/init.sh" "$c/scripts/init.sh"
 cp "${ROOT}/scripts/python-gates.sh" "$c/scripts/python-gates.sh"
 cp -R "${ROOT}/profiles" "$c/profiles"
@@ -425,7 +425,7 @@ grep -qi "Preflight FAILED" "$OUT" || { cat "$OUT"; echo "case-c: no preflight f
 
 # --- Case (d): docs-only parity ----------------------------------------------
 d="${TMP_DIR}/d"
-mkdir -p "$d/scripts" "$d/bin"
+mkdir -p "$d/scripts/lib" "$d/bin"
 cp "${ROOT}/scripts/init.sh" "$d/scripts/init.sh"
 cp -R "${ROOT}/profiles" "$d/profiles"
 make_gh "$d/bin"

@@ -9,11 +9,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lifecycle-runtime-lib.sh
-source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
-if [ -f "${SCRIPT_DIR}/issue-lib.sh" ]; then
-  # shellcheck source=scripts/issue-lib.sh
-  source "${SCRIPT_DIR}/issue-lib.sh"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/issue-lib.sh" ]; then
+  # shellcheck source=scripts/lib/issue-lib.sh
+  source "${SCRIPT_DIR}/lib/issue-lib.sh"
 fi
 
 lifecycle_runtime_trace_init review-gate
@@ -21,9 +21,9 @@ lifecycle_runtime_trace_init review-gate
 # --- Project-CI coverage lib (issue #129) ------------------------------------
 # The lib owns all language-specific gate-command tokens so this script stays
 # language-neutral (docs/harness-contract.yml).
-if [ -f "${SCRIPT_DIR}/ci-coverage-lib.sh" ]; then
-  # shellcheck source=scripts/ci-coverage-lib.sh
-  source "${SCRIPT_DIR}/ci-coverage-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/ci-coverage-lib.sh" ]; then
+  # shellcheck source=scripts/lib/ci-coverage-lib.sh
+  source "${SCRIPT_DIR}/lib/ci-coverage-lib.sh"
 fi
 
 # One span per gate operation, emitted from a stage-tracked EXIT trap (plan
@@ -138,7 +138,7 @@ ci_gate() {
   fi
 
   if ! declare -F ci_coverage_uncovered_surfaces >/dev/null 2>&1; then
-    red "✗ ci-gate error: scripts/ci-coverage-lib.sh not found."
+    red "✗ ci-gate error: scripts/lib/ci-coverage-lib.sh not found."
     exit 1
   fi
 

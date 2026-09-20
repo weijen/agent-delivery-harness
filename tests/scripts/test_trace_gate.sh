@@ -97,9 +97,9 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh \
-         ci-coverage-lib.sh \
+for s in lib/lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh check-feature-list.sh \
+         lib/ci-coverage-lib.sh \
          rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
@@ -136,14 +136,14 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts"
+  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts"
   printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${dir}/tests/scripts/test_review_syntax.sh"
   local s
-  for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-feature-list.sh \
-           review-gate.sh trace-lib.sh check-trace-consistency.sh \
-           ci-coverage-lib.sh \
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh check-feature-list.sh \
+           review-gate.sh lib/trace-lib.sh check-trace-consistency.sh \
+           lib/ci-coverage-lib.sh \
            rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   git -C "$dir" init -q -b main

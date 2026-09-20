@@ -1,7 +1,7 @@
 # GitHub Copilot runtime records
 
 No runtime adapter setup is required. The harness emits its kept semantic spine
-directly from lifecycle scripts, `scripts/trace-lib.sh`, and
+directly from lifecycle scripts, `scripts/lib/trace-lib.sh`, and
 `scripts/log-handback.sh`.
 
 Copilot tool, model, skill, and subagent analysis reads the runtime's native

@@ -206,11 +206,11 @@ run_stamp() {
     if [ -n "$sid" ]; then
       env PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" SCRIPT_DIR="${dir}/scripts" \
         TRACE_ISSUE="$issue" COPILOT_AGENT_SESSION_ID="$sid" COPILOT_CLI_STATE_ROOT="$state_root" \
-        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; source scripts/economics-report-lib.sh; trace_report_economics_stamp'
+        bash -c 'source scripts/lib/trace-lib.sh; source scripts/lib/finish-lib.sh; source scripts/lib/economics-report-lib.sh; trace_report_economics_stamp'
     else
       env -u COPILOT_AGENT_SESSION_ID PATH="$BIN" ISSUE_NUM="$issue" WORKTREE_DIR="" \
         SCRIPT_DIR="${dir}/scripts" TRACE_ISSUE="$issue" COPILOT_CLI_STATE_ROOT="${state_root:-${TMP_DIR}/empty-state}" \
-        bash -c 'source scripts/trace-lib.sh; source scripts/finish-lib.sh; source scripts/economics-report-lib.sh; trace_report_economics_stamp'
+        bash -c 'source scripts/lib/trace-lib.sh; source scripts/lib/finish-lib.sh; source scripts/lib/economics-report-lib.sh; trace_report_economics_stamp'
     fi
   )
 }
@@ -227,7 +227,7 @@ run_fn() {
   shift 2
   # shellcheck disable=SC2016 # $1/${@:2} are the INNER bash -c's own positional
   # params, deliberately kept unexpanded by the outer shell.
-  (cd "$dir" && env PATH="$BIN" bash -c 'source scripts/economics-report-lib.sh; "$1" "${@:2}"' _ "$fn" "$@")
+  (cd "$dir" && env PATH="$BIN" bash -c 'source scripts/lib/economics-report-lib.sh; "$1" "${@:2}"' _ "$fn" "$@")
 }
 
 trace_of() {

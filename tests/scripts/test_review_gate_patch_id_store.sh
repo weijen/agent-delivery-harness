@@ -143,12 +143,13 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 # (Red-first evidence from Scenario A failing pre-implementation already
 # satisfies the teeth obligation; this is additional positive mutation proof.)
 mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
-cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/"
+mkdir -p "${TMP_DIR}/lib"
+cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/lib/"
 # The #442 evidence re-bind gate is hard: the mutant's SCRIPT_DIR needs the
 # evidence chain beside it or approve refuses before reaching the marker write.
 for dep in rebind-evidence.sh run-sensors.sh affected-sensors.sh \
-  verify-sensor-evidence.sh trace-lib.sh; do
-  cp "${ROOT}/scripts/${dep}" "${TMP_DIR}/"
+  verify-sensor-evidence.sh lib/trace-lib.sh; do
+  cp "${ROOT}/scripts/${dep}" "${TMP_DIR}/${dep}"
 done
 # Replace the helper's two-line write with a one-line SHA-only marker.
 # shellcheck disable=SC2016
@@ -417,7 +418,7 @@ chmod +x "${BIN}/gh"
 # and adds feature.txt (no conflict with unrelated main changes).
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,trace-lib.sh,check-trace-consistency.sh,issue-lib.sh
+  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh,check-trace-consistency.sh,lib/issue-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/schemas" "${dir}/docs"

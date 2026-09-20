@@ -151,7 +151,7 @@ purpose. They should run quickly, use local temporary fixtures, and block PRs.
 ### L0 Targets
 
 - `scripts/init.sh`
-- `scripts/issue-lib.sh`
+- `scripts/lib/issue-lib.sh`
 - `scripts/start-issue.sh`
 - `scripts/check-feature-list.sh`
 - `scripts/review-gate.sh`

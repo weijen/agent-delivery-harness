@@ -437,8 +437,8 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh finish-lib.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh; do
+for s in lib/lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh lib/finish-lib.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the log-completeness fixture"
 done
@@ -470,11 +470,11 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh \
-           review-gate.sh trace-lib.sh check-trace-consistency.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh check-feature-list.sh \
+           review-gate.sh lib/trace-lib.sh check-trace-consistency.sh; do
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   git -C "$dir" init -q -b main
@@ -686,10 +686,10 @@ COMPLETE_LIST='{"features":[{"id":"finish-issue-log-gate-wiring","title":"finish
 make_finish_fixture() {
   local dir="$1" issue="$2" pad start_out
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts"
+  mkdir -p "${dir}/scripts/lib"
   local s
-  for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh check-feature-list.sh review-gate.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh check-feature-list.sh review-gate.sh; do
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   chmod +x "${dir}/scripts/"*.sh
 
@@ -795,7 +795,7 @@ out="$(cd "$R4" && PATH="$BIN" REQUIRE_LOG_COMPLETE=1 FORCE=1 ./scripts/finish-i
 assert_removed "clean_require_ok" "${R4}/.worktrees/issue-83"
 
 dead_symbol="finish_log_"'completeness_gate'
-if grep -Fq "$dead_symbol" "${ROOT}/scripts/finish-lib.sh" \
+if grep -Fq "$dead_symbol" "${ROOT}/scripts/lib/finish-lib.sh" \
   || grep -Fq "$dead_symbol" "${ROOT}/scripts/finish-issue.sh"; then
   fail "superseded finish log-completeness helper must remain deleted"
 fi

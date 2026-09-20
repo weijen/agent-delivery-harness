@@ -40,8 +40,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lifecycle-runtime-lib.sh
-source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
 
 # --- Help guard (issue #328) --------------------------------------------------
 # -h/--help must exit 0 before ANY side effect (PR resolution, `gh pr checks`,
@@ -71,9 +71,9 @@ EOF
   esac
 done
 
-if [ -f "${SCRIPT_DIR}/github-identity-lib.sh" ]; then
-  # shellcheck source=scripts/github-identity-lib.sh
-  source "${SCRIPT_DIR}/github-identity-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/github-identity-lib.sh" ]; then
+  # shellcheck source=scripts/lib/github-identity-lib.sh
+  source "${SCRIPT_DIR}/lib/github-identity-lib.sh"
   harness_identity_activate "$(harness_identity_repo_root)"
 fi
 

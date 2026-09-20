@@ -251,7 +251,7 @@ TEMPLATE="${TARGET}/.github/harness-identity.env.example"
 [ -f "$TEMPLATE" ] || fail "installer must ship harness-identity.env.example"
 [ ! -e "${TARGET}/.github/harness-identity.env" ] \
   || fail "installer must not propagate the source repository binding"
-[ -f "${TARGET}/scripts/github-identity-lib.sh" ] \
+[ -f "${TARGET}/scripts/lib/github-identity-lib.sh" ] \
   || fail "installer must ship the shared identity helper"
 grep -Fq 'HARNESS_GH_ACCOUNT=your-github-account' "$TEMPLATE" \
   || fail "template must show a placeholder account"

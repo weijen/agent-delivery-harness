@@ -14,9 +14,9 @@ jq -e '.hooks | keys == ["PostToolUse", "PreToolUse", "Stop", "SubagentStop"]' \
 	"$EXAMPLE" >/dev/null || fail "example must configure all four supported events"
 
 TARGET="${TMP_DIR}/project with spaces"
-mkdir -p "${TARGET}/optional/runtime-adapters" "${TARGET}/scripts"
+mkdir -p "${TARGET}/optional/runtime-adapters" "${TARGET}/scripts/lib"
 cp "${BUNDLE}/claude-code-trace-hook.sh" "${TARGET}/optional/runtime-adapters/"
-cp "${ROOT}/scripts/trace-lib.sh" "${TARGET}/scripts/"
+cp "${ROOT}/scripts/lib/trace-lib.sh" "${TARGET}/scripts/lib/"
 cp "${ROOT}/VERSION" "$TARGET/"
 git -C "$TARGET" init -q -b feature/issue-07-claude-fixture
 git -C "$TARGET" config user.name "Harness Test"

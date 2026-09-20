@@ -100,7 +100,7 @@ fi
 f="${TMP_DIR}/f"; seed_repo "$f"
 ( cd "$f" && ./scripts/scaffold-language.sh node --write >/dev/null 2>&1 )
 ( cd "$f" && git diff --quiet -- \
-  scripts/issue-lib.sh scripts/start-issue.sh scripts/check-feature-list.sh \
+  scripts/lib/issue-lib.sh scripts/start-issue.sh scripts/check-feature-list.sh \
   scripts/review-gate.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh ) \
   || { echo "case-f: generator modified a lifecycle script"; exit 1; }
 

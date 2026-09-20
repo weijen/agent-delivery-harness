@@ -355,7 +355,7 @@ and pasted text — so treat them as sensitive:
 - Quote **sparingly**; paraphrase findings and cite line numbers or event types instead of
   pasting raw transcript blocks.
 - Route any quote you must include through the harness redaction patterns
-  (`trace_redact` in [../../../scripts/trace-lib.sh](../../../scripts/trace-lib.sh)) so secret
+  (`trace_redact` in [../../../scripts/lib/trace-lib.sh](../../../scripts/lib/trace-lib.sh)) so secret
   shapes are masked.
 - **Never commit** raw transcript excerpts. The report lives under `logs/audit/` for local
   review; unredacted transcript content must not enter the repository's tracked history.

@@ -35,10 +35,10 @@ for step in shell_syntax shell_lint frontmatter core_sensors; do
 done
 
 TARGET="${TMP_DIR}/adopter"
-mkdir -p "${TARGET}/scripts" "${TARGET}/tests/scripts/lib" "${TARGET}/schemas" \
+mkdir -p "${TARGET}/scripts/lib" "${TARGET}/tests/scripts/lib" "${TARGET}/schemas" \
 	"${TARGET}/tests/evals/bin" "${TARGET}/.copilot/skills/fixture" "${TARGET}/profiles"
-for script in issue-lib.sh start-issue.sh lifecycle-runtime-lib.sh \
-	check-feature-list.sh init.sh trace-lib.sh ci-coverage-lib.sh github-identity-lib.sh \
+for script in lib/issue-lib.sh start-issue.sh lib/lifecycle-runtime-lib.sh \
+	check-feature-list.sh init.sh lib/trace-lib.sh lib/ci-coverage-lib.sh lib/github-identity-lib.sh \
 	affected-sensors.sh check-shell.sh; do
 	cp "${ROOT}/scripts/${script}" "${TARGET}/scripts/${script}"
 done

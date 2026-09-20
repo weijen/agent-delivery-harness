@@ -215,8 +215,8 @@ EOF
 }
 
 # The shared dry/write/update three-way reconcile skeleton.
-# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
-. "${SCRIPT_DIR}/reconcile-lib.sh"
+# shellcheck source=scripts/lib/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/lib/reconcile-lib.sh"
 
 # Reconcile hooks for scaffold-language: the desired content is an in-memory
 # canonical string ($RC_CANONICAL) materialised at the target path ($RC_PATH),

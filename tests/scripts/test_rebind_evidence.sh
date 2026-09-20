@@ -31,9 +31,9 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 # --- Fixture repo on an issue branch ------------------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh trace-lib.sh; do
-  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
+for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh lib/trace-lib.sh; do
+  cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"
 git -C "$FIX" init -q -b main
@@ -92,8 +92,8 @@ set -e
 #    over red sensors (no marker written), succeeds over green sensors (marker
 #    written + fresh pre-review row), and refuses when the rebind script is
 #    missing (hard gate — no silent downgrade).
-for s in review-gate.sh lifecycle-runtime-lib.sh issue-lib.sh github-identity-lib.sh; do
-  [ -f "${ROOT}/scripts/${s}" ] && cp "${ROOT}/scripts/${s}" "${FIX}/scripts/"
+for s in review-gate.sh lib/lifecycle-runtime-lib.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
+  [ -f "${ROOT}/scripts/${s}" ] && cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 approve() { (cd "$FIX" && ./scripts/review-gate.sh approve 2>&1); }
 marker_of() { # newest approved-head marker content, if any

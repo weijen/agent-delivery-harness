@@ -124,8 +124,8 @@ list_files() {
 }
 
 # The shared dry/write/update three-way reconcile skeleton.
-# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
-. "${SCRIPT_DIR}/reconcile-lib.sh"
+# shellcheck source=scripts/lib/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/lib/reconcile-lib.sh"
 
 # Reconcile hooks for install-harness: the desired content is a real source file
 # ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
@@ -820,7 +820,7 @@ if [ "$MODE" != "dry" ] \
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
 	# shellcheck source=/dev/null
-	source "${REPO_ROOT}/scripts/github-identity-lib.sh"
+	source "${REPO_ROOT}/scripts/lib/github-identity-lib.sh"
 	if ! harness_identity_configure_git "$TARGET_DIR"; then
 		printf 'error: could not apply the target repository GitHub identity binding\n' >&2
 		rc=1

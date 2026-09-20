@@ -148,14 +148,14 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
-mkdir -p "${R}/scripts" "${R}/schemas" "${R}/docs" "${R}/tests/scripts"
+mkdir -p "${R}/scripts/lib" "${R}/schemas" "${R}/docs" "${R}/tests/scripts"
 printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
-for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
          create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
-         finish-lib.sh economics-report-lib.sh trace-lib.sh \
-         ci-coverage-lib.sh \
+         lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
+         lib/ci-coverage-lib.sh \
          rebind-evidence.sh verify-sensor-evidence.sh; do
-  cp "${ROOT}/scripts/${s}" "${R}/scripts/"
+  cp "${ROOT}/scripts/${s}" "${R}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${R}/schemas/trace-schema.v1.json"
 cat > "${R}/scripts/init.sh" <<'SH'

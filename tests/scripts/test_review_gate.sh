@@ -309,8 +309,8 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh; do
+for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the verdict PR-gate fixture"
 done
@@ -344,11 +344,11 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
-           trace-lib.sh issue-lib.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+  for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+           lib/trace-lib.sh lib/issue-lib.sh; do
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/"
   git -C "$dir" config user.name "Harness Test"
@@ -517,8 +517,8 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh; do
+for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the reject-cap PR-gate fixture"
 done
@@ -551,11 +551,11 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
-           trace-lib.sh issue-lib.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+  for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+           lib/trace-lib.sh lib/issue-lib.sh; do
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/"
   git -C "$dir" config user.name "Harness Test"
@@ -714,9 +714,9 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 FIX="${TMP_DIR}/repo"
 git clone -q "$REPO" "$FIX"
 git -C "$FIX" remote remove origin
-mkdir -p "${FIX}/scripts" "${FIX}/docs" "${FIX}/.copilot/skills"
-for f in review-gate.sh issue-lib.sh trace-lib.sh ci-coverage-lib.sh check-trace-consistency.sh check-feature-list.sh; do
-  [ -f "${ROOT}/scripts/$f" ] && cp "${ROOT}/scripts/$f" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/docs" "${FIX}/.copilot/skills"
+for f in review-gate.sh lib/issue-lib.sh lib/trace-lib.sh lib/ci-coverage-lib.sh check-trace-consistency.sh check-feature-list.sh; do
+  [ -f "${ROOT}/scripts/$f" ] && cp "${ROOT}/scripts/$f" "${FIX}/scripts/$f"
 done
 printf 'guide\n' > "${FIX}/docs/guide.md"
 printf 'doctrine\n' > "${FIX}/.copilot/skills/doc.md"
@@ -735,7 +735,7 @@ out="$(./scripts/review-gate.sh check 2>&1)" || fail "docs-only delta must carry
 grep -q "carried" <<<"$out" || fail "carry notice missing (got: $out)"
 
 # 2. script delta must fail
-printf '# x\n' >> scripts/issue-lib.sh && git add scripts/issue-lib.sh && git commit -qm "chore: touch"
+printf '# x\n' >> scripts/lib/issue-lib.sh && git add scripts/lib/issue-lib.sh && git commit -qm "chore: touch"
 if ./scripts/review-gate.sh check >/dev/null 2>&1; then
   fail "script delta must invalidate the approval"
 fi

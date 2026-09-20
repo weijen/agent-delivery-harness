@@ -14,8 +14,8 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 ok() { echo "· $*"; }
 
-LIB="scripts/finish-lib.sh"
-REPORT_LIB="scripts/economics-report-lib.sh"
+LIB="scripts/lib/finish-lib.sh"
+REPORT_LIB="scripts/lib/economics-report-lib.sh"
 CALLER="scripts/finish-issue.sh"
 HELPERS="finish_trace_gate best_effort_state_hygiene"
 REPORT_HELPERS="compute_delivery_economics compute_native_economics render_native_economics economics_stamp_into economics_numeric_aggregates trace_report_economics_stamp"
@@ -97,7 +97,7 @@ if [ -f "$LIB" ]; then
 fi
 
 # --- E. The lib ships with the harness --------------------------------------
-# scripts/finish-lib.sh lives under scripts/, which install-harness copies
+# scripts/lib/finish-lib.sh lives under scripts/, which install-harness copies
 # wholesale via its asset manifest; assert that manifest entry is intact.
 if grep -Eq '^[[:space:]]*scripts[[:space:]]*$' scripts/install-harness.sh; then
 	ok "install-harness manifest ships scripts/ wholesale (covers $LIB)"
@@ -121,7 +121,7 @@ fail=0
 note() { echo "✗ $*"; fail=1; }
 ok() { echo "· $*"; }
 
-LIB="scripts/reconcile-lib.sh"
+LIB="scripts/lib/reconcile-lib.sh"
 CALLERS="scripts/install-harness.sh scripts/scaffold-language.sh"
 
 # --- A. The shared lib exists and owns the skeleton -------------------------
@@ -157,7 +157,7 @@ for caller in $CALLERS; do
 done
 
 # --- C. The lib ships with the harness --------------------------------------
-# scripts/reconcile-lib.sh lives under scripts/, which install-harness copies
+# scripts/lib/reconcile-lib.sh lives under scripts/, which install-harness copies
 # wholesale via its asset manifest; assert that manifest entry is intact.
 if grep -Eq '^[[:space:]]*scripts[[:space:]]*$' scripts/install-harness.sh; then
 	ok "install-harness manifest ships scripts/ wholesale (covers $LIB)"
@@ -178,7 +178,7 @@ cd "$ROOT"
 
 cd "$ROOT"
 
-lib="scripts/trace-lib.sh"
+lib="scripts/lib/trace-lib.sh"
 # The four scripts that emit exactly ONE terminal lifecycle span from an EXIT trap.
 lifecycle_scripts="start-issue.sh create-pr.sh merge-pr.sh finish-issue.sh"
 

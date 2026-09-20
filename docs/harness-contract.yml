@@ -22,6 +22,26 @@
 version: 2
 review_by: 2027-01-23
 
+# Canonical layout migration identities. Old paths are retirement identities,
+# not active entrypoints; callers source the canonical library directly.
+layout_moves:
+  - from: scripts/ci-coverage-lib.sh
+    to: scripts/lib/ci-coverage-lib.sh
+  - from: scripts/economics-report-lib.sh
+    to: scripts/lib/economics-report-lib.sh
+  - from: scripts/finish-lib.sh
+    to: scripts/lib/finish-lib.sh
+  - from: scripts/github-identity-lib.sh
+    to: scripts/lib/github-identity-lib.sh
+  - from: scripts/issue-lib.sh
+    to: scripts/lib/issue-lib.sh
+  - from: scripts/lifecycle-runtime-lib.sh
+    to: scripts/lib/lifecycle-runtime-lib.sh
+  - from: scripts/reconcile-lib.sh
+    to: scripts/lib/reconcile-lib.sh
+  - from: scripts/trace-lib.sh
+    to: scripts/lib/trace-lib.sh
+
 # ---------------------------------------------------------------------------
 # Required entrypoints. Each must exist, be executable, and parse with bash -n.
 # `role` is documentation; `path` is the test authority.
@@ -31,19 +51,19 @@ scripts:
     path: scripts/init.sh
     role: Preflight environment sensor; never installs interactively.
   - id: issue-lib
-    path: scripts/issue-lib.sh
+    path: scripts/lib/issue-lib.sh
     role: Shared issue naming library (sourced, not executed).
   - id: github-identity-lib
-    path: scripts/github-identity-lib.sh
+    path: scripts/lib/github-identity-lib.sh
     role: Sourceable repository-bound GitHub token and local Git identity resolver.
   - id: trace-lib
-    path: scripts/trace-lib.sh
+    path: scripts/lib/trace-lib.sh
     role: Sourceable trace-span emitter for deep tracing; schema authority schemas/trace-schema.v1.json.
   - id: lifecycle-runtime-lib
-    path: scripts/lifecycle-runtime-lib.sh
+    path: scripts/lib/lifecycle-runtime-lib.sh
     role: Shared terminal output and optional tracing bootstrap for lifecycle entrypoints.
   - id: ci-coverage-lib
-    path: scripts/ci-coverage-lib.sh
+    path: scripts/lib/ci-coverage-lib.sh
     role: Sourceable project-CI coverage detector; owns language gate-signature tokens so review-gate.sh/create-pr.sh stay language-neutral.
   - id: start-issue
     path: scripts/start-issue.sh
@@ -73,10 +93,10 @@ scripts:
     path: scripts/finish-issue.sh
     role: Tear down the worktree after the PR merges.
   - id: finish-lib
-    path: scripts/finish-lib.sh
+    path: scripts/lib/finish-lib.sh
     role: Sourceable closeout helpers for finish-issue.sh (trace gate + best-effort state-hygiene); sourced, not executed.
   - id: economics-report-lib
-    path: scripts/economics-report-lib.sh
+    path: scripts/lib/economics-report-lib.sh
     role: Sourceable report-time delivery and native economics analytics; sourced, not executed.
 
 # ---------------------------------------------------------------------------
@@ -212,7 +232,7 @@ bypasses:
 # ---------------------------------------------------------------------------
 env_flags:
   - name: ISSUE=
-    owner: scripts/issue-lib.sh
+    owner: scripts/lib/issue-lib.sh
     present: ISSUE=
   - name: SLUG=
     owner: scripts/start-issue.sh
@@ -251,9 +271,9 @@ env_flags:
 # ---------------------------------------------------------------------------
 language_neutral:
   owners:
-    - scripts/issue-lib.sh
-    - scripts/trace-lib.sh
-    - scripts/lifecycle-runtime-lib.sh
+    - scripts/lib/issue-lib.sh
+    - scripts/lib/trace-lib.sh
+    - scripts/lib/lifecycle-runtime-lib.sh
     - scripts/start-issue.sh
     - scripts/check-feature-list.sh
     - scripts/review-gate.sh

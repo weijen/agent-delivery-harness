@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# test_trace_lib.sh — regression sensor for scripts/trace-lib.sh core span
+# test_trace_lib.sh — regression sensor for scripts/lib/trace-lib.sh core span
 # emission (issue #93, feature trace-lib-core-emit).
 #
-# scripts/trace-lib.sh is the single sourceable tracing primitive: it exposes
+# scripts/lib/trace-lib.sh is the single sourceable tracing primitive: it exposes
 # `trace_span <type> <key=value>...`, which appends exactly one schema-v1 JSON
 # line per call to .copilot-tracking/issues/issue-NN/trace.jsonl. This sensor
 # builds a throwaway git repo fixture (mktemp + git init, branch
 # feature/issue-07-*), sources the library under `set -euo pipefail`, and
 # asserts the core emission contract:
 #
-#   1. Sourcing scripts/trace-lib.sh succeeds under strict mode.
+#   1. Sourcing scripts/lib/trace-lib.sh succeeds under strict mode.
 #   2. One call per frozen span type (lifecycle, agent, model, tool, each with
 #      its required_by_span fields) appends exactly one line each, creating
 #      the tracking dir + trace.jsonl on first write.
@@ -45,12 +45,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts trace-lib.sh
+fixture_repo --with-scripts lib/trace-lib.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {
@@ -68,7 +68,7 @@ command -v jq >/dev/null 2>&1 \
 
 # RED gate: the library under test must exist before anything can be sourced.
 [ -f "$LIB" ] \
-  || fail "scripts/trace-lib.sh not found (${LIB}) — the trace_span emitter for feature trace-lib-core-emit (issue #93) is not implemented yet"
+  || fail "scripts/lib/trace-lib.sh not found (${LIB}) — the trace_span emitter for feature trace-lib-core-emit (issue #93) is not implemented yet"
 
 # --- Contract-driven span validation ------------------------------------------
 # ============================================================================
@@ -145,10 +145,10 @@ TRACE_FILE="${REPO}/.copilot-tracking/issues/issue-07/trace.jsonl"
 # This script already runs under strict mode; a library that trips -e/-u on
 # source would abort here.
 # shellcheck source=/dev/null
-source "${REPO}/scripts/trace-lib.sh" \
-  || fail "sourcing scripts/trace-lib.sh failed under set -euo pipefail"
+source "${REPO}/scripts/lib/trace-lib.sh" \
+  || fail "sourcing scripts/lib/trace-lib.sh failed under set -euo pipefail"
 declare -F trace_span >/dev/null \
-  || fail "sourcing scripts/trace-lib.sh did not define a trace_span function"
+  || fail "sourcing scripts/lib/trace-lib.sh did not define a trace_span function"
 
 # --- 2. First write creates dir + file with exactly one line -------------------
 trace_span lifecycle "harness.lifecycle_step=preflight" "harness.outcome=pass" \
@@ -325,7 +325,7 @@ printf 'trace-lib core emission contract honored\n'
 (
 cd "$ROOT"
 
-LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/trace-lib.sh}"
+LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/lib/trace-lib.sh}"
 TMP_DIR="$(mktemp -d)"
 trap 'chmod -R u+w "${TMP_DIR}" 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 
@@ -387,7 +387,7 @@ set -euo pipefail
 cd "${REPO}"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 # shellcheck source=/dev/null
-source "${REPO}/scripts/trace-lib.sh"
+source "${REPO}/scripts/lib/trace-lib.sh"
 EOF
 }
 
@@ -488,7 +488,7 @@ printf 'trace-lib failure-isolation contract honored\n'
 (
 cd "$ROOT"
 
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -507,7 +507,7 @@ command -v jq >/dev/null 2>&1 \
   || fail "trace schema contract not found at schemas/trace-schema.v1.json (${CONTRACT})"
 
 [ -f "$LIB" ] \
-  || fail "scripts/trace-lib.sh not found (${LIB})"
+  || fail "scripts/lib/trace-lib.sh not found (${LIB})"
 
 # --- Contract-driven span validation ------------------------------------------
 # ============================================================================
@@ -567,8 +567,8 @@ git -C "$MAIN" config user.name "Harness Test"
 git -C "$MAIN" config user.email "harness-test@example.invalid"
 git -C "$MAIN" worktree add -q -b feature/issue-05-fixture "$WT" \
   || fail "fixture: could not create linked worktree at ${WT}"
-[ -f "${WT}/scripts/trace-lib.sh" ] \
-  || fail "fixture: linked worktree does not share scripts/trace-lib.sh"
+[ -f "${WT}/scripts/lib/trace-lib.sh" ] \
+  || fail "fixture: linked worktree does not share scripts/lib/trace-lib.sh"
 
 MAIN_TRACE="${MAIN}/.copilot-tracking/issues/issue-05/trace.jsonl"
 WT_TRACE="${WT}/.copilot-tracking/issues/issue-05/trace.jsonl"
@@ -579,7 +579,7 @@ WT_TRACE="${WT}/.copilot-tracking/issues/issue-05/trace.jsonl"
 (
   cd "$WT"
   # shellcheck source=/dev/null
-  source "./scripts/trace-lib.sh"
+  source "./scripts/lib/trace-lib.sh"
   trace_span lifecycle \
     "harness.lifecycle_step=preflight" \
     "harness.outcome=pass" \
@@ -623,7 +623,7 @@ PLAIN_TRACE="${PLAIN}/.copilot-tracking/issues/issue-07/trace.jsonl"
 (
   cd "$PLAIN"
   # shellcheck source=/dev/null
-  source "./scripts/trace-lib.sh"
+  source "./scripts/lib/trace-lib.sh"
   trace_span lifecycle "harness.lifecycle_step=preflight" "harness.outcome=pass"
 ) || fail "trace_span in a plain repo returned non-zero"
 
@@ -640,7 +640,7 @@ validate_file "plain-repo trace" "$PLAIN_TRACE"
 now_out="$(
   cd "$PLAIN"
   # shellcheck source=/dev/null
-  source "./scripts/trace-lib.sh"
+  source "./scripts/lib/trace-lib.sh"
   declare -F trace_now_ms >/dev/null 2>&1 || exit 9
   t1="$(trace_now_ms)"
   t2="$(trace_now_ms)"

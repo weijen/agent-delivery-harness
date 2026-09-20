@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts review-gate.sh,ci-coverage-lib.sh
+fixture_repo --with-scripts review-gate.sh,lib/ci-coverage-lib.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 A="$FIXTURE_REPO"
 
@@ -48,12 +48,12 @@ if ! run_a ./scripts/review-gate.sh ci-gate; then
 fi
 
 # Missing detector library is an error, not a disabled success path.
-mv "${A}/scripts/ci-coverage-lib.sh" "${TMP_DIR}/ci-coverage-lib.sh"
+mv "${A}/scripts/lib/ci-coverage-lib.sh" "${TMP_DIR}/ci-coverage-lib.sh"
 set +e
 run_a ./scripts/review-gate.sh ci-gate
 missing_lib_rc=$?
 set -e
-mv "${TMP_DIR}/ci-coverage-lib.sh" "${A}/scripts/ci-coverage-lib.sh"
+mv "${TMP_DIR}/ci-coverage-lib.sh" "${A}/scripts/lib/ci-coverage-lib.sh"
 [ "$missing_lib_rc" -ne 0 ] \
   || fail "ci-gate must fail when ci-coverage-lib.sh is missing"
 grep -qi 'ci-gate.*error' "$OUT" \
@@ -161,7 +161,7 @@ EOF
 chmod +x "${TMP_DIR}/bin/gh"
 
 # origin/main with the harness scripts + profiles + a docs/PROGRESS.md baseline
-fixture_repo --with-scripts create-pr.sh,review-gate.sh,ci-coverage-lib.sh
+fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/ci-coverage-lib.sh
 OW="$FIXTURE_REPO"
 mkdir -p "${OW}/docs"
 cp -R "${ROOT}/profiles" "${OW}/profiles"
@@ -171,7 +171,7 @@ git -C "$OW" commit -q -m "add progress and profiles"
 git clone -q --bare "$OW" "${TMP_DIR}/origin.git"
 
 # working repo on a feature branch off origin/main
-fixture_repo --with-scripts create-pr.sh,review-gate.sh,ci-coverage-lib.sh
+fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/ci-coverage-lib.sh
 R="$FIXTURE_REPO"
 cd "$R"
 git remote add origin "${TMP_DIR}/origin.git"
@@ -259,7 +259,7 @@ chmod +x "${BIN}/uv"
 
 # new_repo <name> — fresh git repo carrying a copy of init.sh + profiles + lib.
 new_repo() {
-  fixture_repo --with-scripts init.sh,ci-coverage-lib.sh,python-gates.sh
+  fixture_repo --with-scripts init.sh,lib/ci-coverage-lib.sh,python-gates.sh
   local dir="$FIXTURE_REPO"
   cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" config commit.gpgsign true

@@ -17,7 +17,7 @@ separate from replaceable language support and project-specific conventions:
   behavior is frozen in the machine-readable contract
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
   `tests/scripts/test_harness_contract.sh`. The owner scripts
-  (`scripts/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
+  (`scripts/lib/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
   `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`,
   `finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
@@ -216,7 +216,7 @@ branch; abandonment requires explicit `ABANDONED=1`. An identical conclusion is
 idempotent, while a conflicting conclusion is never overwritten.
 
 `./scripts/finish-issue.sh` then migrates that worktree `progress.md` before `git worktree remove`.
-Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
+Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/lib/finish-lib.sh`) to copy the file verbatim
 into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
 deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
 available for the post-hoc `check-trace-consistency.sh` audit. The copy helper
@@ -224,7 +224,7 @@ is failure-atomic and independently warn-only, but closeout treats a missing,
 unsafe, unwritable, or failed migration as a hard pre-teardown block. This
 prevents worktree removal from destroying the only finalized record.
 
-`scripts/economics-report-lib.sh` retains sourceable helpers that can stamp a **delivery economics** block into an
+`scripts/lib/economics-report-lib.sh` retains sourceable helpers that can stamp a **delivery economics** block into an
 issue `progress.md` (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers,
 idempotently) from the issue trace and `feature_list.json`. No lifecycle entrypoint invokes these helpers after
 the trace reporter's retirement in #419. When invoked directly, the block reports wall-clock span as both
@@ -234,7 +234,7 @@ measured is **omitted entirely** and never fabricated as `0` or a half-present `
 trace-derived token row appears only when a runtime adapter reported `gen_ai.usage.*` on model spans; otherwise it is
 omitted — issue #329 retired the old `- Tokens: n/a` line, because a half-present field is worse than an absent one.
 These report-time computations and stamps live in
-`scripts/economics-report-lib.sh`; `scripts/finish-lib.sh` remains limited to
+`scripts/lib/economics-report-lib.sh`; `scripts/lib/finish-lib.sh` remains limited to
 migration, closeout gates, finalization, teardown orchestration, and state
 hygiene.
 
@@ -318,7 +318,7 @@ feedback; a red markdownlint result never blocks issue work.
 ### Trace emission
 
 Every lifecycle script (`start-issue.sh`, `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`,
-`merge-pr.sh`, `finish-issue.sh`) emits schema-v1 trace spans via `scripts/trace-lib.sh` to the per-issue trace
+`merge-pr.sh`, `finish-issue.sh`) emits schema-v1 trace spans via `scripts/lib/trace-lib.sh` to the per-issue trace
 file `.copilot-tracking/issues/issue-NN/trace.jsonl` at the **main checkout** root — one append-only file per
 issue regardless of which worktree a script runs from, so the record survives worktree teardown. The trace is
 local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
@@ -485,7 +485,7 @@ PR time:
   bypasses the gate with a **logged** warning for a repo that legitimately has no project CI yet.
 
 Detection signatures live in each `profiles/<id>.profile.sh` (`PROFILE_CI_SIGNATURES`); the
-language-neutral gate scripts read them through `scripts/ci-coverage-lib.sh`, so `review-gate.sh`
+language-neutral gate scripts read them through `scripts/lib/ci-coverage-lib.sh`, so `review-gate.sh`
 and `create-pr.sh` stay free of any language token.
 
 It is still not:
@@ -500,7 +500,7 @@ workflow.
 ## Harness Versioning & Releases
 
 The top-level `VERSION` file is the authoritative **SemVer** release identity for the harness. It is the source of
-truth that `scripts/trace-lib.sh` reads for the `harness.version` stamped on every trace span; the exact commit
+truth that `scripts/lib/trace-lib.sh` reads for the `harness.version` stamped on every trace span; the exact commit
 behind that release is carried separately by the optional `harness.commit` field (the short git SHA of the harness
 scripts at emit time).
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sync-version.sh — mirror pyproject.toml's [project].version into the root
-# VERSION file, so scripts/trace-lib.sh (which reads VERSION to stamp
+# VERSION file, so scripts/lib/trace-lib.sh (which reads VERSION to stamp
 # harness.version on every span) keeps working while pyproject.toml is the
 # single source of truth.
 #

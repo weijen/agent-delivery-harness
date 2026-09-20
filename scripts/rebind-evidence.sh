@@ -39,9 +39,9 @@ case "$GATE" in
 esac
 
 # Guarded source: issue resolution reuses the trace-lib precedence.
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/trace-lib.sh" ]; then
+  # shellcheck source=scripts/lib/trace-lib.sh
+  source "${SCRIPT_DIR}/lib/trace-lib.sh"
 fi
 declare -F trace__resolve_issue >/dev/null 2>&1 \
   || { printf 'rebind-evidence: trace-lib.sh unavailable — cannot resolve the issue\n' >&2; exit 1; }

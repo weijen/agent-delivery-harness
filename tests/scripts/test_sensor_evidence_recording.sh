@@ -32,9 +32,9 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 # --- Hermetic fixture repo on an issue branch ---------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/trace-lib.sh" ] && cp "${ROOT}/scripts/trace-lib.sh" "${FIX}/scripts/"
+[ -f "${ROOT}/scripts/lib/trace-lib.sh" ] && cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
 cat > "${FIX}/tests/scripts/test_green.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0

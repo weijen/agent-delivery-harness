@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-LIB="scripts/lifecycle-runtime-lib.sh"
+LIB="scripts/lib/lifecycle-runtime-lib.sh"
 CALLERS=(
   scripts/start-issue.sh
   scripts/create-pr.sh

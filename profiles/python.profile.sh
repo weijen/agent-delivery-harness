@@ -20,7 +20,7 @@ PROFILE_FRAMEWORKS="FastAPI Django Flask"
 PROFILE_SURFACE_LABEL="Python surface detected (pyproject.toml)"
 # Grep signatures (extended regex) that prove a project-CI workflow runs this
 # surface's gates — the tokens of the profile_gate_* commands below. Consumed by
-# scripts/ci-coverage-lib.sh (issue #129) for the preflight WARN and Pre-PR
+# scripts/lib/ci-coverage-lib.sh (issue #129) for the preflight WARN and Pre-PR
 # ci-gate. Kept here (a profile, not a language-neutral owner script) so the
 # gate scripts stay token-free.
 PROFILE_CI_SIGNATURES="python-gates\\.sh"

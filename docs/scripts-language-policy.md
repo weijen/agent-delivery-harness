@@ -68,18 +68,27 @@ above stands unexercised again, and jq remains the always-available path for
 every surviving analytics tool. Any future migration must re-open the decision
 gate on its own trigger, not inherit the reverted pilot's verdict.
 
-## 3. Structure — split thresholds, not preemptive reorganization
+## 3. Structure — shallow responsibility groups
 
 - **`review-gate.sh` splits into `review-gate.d/`** gate files (with
   `review-gate.sh` as the dispatcher) **when the next gate is added — not
   before.** Five gates in one file is defensible today (shared approval-marker
   state, shared trap).
-- **The directory stays flat.** `docs/harness-contract.yml` freezes script paths,
-  `install-harness.sh` manifests them, hooks are installed by absolute path, and
-  the test suite references `scripts/*.sh` literally — so a `scripts/trace/`
-  reshuffle is real cost for cosmetic benefit. A future `scripts/trace_tools/`
-  Python package is the *only* sanctioned new subdirectory, and it adds a home
-  without moving any frozen path.
+- **Separate commands from sourced libraries.** The adopter-discoverability
+  migration (#472) uses shallow `lifecycle`, `validation`, `install`, `trace`,
+  `maintenance` and `lib` categories where responsibilities justify them.
+  The first stage puts shared libraries in `scripts/lib/`; these are sourced
+  dependencies, not ordinary commands, and have no duplicate flat wrappers.
+  Remaining command categories migrate in the serial child issues, not all at
+  once. `layout_moves` in `docs/harness-contract.yml` records exact old-to-new
+  identities as each stage lands.
+- **Preserve contracts during relocation.** Keep only intentional documented
+  public entrypoints as thin compatibility scripts, not one wrapper per internal
+  tool. Update callers, explicit installer manifests, ownership-safe upgrades,
+  fixtures, current guidance and schema/contract references with each move.
+  Recursive discovery must preserve every sensor identity exactly once and
+  reject nested failures. The portfolio's earlier flat-layout recommendation
+  remains historical rationale, not a conflicting active requirement.
 - **No unified `harness` mono-CLI.** Single-purpose scripts invoked piecemeal (by
   agents, docs, and CI) are a feature: each is independently promptable and
   testable. A branded dispatch layer adds no capability. Skip it.
