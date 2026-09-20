@@ -110,6 +110,29 @@ if printf '%s\n' "${block}" \
   fail "end-of-issue review doctrine must NOT open with the old per-feature 'feature or closeout diff is reviewed' framing"
 fi
 
+# The mandatory closeout section must agree with the preparation/publication
+# command boundary, not merely coexist with a correct earlier workflow.
+closeout="$(awk '
+  /^### Pre-PR verify gate/ { active=1 }
+  /^## / && active { exit }
+  active { print }
+' "$DOC_HARNESS")"
+previous=0
+for command in 'create-pr.sh --prepare' 'run-sensors.sh --gate pre-review' \
+  'review-gate.sh approve' 'run-sensors.sh --gate pre-pr' 'create-pr.sh --title'; do
+  position="$(printf '%s\n' "$closeout" | awk -v command="$command" \
+    'index($0, command) { print NR; exit }')"
+  if [ -z "$position" ] || [ "$position" -le "$previous" ]; then
+    fail "mandatory closeout must order preparation, review, approval, pre-PR and publication: ${command}"
+  else
+    previous="$position"
+  fi
+done
+if printf '%s\n' "$closeout" | tr '\n' ' ' \
+  | grep -qiE 'post-rebase HEAD|post-sync HEAD|approval carries automatically|attempts to carry'; then
+  fail "mandatory closeout must not retain publication-time synchronization/carry requirements"
+fi
+
 if [ "${fails}" -ne 0 ]; then
   printf '\n%d assertion(s) failed — Loop 2 single-end-review doctrine not satisfied.\n' \
     "${fails}" >&2

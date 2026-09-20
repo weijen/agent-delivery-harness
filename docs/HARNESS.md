@@ -107,9 +107,11 @@ flowchart TD
   H -- yes --> I[Mark feature passes:true]
   I --> J{All issue features pass?}
   J -- no --> E
-  J -- yes --> K[pre-review gate + code-review-subagent, once]
+  J -- yes --> S[./scripts/create-pr.sh --prepare]
+  S --> K[pre-review gate + code-review-subagent, once]
   K --> L[./scripts/validation/review-gate.sh approve]
-  L --> M[./scripts/create-pr.sh]
+  L --> V[Full pre-pr gate]
+  V --> M[./scripts/create-pr.sh: evidence-only publication]
   M --> N[Pull request]
   N --> Q[./scripts/merge-pr.sh CI-green gate]
   Q --> O[Merge]
@@ -133,12 +135,14 @@ The normal path is:
    with scoped sensors (`./scripts/run-sensors.sh green`), record any `deviation`
    spans, and flip `passes:true` (#352: one agent, no handback choreography).
 7. Repeat until all features pass.
-8. Run `./scripts/run-sensors.sh --gate pre-review`, then `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
+8. Run `./scripts/create-pr.sh --prepare`, then `./scripts/run-sensors.sh --gate pre-review`
+   and `code-review-subagent` on the completed diff. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
 9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
-10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
+10. Run `./scripts/run-sensors.sh --gate pre-pr`, then open the PR with
+    `./scripts/create-pr.sh --title "..." --body-file body.md` without further tests or synchronization.
 11. Merge the PR when checks are green and findings are resolved.
 12. Run `./scripts/finish-issue.sh <N>` from the main checkout.
 
@@ -367,36 +371,36 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
-`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
-`./scripts/create-pr.sh` runs `./scripts/validation/review-gate.sh check` before syncing, then after
-`git fetch origin main` + `git rebase origin/main`, attempts to carry the prior approval forward
-by patch-id identity (issue #310): if the branch's ordered patch stream is unchanged, the approval
-carries automatically to the post-rebase HEAD with no second approve needed. Any content-changing
-commit or sync still requires fresh review — carry applies only when the actual successful default
-rebase produced exactly the pre-approved HEAD, the stored identity is a valid merge-free stable hex
-identity, and the post-rebase identity is unchanged. The authoritative `check` always runs after
-carry (whether carry succeeded or not): merge/non-rewrite/fallback/legacy-marker paths all require
-fresh approval.
+Before final review and full pre-PR validation, run
+`./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
+does not require an approval, execute sensors, push, or open a PR. It aborts
+conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
+merge instead of a rebase. Review and validate the resulting HEAD, not the
+candidate that existed before synchronization.
 
-Immediately before every push path, `create-pr.sh` runs
-`./scripts/run-sensors.sh green --diff origin/main`. The affected-sensor resolver therefore
-enforces the contract's scoped sensor gate at the PR boundary; a failing sensor or discovery
-error stops the push.
-This PR check intentionally considers the branch diff; it is not the base used
-for an individual feature. It does not re-enable feature-time FULL fallback or
-replace the required full pre-review/pre-PR results.
+`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
+Normal `./scripts/create-pr.sh` checks that approval and verifies a successful,
+full, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
+tampered, wrong-mode or wrong-scope evidence stops publication with a diagnostic.
+It never runs sensors, fetches main, rebases or merges during publication.
+Pre-review evidence does not replace the separate full pre-PR gate.
+
+The published source is pinned to the verified commit. Later main changes do not
+trigger another local rewrite/test cycle inside the wrapper; remote PR CI owns
+integration testing. Existing green checks are not a guarantee that every later
+base update was tested: current-CI freshness enforcement is a separate follow-up
+(#485), not a claim made by this local optimization.
 
 **Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
 feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch
 (the on-`main` refusal at the top of the script enforces this structurally). Rebase onto `origin/main`
-remains the default preference for a linear history, but it is not load-bearing: setting
-`CREATE_PR_NO_REWRITE=1` skips it outright, and a `--force-with-lease` rejection that looks like a remote
-force-push policy block triggers the same history-preserving fallback automatically — reset to the
-pre-rebase tip, merge `origin/main` in, require a fresh review approval for the new HEAD, then push without
-force. The script never issues a bare `--force` push, and a rejection that does not look like a force-push
-policy block (authentication, network, or a content-based rejection such as GitHub secret-scanning push
-protection) is never swallowed as a fallback trigger — it fails exactly as loudly as any other
-precondition.
+remains the default for explicit preparation; `CREATE_PR_NO_REWRITE=1` instead
+merges during preparation and uses a plain push during publication. A remote
+force-policy rejection stops without resetting or rewriting the verified
+candidate. A fast-forward can retry with that non-rewriting flag; otherwise,
+prepare a history-preserving candidate explicitly and repeat its review/full
+pre-PR obligations. Authentication, network and content-policy rejections remain
+loud failures, never a reason to silently change the candidate.
 
 `review-gate.sh check` (and `finish-issue.sh`, before worktree teardown) additionally runs the trace gate
 (`review-gate.sh trace`) **warn-only**: findings from the trace validator and the cross-artifact consistency checker

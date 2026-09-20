@@ -90,6 +90,7 @@ add_origin_main_commit() {
 }
 
 cd "$REPO"
+export TRACE_ISSUE=129
 printf 'initial\n' > README.md
 mkdir -p docs
 printf '# Progress\n\nbaseline\n' > docs/PROGRESS.md
@@ -143,6 +144,7 @@ git add feature.txt docs/PROGRESS.md
 make_commit "feature commit"
 approved_head="$(git rev-parse HEAD)"
 ./scripts/validation/review-gate.sh approve >/tmp/review-gate-approved-feature.out
+./scripts/run-sensors.sh --gate pre-pr >/dev/null
 
 if ! ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-unchanged-sync.out 2>&1; then
   fail "create-pr refused approved HEAD when sync did not change it"
@@ -158,18 +160,17 @@ git push -q origin :feature/review-gate >/dev/null 2>&1 || true
 rm -f "${GH_LOG}.created"
 add_origin_main_commit "main.txt" "main advanced"
 
-# Issue #310: a content-preserving rebase carries the approval forward via
-# patch-id identity — no fresh approve needed. The PR must open on the
-# first try after the rebase.
+# Publication leaves the verified candidate unchanged when main advances.
 if ! ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-stale-after-sync.out 2>&1; then
-  fail "create-pr must succeed after content-preserving rebase (carry approval — issue #310)"
+  fail "create-pr must publish the verified candidate without a late rebase"
 fi
 # Independently assert the PR opened via the GH_LOG (the fake gh pr create writes
 # to it). Do not rely on carry-diagnostic text being present in output — that
 # diagnostic is an implementation detail, not the observable contract.
 [ -s "$GH_LOG" ] \
-  || { cat /tmp/create-pr-stale-after-sync.out; fail "create-pr did not open PR after content-preserving rebase (carry approval — issue #310)"; }
-emit "create-pr carries approval across a content-preserving rebase (issue #310)"
+  || { cat /tmp/create-pr-stale-after-sync.out; fail "create-pr did not open PR after main advanced"; }
+[ "$(git rev-parse HEAD)" = "$approved_head" ] || fail "publication rewrote the approved candidate"
+emit "create-pr preserves the verified candidate when main advances"
 
 tap_done
 (

@@ -206,7 +206,7 @@ for section in "${gate_sections[@]}"; do
     esac
   done <<< "$records"
 done
-require_contract_record gate_sensors id scoped-green scripts/create-pr.sh
+require_contract_record gate_sensors id pre-pr-evidence scripts/create-pr.sh
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
 if grep -q -- '--last' scripts/run-sensors.sh scripts/validation/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"

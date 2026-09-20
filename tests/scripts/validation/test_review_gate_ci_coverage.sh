@@ -183,6 +183,7 @@ export PATH="${TMP_DIR}/bin:${PATH}"
 export GH_LOG="${TMP_DIR}/gh.log"
 
 # 5a. code surface + approval, but NO project CI -> create-pr blocks at ci-gate
+export TRACE_ISSUE=129
 printf '%s' "$PY_SURFACE" > pyproject.toml
 printf '# Progress\n\nissue-129\n' > docs/PROGRESS.md
 git add pyproject.toml docs/PROGRESS.md
@@ -203,6 +204,7 @@ printf '# Progress\n\nissue-129 covered\n' > docs/PROGRESS.md
 git add .github/workflows/ci.yml docs/PROGRESS.md
 make_commit "surface + status doc + project CI"
 ./scripts/validation/review-gate.sh approve >/dev/null
+./scripts/run-sensors.sh --gate pre-pr >/dev/null
 : > "$GH_LOG"
 if ! ./scripts/create-pr.sh --title "t" --body "b" >"${TMP_DIR}/b-pass.out" 2>&1; then
   cat "${TMP_DIR}/b-pass.out"; fail "create-pr blocked even with a covering workflow"
@@ -210,6 +212,7 @@ fi
 [ -s "$GH_LOG" ] || fail "create-pr did not open a PR after adding project CI"
 
 printf 'review gate ci-coverage sensor passed\n'
+unset TRACE_ISSUE
 
 (
 cd "$ROOT"

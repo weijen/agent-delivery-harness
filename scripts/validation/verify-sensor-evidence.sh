@@ -11,7 +11,8 @@
 #     "v1|head|mode|scope|ran|failed|timestamp" — tamper-EVIDENT, not
 #     tamper-proof: it catches hand-edited bookkeeping, not a determined forger;
 #   * with --head: at least one green (failed=0, ran>0) row is bound to that
-#     sha (further restricted to --mode's label when given).
+#     sha (further restricted to --mode's label when given). Pre-review and
+#     pre-PR modes require full scope; counts must be nonnegative integers.
 #
 # Exit: 0 all checks pass · 1 verification failure / missing file · 2 usage.
 set -euo pipefail
@@ -71,11 +72,19 @@ EVIDENCE="${ROOT}/.copilot-tracking/issues/issue-${PAD}/sensor-evidence.jsonl"
 line_no=0
 bad=0
 head_match=0
-while IFS= read -r row; do
+while IFS= read -r row || [ -n "$row" ]; do
   line_no=$((line_no + 1))
   [ -n "$row" ] || continue
   if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$row"; then
     printf 'verify-sensor-evidence: FAIL line %d is not a JSON object\n' "$line_no" >&2
+    bad=$((bad + 1)); continue
+  fi
+  if ! jq -e '
+    (.ran | type == "number" and . >= 0 and floor == .) and
+    (.failed | type == "number" and . >= 0 and floor == .) and
+    (.failed <= .ran)
+  ' >/dev/null 2>&1 <<<"$row"; then
+    printf 'verify-sensor-evidence: FAIL line %d has invalid sensor counts\n' "$line_no" >&2
     bad=$((bad + 1)); continue
   fi
   fields="$(jq -r '[
@@ -101,7 +110,10 @@ while IFS= read -r row; do
   if [ -n "$HEAD_WANT" ] && [ "$head" = "$HEAD_WANT" ] && [ "$failed" = "0" ] \
     && [ "$ran" != "0" ]; then
     if [ -z "$MODE_WANT" ] || [ "$mode" = "$MODE_WANT" ]; then
-      head_match=1
+      case "$MODE_WANT" in
+        pre-review|pre-pr) [ "$scope" != full ] || head_match=1 ;;
+        *) head_match=1 ;;
+      esac
     fi
   fi
 done < "$EVIDENCE"
