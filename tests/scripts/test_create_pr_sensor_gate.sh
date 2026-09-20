@@ -95,9 +95,10 @@ cp "$EVIDENCE" "$SAVED"
 
 # Mutate real recorder output, re-signing semantic-shape cases to isolate them
 # from the checksum guard; these are adversarial fixture rows, not gate evidence.
-for mutation in malformed tampered wrong-scope empty-count negative-count string-count failed; do
+for mutation in malformed malformed-tail tampered wrong-scope empty-count negative-count string-count failed; do
   case "$mutation" in
     malformed) printf 'not json\n' >"$EVIDENCE" ;;
+    malformed-tail) { cat "$SAVED"; printf '{"schema_version":'; } >"$EVIDENCE" ;;
     tampered) jq -c '.checksum="sha256:invalid"' "$SAVED" >"$EVIDENCE" ;;
     *)
       case "$mutation" in

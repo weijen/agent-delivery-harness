@@ -104,6 +104,15 @@ set -e
 [ "$rc" = "1" ] || fail "--head must reject a ran=0 row as green evidence (got ${rc})"
 printf '%s\n' "$row" > "$EVIDENCE"
 
+# Every nonempty EOF record must be parsed, even without a final newline.
+printf '%s' "$row" >"$EVIDENCE"
+verify 77 --head "$head_sha" >/dev/null || fail "valid EOF row must verify"
+printf '%s\n%s' "$row" '{"schema_version":' >"$EVIDENCE"
+if verify 77 --head "$head_sha" >/dev/null 2>&1; then
+  fail "malformed unterminated tail must invalidate preceding green evidence"
+fi
+printf '%s\n' "$row" >"$EVIDENCE"
+
 # 5. Missing evidence file → exit 1; usage error → exit 2.
 rm -f "$EVIDENCE"
 set +e

@@ -72,7 +72,7 @@ EVIDENCE="${ROOT}/.copilot-tracking/issues/issue-${PAD}/sensor-evidence.jsonl"
 line_no=0
 bad=0
 head_match=0
-while IFS= read -r row; do
+while IFS= read -r row || [ -n "$row" ]; do
   line_no=$((line_no + 1))
   [ -n "$row" ] || continue
   if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$row"; then
