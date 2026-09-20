@@ -4,7 +4,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -17,12 +18,16 @@ SOURCE="${TMP_DIR}/source"
 TARGET="${TMP_DIR}/target"
 OUT="${TMP_DIR}/update.out"
 
-# Build a self-contained v1 harness source using the public installer surface.
-"$INSTALL" "$SOURCE" --write >"${TMP_DIR}/bootstrap.out" 2>&1 \
-	|| {
-		cat "${TMP_DIR}/bootstrap.out" >&2
-		fail "could not build temporary v1 harness source"
-	}
+FIXTURE_SOURCE="${TMP_DIR}/fixture-source"
+installer_fixture_source "$FIXTURE_SOURCE"
+for asset in scripts/lib/issue-lib.sh scripts/create-pr.sh docs/HARNESS.md docs/getting-started.md; do
+	printf 'upstream fixture: %s\n' "$asset" >"${FIXTURE_SOURCE}/${asset}"
+	printf '%s\n' "$asset" >>"${FIXTURE_SOURCE}/scripts/install-harness.assets"
+done
+empty_digest="$(printf '' | shasum -a 256 | awk '{print $1}')"
+printf '%s\tscripts/.gitkeep\n' "$empty_digest" >"${FIXTURE_SOURCE}/scripts/install-harness.tombstones"
+# Only scenarios that change upstream clone the otherwise immutable source.
+cp -R "$FIXTURE_SOURCE" "$SOURCE"
 "${SOURCE}/scripts/install-harness.sh" "$TARGET" --write >"${TMP_DIR}/install.out" 2>&1 \
 	|| {
 		cat "${TMP_DIR}/install.out" >&2
@@ -33,6 +38,9 @@ OUT="${TMP_DIR}/update.out"
 	|| fail "initial install did not persist .harness-lock"
 grep -Fq $'\tscripts/init.sh' "${TARGET}/.harness-lock" \
 	|| fail "lock does not record installed upstream hashes"
+asset_count="$(awk '!/^#/ && NF { count++ } END { print count + 0 }' "${TARGET}/.harness-lock")"
+[ "$asset_count" -eq 5 ] \
+	|| fail "three-way fixture must install only five subject assets, got ${asset_count}"
 
 # Upstream-only: target stays at v1 while source moves to v2.
 printf '\n# upstream init v2\n' >>"${SOURCE}/scripts/init.sh"
@@ -47,6 +55,19 @@ ln -s "${TMP_DIR}/outside" "${TARGET}/scripts/create-pr.sh.rej"
 if "${SOURCE}/scripts/install-harness.sh" "$TARGET" --update >"$OUT" 2>&1; then
 	cat "$OUT" >&2
 	fail "an unresolved both-changed conflict must exit nonzero"
+fi
+grep -Eq '^  safe:[[:space:]]+1$' "$OUT" \
+	|| { cat "$OUT" >&2; fail "summary did not count one safe update"; }
+grep -Eq '^  kept:[[:space:]]+1$' "$OUT" \
+	|| { cat "$OUT" >&2; fail "summary did not count one kept adopter file"; }
+grep -Eq '^  conflicts:[[:space:]]+1$' "$OUT" \
+	|| { cat "$OUT" >&2; fail "summary did not count one conflict"; }
+
+summary_line="$(grep -n -m1 '^Update classification:' "$OUT" | cut -d: -f1)"
+detail_line="$(grep -n -m1 -E '^  (updating|kept|conflict) ' "$OUT" | cut -d: -f1)"
+if [ -z "$summary_line" ] || [ -z "$detail_line" ] \
+	|| [ "$summary_line" -ge "$detail_line" ]; then
+	fail "classification summary must precede every per-file update detail"
 fi
 [ "$(cat "${TMP_DIR}/outside")" = "outside sentinel" ] \
 	|| fail "rejection output followed a symlink outside the target"
@@ -91,10 +112,18 @@ grep -Fq 'kept scripts/create-pr.sh (adopter changed)' "$OUT" \
 
 printf 'install-harness three-way update contract honored\n'
 
+grep -Fq '.harness-keep' "${ROOT}/docs/getting-started.md" \
+	|| fail "getting-started does not document protected paths"
+grep -Fq '.harness-lock' "${ROOT}/docs/getting-started.md" \
+	|| fail "getting-started does not document installed base state"
+grep -Fq '.rej' "${ROOT}/docs/getting-started.md" \
+	|| fail "getting-started does not document conflict recovery"
+
+printf 'install-harness summary-first upgrade contract honored\n'
+
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+INSTALL="${FIXTURE_SOURCE}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -146,8 +175,7 @@ printf '.harness-keep protection contract honored\n'
 
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+INSTALL="${FIXTURE_SOURCE}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
@@ -208,8 +236,7 @@ printf 'install-harness safe prune sensor passed\n'
 
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+INSTALL="${FIXTURE_SOURCE}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
@@ -273,60 +300,6 @@ printf 'install-harness update prune sensor passed\n'
 )
 
 (
-
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
-
-fail() {
-	printf 'FAIL: %s\n' "$*" >&2
-	exit 1
-}
-
-SOURCE="${TMP_DIR}/source"
-TARGET="${TMP_DIR}/target"
-OUT="${TMP_DIR}/update.out"
-
-"$INSTALL" "$SOURCE" --write >/dev/null 2>&1
-"${SOURCE}/scripts/install-harness.sh" "$TARGET" --write >/dev/null 2>&1
-
-printf '\n# upstream init v2\n' >>"${SOURCE}/scripts/init.sh"
-printf '\n# adopter issue-lib\n' >>"${TARGET}/scripts/lib/issue-lib.sh"
-printf '\n# adopter create-pr\n' >>"${TARGET}/scripts/create-pr.sh"
-printf '\n# upstream create-pr v2\n' >>"${SOURCE}/scripts/create-pr.sh"
-
-if "${SOURCE}/scripts/install-harness.sh" "$TARGET" --update >"$OUT" 2>&1; then
-	fail "round-trip conflict must exit nonzero"
-fi
-
-grep -Eq '^  safe:[[:space:]]+1$' "$OUT" \
-	|| { cat "$OUT" >&2; fail "summary did not count one safe update"; }
-grep -Eq '^  kept:[[:space:]]+1$' "$OUT" \
-	|| { cat "$OUT" >&2; fail "summary did not count one kept adopter file"; }
-grep -Eq '^  conflicts:[[:space:]]+1$' "$OUT" \
-	|| { cat "$OUT" >&2; fail "summary did not count one conflict"; }
-
-summary_line="$(grep -n -m1 '^Update classification:' "$OUT" | cut -d: -f1)"
-detail_line="$(grep -n -m1 -E '^  (updating|kept|conflict) ' "$OUT" | cut -d: -f1)"
-if [ -z "$summary_line" ] || [ -z "$detail_line" ] \
-	|| [ "$summary_line" -ge "$detail_line" ]; then
-	fail "classification summary must precede every per-file update detail"
-fi
-
-grep -Fq '.harness-keep' "${ROOT}/docs/getting-started.md" \
-	|| fail "getting-started does not document protected paths"
-grep -Fq '.harness-lock' "${ROOT}/docs/getting-started.md" \
-	|| fail "getting-started does not document installed base state"
-grep -Fq '.rej' "${ROOT}/docs/getting-started.md" \
-	|| fail "getting-started does not document conflict recovery"
-
-printf 'install-harness summary-first upgrade contract honored\n'
-)
-
-(
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 TARGET="${TMP_DIR}/legacy"
@@ -335,7 +308,7 @@ SOURCE="${TMP_DIR}/source"
 
 fail() { printf 'payload-upgrade: %s\n' "$*" >&2; exit 1; }
 
-"$INSTALL" "$SOURCE" --write >"$OUT" 2>&1
+cp -R "$FIXTURE_SOURCE" "$SOURCE"
 INSTALL="${SOURCE}/scripts/install-harness.sh"
 "$INSTALL" "$TARGET" --write >"$OUT" 2>&1
 clean="scripts/sync-version.sh"
