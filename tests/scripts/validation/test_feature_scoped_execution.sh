@@ -150,4 +150,31 @@ for sensor in tests/scripts/test_adopter_smoke_workflow.sh \
     fi
   fi
 done
+# A rename must select consumers of the removed name, not just its destination.
+printf '\nsource scripts/lib/shared-lib.sh\n' >>"${REPO}/tests/scripts/test_shared.sh"
+git -C "$REPO" add .
+git -C "$REPO" commit -qm 'test: rename consumer baseline'
+git -C "$REPO" config diff.renames true
+for phase in unstaged staged committed; do
+  rename_base="$(git -C "$REPO" rev-parse HEAD)"
+  mv "${REPO}/scripts/lib/shared-lib.sh" "${REPO}/scripts/lib/renamed-lib.sh"
+  if [ "$phase" != unstaged ]; then
+    git -C "$REPO" add scripts/lib
+  fi
+  if [ "$phase" = committed ]; then
+    git -C "$REPO" commit -qm 'test: committed library rename'
+  fi
+  : >"$SENSOR_RUN_LOG"
+  rc=0
+  run green --declared tests/scripts/test_staged.sh --diff "$rename_base" || rc=$?
+  [ "$rc" = 1 ] || fail "${phase} rename omitted failing old-path consumer"
+  assert_runs shared staged
+  grep -q '^FAIL tests/scripts/test_shared.sh$' "$OUT" \
+    || fail "${phase} rename did not expose its broken consumer"
+  mv "${REPO}/scripts/lib/renamed-lib.sh" "${REPO}/scripts/lib/shared-lib.sh"
+  git -C "$REPO" add scripts/lib
+  if ! git -C "$REPO" diff --cached --quiet; then
+    git -C "$REPO" commit -qm 'test: restore library for next rename case'
+  fi
+done
 printf 'strict feature selection and boundary-only integration honored\n'

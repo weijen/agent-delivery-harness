@@ -88,11 +88,11 @@ if [ -n "$DIFF_BASE" ]; then
   fi
   discover_changed_paths() {
     local output=""
-    output="$(git -C "$REPO_ROOT" diff --name-only "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only --cached 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --name-only 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only 2>/dev/null)" || return 1
     printf '%s\n' "$output"
     output="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" || return 1
     printf '%s\n' "$output"
