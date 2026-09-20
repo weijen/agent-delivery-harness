@@ -131,7 +131,6 @@ tests/scripts/validation/test_shellcheck_version_parity.sh
 tests/scripts/validation/test_shellcheck_version_pin.sh
 tests/scripts/test_trace_consistency_core.sh
 tests/scripts/test_trace_consistency_dark_run.sh
-tests/scripts/test_trace_feature_start_evidence.sh
 tests/scripts/test_trace_gate.sh
 tests/scripts/test_trace_lib_redaction.sh
 tests/scripts/test_trace_lib.sh
