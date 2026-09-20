@@ -62,8 +62,13 @@ grep -q 'success cause' "$log" || fail "nonsecret output lost"
 ! grep -q 'SYNTHETIC' "$log" || fail "secret-shaped output retained"
 grep -q "$head" "$(dirname "$index")/run.tsv" || fail "run HEAD attribution missing"
 git -C "$REPO" check-ignore -q "$index" || fail "diagnostics are not ignored"
-[ "$(stat -f '%Lp' "$(dirname "$index")" 2>/dev/null || stat -c '%a' "$(dirname "$index")")" = 700 ] \
+run_dir="$(dirname "$index")"
+[ "$(find "$run_dir" -prune -type d -perm 700)" = "$run_dir" ] \
   || fail "diagnostic run directory is not private"
+chmod 755 "$run_dir"
+[ -z "$(find "$run_dir" -prune -type d -perm 700)" ] \
+  || fail "permission assertion accepted a nonprivate directory"
+chmod 700 "$run_dir"
 first_index="$index"
 rows="$(wc -l <"${TRACK}/sensor-evidence.jsonl")"
 rc=0
