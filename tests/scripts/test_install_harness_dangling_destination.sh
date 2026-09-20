@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -13,10 +14,13 @@ fail() {
 }
 
 OUT="${TMP_DIR}/install.out"
+SOURCE="${TMP_DIR}/source"
+installer_fixture_source "$SOURCE"
+INSTALL="${SOURCE}/scripts/install-harness.sh"
 
 asset_target="${TMP_DIR}/asset-target"
 asset_outside="${TMP_DIR}/asset-outside"
-mkdir -p "${asset_target}/scripts/lib" "${asset_target}/scripts/validation" "${asset_outside}"
+mkdir -p "${asset_target}/scripts" "${asset_outside}"
 ln -s "${asset_outside}/init.sh" "${asset_target}/scripts/init.sh"
 if "${INSTALL}" "${asset_target}" --write >"${OUT}" 2>&1; then
 	fail "dangling asset destination must fail"
@@ -45,8 +49,11 @@ grep -qiF 'refusing non-regular .harness-lock' "${OUT}" \
 reject_source="${TMP_DIR}/reject-source"
 reject_target="${TMP_DIR}/reject-target"
 reject_outside="${TMP_DIR}/reject-outside"
-"${INSTALL}" "${reject_source}" --write >/dev/null 2>&1
+installer_fixture_source "$reject_source"
 "${reject_source}/scripts/install-harness.sh" "${reject_target}" --write >/dev/null 2>&1
+asset_count="$(awk '!/^#/ && NF { count++ } END { print count + 0 }' "${reject_target}/.harness-lock")"
+[ "$asset_count" -eq 1 ] \
+	|| fail "dangling-destination fixture must install only its subject asset, got ${asset_count}"
 printf '\n# upstream conflict\n' >>"${reject_source}/scripts/init.sh"
 printf '\n# adopter conflict\n' >>"${reject_target}/scripts/init.sh"
 mkdir -p "${reject_outside}"
