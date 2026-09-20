@@ -332,28 +332,24 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 When the issue's features are all `passes:true`, do **not** open the PR yet. First run the
 **Pre-PR verify gate** (the BLOCKING row in §4) over the whole branch diff (`main...HEAD`):
 
-1. **Approve the current HEAD after review.** Run `./scripts/validation/review-gate.sh approve` only after
-   deterministic gates and review findings are resolved for the current HEAD. Any new commit requires
-   a fresh approval.
-2. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
-  `./scripts/create-pr.sh`, which checks the current HEAD approval, then `git fetch origin main`
-  + rebases your branch onto `origin/main`. After a successful default rebase,
-  `create-pr.sh` attempts to carry the prior approval forward by patch-id identity (issue #310):
-  if the branch's ordered patch stream is unchanged, the approval carries automatically to the
-  post-rebase HEAD with no second approve needed. Any content-changing commit or sync still
-  requires fresh review — carry applies only when the actual successful default rebase produced
-  exactly the pre-approved HEAD, the stored identity is a valid merge-free stable hex identity,
-  and the post-rebase identity is unchanged. The authoritative check always runs after carry;
-  merge/non-rewrite/fallback/legacy-marker paths all require fresh approval. `main` moves while
-  you work, so a branch cut from a stale base can pass local gates yet break against current
-  `main` — or duplicate a fix that already landed. Run the gates below **after** the sync
-  (re-run them if the rebase pulled in new commits) so they verify the merged result.
-3. Full deterministic suite green for the current detected surfaces:
+1. **Prepare before final verification.** Run `./scripts/create-pr.sh --prepare` to
+   fetch main and synchronize the issue branch. Default preparation rebases;
+   `CREATE_PR_NO_REWRITE=1` merges instead. This explicit step does not run sensors,
+   push, open a PR or consume a successful publication round.
+2. **Review and approve the prepared candidate.** Run
+   `./scripts/run-sensors.sh --gate pre-review`, then the single independent
+   end-of-issue review and applicable inferential checks described below.
+   Resolve findings before `./scripts/validation/review-gate.sh approve`.
+   Approval and evidence must cover the resulting HEAD; subsequent changes require
+   the corresponding review and validation obligations again.
+3. **Verify the final candidate before publication.** Full deterministic suite green
+   for the current detected surfaces:
    `./scripts/run-sensors.sh --gate pre-pr` plus the profile gates from
    `./scripts/init.sh`. The dormant root Python surface runs sync/ruff while
    mypy and pytest skip until `.py` source exists; harness shell changes require
    shellcheck.
-4. Run the standalone inferential sensor set over the branch diff (**this is the authoritative
+4. The review in step 2 includes the standalone inferential sensor set over the branch diff
+   (**this is the authoritative
    list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
    scoped by **irreversibility**: only the three checks whose findings become irreversible the
    moment the branch is pushed / the PR is opened run standalone here:
@@ -396,10 +392,13 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/validation/review-gate.sh check`, fetches + rebases onto `origin/main`, attempts to
-  carry the prior approval by patch-id identity (issue #310) when the rebase is content-preserving,
-  then runs the authoritative check for the final post-sync HEAD, pushes, and runs `gh pr create`.
-  Do not hand-run `gh pr create` against a stale base.
+  it checks `./scripts/validation/review-gate.sh check` and verified full, nonempty
+  pre-PR evidence for the clean current HEAD, pushes that exact commit, and runs
+  `gh pr create`. Publication never synchronizes, automatically carries approval,
+  or executes sensors. Invalid evidence and push failures stop without rewriting
+  the candidate. Do not bypass these obligations with a direct `gh pr create`.
+  Later main updates rely on remote PR CI; the current configuration does not
+  guarantee freshness after every base update (the separate #485 design).
 - **A green remote CI run is a hard precondition for merge.** After the PR is open and local
   gates/reviews are complete, do **not** merge until the harness CI run
   (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through
