@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v0.46.0 (2026-09-20)
+
+### Bug Fixes
+
+- **#482**: Validate unterminated sensor evidence records
+  ([#490](https://github.com/weijen/agent-delivery-harness/pull/490),
+  [`960eea0`](https://github.com/weijen/agent-delivery-harness/commit/960eea0ffadb8b4a3453b05aba4095905892b5ee))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.45.3
+  ([`1328cea`](https://github.com/weijen/agent-delivery-harness/commit/1328cea4f4e5545642409b0bed35cc87292c8c01))
+
+### Documentation
+
+- **#482**: Align mandatory closeout with evidence-only publication
+  ([#490](https://github.com/weijen/agent-delivery-harness/pull/490),
+  [`960eea0`](https://github.com/weijen/agent-delivery-harness/commit/960eea0ffadb8b4a3453b05aba4095905892b5ee))
+
+### Features
+
+- **#482**: Prepare the PR candidate before final verification
+  ([#490](https://github.com/weijen/agent-delivery-harness/pull/490),
+  [`960eea0`](https://github.com/weijen/agent-delivery-harness/commit/960eea0ffadb8b4a3453b05aba4095905892b5ee))
+
+- **#482**: Separate PR preparation from verified publication
+  ([#490](https://github.com/weijen/agent-delivery-harness/pull/490),
+  [`960eea0`](https://github.com/weijen/agent-delivery-harness/commit/960eea0ffadb8b4a3453b05aba4095905892b5ee))
+
+### Performance Improvements
+
+- **#482**: Publish the verified candidate without duplicate sensor runs
+  ([#490](https://github.com/weijen/agent-delivery-harness/pull/490),
+  [`960eea0`](https://github.com/weijen/agent-delivery-harness/commit/960eea0ffadb8b4a3453b05aba4095905892b5ee))
+
+
 ## v0.45.3 (2026-09-20)
 
 ### Bug Fixes
