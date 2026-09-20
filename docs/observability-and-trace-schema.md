@@ -68,8 +68,10 @@ Historical schema values do not authorize new writes or add completion gates.
 - Lifecycle scripts record their own worktree, approval, PR and closeout events.
 - `scripts/run-sensors.sh` records observed green results in
   `sensor-evidence.jsonl`. Gate evidence is HEAD-bound and mode-specific;
-  `scripts/validation/verify-sensor-evidence.sh` verifies it and review approval rebinds it
-  through `scripts/validation/rebind-evidence.sh`. Agent prose is not substitute evidence.
+  `scripts/validation/verify-sensor-evidence.sh` verifies it. Review approval never
+  executes sensors; `scripts/validation/rebind-evidence.sh` only reads existing
+  evidence. The explicit full pre-PR run follows review approval.
+  Agent prose is not substitute evidence.
 - Deeper Copilot analysis reads native records. Runtime tool/model spans are
   not required to prove that the kept semantic spine exists.
 - Independent review judges test quality and records attributed findings.

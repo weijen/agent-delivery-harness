@@ -24,7 +24,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DOC_HARNESS="${ROOT}/.copilot/instructions/harness.instructions.md"
+DOC_HARNESS="${DOC_HARNESS_OVERRIDE:-${ROOT}/.copilot/instructions/harness.instructions.md}"
 
 fails=0
 fail() {
@@ -118,7 +118,7 @@ closeout="$(awk '
   active { print }
 ' "$DOC_HARNESS")"
 previous=0
-for command in 'create-pr.sh --prepare' 'run-sensors.sh --gate pre-review' \
+for command in 'create-pr.sh --prepare' 'code-review-subagent' \
   'review-gate.sh approve' 'run-sensors.sh --gate pre-pr' 'create-pr.sh --title'; do
   position="$(printf '%s\n' "$closeout" | awk -v command="$command" \
     'index($0, command) { print NR; exit }')"
@@ -128,6 +128,24 @@ for command in 'create-pr.sh --prepare' 'run-sensors.sh --gate pre-review' \
     previous="$position"
   fi
 done
+if grep -qE 'run-sensors\.sh --gate pre-review|review verdicts are valid only over a full-suite-green tree|approve.*automatically.*rebind' "$DOC_HARNESS"; then
+  fail "doctrine must not require full pre-review or automatic approval-time rebinding"
+fi
+
+if [ -z "${REVIEW_FIRST_KILL_CHECK:-}" ]; then
+  poisoned="$(mktemp)"
+  trap 'rm -f "$poisoned"' EXIT
+  for poison in \
+    'Additionally run ./scripts/run-sensors.sh --gate pre-review before the reviewer.' \
+    'Review requires evidence: review verdicts are valid only over a full-suite-green tree.' \
+    'review-gate.sh approve automatically runs rebind before approval.'; do
+    { cat "$DOC_HARNESS"; printf '\n%s\n' "$poison"; } >"$poisoned"
+    result="$(REVIEW_FIRST_KILL_CHECK=1 DOC_HARNESS_OVERRIDE="$poisoned" \
+      bash "${BASH_SOURCE[0]}" 2>&1)" && fail "additive legacy requirement was accepted"
+    grep -q 'must not require full pre-review' <<<"$result" \
+      || fail "legacy mutation failed for the wrong reason"
+  done
+fi
 if printf '%s\n' "$closeout" | tr '\n' ' ' \
   | grep -qiE 'post-rebase HEAD|post-sync HEAD|approval carries automatically|attempts to carry'; then
   fail "mandatory closeout must not retain publication-time synchronization/carry requirements"

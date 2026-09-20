@@ -7,8 +7,8 @@
 #     * runs EXACTLY the affected-sensors.sh scoped set (declared + affected);
 #     * never escalates to full, even for shared changes or discovery errors;
 #     * there is NO agent-facing flag that makes green run the full suite.
-#   run-sensors.sh --gate pre-review | --gate pre-pr
-#     * runs the full tests/scripts + tests/meta set (the two owed points);
+#   run-sensors.sh --gate pre-pr
+#     * runs the full tests/scripts + tests/meta set after review;
 #     * any other gate name → usage error, exit 2.
 #   Output: PASS/FAIL lines + summary `SENSORS <label> scope=<s> ran=<n> failed=<m>`;
 #   exit 0 all green, 1 on any sensor failure, 2 on usage error.
@@ -133,7 +133,7 @@ grep -q "^SENSORS green head=${head_sha} scope=scoped ran=1 failed=0$" <<<"$out"
 [ "$rc" = "0" ] || fail "unrelated red sensors must not run during feature green (got ${rc})"
 rm -f "${FIX}/scripts/lib/trace-lib.sh"
 
-# 5. Gate mode runs the full set; only pre-review/pre-pr are valid.
+# 5. The final gate runs the full set.
 set +e
 out="$(run --gate pre-pr)"
 rc=$?
@@ -151,8 +151,8 @@ SH
 git -C "$FIX" add tests/scripts/test_always_red.sh
 git -C "$FIX" commit -q -m "make fixture green"
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
-out="$(run --gate pre-review)" || fail "all-green gate must pass"
-grep -q "^SENSORS pre-review head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
+out="$(run --gate pre-pr)" || fail "all-green gate must pass"
+grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
   || fail "successful gate summary malformed (got: $out)"
 
 set +e
@@ -250,7 +250,7 @@ done
 for mode in local source adopter; do
   : >"$SENSOR_RUN_LOG"
   case "$mode" in
-    local) out="$(run --gate pre-review)" ;;
+    local) out="$(run --gate pre-pr)" ;;
     source) out="$(run_ci "${ROOT}/.github/workflows/harness-smoke.yml")" ;;
     adopter) out="$(run_ci "${ROOT}/profiles/adopter-smoke.yml")" ;;
   esac
@@ -282,7 +282,7 @@ mv "${FIX}/tests" "${TMP_DIR}/saved-tests"
 mkdir -p "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
 for mode in local source adopter; do
   if case "$mode" in
-    local) run --gate pre-review ;;
+    local) run --gate pre-pr ;;
     source) run_ci "${ROOT}/.github/workflows/harness-smoke.yml" ;;
     adopter) run_ci "${ROOT}/profiles/adopter-smoke.yml" ;;
   esac >"${TMP_DIR}/empty.log" 2>&1; then

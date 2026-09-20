@@ -1,34 +1,23 @@
 #!/usr/bin/env bash
-# rebind-evidence.sh — keep HEAD-bound gate evidence current across repair
-# commits (issue #442).
+# rebind-evidence.sh — read-only compatibility check for existing gate evidence.
 #
 # Usage:
-#   scripts/validation/rebind-evidence.sh [--gate pre-review|pre-pr]   # default pre-review
+#   scripts/validation/rebind-evidence.sh [--gate pre-review|pre-pr]   # default pre-pr
 #
-# The repair-loop catch-22 this removes: fixing a review finding creates a
-# commit, which silently invalidates the previous gate evidence; the staleness
-# used to surface one review round later as a BLOCKING stale-evidence finding
-# (#383 "pre-verdict dependency cycle", foundry issue-48). Re-binding is a
-# deterministic script action at the moment it is owed, never a finding.
-#
-# Carry rule (deterministic — the agent never reasons about staleness):
-#   * a green (failed=0, ran>0) recorded row already bound to the CURRENT HEAD
-#     with the requested gate mode → evidence is current, exit 0, no re-run;
-#   * anything else (repair commit, rebase, first run, tampered rows) →
-#     re-run `run-sensors.sh --gate <gate>`, which re-records the row (#441).
-#
-# Exit: 0 evidence current (carried or freshly re-bound) · 1 sensors red or
-#       no issue context · 2 usage error.
+# Never executes sensors or rewrites evidence. Historical pre-review rows remain
+# readable, but approval no longer calls this helper. Missing/stale/invalid final
+# evidence requires an explicit pre-PR gate after review, not automatic recovery.
+# Exit: 0 evidence current or no issue context · 1 invalid/missing evidence · 2 usage.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
+usage() { printf 'usage: rebind-evidence.sh [--gate pre-review|pre-pr] (verification only; default pre-pr)\n' >&2; }
 
-GATE="pre-review"
+GATE="pre-pr"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --gate) GATE="${2:-}"; shift 2 ;;
+    --gate) [ "$#" -ge 2 ] || { usage; exit 2; }; GATE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac
@@ -55,7 +44,7 @@ if ! ISSUE="$(trace__resolve_issue)"; then
 fi
 HEAD_SHA="$(git rev-parse HEAD)"
 
-# Carry: evidence already bound to this HEAD at this gate → nothing owed.
+# Compatibility verification cannot silently create a replacement result.
 verify_out=""
 if [ -f "${SCRIPT_DIR}/validation/verify-sensor-evidence.sh" ] \
   && verify_out="$(bash "${SCRIPT_DIR}/validation/verify-sensor-evidence.sh" "$ISSUE" \
@@ -65,11 +54,12 @@ if [ -f "${SCRIPT_DIR}/validation/verify-sensor-evidence.sh" ] \
   exit 0
 fi
 
-# Re-bind: run the owed gate at the current HEAD; #441 records the row. The
-# verify reason is surfaced so tampering reads as tampering, not mere staleness.
 if [ -n "$verify_out" ]; then
   printf 'rebind-evidence: %s\n' "$verify_out" >&2
+else
+  printf 'rebind-evidence: verify-sensor-evidence.sh is missing; restore the verifier\n' >&2
 fi
-printf 'rebind-evidence: evidence stale or absent for head %s — re-running --gate %s\n' \
-  "$HEAD_SHA" "$GATE"
-bash "${SCRIPT_DIR}/run-sensors.sh" --gate "$GATE"
+printf 'rebind-evidence: no valid %s evidence for head %s; no sensors were executed\n' \
+  "$GATE" "$HEAD_SHA" >&2
+printf 'rebind-evidence: after review approval, run ./scripts/run-sensors.sh --gate pre-pr for the final candidate\n' >&2
+exit 1
