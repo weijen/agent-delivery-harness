@@ -73,6 +73,8 @@ for rel in "${REQUIRED_FILES[@]}"; do
 	[ "$rel" != ".github/workflows/harness-smoke.yml" ] || source_rel="profiles/adopter-smoke.yml"
 	cmp -s "$ROOT/$source_rel" "$c/$rel" || { echo "case-c: installed asset differs from selected source: $rel"; exit 1; }
 done
+(cd "$TMP_DIR" && bash "$c/tests/scripts/test_copilot_log_review_recipes.sh") >"$OUT" 2>&1 \
+	|| { cat "$OUT"; echo "case-c: installed log-recipe sensor failed"; exit 1; }
 # The REAL subagent file, not a placeholder (nb: the doctrine legitimately
 # contains the word "skeleton" post-#352, so key on a required contract line).
 grep -qF "CODE REVIEW SUBAGENT" "$c/.copilot/agents/code-review-subagent.agent.md" \

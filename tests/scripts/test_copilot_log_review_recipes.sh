@@ -634,6 +634,8 @@ cd "$ROOT"
 MANIFEST="${MANIFEST:-${ROOT}/tests/fixtures/copilot-log-review/cli-record-contract.json}"
 SKILL_PATH="${SKILL_PATH:-${ROOT}/.copilot/skills/copilot-log-review/SKILL.md}"
 FIXTURE_ROOT="${FIXTURE_ROOT:-${ROOT}}"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
 
 fails=0
 fail() {
@@ -676,6 +678,10 @@ _lookup_mani_id() {
 # ==============================================================================
 # Leg A: Manifest exists, valid JSON, schema_version=="1.0.0", structural checks
 # ==============================================================================
+check_manifest_structure() {
+local fails=0
+local SUPPORTED_SCHEMA schema_version struct_ok arr arr_type arr_len i fld fld_ok
+local ocv_ok scl ord_ok ord_raw ref_fid ref_exists
 if [ ! -f "$MANIFEST" ]; then
   fail "A" "contract manifest not found at ${MANIFEST}"
   printf '\n%d obligation(s) failed.\n' "$fails" >&2
@@ -758,11 +764,15 @@ for i in $(seq 0 $((recipe_count - 1))); do
     fail "A" "recipe[$i].fixture_id '${ref_fid}' references a fixture not declared in manifest"
   fi
 done
+[ "$fails" -eq 0 ]
+}
 
 # ==============================================================================
 # Leg B: Manifest uniqueness — IDs, paths, source tuples, fixture-backed count
 # ==============================================================================
-
+check_manifest_uniqueness() {
+local fails=0
+local fixture_id_dups fixture_path_dups recipe_id_dups recipe_tuple_dups cli_version_fixture_count
 # Fixture IDs unique
 fixture_id_dups="$(jq -r '[.fixtures[].id] | group_by(.) | map(select(length>1))[0][0] // empty' "$MANIFEST")"
 if [ -n "$fixture_id_dups" ]; then
@@ -788,7 +798,11 @@ cli_version_fixture_count="$(jq '[.fixtures[] | select(.observed_cli_version != 
 if [ "$cli_version_fixture_count" -ne 1 ]; then
   fail "B" "expected exactly 1 fixture with observed_cli_version, got ${cli_version_fixture_count}"
 fi
+[ "$fails" -eq 0 ]
+}
 
+check_manifest_structure
+check_manifest_uniqueness
 # ==============================================================================
 # Leg C: Fixture records — paths exist and JSONL lines parse
 # ==============================================================================
@@ -813,10 +827,13 @@ done
 # ==============================================================================
 # Leg D: Recipe discovery — awk state machine to extract jq blocks
 # ==============================================================================
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+check_recipe_set() {
+local fails=0 discovery_dir
+local discovered_count dlevel dheading dordinal djqfile dkey i mheading mlevel mordinal mkey mid
+recipe_count="$(jq '.recipes | length' "$MANIFEST")" || return 1
+discovery_dir="$(mktemp -d "${TMP_DIR}/discovery.XXXXXX")" || return 1
 
-awk -v tmpdir="$TMP_DIR" '
+awk -v tmpdir="$discovery_dir" '
   /^(##|###)[[:space:]]+/ {
     heading = $0
     level = heading
@@ -840,11 +857,11 @@ awk -v tmpdir="$TMP_DIR" '
   in_fence {
     print >> outfile
   }
-' "$SKILL_PATH"
+' "$SKILL_PATH" || return 1
 
 discovered_count=0
-if [ -f "$TMP_DIR/index.tsv" ]; then
-  discovered_count="$(wc -l < "$TMP_DIR/index.tsv" | tr -d ' ')"
+if [ -f "$discovery_dir/index.tsv" ]; then
+  discovered_count="$(wc -l < "$discovery_dir/index.tsv" | tr -d ' ')"
 fi
 if [ "$discovered_count" -lt 1 ]; then
   fail "D" "no jq fenced blocks discovered in SKILL.md (expected >=1)"
@@ -858,12 +875,12 @@ fi
 #   _disc_jqfiles[i]    → corresponding discovered jq file path
 discovered_keys=()
 _disc_jqfiles=()
-if [ -f "$TMP_DIR/index.tsv" ]; then
+if [ -f "$discovery_dir/index.tsv" ]; then
   while IFS=$'\t' read -r dlevel dheading dordinal djqfile; do
     dkey="${dlevel}|${dheading}|${dordinal}"
     discovered_keys+=("$dkey")
     _disc_jqfiles+=("$djqfile")
-  done < "$TMP_DIR/index.tsv"
+  done < "$discovery_dir/index.tsv"
 fi
 
 # Build manifest source-tuple set (parallel indexed arrays):
@@ -900,6 +917,10 @@ for mkey in "${manifest_recipe_keys[@]}"; do
     fail "E" "manifest recipe '${mid}' (${mkey}) not found in SKILL.md (orphan manifest recipe)"
   fi
 done
+[ "$fails" -eq 0 ]
+}
+
+check_recipe_set
 
 # ==============================================================================
 # Leg F: Recipe execution — each jq recipe runs against its declared fixture
@@ -955,21 +976,43 @@ done
 # ==============================================================================
 # Leg H: CLI native-record version link
 # ==============================================================================
+check_cli_version() {
+local fails=0
+local manifest_cli_version cli_fixture_path actual_version
 manifest_cli_version="$(jq -r '.fixtures[] | select(.observed_cli_version != null and .observed_cli_version != "") | .observed_cli_version' "$MANIFEST" | head -1)"
 if [ -n "$manifest_cli_version" ]; then
   cli_fixture_path="$(jq -r '.fixtures[] | select(.observed_cli_version != null and .observed_cli_version != "") | .relative_path' "$MANIFEST" | head -1)"
-  actual_version="$(head -1 "${FIXTURE_ROOT}/${cli_fixture_path}" | jq -r '.data.cliVersion // empty')"
+  actual_version="$(head -1 "${FIXTURE_ROOT}/${cli_fixture_path}" | jq -r '.data.cliVersion // empty')" || return 1
   if [ "$actual_version" != "$manifest_cli_version" ]; then
     fail "H" "manifest CLI version '${manifest_cli_version}' != fixture first-event .data.cliVersion '${actual_version}'"
   fi
 fi
+[ "$fails" -eq 0 ]
+}
+
+check_cli_version
 
 # ==============================================================================
-# Teeth: Mutation legs (skipped under recursion guard)
+# Teeth: Mutations exercise the same checkers without replaying other groups.
 # ==============================================================================
+expect_rejection() {
+  local case_id="$1" reasons="$2" output reason
+  shift 2
+  if output="$("$@" 2>&1)"; then
+    fail "$case_id" "TEETH: mutated input passed"
+  fi
+  while IFS= read -r reason; do
+    if ! grep -Fq -- "$reason" <<<"$output"; then
+      fail "$case_id" "TEETH: expected '${reason}', got: ${output}"
+    fi
+  done <<<"$reasons"
+  if grep -Eq 'copilot-log-review Quantify recipes:|PASS: copilot-log-review SKILL.md|RESULT: all 21 legs passed' <<<"$output"; then
+    fail "$case_id" "TEETH: mutation replayed unchanged recipe/documentation groups"
+  fi
+}
+
 if [ "${SKIP_RECURSIVE_MUTATIONS:-0}" != "1" ]; then
 
-  SELF="${BASH_SOURCE[0]}"
   MUTANT_DIR="${TMP_DIR}/mutants"
   mkdir -p "$MUTANT_DIR"
 
@@ -984,16 +1027,12 @@ if [ "${SKIP_RECURSIVE_MUTATIONS:-0}" != "1" ]; then
 { phantom: true }
 ```
 EOF
-  if SKILL_PATH="$MUTANT_SKILL" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T1" "TEETH: sensor passes with an unregistered jq fence appended (set mismatch not detected)"
-  fi
+  SKILL_PATH="$MUTANT_SKILL" expect_rejection T1 'orphan discovered recipe' check_recipe_set
 
   # --- T2: Remove a recipe entry → orphan discovered recipe -------------------
   MUTANT_MANIFEST="${MUTANT_DIR}/manifest-t2.json"
   jq 'del(.recipes[0])' "$MANIFEST" > "$MUTANT_MANIFEST"
-  if MANIFEST="$MUTANT_MANIFEST" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T2" "TEETH: sensor passes with a recipe entry removed from manifest"
-  fi
+  MANIFEST="$MUTANT_MANIFEST" expect_rejection T2 'orphan discovered recipe' check_recipe_set
 
   # --- T4: Change CLI fixture version → version cross-check -------------------
   MUTANT_FIXTURE_DIR="${MUTANT_DIR}/fixtures-t4"
@@ -1009,38 +1048,28 @@ EOF
     sed 's/"cliVersion":"1.0.72-1"/"cliVersion":"9.9.99"/' "${MUTANT_FIXTURE_DIR}/${cli_fixture_relpath}" \
       > "${MUTANT_FIXTURE_DIR}/${cli_fixture_relpath}.tmp" \
       && mv "${MUTANT_FIXTURE_DIR}/${cli_fixture_relpath}.tmp" "${MUTANT_FIXTURE_DIR}/${cli_fixture_relpath}"
-    if FIXTURE_ROOT="$MUTANT_FIXTURE_DIR" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-      fail "T4" "TEETH: sensor passes with CLI fixture version changed"
-    fi
+    FIXTURE_ROOT="$MUTANT_FIXTURE_DIR" expect_rejection T4 '!= fixture first-event .data.cliVersion' check_cli_version
   fi
 
   # --- T5: Add orphan manifest recipe (no SKILL.md block) → set mismatch -----
   MUTANT_MANIFEST5="${MUTANT_DIR}/manifest-t5.json"
   jq '.recipes += [{"id":"phantom-orphan","source_heading":"Nonexistent","source_context_level":"###","ordinal":1,"fixture_id":"sample-transcript","expectation":"true"}]' "$MANIFEST" > "$MUTANT_MANIFEST5"
-  if MANIFEST="$MUTANT_MANIFEST5" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T5" "TEETH: sensor passes with an orphan recipe entry in manifest"
-  fi
+  MANIFEST="$MUTANT_MANIFEST5" expect_rejection T5 'orphan manifest recipe' check_recipe_set
 
   # --- T7: Duplicate a recipe ID and source tuple → uniqueness failure --------
   MUTANT_MANIFEST7="${MUTANT_DIR}/manifest-t7.json"
   jq '.recipes += [.recipes[0]]' "$MANIFEST" > "$MUTANT_MANIFEST7"
-  if MANIFEST="$MUTANT_MANIFEST7" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T7" "TEETH: sensor passes with duplicate recipe ID/source tuple"
-  fi
+  MANIFEST="$MUTANT_MANIFEST7" expect_rejection T7 $'duplicate recipe id:\nduplicate recipe source tuple:' check_manifest_uniqueness
 
   # --- T9: Set ordinal to 1.5 — structural validation must catch non-integer --
   MUTANT_MANIFEST9="${MUTANT_DIR}/manifest-t9.json"
   jq '.recipes[0].ordinal = 1.5' "$MANIFEST" > "$MUTANT_MANIFEST9"
-  if MANIFEST="$MUTANT_MANIFEST9" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T9" "TEETH: sensor passes with ordinal=1.5 (integer validation not enforced)"
-  fi
+  MANIFEST="$MUTANT_MANIFEST9" expect_rejection T9 'ordinal must be a positive integer' check_manifest_structure
 
   # --- T10: Remove fixture surface field — structural validation must catch ---
   MUTANT_MANIFEST10="${MUTANT_DIR}/manifest-t10.json"
   jq '.fixtures[0].surface = null' "$MANIFEST" > "$MUTANT_MANIFEST10"
-  if MANIFEST="$MUTANT_MANIFEST10" SKIP_RECURSIVE_MUTATIONS=1 bash "$SELF" >/dev/null 2>&1; then
-    fail "T10" "TEETH: sensor passes with fixture surface removed (structural type check not enforced)"
-  fi
+  MANIFEST="$MUTANT_MANIFEST10" expect_rejection T10 'fixture[0].surface must be a non-empty string' check_manifest_structure
 fi
 
 # ==============================================================================
