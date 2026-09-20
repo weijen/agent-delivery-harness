@@ -89,11 +89,25 @@ for manifest in "${manifests[@]}"; do
 		continue
 	fi
 
+	# A broken runner response is not evidence that the case passed.
+	case_id="$(jq -r '.id // ""' "$manifest" 2>/dev/null || true)"
+	if ! printf '%s\n' "$scorecard" | jq -se --arg id "$case_id" '
+		length == 1 and (.[0] |
+			(.results | type == "array" and length == 1) and
+			((.results[0].case_id // "") == $id) and
+			(.results[0].status | IN("pass", "fail", "not_run", "invalid_manifest", "infrastructure_error")) and
+			(.results[0].blocking_decision | IN("pass", "warn", "block")))
+	' >/dev/null 2>&1; then
+		printf '# BLOCKING: malformed or mismatched scorecard for %s (runner exited %s)\n' "$manifest" "$rc" >&2
+		blocked=1
+		continue
+	fi
+
 	# Print the case-level scorecard as evidence.
 	printf '%s\n' "$scorecard"
 
 	# A case blocks iff any result row carries blocking_decision == "block".
-	if printf '%s\n' "$scorecard" \
+	if [ "$rc" -ne 0 ] || printf '%s\n' "$scorecard" \
 		| jq -e 'any(.results[]?; .blocking_decision == "block")' >/dev/null 2>&1; then
 		blocked=1
 	fi
