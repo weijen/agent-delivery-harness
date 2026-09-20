@@ -2,6 +2,44 @@
 
 <!-- version list -->
 
+## v0.47.0 (2026-09-20)
+
+### Bug Fixes
+
+- **#484**: Frame multiline quoted credentials
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+- **#484**: Redact single-quoted credential keys
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.46.3
+  ([`eb55f63`](https://github.com/weijen/agent-delivery-harness/commit/eb55f6319e06879a4cca92767eaf12f8b14fc9f3))
+
+### Features
+
+- **#484**: Retain attributable sensor diagnostics
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+- **#484**: Retain sensor timing and sanitized failure diagnostics
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+- **#484**: Show bounded sensor failure context
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+### Testing
+
+- **#484**: Make private-mode assertion portable
+  ([#503](https://github.com/weijen/agent-delivery-harness/pull/503),
+  [`fc237cb`](https://github.com/weijen/agent-delivery-harness/commit/fc237cbdc097ed526d4dd7a03a75ba7ca8d4791a))
+
+
 ## v0.46.3 (2026-09-20)
 
 ### Bug Fixes
