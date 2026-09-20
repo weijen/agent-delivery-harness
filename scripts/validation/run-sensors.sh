@@ -79,17 +79,150 @@ elif [ -z "$DIFF_BASE" ]; then
   exit 2
 fi
 
+diagnostics_init() { # <scope> <mode>
+  DIAGNOSTICS_DIR=""
+  local root issue="" parent
+  if ! declare -F trace_redact >/dev/null || ! declare -F trace_now_ms >/dev/null \
+    || ! declare -F trace__main_root >/dev/null; then
+    printf 'run-sensors.sh: diagnostics unavailable: trace helpers missing; output discarded, timing uses whole seconds\n' >&2
+    return 0
+  fi
+  if ! root="$(trace__main_root)"; then
+    printf 'run-sensors.sh: diagnostics unavailable: cannot resolve main checkout\n' >&2
+    return 0
+  fi
+  parent="${root}/.copilot-tracking"
+  if issue="$(trace__resolve_issue)"; then
+    parent="${parent}/issues/issue-$(printf '%02d' "$issue")"
+  fi
+  parent="${parent}/sensor-runs"
+  if ! DIAGNOSTICS_DIR="$(umask 077; mkdir -p "$parent" && mktemp -d "${parent}/run.XXXXXX")"; then
+    printf 'run-sensors.sh: diagnostics unavailable: cannot create run directory under %s\n' "$parent" >&2
+    DIAGNOSTICS_DIR=""
+    return 0
+  fi
+  if ! {
+    printf 'head\tmode\tscope\n%s\t%s\t%s\n' "$HEAD_SHA" "$2" "$1" >"${DIAGNOSTICS_DIR}/run.tsv" &&
+    printf 'sensor\telapsed_ms\texit_status\tlog\n' >"${DIAGNOSTICS_DIR}/sensors.tsv"
+  }; then
+    printf 'run-sensors.sh: diagnostics unavailable: cannot write run metadata in %s\n' "$DIAGNOSTICS_DIR" >&2
+    DIAGNOSTICS_DIR=""
+    return 0
+  fi
+  printf 'DIAGNOSTICS %s/sensors.tsv\n' "$DIAGNOSTICS_DIR"
+}
+
+diagnostics_capture() { # <log> -- consume all input even when storage/redaction fails
+  local log="$1"
+  if [ -n "$log" ] && {
+    # Frame raw quoted values and PEM blocks before the shared line redactor.
+    awk '
+      BEGIN {
+        credential = "(secret|token|password|passwd|api_?key|credential|access_key)[[:alnum:]_.]*[\"\047]?[[:space:]]*[:=][[:space:]]*[\"\047]"
+      }
+      function quote_end(text, delimiter, i, escaped, character) {
+        for (i = 1; i <= length(text); i++) {
+          character = substr(text, i, 1)
+          if (escaped) escaped = 0
+          else if (character == "\\") escaped = 1
+          else if (character == delimiter) return i
+        }
+        return 0
+      }
+      function open_quote(text, delimiter, ending) {
+        while (match(tolower(text), credential)) {
+          delimiter = substr(text, RSTART + RLENGTH - 1, 1)
+          text = substr(text, RSTART + RLENGTH)
+          ending = quote_end(text, delimiter)
+          if (!ending) return delimiter
+          text = substr(text, ending + 1)
+        }
+        return ""
+      }
+      { gsub(/\033\[[0-9;]*[A-Za-z]/, ""); gsub(/[[:cntrl:]]/, "") }
+      quoted != "" {
+        ending = quote_end($0, quoted)
+        if (ending) quoted = open_quote(substr($0, ending + 1))
+        next
+      }
+      /-----BEGIN .*PRIVATE KEY-----/ { private_key=1; print "[REDACTED private key]" }
+      private_key { if (/-----END .*PRIVATE KEY-----/) private_key=0; next }
+      match(tolower($0), credential) {
+        quoted = open_quote($0)
+        print "[REDACTED quoted credential]"; next
+      }
+      { print }
+    ' | trace_redact >"$log"
+  }; then
+    return 0
+  fi
+  # Keep the producer alive to preserve its own exit code, including on disk full.
+  cat >/dev/null
+  return 1
+}
+
+diagnostics_now_ms() {
+  if declare -F trace_now_ms >/dev/null; then trace_now_ms
+  else printf '%s\n' "$((SECONDS * 1000))"
+  fi
+}
+
+diagnostics_excerpt() { # <sensor> <sanitized-log>
+  printf 'Failure output for %s (bounded; complete sanitized output: %s):\n' "$1" "$2" >&2
+  LC_ALL=C awk '
+    NR <= 10 { print "  | " substr($0, 1, 200); next }
+    { last[NR % 10] = substr($0, 1, 200) }
+    END {
+      if (NR > 20) print "  | ... middle output omitted ..."
+      start = NR > 20 ? NR - 9 : 11
+      for (i = start; i <= NR; i++) print "  | " last[i % 10]
+    }
+  ' "$2" >&2 || printf 'run-sensors.sh: diagnostic excerpt unavailable for %s\n' "$1" >&2
+}
+
 run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   local scope="$1" label="$2"; shift 2
-  local failed=0 ran=0 summary t
+  local failed=0 ran=0 summary t log start elapsed status
+  local -a pipeline_status
+  diagnostics_init "$scope" "$label"
   for t in "$@"; do
     [ -f "${REPO_ROOT}/${t}" ] || { printf 'SKIP %s (missing)\n' "$t"; continue; }
     ran=$((ran + 1))
-    if bash "${REPO_ROOT}/${t}" >/dev/null 2>&1; then
+    log=""
+    [ -z "$DIAGNOSTICS_DIR" ] || log="${DIAGNOSTICS_DIR}/${ran}.log"
+    start="$(diagnostics_now_ms)"
+    if bash "${REPO_ROOT}/${t}" 2>&1 | diagnostics_capture "$log"; then
+      pipeline_status=("${PIPESTATUS[@]}")
+    else
+      pipeline_status=("${PIPESTATUS[@]}")
+    fi
+    status="${pipeline_status[0]}"
+    elapsed="$(( $(diagnostics_now_ms) - start ))"
+    if [ "$elapsed" -lt 0 ]; then
+      printf 'run-sensors.sh: diagnostic clock moved backwards for %s; elapsed_ms clamped to zero\n' "$t" >&2
+      elapsed=0
+    fi
+    if [ "${pipeline_status[1]}" -ne 0 ]; then
+      printf 'run-sensors.sh: diagnostics unavailable for %s: capture/redaction/write failed; sensor exit=%s\n' "$t" "$status" >&2
+      if [ -n "$log" ]; then
+        rm -f "$log" || printf 'run-sensors.sh: cannot remove incomplete sanitized log %s\n' "$log" >&2
+      fi
+      log="unavailable"
+    fi
+    if [ "$status" -eq 0 ]; then
       printf 'PASS %s\n' "$t"
     else
       printf 'FAIL %s\n' "$t"
       failed=$((failed + 1))
+    fi
+    printf 'SENSOR %s elapsed_ms=%s exit_status=%s log=%s\n' "$t" "$elapsed" "$status" "$log"
+    if [ "$status" -ne 0 ] && [ -f "$log" ]; then
+      diagnostics_excerpt "$t" "$log"
+    fi
+    if [ -n "$DIAGNOSTICS_DIR" ]; then
+      printf '%s\t%s\t%s\t%s\n' "$t" "$elapsed" "$status" "$log" \
+        >>"${DIAGNOSTICS_DIR}/sensors.tsv" \
+        || printf 'run-sensors.sh: diagnostic index write failed for %s (sensor exit=%s)\n' "$t" "$status" >&2
     fi
   done
   summary="SENSORS ${label} head=${HEAD_SHA} scope=${scope} ran=${ran} failed=${failed}"
