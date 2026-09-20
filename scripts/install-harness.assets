@@ -129,6 +129,7 @@ tests/scripts/test_scaffold_language.sh
 tests/scripts/test_semantic_spine_without_copilot_hook.sh
 tests/scripts/validation/test_sensor_evidence_recording.sh
 tests/scripts/validation/test_sensor_diagnostics.sh
+tests/scripts/validation/test_sensor_failure_excerpt.sh
 tests/scripts/validation/test_sensor_evidence_verify.sh
 tests/scripts/validation/test_shellcheck_version_parity.sh
 tests/scripts/validation/test_shellcheck_version_pin.sh

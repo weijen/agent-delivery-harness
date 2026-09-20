@@ -118,6 +118,27 @@ a capture exit code for the sensor's exit. The gate still reflects sensor result
 a failing sensor never creates green evidence. Diagnostic indexes are not gate
 evidence and cannot authorize publication. Existing CI execution loops are unchanged.
 
+On failure, the runner prints the first and last ten sanitized lines (at most
+200 bytes per displayed line), with an omission marker when necessary. This
+preserves early causes and final assertions without flooding the terminal.
+The retained log remains complete; successful output is retained but not dumped.
+Diagnostics never execute a sensor a second time.
+
+Use the exact index path printed by the run, from any working directory:
+
+```sh
+index="/path/printed/by/DIAGNOSTICS/sensors.tsv"
+# Slowest attempted sensors, descending elapsed_ms.
+tail -n +2 "$index" | sort -t "$(printf '\t')" -k2,2nr | sed -n '1,10p'
+# Failed attempts and their complete sanitized output paths.
+awk -F '\t' 'NR > 1 && $3 != 0 { print $1, "exit=" $3, "log=" $4 }' "$index"
+```
+
+Timing overhead is workload- and machine-dependent. Measure paired miniature
+fixtures when changing instrumentation; do not run extra real full suites just
+to benchmark it. A run's elapsed values include any nested work the sensor does;
+they do not count or attribute its individual assertions.
+
 ## Lifecycle
 
 ```mermaid

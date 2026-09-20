@@ -139,6 +139,19 @@ diagnostics_now_ms() {
   fi
 }
 
+diagnostics_excerpt() { # <sensor> <sanitized-log>
+  printf 'Failure output for %s (bounded; complete sanitized output: %s):\n' "$1" "$2" >&2
+  LC_ALL=C awk '
+    NR <= 10 { print "  | " substr($0, 1, 200); next }
+    { last[NR % 10] = substr($0, 1, 200) }
+    END {
+      if (NR > 20) print "  | ... middle output omitted ..."
+      start = NR > 20 ? NR - 9 : 11
+      for (i = start; i <= NR; i++) print "  | " last[i % 10]
+    }
+  ' "$2" >&2 || printf 'run-sensors.sh: diagnostic excerpt unavailable for %s\n' "$1" >&2
+}
+
 run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   local scope="$1" label="$2"; shift 2
   local failed=0 ran=0 summary t log start elapsed status
@@ -175,6 +188,9 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
       failed=$((failed + 1))
     fi
     printf 'SENSOR %s elapsed_ms=%s exit_status=%s log=%s\n' "$t" "$elapsed" "$status" "$log"
+    if [ "$status" -ne 0 ] && [ -f "$log" ]; then
+      diagnostics_excerpt "$t" "$log"
+    fi
     if [ -n "$DIAGNOSTICS_DIR" ]; then
       printf '%s\t%s\t%s\t%s\n' "$t" "$elapsed" "$status" "$log" \
         >>"${DIAGNOSTICS_DIR}/sensors.tsv" \
