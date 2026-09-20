@@ -176,8 +176,15 @@ gate_start:
     present: feature_list.json
 
 gate_sensors:
+  - id: feature-green
+    trigger: active feature ready for verification
+    consumes: declared and affected feature-eligible sensors from a fixed feature-start base including committed and uncommitted changes
+    produces: scoped result or visible selection error; no direct or nested real full-suite fallback
+    mode: hard
+    owner: scripts/validation/run-sensors.sh
+    present: run_list scoped green
   - id: scoped-green
-    trigger: implementation unit ready for verification or PR branch ready to push
+    trigger: PR branch ready to push
     consumes: declared and affected sensor set resolved from the branch diff
     produces: fail-closed process result before PR branch push
     mode: hard

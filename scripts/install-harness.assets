@@ -121,6 +121,7 @@ tests/scripts/validation/test_review_gate_ci_coverage.sh
 tests/scripts/validation/test_review_gate_patch_id_store.sh
 tests/scripts/validation/test_review_gate.sh
 tests/scripts/validation/test_run_sensors_tiers.sh
+tests/scripts/validation/test_feature_scoped_execution.sh
 tests/scripts/validation/test_same_class_escalation.sh
 tests/scripts/test_scaffold_language.sh
 tests/scripts/test_semantic_spine_without_copilot_hook.sh

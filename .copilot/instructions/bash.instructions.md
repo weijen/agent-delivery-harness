@@ -64,6 +64,10 @@ harness contract and the AGENTS.md conventions.
   `scripts/validation/affected-sensors.sh --list` discovers `test_*.sh` recursively below
   `tests/scripts/` and `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/`.
   The local `run-sensors.sh` runner and both CI profiles use this same set.
+- Whole-suite wrappers put `# harness-sensor-stage: boundary` in the leading
+  comment header. Canonical full discovery retains them; feature selection
+  defers them and rejects explicit boundary-only declarations. Keep targeted
+  runtime e2e and miniature hermetic runner fixtures available at feature time.
 - Build a throwaway repo per test with `mktemp -d` + `git init`; never touch the
   developer's real checkout or network.
 - **Fake every external CLI.** Provide fake `gh`/tool binaries on an isolated

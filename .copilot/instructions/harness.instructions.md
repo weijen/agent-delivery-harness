@@ -126,9 +126,18 @@ Workflow per issue:
 2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
-   **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
-   — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
-   is the only exception). These `green` and `--gate` forms are the only sensor
+   **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>`.
+   Before the feature's first edit, capture `git rev-parse HEAD` in its local plan;
+   keep that base fixed across partial commits and repair greens. Do not replace
+   it with a moving HEAD or keep inheriting completed features through origin/main.
+   Never run the full suite mid-loop, including as recovery for shared changes or
+   discovery errors: invalid selection stops visibly. Real whole-suite wrappers
+   carry `# harness-sensor-stage: boundary` before their first shell statement and
+   run at full issue gates/CI, not inside feature greens. Targeted e2e and miniature
+   hermetic runner fixtures remain feature-eligible; an incompatible declaration
+   is an error, never silently dropped coverage. Historical FULL-fallback evidence
+   remains readable but is not permission to emit new feature-time full runs.
+   These `green` and `--gate` forms are the only sensor
    execution shapes; their process exit is the gate result. Green summaries are
    **recorded by the runner itself** into the issue's `sensor-evidence.jsonl` (#441) —
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
@@ -248,7 +257,7 @@ the moment to check whether an older rule it supersedes can be deleted.
 
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
-| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + the `scripts/validation/affected-sensors.sh` set (`FULL` report → whole suite) — **never the full suite by default** | — | **BLOCKING** for the feature's `passes:true` |
+| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + feature-affected sensors from a fixed feature base; boundary-only whole-suite wrappers are deferred — **no FULL fallback** | — | **BLOCKING** for the feature's `passes:true`; invalid scope/declarations stop the run |
 | Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
 | Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
 | **Pre-PR verify gate** | full suite | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |

@@ -2,17 +2,17 @@
 # run-sensors.sh — tiered sensor executor (issue #347, builds on #343).
 #
 # Usage:
-#   scripts/run-sensors.sh green [--declared <list>] [--diff <base-ref>]
+#   scripts/run-sensors.sh green --diff <fixed-feature-base> [--declared <list>]
 #   scripts/run-sensors.sh --gate pre-review
 #   scripts/run-sensors.sh --gate pre-pr
 #
 # The only execution shapes are `green` and `--gate`.
-# Enforcement by construction (the #343 doctrine's teeth): `green` CANNOT run
-# the full suite by choice — it runs exactly the scoped set that
-# scripts/validation/affected-sensors.sh resolves (declared + affected), and escalates to
-# the full suite ONLY when the resolver reports FULL (unbounded blast radius)
-# or fails discovery with exit 2 (fail-closed fallback). The full suite otherwise requires an explicit `--gate pre-review`
-# or `--gate pre-pr` invocation — the two per-issue points where it is owed.
+# Enforcement by construction: `green` runs declared + feature-affected sensors,
+# never a FULL fallback. Capture the feature base before its first edit and keep
+# it fixed across commits and repairs. The PR wrapper explicitly uses its branch
+# base instead. Invalid selection fails, rather than silently widening coverage.
+# Real whole-suite wrappers are boundary-only; they remain in canonical full
+# discovery for `--gate pre-review`, `--gate pre-pr`, and source/installed CI.
 # Cross-model evidence (2026-07-21/22 runs) shows agents over-comply with
 # verification obligations regardless of prose doctrine; this runner removes
 # the decision from the agent entirely.
@@ -39,7 +39,7 @@ usage() { sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
 MODE=""
 GATE=""
 DECLARED=""
-DIFF_BASE="origin/main"
+DIFF_BASE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     green)
@@ -53,8 +53,12 @@ while [ $# -gt 0 ]; do
       MODE=gate
       shift 2
       ;;
-    --declared) DECLARED="${2:-}"; shift 2 ;;
-    --diff) DIFF_BASE="${2:-}"; shift 2 ;;
+    --declared|--diff)
+      [ "$#" -ge 2 ] && [ -n "$2" ] \
+        || { printf 'run-sensors.sh: %s requires a value\n' "$1" >&2; exit 2; }
+      if [ "$1" = --declared ]; then DECLARED="$2"; else DIFF_BASE="$2"; fi
+      shift 2
+      ;;
     -h|--help) usage; exit 0 ;;
     *) printf 'run-sensors.sh: unknown argument %s\n' "$1" >&2; usage; exit 2 ;;
   esac
@@ -67,6 +71,9 @@ if [ "$MODE" = "gate" ]; then
   esac
 elif [ "$MODE" != "green" ]; then
   usage; exit 2
+elif [ -z "$DIFF_BASE" ]; then
+  printf 'run-sensors.sh: green requires --diff with the fixed feature base (branch base for PR checks)\n' >&2
+  exit 2
 fi
 
 run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
@@ -168,19 +175,14 @@ set +e
 RESOLVED="$("${SCRIPT_DIR}/validation/affected-sensors.sh" "${RESOLVER_ARGS[@]}")"
 resolver_rc=$?
 set -e
-if [ "$resolver_rc" -eq 2 ]; then
-  printf 'run-sensors.sh: resolver failed — falling back to FULL with warning\n' >&2
-  RESOLVED="FULL"
-elif [ "$resolver_rc" -ne 0 ]; then
+if [ "$resolver_rc" -ne 0 ]; then
+  printf 'run-sensors.sh: resolver failed — feature verification stopped; no FULL fallback\n' >&2
   exit "$resolver_rc"
 fi
 
 if [ "$RESOLVED" = "FULL" ]; then
-  # Unbounded blast radius (shared lib / schema authority changed): the ONLY
-  # path to a full run at green, chosen by the resolver, not the agent.
-  full_set
-  run_list full green-full-fallback "${ALL[@]}"
-  exit $?
+  printf 'run-sensors.sh: incompatible resolver requested FULL during green; update the resolver\n' >&2
+  exit 2
 fi
 
 if [ -z "$RESOLVED" ]; then

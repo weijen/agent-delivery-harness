@@ -98,6 +98,8 @@ for profile in default developer claude; do
 	git -C "$target" config user.name "Harness Test"
 	git -C "$target" config user.email "harness-test@example.invalid"
 	git -C "$target" config commit.gpgsign false
+	# Runtime evidence is local state, not a source change for the installed probe.
+	printf '/.copilot-tracking/\n' >>"${target}/.git/info/exclude"
 	printf '9.8.7-layout\n' >"${target}/VERSION"
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/validation/test_installed_probe.sh"
 	git -C "$target" add .
@@ -125,6 +127,8 @@ for profile in default developer claude; do
 	fi
 	grep -q '^FAIL tests/scripts/validation/test_installed_probe.sh$' "$layout_log" \
 		|| fail_layout "${profile} failure did not name the installed sensor"
+	grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
+		|| fail_layout "${profile} targeted failure selected unrelated sensors"
 done
 # A modified installed contract must not turn migration candidates into paths
 # outside the target, even before ownership checks run.

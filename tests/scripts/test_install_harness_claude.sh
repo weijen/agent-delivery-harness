@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# harness-sensor-stage: boundary
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

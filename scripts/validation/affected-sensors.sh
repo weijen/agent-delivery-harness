@@ -10,26 +10,23 @@
 # git when --diff <base-ref> is passed: committed vs base, staged, and unstaged
 # changes are unioned), print the sensors that must run at a GREEN handback:
 #
-#   * every sensor named in --declared (comma- or space-separated; a declared
-#     entry that does not exist on disk is warned about on stderr and skipped),
+#   * every feature-eligible sensor named in --declared (comma/space-separated;
+#     missing, non-sensor and boundary-only declarations are errors),
 #   * every sensor under tests/scripts/ or tests/meta/ that mentions a changed
 #     path (matched by repo-relative path or basename — over-inclusion is
 #     acceptable, silent under-inclusion is not),
 #   * a changed file that is itself a sensor is always in its own set.
 #
-# FULL fallback (conservative, single-line output `FULL`): a discovery error
-# (reported as exit 2 for the runner to promote) or any changed path whose blast
-# radius cannot be bounded by textual reference —
-#   * shared sourced libraries: scripts/*-lib.sh or scripts/**/lib/*
-#   * schema/contract authorities: schemas/trace-schema.v1.json
-#     docs/harness-contract.yml
-#   * shared test scaffolding: anything under tests/scripts/lib/ or tests/lib/
-# When FULL is printed the caller runs the whole suite; the reason is written
-# to stderr.
+# Shared changes use the same scoped mapping, never an automatic FULL fallback.
+# Sensors with a header `# harness-sensor-stage: boundary` wrap real whole suites;
+# they stay in --list for issue gates/CI, but are deferred from feature selection.
+# Miniature hermetic suites testing runner behavior remain feature-eligible.
+# Use a fixed feature-start commit for --diff; earlier completed features then
+# stop polluting the active feature's scope, including after partial commits.
 #
-# Output contract: either the single line `FULL`, or a sorted unique list of
-# repo-relative sensor paths (possibly empty when only docs changed and no
-# sensor references them). Exit 0 on success, 2 on usage errors. This script
+# Output contract: a sorted unique list of repo-relative sensor paths (possibly
+# empty when only docs changed and no sensor references them).
+# Exit 0 on success, 2 on invalid scope/declarations or discovery errors. This script
 # never runs sensors — it only resolves the set.
 set -euo pipefail
 
@@ -84,9 +81,14 @@ if [ "$LIST" -eq 1 ]; then
 fi
 
 if [ -n "$DIFF_BASE" ]; then
+  if ! BASE_SHA="$(git -C "$REPO_ROOT" rev-parse --verify "${DIFF_BASE}^{commit}" 2>/dev/null)" \
+    || ! git -C "$REPO_ROOT" merge-base --is-ancestor "$BASE_SHA" HEAD 2>/dev/null; then
+    printf 'affected-sensors.sh: git discovery failed — diff base %s must name an ancestor of HEAD\n' "$DIFF_BASE" >&2
+    exit 2
+  fi
   discover_changed_paths() {
     local output=""
-    output="$(git -C "$REPO_ROOT" diff --name-only "${DIFF_BASE}...HEAD" 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --name-only "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
     printf '%s\n' "$output"
     output="$(git -C "$REPO_ROOT" diff --name-only --cached 2>/dev/null)" || return 1
     printf '%s\n' "$output"
@@ -110,24 +112,25 @@ if [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then
   exit 2
 fi
 
-# --- FULL fallback ------------------------------------------------------------
-full_trigger() {
-  case "$1" in
-    scripts/*-lib.sh|scripts/lib/*|scripts/*/lib/*) return 0 ;;
-    schemas/trace-schema.v1.json|schemas/*/trace-schema.v1.json|\
-docs/harness-contract.yml|docs/*/harness-contract.yml) return 0 ;;
-    tests/lib/*|tests/*/lib/*) return 0 ;;
-  esac
-  return 1
+sensor_stage() {
+  local line stage=feature seen=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '# harness-sensor-stage:'*)
+        [ "$seen" -eq 0 ] || return 2
+        seen=1
+        case "$line" in
+          '# harness-sensor-stage: feature') stage=feature ;;
+          '# harness-sensor-stage: boundary') stage=boundary ;;
+          *) return 2 ;;
+        esac
+        ;;
+      '#'*|'') ;;
+      *) [[ "$line" =~ ^[[:space:]]*$ ]] || break ;;
+    esac
+  done <"$1" || return 2
+  printf '%s\n' "$stage"
 }
-
-for p in ${CHANGED[@]+"${CHANGED[@]}"}; do
-  if full_trigger "$p"; then
-    printf 'affected-sensors.sh: %s has unbounded blast radius — falling back to the FULL suite\n' "$p" >&2
-    printf 'FULL\n'
-    exit 0
-  fi
-done
 
 # --- Scoped resolution ----------------------------------------------------------
 if ! SENSOR_LIST="$(discover_sensors)"; then
@@ -136,8 +139,18 @@ fi
 SENSORS=()
 [ -z "$SENSOR_LIST" ] || mapfile -t SENSORS <<< "$SENSOR_LIST"
 SENSOR_FILES=()
+BOUNDARY_LIST=""
 for sensor in "${SENSORS[@]}"; do
-  SENSOR_FILES+=("${TESTS_ROOT}/${sensor#tests/}")
+  file="${TESTS_ROOT}/${sensor#tests/}"
+  if ! stage="$(sensor_stage "$file")"; then
+    printf 'affected-sensors.sh: invalid or unreadable sensor stage header: %s\n' "$sensor" >&2
+    exit 2
+  fi
+  if [ "$stage" = boundary ]; then
+    BOUNDARY_LIST+="${sensor}"$'\n'
+  else
+    SENSOR_FILES+=("$file")
+  fi
 done
 
 RESULT="$(mktemp)"
@@ -150,12 +163,17 @@ emit() { # emit <repo-relative-sensor-path>
 # Declared entries must also belong to the canonical sensor set.
 if [ -n "$DECLARED" ]; then
   for d in $(printf '%s' "$DECLARED" | tr ',' ' '); do
-    if grep -Fxq -- "$d" <<< "$SENSOR_LIST"; then
+    if grep -Fxq -- "$d" <<< "$BOUNDARY_LIST"; then
+      printf 'affected-sensors.sh: declared sensor %s is boundary-only; declare a targeted feature sensor instead\n' "$d" >&2
+      exit 2
+    elif grep -Fxq -- "$d" <<< "$SENSOR_LIST"; then
       emit "$d"
     elif [ -f "${REPO_ROOT}/${d}" ]; then
-      printf 'affected-sensors.sh: declared path %s is not a sensor — skipped\n' "$d" >&2
+      printf 'affected-sensors.sh: declared path %s is not a sensor\n' "$d" >&2
+      exit 2
     else
-      printf 'affected-sensors.sh: declared sensor %s not found — skipped\n' "$d" >&2
+      printf 'affected-sensors.sh: declared sensor %s not found\n' "$d" >&2
+      exit 2
     fi
   done
 fi
@@ -163,7 +181,9 @@ fi
 for p in ${CHANGED[@]+"${CHANGED[@]}"}; do
   base="$(basename "$p")"
   [ "${#SENSOR_FILES[@]}" -gt 0 ] || continue
-  if grep -Fxq -- "$p" <<< "$SENSOR_LIST"; then
+  if grep -Fxq -- "$p" <<< "$BOUNDARY_LIST"; then
+    printf 'affected-sensors.sh: %s deferred to full issue gates (boundary-only)\n' "$p" >&2
+  elif grep -Fxq -- "$p" <<< "$SENSOR_LIST"; then
     emit "$p"
   fi
   hits=""

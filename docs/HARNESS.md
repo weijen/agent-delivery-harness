@@ -76,9 +76,20 @@ The local runner and both workflow profiles share
 `scripts/validation/affected-sensors.sh --list` discovery. Empty full suites fail; empty
 scoped selections remain valid.
 Affected resolution selects from that same sensor set, including relocated
-sensors but never helpers. Relocated shared libraries and schema/contract
-authorities retain conservative FULL fallback; discovery/read failures cannot
-silently reduce coverage.
+sensors but never helpers. Feature greens require an explicit fixed feature
+base: record `git rev-parse HEAD` before the first edit, then use that SHA for
+every green of that feature, including after partial commits. Earlier completed
+features do not remain in scope just because the branch still differs from main.
+Shared libraries and schema/contract authorities use the same scoped mapping,
+not a FULL fallback. Discovery/read errors and invalid declarations stop the run.
+
+Real source, installed-profile and L0 whole-suite wrappers declare
+`# harness-sensor-stage: boundary` in their leading comment header. They remain
+in full discovery for pre-review, pre-PR and CI, but are deferred from feature
+selection. Declaring one as feature coverage fails explicitly rather than
+silently dropping it. Feature greens retain targeted runtime e2e and miniature
+hermetic fixtures that exercise full-runner behavior. This stage separation
+does not remove assertions or authorize reusing boundary-gate evidence.
 
 ## Lifecycle
 
@@ -370,6 +381,9 @@ Immediately before every push path, `create-pr.sh` runs
 `./scripts/run-sensors.sh green --diff origin/main`. The affected-sensor resolver therefore
 enforces the contract's scoped sensor gate at the PR boundary; a failing sensor or discovery
 error stops the push.
+This PR check intentionally considers the branch diff; it is not the base used
+for an individual feature. It does not re-enable feature-time FULL fallback or
+replace the required full pre-review/pre-PR results.
 
 **Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
 feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch

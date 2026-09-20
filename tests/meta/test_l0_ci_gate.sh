@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# harness-sensor-stage: boundary
 # test_l0_ci_gate.sh — regression sensor (issue #64, feature f2-l0-ci-gate):
 # prove the L0 suite driver `tests/evals/bin/run-l0-suite.sh` runs the L0
 # manifests through `tests/evals/bin/run-evals.sh`, emits their case-level
