@@ -77,6 +77,14 @@ descriptor. There are two common ways to start:
   beside the preserved file and remembers that exclusion, making an unchanged
   repeat idempotent. Symlinked destinations are refused, not followed.
 
+  Layout upgrades use `layout_moves` in `docs/harness-contract.yml` to recognize
+  old paths even when their lock row is missing. The map identifies candidates;
+  it never substitutes for ownership proof. The `v0.45.2` rehearsal covers
+  default, developer and Claude profiles moving to `scripts/lib/` and
+  `scripts/validation/`, including customized, protected and unknown-owner
+  copies. Only the documented public `scripts/run-sensors.sh` remains as a flat
+  compatibility entrypoint; internal tools and sensors use their mapped paths.
+
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,
   evaluation-authoring, meta, and top-level documentation obligation sensors.

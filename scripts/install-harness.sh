@@ -432,7 +432,19 @@ list_excluded_files() {
 			candidates+="${rel}"$'\n'
 		done <"$LOCK_FILE"
 	fi
+	# A missing lock row is not permission to silently ignore an old layout
+	# copy. The maintained migration map identifies it; the lock still owns
+	# deletion proof, so unknown/customized copies take the conflict path.
+	files="$(awk '
+		/^layout_moves:/ { selected=1; next }
+		selected && /^[^ #]/ { exit }
+		selected && /^  - from:/ { print $3 }
+	' "${REPO_ROOT}/docs/harness-contract.yml")" || return 1
+	candidates+="${files}"$'\n'
 	while IFS= read -r rel; do
+		case "$rel" in
+			/* | . | .. | ../* | */../* | */..) die "unsafe excluded asset path '${rel}'" ;;
+		esac
 		case "$rel" in
 			"" | README.md | AGENTS.md | .env.example | docs/tech-debt-tracker.md | \
 			.github/harness-identity.env | .claude/settings.json) continue ;;
