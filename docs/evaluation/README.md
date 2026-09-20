@@ -34,6 +34,28 @@ Tier B runtime split) that later layers reuse. The skills layer builds on that
 framework in [l1-solution/README.md](l1-solution/README.md), which is kept
 separate because it is less settled than L0.
 
+## Source and installed execution
+
+Source discovery owns functional assertions. The miniature adopter workflow
+contract executes extracted workflow steps with recording success/failure
+sensors; it does not replay the feature-list validator's full test matrix.
+The real installed smoke keeps a complete package and probes installed runners,
+cwd, dependencies, VERSION identity, self-hosting and failure propagation with
+one focused sensor rather than replaying all installed source tests.
+
+The developer-profile sensor executes the real installed L0 driver, validator
+and unchanged shipped manifests. It temporarily replaces only the inner grader
+bodies with recording workloads, verifies every evaluation identity exactly
+once, then restores those bodies. Blocking failures, invalid-manifest reporting
+and missing runtime dependencies have separate probes. This proves package and
+evaluation wiring, not a second functional regression run. Explicit
+`bash tests/evals/bin/run-l0-suite.sh` still runs the actual shipped functional
+graders in a developer installation; its behavior and payload are unchanged.
+
+These bounded sensors are feature-eligible. A wrapper that still executes a real
+whole functional suite remains boundary-only; fixture reduction is not a waiver
+for feature-time full execution.
+
 ## Layer Map
 
 Evaluation is organized by how attributable and how expensive each layer is.

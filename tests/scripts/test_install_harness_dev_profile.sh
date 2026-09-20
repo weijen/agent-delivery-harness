@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# harness-sensor-stage: boundary
+# Real installed evaluation wiring with bounded recording grader workloads.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -44,14 +44,42 @@ git -C "$TARGET" config user.email "harness-test@example.invalid"
 git -C "$TARGET" config commit.gpgsign false
 git -C "$TARGET" add scripts profiles tests docs schemas VERSION .copilot .github
 git -C "$TARGET" commit -qm 'install portable developer fixture'
-for sensor in tests/scripts/test_eval_manifest_validator.sh \
-	tests/scripts/test_run_evals_scorecard.sh tests/evals/bin/run-l0-suite.sh; do
-	(cd "$TARGET" && bash "$sensor") >"$OUT" 2>&1 \
-		|| { cat "$OUT" >&2; fail "installed developer command failed: ${sensor}"; }
+export INSTALLED_EVAL_CALLS="${TMP_DIR}/eval-calls"
+: >"$INSTALLED_EVAL_CALLS"
+for manifest in "${ROOT}"/tests/evals/manifests/scripts/l0-*.json; do
+	relative="${manifest#"${ROOT}/"}"
+	cmp -s "$manifest" "${TARGET}/${relative}" || fail "installed evaluation manifest differs: ${relative}"
+	sensor="$(jq -r '.grader.command | ltrimstr("bash ")' "$manifest")"
+	cmp -s "${ROOT}/${sensor}" "${TARGET}/${sensor}" || fail "installed grader missing or altered: ${sensor}"
+	mkdir -p "${TMP_DIR}/graders/$(dirname "$sensor")"
+	cp "${TARGET}/${sensor}" "${TMP_DIR}/graders/${sensor}"
+	# Preserve shipped manifest command paths, replacing only inner work bodies.
+	cat >"${TARGET}/${sensor}" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "${BASH_SOURCE[0]}" >>"$INSTALLED_EVAL_CALLS"
+printf 'ok 1 - installed recording workload\n1..1\n'
+SH
+	printf '%s\n' "$sensor" >>"${TMP_DIR}/expected-calls"
+	jq -r .id "$manifest" >>"${TMP_DIR}/expected-ids"
 done
+(cd "$TARGET" && bash tests/evals/bin/run-l0-suite.sh) >"$OUT" 2>&1 \
+	|| { cat "$OUT" >&2; fail "installed evaluation driver failed"; }
+[ -s "$INSTALLED_EVAL_CALLS" ] || fail "installed evaluation must use bounded recording workloads"
+LC_ALL=C sort "${TMP_DIR}/expected-calls" >"${TMP_DIR}/expected"
+LC_ALL=C sort "$INSTALLED_EVAL_CALLS" >"${TMP_DIR}/actual"
+cmp -s "${TMP_DIR}/expected" "${TMP_DIR}/actual" || fail "installed graders must each run exactly once"
+LC_ALL=C sort "${TMP_DIR}/expected-ids" >"${TMP_DIR}/expected"
+jq -r '.results[].case_id' "$OUT" | LC_ALL=C sort >"${TMP_DIR}/actual"
+cmp -s "${TMP_DIR}/expected" "${TMP_DIR}/actual" || fail "installed suite omitted or duplicated an evaluation identity"
+jq -se 'all(.[]; all(.results[]; .status == "pass" and .blocking_decision == "pass"))' "$OUT" >/dev/null \
+	|| fail "installed suite did not produce passing real scorecards"
+while IFS= read -r sensor; do
+	cp "${TMP_DIR}/graders/${sensor}" "${TARGET}/${sensor}"
+done <"${TMP_DIR}/expected-calls"
 for manifest in "${TARGET}"/tests/evals/manifests/scripts/l0-*.json; do
-	id="$(jq -r .id "$manifest")"
-	grep -Fq "$id" "$OUT" || fail "installed suite omitted ${id}"
+	cmp -s "${ROOT}/${manifest#"${TARGET}/"}" "$manifest" \
+		|| fail "recording fixture changed a shipped manifest"
 done
 
 # Exercise the installed runner's blocking result, not just a successful suite.
@@ -63,6 +91,25 @@ if (cd "$TARGET" && bash tests/evals/bin/run-l0-suite.sh "${TMP_DIR}/failing-eva
 	fail "installed developer suite accepted a blocking evaluation failure"
 fi
 grep -Fq '"blocking_decision": "block"' "$OUT" || fail "failure lacked blocking evidence"
+
+mkdir -p "${TMP_DIR}/invalid-eval"
+jq 'del(.capability) | .grader.command = "false"' "${TARGET}/tests/evals/manifests/scripts/l0-feature-list.json" \
+	>"${TMP_DIR}/invalid-eval/l0-invalid.json"
+if "${TARGET}/tests/evals/bin/validate-manifest.sh" "${TMP_DIR}/invalid-eval/l0-invalid.json" >"$OUT" 2>&1; then
+	fail "installed validator accepted an invalid evaluation manifest"
+fi
+# Evaluation policy reports invalid input as warn, not as a grader verdict.
+(cd "$TARGET" && bash tests/evals/bin/run-l0-suite.sh "${TMP_DIR}/invalid-eval") >"$OUT" 2>&1 \
+	|| { cat "$OUT" >&2; fail "invalid input was misclassified as a blocking grader failure"; }
+jq -e '.results[0].status == "invalid_manifest" and .results[0].blocking_decision == "warn"' "$OUT" >/dev/null \
+	|| fail "invalid manifest did not reach the installed validator"
+
+mv "${TARGET}/tests/evals/bin/run-evals.sh" "${TMP_DIR}/runtime-runner.saved"
+if (cd "$TARGET" && bash tests/evals/bin/run-l0-suite.sh) >"$OUT" 2>&1; then
+	fail "installed suite used a source fallback for its missing runner"
+fi
+grep -Fq 'eval runner not found or not executable' "$OUT" || fail "missing runner lacked a diagnostic"
+mv "${TMP_DIR}/runtime-runner.saved" "${TARGET}/tests/evals/bin/run-evals.sh"
 
 # Unknown colocated assets cannot leak into either install mode.
 printf '#!/usr/bin/env bash\nexit 0\n' >"${TARGET}/tests/evals/bin/unclassified.sh"
