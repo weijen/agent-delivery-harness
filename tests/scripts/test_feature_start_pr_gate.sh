@@ -12,11 +12,11 @@ fail() {
 }
 
 REPO="${TMP_DIR}/repo"
-mkdir -p "${REPO}/scripts/lib" "${REPO}/schemas" "${REPO}/docs" "${REPO}/tests/scripts"
-printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${REPO}/tests/scripts/test_review_syntax.sh"
-for script in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh lib/trace-lib.sh \
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/schemas" "${REPO}/docs" "${REPO}/tests/scripts" "${REPO}/tests/scripts/validation"
+printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${REPO}/tests/scripts/test_review_syntax.sh"
+for script in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh lib/trace-lib.sh \
   lib/issue-lib.sh lib/ci-coverage-lib.sh \
-  rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
+  validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${script}" "${REPO}/scripts/${script}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" \
@@ -63,10 +63,10 @@ if grep -q 'feature_start_missing' "${CHECK_OUT}"; then
   fail "checker must not require feature_start for a passing feature"
 fi
 
-(cd "${REPO}" && TRACE_ISSUE=370 ./scripts/review-gate.sh approve) \
+(cd "${REPO}" && TRACE_ISSUE=370 ./scripts/validation/review-gate.sh approve) \
   >"${TMP_DIR}/approve.out" 2>&1 \
   || { cat "${TMP_DIR}/approve.out"; fail "approve must not require feature_start"; }
-(cd "${REPO}" && TRACE_ISSUE=370 ./scripts/review-gate.sh check) \
+(cd "${REPO}" && TRACE_ISSUE=370 ./scripts/validation/review-gate.sh check) \
   >"${TMP_DIR}/gate.out" 2>&1 \
   || { cat "${TMP_DIR}/gate.out"; fail "check must not require feature_start"; }
 

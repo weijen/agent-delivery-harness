@@ -332,7 +332,7 @@ a **process violation**.
 4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
    `gate_sensors` feature-green evidence in the **script-recorded** row set —
    `.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl`, written by `run-sensors.sh` itself and validated with
-   `scripts/verify-sensor-evidence.sh <NN> --head <reviewed-sha> --mode pre-review` (`--mode pre-pr` at the pre-PR
+   `scripts/validation/verify-sensor-evidence.sh <NN> --head <reviewed-sha> --mode pre-review` (`--mode pre-pr` at the pre-PR
    gate — the mode filter is required: a scoped mid-loop green row is NOT gate evidence) (#441); `gate_review`, where this review handback
    supplies the `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
    `gate_merge_closeout` CI,

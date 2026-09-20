@@ -8,7 +8,7 @@ case "${1:-}" in
 esac
 [ "$#" -eq 1 ] || { printf 'check-shell.sh: expected one mode\n' >&2; exit 2; }
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 roots=()
 for directory in scripts profiles tests/scripts tests/meta tests/evals/bin optional/runtime-adapters; do

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Regression sensor for scripts/check-feature-list.sh — the minimal feature-list
+# Regression sensor for scripts/validation/check-feature-list.sh — the minimal feature-list
 # completion check. It must validate feature_list.json structure and completion
 # state, fail clearly on malformed/invalid input, warn (non-blocking) on
 # incomplete features by default, and hard-fail on incomplete features only with
 # REQUIRE_FEATURES_COMPLETE=1.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="${ROOT}/.copilot-tracking/test-tmp/test-feature-list-check-$$"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 rm -rf "${TMP_DIR}"
@@ -30,11 +30,11 @@ emit() {
   _sfail=0
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts/lib"
+mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/repo/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
-cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
+cp "${ROOT}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/repo/scripts/validation/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 cp "${ROOT}/scripts/lib/trace-lib.sh" "${TMP_DIR}/repo/scripts/lib/trace-lib.sh"
 
@@ -56,8 +56,8 @@ FEATURE_LIST="${TMP_DIR}/repo/.worktrees/issue-200/.copilot-tracking/issues/issu
 [ -f "$FEATURE_LIST" ] || { printf '# BLOCKING: feature_list.json was not scaffolded\n' >&2; exit 1; }
 
 set_features() { printf '%s\n' "$1" > "$FEATURE_LIST"; }
-run_check() { ./scripts/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; }
-run_check_hard() { REQUIRE_FEATURES_COMPLETE=1 ./scripts/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; }
+run_check() { ./scripts/validation/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; }
+run_check_hard() { REQUIRE_FEATURES_COMPLETE=1 ./scripts/validation/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; }
 
 # 1. Malformed JSON must fail clearly.
 set_features 'this is not json'
@@ -132,7 +132,7 @@ for tool in git env bash sh dirname basename mkdir rm cat sed tr cut grep printf
   [ -n "$tp" ] && ln -sf "$tp" "${NOJQ_BIN}/${tool}"
 done
 set_features '{"features":[{"id":"a","title":"A","steps":[],"passes":false}]}'
-if ! PATH="$NOJQ_BIN" ./scripts/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; then
+if ! PATH="$NOJQ_BIN" ./scripts/validation/check-feature-list.sh 200 SLUG=check-test >"$CHECK_OUT" 2>&1; then
   cat "$CHECK_OUT"; fail "missing jq should warn and exit 0, not fail"
 fi
 grep -qi "jq not installed" "$CHECK_OUT" || fail "missing-jq run did not emit the jq-skip warning"
@@ -167,11 +167,11 @@ emit() {
   _sfail=0
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts/lib"
+mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/repo/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
-cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
+cp "${ROOT}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/repo/scripts/validation/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 cp "${ROOT}/scripts/lib/trace-lib.sh" "${TMP_DIR}/repo/scripts/lib/trace-lib.sh"
 
@@ -192,7 +192,7 @@ FEATURE_LIST="${TMP_DIR}/repo/.worktrees/issue-300/.copilot-tracking/issues/issu
 [ -f "$FEATURE_LIST" ] || { printf '# BLOCKING: feature_list.json was not scaffolded\n' >&2; exit 1; }
 
 set_features() { printf '%s\n' "$1" > "$FEATURE_LIST"; }
-run_check() { ./scripts/check-feature-list.sh 300 SLUG=blocked-test >"$CHECK_OUT" 2>&1; }
+run_check() { ./scripts/validation/check-feature-list.sh 300 SLUG=blocked-test >"$CHECK_OUT" 2>&1; }
 
 # 1. blocked_on set AND passes:true is a contradiction → hard fail.
 set_features '{"features":[{"id":"f","title":"F","steps":[],"passes":true,"verification":"done","blocked_on":"replan: sensor contract wrong"}]}'
@@ -277,9 +277,9 @@ link_tools() {
 # make_repo <dir> <with_trace_lib:0|1>
 make_repo() {
   local dir="$1" with_lib="$2"
-  mkdir -p "${dir}/scripts/lib"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation"
   cp "${ROOT}/scripts/lib/issue-lib.sh" "${dir}/scripts/lib/"
-  cp "${ROOT}/scripts/check-feature-list.sh" "${dir}/scripts/"
+  cp "${ROOT}/scripts/validation/check-feature-list.sh" "${dir}/scripts/validation/"
   if [ "$with_lib" = "1" ]; then
     cp "${ROOT}/scripts/lib/trace-lib.sh" "${dir}/scripts/lib/"
   fi
@@ -357,7 +357,7 @@ cd "$R1"
 # ============================================================================
 # 1. Valid + complete → pass span, incomplete_count=0, exit 0 unchanged
 # ============================================================================
-PATH="$BIN" ./scripts/check-feature-list.sh 50 SLUG=x >"${TMP_DIR}/ok.out" 2>&1 \
+PATH="$BIN" ./scripts/validation/check-feature-list.sh 50 SLUG=x >"${TMP_DIR}/ok.out" 2>&1 \
   || { cat "${TMP_DIR}/ok.out"; fail "complete list: check-feature-list.sh must still exit 0 (behavior unchanged)"; }
 grep -q "all features are complete" "${TMP_DIR}/ok.out" \
   || { cat "${TMP_DIR}/ok.out"; fail "complete list: success message must be unchanged"; }
@@ -369,7 +369,7 @@ jq -e '(.["harness.incomplete_count"] == 0) and ((.["harness.incomplete_count"] 
 # ============================================================================
 # 2. Valid + incomplete, warn mode → pass span + warning attr, exit 0 unchanged
 # ============================================================================
-PATH="$BIN" ./scripts/check-feature-list.sh 51 SLUG=x >"${TMP_DIR}/warn.out" 2>&1 \
+PATH="$BIN" ./scripts/validation/check-feature-list.sh 51 SLUG=x >"${TMP_DIR}/warn.out" 2>&1 \
   || { cat "${TMP_DIR}/warn.out"; fail "warn mode: incomplete list must still exit 0 by default (behavior unchanged)"; }
 grep -q "warning only" "${TMP_DIR}/warn.out" \
   || { cat "${TMP_DIR}/warn.out"; fail "warn mode: warning text must be unchanged"; }
@@ -384,7 +384,7 @@ jq -e '
 # ============================================================================
 # 3. Incomplete + REQUIRE_FEATURES_COMPLETE=1 → fail span, exit 1 unchanged
 # ============================================================================
-if PATH="$BIN" REQUIRE_FEATURES_COMPLETE=1 ./scripts/check-feature-list.sh 52 SLUG=x >"${TMP_DIR}/hard.out" 2>&1; then
+if PATH="$BIN" REQUIRE_FEATURES_COMPLETE=1 ./scripts/validation/check-feature-list.sh 52 SLUG=x >"${TMP_DIR}/hard.out" 2>&1; then
   cat "${TMP_DIR}/hard.out"; fail "hard mode: incomplete list must still exit 1 under REQUIRE_FEATURES_COMPLETE=1 (behavior unchanged)"
 fi
 grep -q "incomplete feature_list items remain." "${TMP_DIR}/hard.out" \
@@ -397,7 +397,7 @@ jq -e '(.["harness.incomplete_count"] == 2) and ((.["harness.incomplete_count"] 
 # ============================================================================
 # 4. Malformed JSON → fail span, exit 1 + message unchanged
 # ============================================================================
-if PATH="$BIN" ./scripts/check-feature-list.sh 53 SLUG=x >"${TMP_DIR}/bad.out" 2>&1; then
+if PATH="$BIN" ./scripts/validation/check-feature-list.sh 53 SLUG=x >"${TMP_DIR}/bad.out" 2>&1; then
   cat "${TMP_DIR}/bad.out"; fail "malformed JSON: check-feature-list.sh must still exit 1 (behavior unchanged)"
 fi
 grep -q "not valid JSON" "${TMP_DIR}/bad.out" \
@@ -412,7 +412,7 @@ make_repo "$R2" 0
 [ ! -e "${R2}/scripts/lib/trace-lib.sh" ] || fail "fixture bug: R2 must not contain trace-lib.sh"
 write_feature_list "$R2" 60 "$COMPLETE_LIST"
 cd "$R2"
-PATH="$BIN" ./scripts/check-feature-list.sh 60 SLUG=x >"${TMP_DIR}/nolib.out" 2>&1 \
+PATH="$BIN" ./scripts/validation/check-feature-list.sh 60 SLUG=x >"${TMP_DIR}/nolib.out" 2>&1 \
   || { cat "${TMP_DIR}/nolib.out"; fail "trace-lib absent: check-feature-list.sh must still exit 0 on a complete list (guarded source / no-op fallback, plan D5)"; }
 grep -q "all features are complete" "${TMP_DIR}/nolib.out" \
   || { cat "${TMP_DIR}/nolib.out"; fail "trace-lib absent: success message must be unchanged"; }

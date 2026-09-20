@@ -105,7 +105,7 @@ fi
 
 # --- Fixture: MAIN repo + linked worktree, pairs produced by the REAL helper ---
 MAIN="${TMP_DIR}/main-repo"
-mkdir -p "${MAIN}/scripts/lib"
+mkdir -p "${MAIN}/scripts/lib" "${MAIN}/scripts/validation"
 cp "$HELPER" "${MAIN}/scripts/log-handback.sh"
 cp "$LIB" "${MAIN}/scripts/lib/trace-lib.sh"
 cp "${ROOT}/scripts/render-action-log.sh" "${MAIN}/scripts/render-action-log.sh"

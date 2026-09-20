@@ -3,7 +3,7 @@
 # (issue #441 F2, companion to the run-sensors.sh recorder).
 #
 # Usage:
-#   scripts/verify-sensor-evidence.sh <issue> [--head <sha>] [--mode <label>]
+#   scripts/validation/verify-sensor-evidence.sh <issue> [--head <sha>] [--mode <label>]
 #
 # Checks, over <main-root>/.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl:
 #   * every row is valid JSON with schema_version 1 and the recorder fields;

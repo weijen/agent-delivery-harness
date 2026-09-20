@@ -12,7 +12,7 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -22,12 +22,12 @@ fail() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
-[ -f "${ROOT}/scripts/rebind-evidence.sh" ] \
-  || fail "scripts/rebind-evidence.sh not found — #442 not implemented yet"
+[ -f "${ROOT}/scripts/validation/rebind-evidence.sh" ] \
+  || fail "scripts/validation/rebind-evidence.sh not found — #442 not implemented yet"
 
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh lib/trace-lib.sh; do
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
+for s in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 # The sensor logs each execution so a carried rebind is provably run-free.
@@ -45,7 +45,7 @@ EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 export SENSOR_RUN_LOG="${TMP_DIR}/runs.log"
 : >"$SENSOR_RUN_LOG"
 
-rebind() { (cd "$FIX" && ./scripts/rebind-evidence.sh "$@" 2>&1); }
+rebind() { (cd "$FIX" && ./scripts/validation/rebind-evidence.sh "$@" 2>&1); }
 
 # Seed: first rebind runs the gate.
 rebind --gate pre-review >/dev/null || fail "seed rebind must pass"
@@ -78,7 +78,7 @@ jq -e --arg h "$head_sha" 'select(.head == $h and .mode == "pre-review" and .fai
   >/dev/null <<<"$(tail -n1 "$EVIDENCE")" \
   || fail "re-run must append a fresh green pre-review row at HEAD"
 set +e
-(cd "$FIX" && ./scripts/verify-sensor-evidence.sh 77 >/dev/null 2>&1)
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 >/dev/null 2>&1)
 rc=$?
 set -e
 [ "$rc" = "1" ] \

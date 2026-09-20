@@ -1,7 +1,7 @@
 # Default adopter payload: exact destination paths, never directory recursion.
 # Lifecycle commands, runtime libraries, installer and its ownership metadata.
-scripts/affected-sensors.sh
-scripts/check-feature-list.sh
+scripts/validation/affected-sensors.sh
+scripts/validation/check-feature-list.sh
 scripts/check-trace-consistency.sh
 scripts/lib/ci-coverage-lib.sh
 scripts/create-pr.sh
@@ -17,16 +17,17 @@ scripts/lib/issue-lib.sh
 scripts/lib/lifecycle-runtime-lib.sh
 scripts/log-handback.sh
 scripts/merge-pr.sh
-scripts/python-gates.sh
-scripts/rebind-evidence.sh
+scripts/validation/python-gates.sh
+scripts/validation/rebind-evidence.sh
 scripts/lib/reconcile-lib.sh
 scripts/render-action-log.sh
-scripts/review-gate.sh
+scripts/validation/review-gate.sh
 scripts/run-sensors.sh
+scripts/validation/run-sensors.sh
 scripts/scaffold-language.sh
 scripts/start-issue.sh
 scripts/lib/trace-lib.sh
-scripts/verify-sensor-evidence.sh
+scripts/validation/verify-sensor-evidence.sh
 
 # Profiles and reusable workflow template; source_file selects its destination.
 profiles/README.md
@@ -71,7 +72,7 @@ schemas/trace-schema.v1.json
 .copilot/skills/sync-docs/SKILL.md
 
 # Core validation and only its actual fixture/helper dependencies.
-scripts/check-shell.sh
+scripts/validation/check-shell.sh
 tests/harness-dev-sensors.txt
 tests/evals/bin/validate-customization-frontmatter.sh
 tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl
@@ -81,13 +82,13 @@ tests/scripts/lib/fixture.sh
 tests/scripts/lib/native-economics-fixture.sh
 tests/scripts/lib/tap.sh
 tests/scripts/test_actionability_gate.sh
-tests/scripts/test_affected_sensors.sh
+tests/scripts/validation/test_affected_sensors.sh
 tests/scripts/test_aggregate_finding_span.sh
 tests/scripts/test_copilot_log_review_recipes.sh
 tests/scripts/test_create_pr_failure.sh
 tests/scripts/test_create_pr_sensor_gate.sh
 tests/scripts/test_economics_span.sh
-tests/scripts/test_feature_list_check.sh
+tests/scripts/validation/test_feature_list_check.sh
 tests/scripts/test_feature_start_pr_gate.sh
 tests/scripts/test_finish_issue_conclusion.sh
 tests/scripts/test_fixture_adoption.sh
@@ -110,23 +111,23 @@ tests/scripts/test_loop2_single_review_doctrine.sh
 tests/scripts/test_merge_pr_ci_gate.sh
 tests/scripts/test_merge_provenance_gap.sh
 tests/scripts/test_post_pr_guardrails.sh
-tests/scripts/test_python_gates.sh
-tests/scripts/test_rebind_carry.sh
-tests/scripts/test_rebind_evidence.sh
-tests/scripts/test_rebind_repair_loop.sh
-tests/scripts/test_repair_feature_items.sh
-tests/scripts/test_repair_review_mode.sh
-tests/scripts/test_review_gate_ci_coverage.sh
-tests/scripts/test_review_gate_patch_id_store.sh
-tests/scripts/test_review_gate.sh
-tests/scripts/test_run_sensors_tiers.sh
-tests/scripts/test_same_class_escalation.sh
+tests/scripts/validation/test_python_gates.sh
+tests/scripts/validation/test_rebind_carry.sh
+tests/scripts/validation/test_rebind_evidence.sh
+tests/scripts/validation/test_rebind_repair_loop.sh
+tests/scripts/validation/test_repair_feature_items.sh
+tests/scripts/validation/test_repair_review_mode.sh
+tests/scripts/validation/test_review_gate_ci_coverage.sh
+tests/scripts/validation/test_review_gate_patch_id_store.sh
+tests/scripts/validation/test_review_gate.sh
+tests/scripts/validation/test_run_sensors_tiers.sh
+tests/scripts/validation/test_same_class_escalation.sh
 tests/scripts/test_scaffold_language.sh
 tests/scripts/test_semantic_spine_without_copilot_hook.sh
-tests/scripts/test_sensor_evidence_recording.sh
-tests/scripts/test_sensor_evidence_verify.sh
-tests/scripts/test_shellcheck_version_parity.sh
-tests/scripts/test_shellcheck_version_pin.sh
+tests/scripts/validation/test_sensor_evidence_recording.sh
+tests/scripts/validation/test_sensor_evidence_verify.sh
+tests/scripts/validation/test_shellcheck_version_parity.sh
+tests/scripts/validation/test_shellcheck_version_pin.sh
 tests/scripts/test_trace_consistency_core.sh
 tests/scripts/test_trace_consistency_dark_run.sh
 tests/scripts/test_trace_feature_start_evidence.sh
@@ -134,4 +135,4 @@ tests/scripts/test_trace_gate.sh
 tests/scripts/test_trace_lib_redaction.sh
 tests/scripts/test_trace_lib.sh
 tests/scripts/test_trace_lifecycle_e2e.sh
-tests/scripts/test_verdict_currency_gate.sh
+tests/scripts/validation/test_verdict_currency_gate.sh

@@ -9,7 +9,7 @@
 # profile gate; its unrelated harness sensors do not imply project coverage.
 #
 # This library is the ONE place that references language-specific gate tokens on
-# behalf of scripts/review-gate.sh and scripts/create-pr.sh, which
+# behalf of scripts/validation/review-gate.sh and scripts/create-pr.sh, which
 # docs/harness-contract.yml freezes as language-neutral. Those owner scripts
 # source this lib and print its output through a variable, staying token-free.
 #

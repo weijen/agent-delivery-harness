@@ -99,7 +99,7 @@ set +e
 (
   set -e
 R1="${TMP_DIR}/r1"
-mkdir -p "${R1}/scripts/lib"
+mkdir -p "${R1}/scripts/lib" "${R1}/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${R1}/scripts/lib/"
 cp "${ROOT}/scripts/start-issue.sh" "${R1}/scripts/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${R1}/scripts/lib/"
@@ -147,9 +147,9 @@ set +e
 (
   set -e
 # Bare origin so a push, if it happened, would be observable.
-mkdir -p "${TMP_DIR}/origin-seed/scripts/lib"
+mkdir -p "${TMP_DIR}/origin-seed/scripts/lib" "${TMP_DIR}/origin-seed/scripts/validation"
 cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/origin-seed/scripts/"
-cp "${ROOT}/scripts/review-gate.sh" "${TMP_DIR}/origin-seed/scripts/"
+cp "${ROOT}/scripts/validation/review-gate.sh" "${TMP_DIR}/origin-seed/scripts/validation/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/origin-seed/scripts/lib/"
 cd "${TMP_DIR}/origin-seed"
 git init -q -b main
@@ -162,9 +162,9 @@ git commit -q -m initial
 git clone -q --bare "${TMP_DIR}/origin-seed" "${TMP_DIR}/origin.git"
 
 R2="${TMP_DIR}/r2"
-mkdir -p "${R2}/scripts/lib"
+mkdir -p "${R2}/scripts/lib" "${R2}/scripts/validation"
 cp "${ROOT}/scripts/create-pr.sh" "${R2}/scripts/"
-cp "${ROOT}/scripts/review-gate.sh" "${R2}/scripts/"
+cp "${ROOT}/scripts/validation/review-gate.sh" "${R2}/scripts/validation/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${R2}/scripts/lib/"
 cd "$R2"
 git init -q -b feature/issue-301-order
@@ -204,8 +204,8 @@ set +e
 (
   set -e
 R3="${TMP_DIR}/r3"
-mkdir -p "${R3}/scripts/lib"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh check-feature-list.sh init.sh; do
+mkdir -p "${R3}/scripts/lib" "${R3}/scripts/validation"
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh; do
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/${s}"
 done
 # Pin a PATH that includes jq + a fake gh so the completion check actually runs,

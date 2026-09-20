@@ -47,7 +47,7 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rm cat grep printf jq d
 copy_fixture_scripts() {
   local dir="$1"
   local s
-  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
   for s in lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh log-handback.sh check-trace-consistency.sh lib/issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
@@ -635,7 +635,7 @@ printf 'delivery economics stamp helper contract honored\n'
 cd "$ROOT"
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts lib/finish-lib.sh,lib/economics-report-lib.sh,lib/trace-lib.sh,log-handback.sh,check-trace-consistency.sh,lib/issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts lib/finish-lib.sh,lib/economics-report-lib.sh,lib/trace-lib.sh,log-handback.sh,check-trace-consistency.sh,lib/issue-lib.sh,start-issue.sh,finish-issue.sh,validation/check-feature-list.sh
 # shellcheck source=tests/scripts/lib/native-economics-fixture.sh
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 # ===========================================================================

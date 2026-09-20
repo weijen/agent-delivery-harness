@@ -112,7 +112,7 @@ check_feature_completion() {
     return 0
   fi
   TRACE_COLLAPSE_CHILD_SPANS=1 \
-    "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
+    "${SCRIPT_DIR}/validation/check-feature-list.sh" "$ISSUE_NUM"
 }
 
 # The worktree's own checked-out branch is the deterministic source of truth —

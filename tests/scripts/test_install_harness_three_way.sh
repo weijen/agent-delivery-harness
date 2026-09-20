@@ -106,7 +106,7 @@ fail() {
 TARGET="${TMP_DIR}/target"
 OUT="${TMP_DIR}/update.out"
 SENTINEL="${TMP_DIR}/must-not-exist"
-mkdir -p "${TARGET}/scripts/lib" "${TARGET}/docs"
+mkdir -p "${TARGET}/scripts/lib" "${TARGET}/scripts/validation" "${TARGET}/docs"
 cat >"${TARGET}/.harness-keep" <<EOF
 # Adopter-owned harness surfaces
 scripts/init.sh
@@ -153,7 +153,7 @@ OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
 
 dry_target="${TMP_DIR}/dry"
-mkdir -p "${dry_target}/scripts/lib"
+mkdir -p "${dry_target}/scripts/lib" "${dry_target}/scripts/validation"
 : >"${dry_target}/scripts/.gitkeep"
 "$INSTALL" "$dry_target" >"$OUT" 2>&1
 grep -qF "would remove retired scripts/.gitkeep" "$OUT" || {
@@ -167,7 +167,7 @@ grep -qF "would remove retired scripts/.gitkeep" "$OUT" || {
 }
 
 clean_target="${TMP_DIR}/clean"
-mkdir -p "${clean_target}/scripts/lib"
+mkdir -p "${clean_target}/scripts/lib" "${clean_target}/scripts/validation"
 : >"${clean_target}/scripts/.gitkeep"
 "$INSTALL" "$clean_target" --write >"$OUT" 2>&1
 grep -qF "removed retired scripts/.gitkeep" "$OUT" || {
@@ -181,7 +181,7 @@ grep -qF "removed retired scripts/.gitkeep" "$OUT" || {
 }
 
 modified_target="${TMP_DIR}/modified"
-mkdir -p "${modified_target}/scripts/lib"
+mkdir -p "${modified_target}/scripts/lib" "${modified_target}/scripts/validation"
 printf 'adopter content\n' >"${modified_target}/scripts/.gitkeep"
 if "$INSTALL" "$modified_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
@@ -227,7 +227,7 @@ grep -qF "modified retired" "$OUT" || {
 }
 
 target="${TMP_DIR}/target"
-mkdir -p "${target}/scripts/lib"
+mkdir -p "${target}/scripts/lib" "${target}/scripts/validation"
 printf 'adopter content\n' >"${target}/scripts/.gitkeep"
 if "$INSTALL" "$target" --update >"$OUT" 2>&1; then
 	cat "$OUT"

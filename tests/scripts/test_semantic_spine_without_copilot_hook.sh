@@ -55,7 +55,7 @@ case "$SELECTOR" in
   e2e)
     assert_capture_absent
     command -v jq >/dev/null 2>&1 || fail "jq is required"
-    mkdir -p "${SCRATCH}/repo/scripts/lib" "${SCRATCH}/repo/schemas" "${SCRATCH}/repo/docs" "${SCRATCH}/bin"
+    mkdir -p "${SCRATCH}/repo/scripts/lib" "${SCRATCH}/repo/scripts/validation" "${SCRATCH}/repo/schemas" "${SCRATCH}/repo/docs" "${SCRATCH}/bin"
     for tool in bash sh env git basename dirname mkdir rmdir rm cat sed tr cut grep \
       printf jq date od wc awk sort comm uniq head tail ls cp mv ln touch mktemp uname true false; do
       path="$(command -v "$tool" || true)"
@@ -70,7 +70,7 @@ exit 0
 SH
     chmod +x "${SCRATCH}/bin/gh"
 
-    for script in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
+    for script in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
       finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
       check-trace-consistency.sh log-handback.sh; do
       cp "${ROOT}/scripts/${script}" "${SCRATCH}/repo/scripts/${script}"
@@ -111,7 +111,7 @@ SH
     (
       cd "$worktree"
       PATH="${SCRATCH}/bin" REQUIRE_TRACE_CONSISTENCY=1 \
-        ./scripts/review-gate.sh trace
+        ./scripts/validation/review-gate.sh trace
     ) >"${SCRATCH}/gate.out" 2>&1 || {
       cat "${SCRATCH}/gate.out" >&2
       fail "semantic-spine consistency/review gate failed"

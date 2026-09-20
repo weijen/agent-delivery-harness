@@ -172,8 +172,8 @@ for required in \
   scripts/lib/github-identity-lib.sh \
   scripts/lib/issue-lib.sh \
   scripts/start-issue.sh \
-  scripts/check-feature-list.sh \
-  scripts/review-gate.sh \
+  scripts/validation/check-feature-list.sh \
+  scripts/validation/review-gate.sh \
   scripts/create-pr.sh \
   scripts/merge-pr.sh \
   scripts/finish-issue.sh \
@@ -208,10 +208,10 @@ for section in "${gate_sections[@]}"; do
 done
 require_contract_record gate_sensors id scoped-green scripts/create-pr.sh
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
-if grep -q -- '--last' scripts/run-sensors.sh; then
+if grep -q -- '--last' scripts/run-sensors.sh scripts/validation/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
 fi
-if grep -Eq 'status_doc_gate|status-doc' scripts/review-gate.sh; then
+if grep -Eq 'status_doc_gate|status-doc' scripts/validation/review-gate.sh; then
   fail "review-gate.sh must not retain the retired status-document gate surface"
 fi
 end_scenario "contract declares four complete gates with wired sensors and CI-green merge"
@@ -225,11 +225,11 @@ require_contract_record evidence id sensor-summary
 require_contract_record evidence id progress-prose
 require_contract_record policy id hard-gates-observed-only
 require_contract_record policy id new-rules-warn-first
-require_contract_record sha_bindings id approval-head scripts/review-gate.sh
+require_contract_record sha_bindings id approval-head scripts/validation/review-gate.sh
 require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
 require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
 require_contract_record bypasses id FORCE scripts/finish-issue.sh
-require_contract_record bypasses id SKIP_CI_GATE scripts/review-gate.sh
+require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh
 require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
 while IFS= read -r rec; do
   [ -n "$rec" ] || continue
@@ -257,8 +257,8 @@ end_scenario "contract declares evidence governance, SHA bindings, and audited b
 # while check-feature-list.sh sources trace-lib.sh directly.
 te_required=(
   scripts/start-issue.sh
-  scripts/check-feature-list.sh
-  scripts/review-gate.sh
+  scripts/validation/check-feature-list.sh
+  scripts/validation/review-gate.sh
   scripts/create-pr.sh
   scripts/merge-pr.sh
   scripts/finish-issue.sh
@@ -269,7 +269,7 @@ for owner in "${te_required[@]}"; do
     fail "trace_emission/${owner}: instrumented script missing"
     continue
   fi
-  if [ "$owner" = "scripts/check-feature-list.sh" ]; then
+  if [ "$owner" = "scripts/validation/check-feature-list.sh" ]; then
     grep -Eq 'trace_span' "$abs" \
       || fail "trace_emission/${owner}: no trace_span reference — trace emission removed (issue #94)"
     grep -Eq 'trace-lib\.sh' "$abs" \
@@ -419,7 +419,7 @@ if [ "$sec_fails" -eq 0 ]; then
   layout_tmp="$(mktemp -d)"
   trap 'rm -rf "$layout_tmp"' EXIT
   layout_repo="${layout_tmp}/source"
-  mkdir -p "${layout_repo}/scripts/lib" "${layout_repo}/profiles" "${layout_repo}/schemas"
+  mkdir -p "${layout_repo}/scripts/lib" "${layout_repo}/scripts/validation" "${layout_repo}/profiles" "${layout_repo}/schemas"
   cp "${ROOT}/scripts/lib/"*.sh "${layout_repo}/scripts/lib/"
   cp "${ROOT}/profiles/"*.profile.sh "${layout_repo}/profiles/"
   cp "${ROOT}/schemas/trace-schema.v1.json" "${layout_repo}/schemas/"

@@ -25,6 +25,59 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths are retirement identities,
 # not active entrypoints; callers source the canonical library directly.
 layout_moves:
+  - from: scripts/affected-sensors.sh
+    to: scripts/validation/affected-sensors.sh
+  - from: scripts/check-feature-list.sh
+    to: scripts/validation/check-feature-list.sh
+  - from: scripts/check-shell.sh
+    to: scripts/validation/check-shell.sh
+  - from: scripts/python-gates.sh
+    to: scripts/validation/python-gates.sh
+  - from: scripts/rebind-evidence.sh
+    to: scripts/validation/rebind-evidence.sh
+  - from: scripts/review-gate.sh
+    to: scripts/validation/review-gate.sh
+  - from: scripts/run-sensors.sh
+    to: scripts/validation/run-sensors.sh
+    public_entrypoint: scripts/run-sensors.sh
+  - from: scripts/verify-sensor-evidence.sh
+    to: scripts/validation/verify-sensor-evidence.sh
+  - from: tests/scripts/test_affected_sensors.sh
+    to: tests/scripts/validation/test_affected_sensors.sh
+  - from: tests/scripts/test_feature_list_check.sh
+    to: tests/scripts/validation/test_feature_list_check.sh
+  - from: tests/scripts/test_python_gates.sh
+    to: tests/scripts/validation/test_python_gates.sh
+  - from: tests/scripts/test_rebind_carry.sh
+    to: tests/scripts/validation/test_rebind_carry.sh
+  - from: tests/scripts/test_rebind_evidence.sh
+    to: tests/scripts/validation/test_rebind_evidence.sh
+  - from: tests/scripts/test_rebind_repair_loop.sh
+    to: tests/scripts/validation/test_rebind_repair_loop.sh
+  - from: tests/scripts/test_repair_feature_items.sh
+    to: tests/scripts/validation/test_repair_feature_items.sh
+  - from: tests/scripts/test_repair_review_mode.sh
+    to: tests/scripts/validation/test_repair_review_mode.sh
+  - from: tests/scripts/test_review_gate.sh
+    to: tests/scripts/validation/test_review_gate.sh
+  - from: tests/scripts/test_review_gate_ci_coverage.sh
+    to: tests/scripts/validation/test_review_gate_ci_coverage.sh
+  - from: tests/scripts/test_review_gate_patch_id_store.sh
+    to: tests/scripts/validation/test_review_gate_patch_id_store.sh
+  - from: tests/scripts/test_run_sensors_tiers.sh
+    to: tests/scripts/validation/test_run_sensors_tiers.sh
+  - from: tests/scripts/test_same_class_escalation.sh
+    to: tests/scripts/validation/test_same_class_escalation.sh
+  - from: tests/scripts/test_sensor_evidence_recording.sh
+    to: tests/scripts/validation/test_sensor_evidence_recording.sh
+  - from: tests/scripts/test_sensor_evidence_verify.sh
+    to: tests/scripts/validation/test_sensor_evidence_verify.sh
+  - from: tests/scripts/test_shellcheck_version_parity.sh
+    to: tests/scripts/validation/test_shellcheck_version_parity.sh
+  - from: tests/scripts/test_shellcheck_version_pin.sh
+    to: tests/scripts/validation/test_shellcheck_version_pin.sh
+  - from: tests/scripts/test_verdict_currency_gate.sh
+    to: tests/scripts/validation/test_verdict_currency_gate.sh
   - from: scripts/ci-coverage-lib.sh
     to: scripts/lib/ci-coverage-lib.sh
   - from: scripts/economics-report-lib.sh
@@ -69,11 +122,14 @@ scripts:
     path: scripts/start-issue.sh
     role: Begin an issue in an isolated branch + worktree; scaffold tracking state.
   - id: check-feature-list
-    path: scripts/check-feature-list.sh
+    path: scripts/validation/check-feature-list.sh
     role: Validate per-issue feature_list.json structure and completion.
   - id: run-sensors
     path: scripts/run-sensors.sh
-    role: Run scoped or full sensors and return the gate result.
+    role: Stable public entrypoint forwarding sensor arguments and exit status.
+  - id: run-sensors-implementation
+    path: scripts/validation/run-sensors.sh
+    role: Run scoped or full sensors and record the gate result.
   - id: log-handback
     path: scripts/log-handback.sh
     role: Emit semantic handback and review-verdict evidence.
@@ -81,7 +137,7 @@ scripts:
     path: scripts/check-trace-consistency.sh
     role: Trace/artifact consistency checker with schema validation.
   - id: review-gate
-    path: scripts/review-gate.sh
+    path: scripts/validation/review-gate.sh
     role: HEAD-bound local review approval marker.
   - id: create-pr
     path: scripts/create-pr.sh
@@ -116,7 +172,7 @@ gate_start:
     consumes: feature_list.json
     produces: validated criterion-sized delivery breakdown
     mode: hard
-    owner: scripts/check-feature-list.sh
+    owner: scripts/validation/check-feature-list.sh
     present: feature_list.json
 
 gate_sensors:
@@ -132,14 +188,14 @@ gate_sensors:
     consumes: the runner's own summary result
     produces: tamper-evident sensor-evidence.jsonl row verified by verify-sensor-evidence.sh
     mode: warn
-    owner: scripts/run-sensors.sh
+    owner: scripts/validation/run-sensors.sh
     present: record_evidence
   - id: evidence-rebind
     trigger: review approval requested after any commit (repair loops included)
     consumes: recorded evidence rows and the current HEAD
     produces: gate evidence re-bound to the approved HEAD (carry when already current)
     mode: hard
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: rebind-evidence.sh
 
 gate_review:
@@ -148,14 +204,14 @@ gate_review:
     consumes: harness-observed trace and artifact state
     produces: review-gate.trace verdict span
     mode: warn
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: gen_ai.tool.name=review-gate.trace
   - id: independent-review
     trigger: all issue features complete and pre-review sensors green
     consumes: independent review verdict and reviewed SHA
     produces: HEAD-bound approved-head marker
     mode: hard
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: approve
   - id: approved-pr
     trigger: independent review approved at current HEAD
@@ -202,7 +258,7 @@ policy:
 sha_bindings:
   - id: approval-head
     binding: review approval is bound to HEAD by approved-head
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: approved-head
   - id: review-verdict
     binding: review verdict carries reviewed_sha
@@ -220,7 +276,7 @@ bypasses:
     present: FORCE
   - id: SKIP_CI_GATE
     audit: log the skipped project-CI coverage check
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: SKIP_CI_GATE
   - id: CREATE_PR_NO_REWRITE
     audit: preserve and report the explicit non-rewriting PR path
@@ -241,10 +297,10 @@ env_flags:
     owner: scripts/start-issue.sh
     present: SKIP_INIT
   - name: REQUIRE_FEATURES_COMPLETE
-    owner: scripts/check-feature-list.sh
+    owner: scripts/validation/check-feature-list.sh
     present: REQUIRE_FEATURES_COMPLETE
   - name: REQUIRE_TRACE_CONSISTENCY
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: REQUIRE_TRACE_CONSISTENCY
   - name: REQUIRE_AZ
     owner: scripts/init.sh
@@ -256,7 +312,7 @@ env_flags:
     owner: scripts/finish-issue.sh
     present: DELETE_BRANCH
   - name: SKIP_CI_GATE
-    owner: scripts/review-gate.sh
+    owner: scripts/validation/review-gate.sh
     present: SKIP_CI_GATE
   - name: CREATE_PR_NO_REWRITE
     owner: scripts/create-pr.sh
@@ -275,8 +331,8 @@ language_neutral:
     - scripts/lib/trace-lib.sh
     - scripts/lib/lifecycle-runtime-lib.sh
     - scripts/start-issue.sh
-    - scripts/check-feature-list.sh
-    - scripts/review-gate.sh
+    - scripts/validation/check-feature-list.sh
+    - scripts/validation/review-gate.sh
     - scripts/create-pr.sh
     - scripts/merge-pr.sh
     - scripts/finish-issue.sh

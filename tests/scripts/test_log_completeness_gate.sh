@@ -3,7 +3,7 @@
 # completeness review gate (issue #266, feature log-completeness-checker).
 #
 # WHAT THIS PINS
-# scripts/review-gate.sh log-completeness resolves the current issue the same
+# scripts/validation/review-gate.sh log-completeness resolves the current issue the same
 # way as the trace gate, scans that issue's progress.md for unfilled
 # placeholders, reports findings as path:line:text, stays warn-only by default,
 # blocks only with REQUIRE_LOG_COMPLETE=1, and gracefully skips when the issue
@@ -41,8 +41,8 @@ hard_fail() {
 
 unset TRACE_ISSUE REQUIRE_LOG_COMPLETE 2>/dev/null || true
 
-[ -x "${ROOT}/scripts/review-gate.sh" ] \
-  || hard_fail "scripts/review-gate.sh not found or not executable"
+[ -x "${ROOT}/scripts/validation/review-gate.sh" ] \
+  || hard_fail "scripts/validation/review-gate.sh not found or not executable"
 
 make_repo() {
   local work
@@ -88,7 +88,7 @@ EOF
 run_gate() {
   local work="$1"; shift
   RUN_RC=0
-  RUN_OUT="$(cd "$work" && env "$@" "${ROOT}/scripts/review-gate.sh" log-completeness 2>&1)" \
+  RUN_OUT="$(cd "$work" && env "$@" "${ROOT}/scripts/validation/review-gate.sh" log-completeness 2>&1)" \
     || RUN_RC=$?
 }
 
@@ -237,8 +237,8 @@ hard_fail() {
 
 unset TRACE_ISSUE REQUIRE_LOG_COMPLETE LOG_COMPLETENESS_PATHS 2>/dev/null || true
 
-[ -x "${REPO}/scripts/review-gate.sh" ] \
-  || hard_fail "scripts/review-gate.sh not found or not executable"
+[ -x "${REPO}/scripts/validation/review-gate.sh" ] \
+  || hard_fail "scripts/validation/review-gate.sh not found or not executable"
 
 make_repo() {
   local work
@@ -270,7 +270,7 @@ run_gate() {
   local work="$1"
   shift
   RUN_RC=0
-  RUN_OUT="$(cd "$work" && env "$@" "${REPO}/scripts/review-gate.sh" log-completeness 2>&1)" \
+  RUN_OUT="$(cd "$work" && env "$@" "${REPO}/scripts/validation/review-gate.sh" log-completeness 2>&1)" \
     || RUN_RC=$?
 }
 
@@ -437,8 +437,8 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in lib/lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh lib/finish-lib.sh check-trace-consistency.sh \
-         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh check-feature-list.sh; do
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh finish-issue.sh lib/finish-lib.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh validation/check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the log-completeness fixture"
 done
@@ -470,10 +470,10 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh check-feature-list.sh \
-           review-gate.sh lib/trace-lib.sh check-trace-consistency.sh; do
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh \
+           validation/review-gate.sh lib/trace-lib.sh check-trace-consistency.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
@@ -538,7 +538,7 @@ cat > "$PROGRESS1" <<'MD'
 MD
 
 # CASE A: warn-only emits a pass span with numeric finding_count=2.
-rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh log-completeness)"
+rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh log-completeness)"
 [ "$rc" = "0" ] \
   || fail "CASE A: warn-only log-completeness must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 span="$(last_logcomp_span "$TRACE1")"
@@ -553,7 +553,7 @@ if [ -n "$span" ]; then
 fi
 
 # CASE B: REQUIRE_LOG_COMPLETE blocks and emits fail span with numeric exit/finding counts.
-rc="$(run_in "$WT1" "$OUT" REQUIRE_LOG_COMPLETE=1 -- ./scripts/review-gate.sh log-completeness)"
+rc="$(run_in "$WT1" "$OUT" REQUIRE_LOG_COMPLETE=1 -- ./scripts/validation/review-gate.sh log-completeness)"
 [ "$rc" = "1" ] \
   || fail "CASE B: REQUIRE_LOG_COMPLETE=1 must exit 1 with placeholders, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 span="$(last_logcomp_span "$TRACE1")"
@@ -593,7 +593,7 @@ cat > "$PROGRESS2" <<'MD'
 
 - feature_start demo pass — nothing outstanding.
 MD
-rc="$(run_in "$WT2" "$OUT" -- ./scripts/review-gate.sh log-completeness)"
+rc="$(run_in "$WT2" "$OUT" -- ./scripts/validation/review-gate.sh log-completeness)"
 [ "$rc" = "0" ] \
   || fail "CASE C: clean log-completeness must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 span="$(last_logcomp_span "$TRACE2")"
@@ -628,7 +628,7 @@ TRACE3="${F3}/.copilot-tracking/issues/issue-82/trace.jsonl"
 # start-issue.sh seeds a worktree progress.md; remove it so there is genuinely
 # nothing to scan (scanned_count == 0), the no-span skip path.
 rm -f "${WT3}/.copilot-tracking/issues/issue-82/progress.md"
-rc="$(run_in "$WT3" "$OUT" -- ./scripts/review-gate.sh log-completeness)"
+rc="$(run_in "$WT3" "$OUT" -- ./scripts/validation/review-gate.sh log-completeness)"
 [ "$rc" = "0" ] \
   || fail "CASE G: no-log run must exit 0 (nothing to scan is a skip), got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 span="$(last_logcomp_span "$TRACE3")"
@@ -686,9 +686,9 @@ COMPLETE_LIST='{"features":[{"id":"finish-issue-log-gate-wiring","title":"finish
 make_finish_fixture() {
   local dir="$1" issue="$2" pad start_out
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts/lib"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh check-feature-list.sh review-gate.sh; do
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh validation/review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   chmod +x "${dir}/scripts/"*.sh

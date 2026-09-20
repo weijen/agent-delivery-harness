@@ -11,7 +11,7 @@ CALLERS=(
   scripts/create-pr.sh
   scripts/merge-pr.sh
   scripts/finish-issue.sh
-  scripts/review-gate.sh
+  scripts/validation/review-gate.sh
 )
 fail=0
 

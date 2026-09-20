@@ -2,7 +2,7 @@
 # Consolidated behavioral sensor for current same-class escalation.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 
 # shellcheck source=/dev/null

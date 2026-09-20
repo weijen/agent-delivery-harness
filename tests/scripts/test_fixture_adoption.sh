@@ -11,9 +11,9 @@ fail() {
 
 SENSORS=(
   tests/scripts/test_log_handback.sh
-  tests/scripts/test_review_gate.sh
-  tests/scripts/test_review_gate_patch_id_store.sh
-  tests/scripts/test_review_gate_ci_coverage.sh
+  tests/scripts/validation/test_review_gate.sh
+  tests/scripts/validation/test_review_gate_patch_id_store.sh
+  tests/scripts/validation/test_review_gate_ci_coverage.sh
   tests/scripts/test_create_pr_failure.sh
   tests/scripts/test_finish_issue_conclusion.sh
   tests/scripts/test_trace_lib.sh

@@ -92,7 +92,7 @@ for rel in "${REQUIRED_FILES[@]}"; do
 done
 
 # --- Case (e): no-clobber of a differing harness file without --update --------
-e="${TMP_DIR}/e"; mkdir -p "$e/scripts/lib" "$e/src"
+e="${TMP_DIR}/e"; mkdir -p "$e/scripts/lib" "$e/scripts/validation" "$e/src"
 printf 'PROJECT LOCAL EDIT — do not overwrite\n' >"$e/scripts/init.sh"
 sentinel="$e/scripts/init.sh"
 sentinel_before="$(cat "$sentinel")"

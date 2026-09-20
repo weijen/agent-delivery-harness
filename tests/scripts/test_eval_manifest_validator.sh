@@ -65,17 +65,17 @@ cat > "$BASE" <<'JSON'
 {
   "id": "l0-review-gate-freshness",
   "schema_version": 1,
-  "target": "scripts/review-gate.sh",
+  "target": "scripts/validation/review-gate.sh",
   "capability": "blocks_stale_review_approval",
   "boundary": "script-lifecycle",
   "fixture": {
     "type": "generated",
-    "builder": "tests/scripts/test_review_gate.sh"
+    "builder": "tests/scripts/validation/test_review_gate.sh"
   },
   "expected_outcome": "reject",
   "grader": {
     "type": "shell",
-    "command": "tests/scripts/test_review_gate.sh"
+    "command": "tests/scripts/validation/test_review_gate.sh"
   },
   "blocking": true
 }
@@ -106,7 +106,7 @@ jq '.fixture = {}' "$BASE" > "$FIXTURE_NEITHER"
 
 # `fixture` declaring BOTH shapes: carries `builder` AND `path`.
 FIXTURE_BOTH="${TMP_DIR}/fixture-both.json"
-jq '.fixture = {type: "generated", builder: "tests/scripts/test_review_gate.sh", path: "tests/evals/fixtures/scripts/review-gate/"}' \
+jq '.fixture = {type: "generated", builder: "tests/scripts/validation/test_review_gate.sh", path: "tests/evals/fixtures/scripts/review-gate/"}' \
   "$BASE" > "$FIXTURE_BOTH"
 
 # `fixture` MISSING `type`: drop the discriminator, keep `builder`. Per spec a

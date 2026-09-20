@@ -129,7 +129,7 @@ fail() {
 
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
-mkdir -p "${REPO}/scripts/lib" "${REPO}/.github" "$BIN"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/.github" "$BIN"
 cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
 cp "${ROOT}/scripts/lib/issue-lib.sh" \
   "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" \

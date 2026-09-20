@@ -25,7 +25,7 @@ canon() { (cd "$1" && pwd -P); }
 
 # --- A throwaway "main" checkout that carries a copy of issue-lib.sh -----------
 REPO="${TMP_DIR}/myrepo"
-mkdir -p "${REPO}/scripts/lib"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${REPO}/scripts/lib/issue-lib.sh"
 cd "${REPO}"
 git init -q -b main

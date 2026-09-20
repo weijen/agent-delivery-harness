@@ -298,7 +298,7 @@ capability. If your environment supports this, example harness entrypoints you
 might scope include:
 
 - `scripts/log-handback.sh` — logs conductor↔subagent handback events
-- `scripts/review-gate.sh` — runs the review gate checks
+- `scripts/validation/review-gate.sh` — runs the review gate checks
 
 These are examples, not an exhaustive list — additional harness scripts may be
 invoked depending on the issue workflow. Verify the exact configuration syntax

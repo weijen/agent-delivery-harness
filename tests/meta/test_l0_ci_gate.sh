@@ -212,8 +212,8 @@ source "$LIB"
 SENSORS="
 tests/scripts/test_harness_contract.sh
 tests/scripts/test_lifecycle_order.sh
-tests/scripts/test_review_gate.sh
-tests/scripts/test_feature_list_check.sh
+tests/scripts/validation/test_review_gate.sh
+tests/scripts/validation/test_feature_list_check.sh
 tests/scripts/test_issue_scaffold.sh
 "
 

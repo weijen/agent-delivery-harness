@@ -3,7 +3,7 @@
 # commits (issue #442).
 #
 # Usage:
-#   scripts/rebind-evidence.sh [--gate pre-review|pre-pr]   # default pre-review
+#   scripts/validation/rebind-evidence.sh [--gate pre-review|pre-pr]   # default pre-review
 #
 # The repair-loop catch-22 this removes: fixing a review finding creates a
 # commit, which silently invalidates the previous gate evidence; the staleness
@@ -21,7 +21,7 @@
 #       no issue context · 2 usage error.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; }
 
@@ -57,8 +57,8 @@ HEAD_SHA="$(git rev-parse HEAD)"
 
 # Carry: evidence already bound to this HEAD at this gate → nothing owed.
 verify_out=""
-if [ -f "${SCRIPT_DIR}/verify-sensor-evidence.sh" ] \
-  && verify_out="$(bash "${SCRIPT_DIR}/verify-sensor-evidence.sh" "$ISSUE" \
+if [ -f "${SCRIPT_DIR}/validation/verify-sensor-evidence.sh" ] \
+  && verify_out="$(bash "${SCRIPT_DIR}/validation/verify-sensor-evidence.sh" "$ISSUE" \
        --head "$HEAD_SHA" --mode "$GATE" 2>&1)"; then
   printf 'rebind-evidence: OK evidence current for head %s (mode %s) — carried\n' \
     "$HEAD_SHA" "$GATE"

@@ -83,7 +83,7 @@ command -v jq >/dev/null 2>&1 \
 # Usage: build_repo <dest-dir> [version-content]
 build_repo() {
   local dest="$1" version_content="${2-}"
-  mkdir -p "${dest}/scripts/lib"
+  mkdir -p "${dest}/scripts/lib" "${dest}/scripts/validation"
   cp "$LIB" "${dest}/scripts/lib/trace-lib.sh"
   printf 'fixture\n' > "${dest}/README.md"
   if [ "$#" -ge 2 ]; then

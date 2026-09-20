@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -46,9 +46,9 @@ command -v jq >/dev/null 2>&1 || { printf 'Bail out! jq required\n'; exit 1; }
 # check-feature-list.sh resolves the list from the issue's tracking dir, so
 # drive it inside a minimal fixture repo on the issue branch.
 CFL_FIX="${TMP_DIR}/cfl-repo"
-mkdir -p "${CFL_FIX}/scripts/lib" "${CFL_FIX}/schemas" "${CFL_FIX}/docs" \
+mkdir -p "${CFL_FIX}/scripts/lib" "${CFL_FIX}/scripts/validation" "${CFL_FIX}/schemas" "${CFL_FIX}/docs" \
   "${CFL_FIX}/.worktrees/issue-66/.copilot-tracking/issues/issue-66"
-for s in check-feature-list.sh lib/issue-lib.sh lib/trace-lib.sh lib/github-identity-lib.sh; do
+for s in validation/check-feature-list.sh lib/issue-lib.sh lib/trace-lib.sh lib/github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${CFL_FIX}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${CFL_FIX}/schemas/"
@@ -61,7 +61,7 @@ run_cfl() { # <list-path> [env...]
   local list="$1"; shift
   cp "$list" "${CFL_FIX}/.worktrees/issue-66/.copilot-tracking/issues/issue-66/feature_list.json"
   local rc=0
-  (cd "$CFL_FIX" && env "$@" ./scripts/check-feature-list.sh 66) \
+  (cd "$CFL_FIX" && env "$@" ./scripts/validation/check-feature-list.sh 66) \
     >"${TMP_DIR}/cfl.out" 2>&1 || rc=$?
   printf '%s' "$rc"
 }

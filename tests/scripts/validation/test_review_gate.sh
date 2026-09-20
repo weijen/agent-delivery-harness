@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts create-pr.sh,review-gate.sh
+fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 REPO="$FIXTURE_REPO"
 
@@ -68,7 +68,7 @@ EOF
 }
 
 setup_origin_main() {
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh
   ORIGIN_WORK="$FIXTURE_REPO"
   mkdir -p "${ORIGIN_WORK}/docs"
   printf '# Progress\n\nbaseline\n' > "${ORIGIN_WORK}/docs/PROGRESS.md"
@@ -93,7 +93,7 @@ cd "$REPO"
 printf 'initial\n' > README.md
 mkdir -p docs
 printf '# Progress\n\nbaseline\n' > docs/PROGRESS.md
-git add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/review-gate.sh
+git add .gitignore README.md docs/PROGRESS.md scripts/create-pr.sh scripts/validation/review-gate.sh
 git commit -q -m "add progress baseline"
 git checkout -q -b feature/review-gate
 
@@ -101,14 +101,14 @@ printf '# Progress\n\ninitial feature work\n' > docs/PROGRESS.md
 git add docs/PROGRESS.md
 make_commit "initial"
 
-if ./scripts/review-gate.sh check >/tmp/review-gate-check.out 2>&1; then
+if ./scripts/validation/review-gate.sh check >/tmp/review-gate-check.out 2>&1; then
   fail "check passed without approval"
 fi
 grep -q "current HEAD has not been approved" /tmp/review-gate-check.out || fail "missing unapproved HEAD message"
 emit "review-gate check fails on an unapproved HEAD"
 
-./scripts/review-gate.sh approve >/tmp/review-gate-approve.out
-./scripts/review-gate.sh check >/tmp/review-gate-check.out
+./scripts/validation/review-gate.sh approve >/tmp/review-gate-approve.out
+./scripts/validation/review-gate.sh check >/tmp/review-gate-check.out
 grep -q "review approved for current HEAD" /tmp/review-gate-check.out || fail "approval check did not pass"
 emit "review-gate check passes after approving the current HEAD"
 
@@ -118,7 +118,7 @@ printf '# changed\n' >> scripts/probe.sh 2>/dev/null || printf '#!/usr/bin/env b
 git add scripts/probe.sh
 make_commit "change head"
 
-if ./scripts/review-gate.sh check >/tmp/review-gate-stale.out 2>&1; then
+if ./scripts/validation/review-gate.sh check >/tmp/review-gate-stale.out 2>&1; then
   fail "check passed after HEAD changed"
 fi
 grep -q "current HEAD has not been approved" /tmp/review-gate-stale.out || fail "missing stale approval message"
@@ -142,7 +142,7 @@ printf '# Progress\n\nphase B feature\n' > docs/PROGRESS.md
 git add feature.txt docs/PROGRESS.md
 make_commit "feature commit"
 approved_head="$(git rev-parse HEAD)"
-./scripts/review-gate.sh approve >/tmp/review-gate-approved-feature.out
+./scripts/validation/review-gate.sh approve >/tmp/review-gate-approved-feature.out
 
 if ! ./scripts/create-pr.sh --title "test" --body "test" >/tmp/create-pr-unchanged-sync.out 2>&1; then
   fail "create-pr refused approved HEAD when sync did not change it"
@@ -186,8 +186,8 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; fails=$((fails + 1)); }
 hard_fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 unset TRACE_ISSUE REQUIRE_LOG_COMPLETE 2>/dev/null || true
-GATE="${ROOT}/scripts/review-gate.sh"
-[ -x "$GATE" ] || hard_fail "scripts/review-gate.sh not found or not executable"
+GATE="${ROOT}/scripts/validation/review-gate.sh"
+[ -x "$GATE" ] || hard_fail "scripts/validation/review-gate.sh not found or not executable"
 
 # --- Tooth 1: single resolution implementation -------------------------------
 # The anchored branch pattern is the fingerprint of the resolution block.
@@ -309,7 +309,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
          lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the verdict PR-gate fixture"
@@ -344,9 +344,9 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
            lib/trace-lib.sh lib/issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
@@ -431,7 +431,7 @@ OUT="${TMP_DIR}/out.txt"
 C1="${TMP_DIR}/c40"; make_repo "$C1" 40
 ID1="${C1}/.copilot-tracking/issues/issue-40"
 add_green "$ID1" 40 feat-a
-rc="$(run_in "$C1" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C1" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" != "0" ] \
   || fail "approve_blocks_verdict_missing: 'review-gate.sh approve' must HARD-FAIL when a passes:true feature lacks a review_verdict span, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ ! -f "$(marker_path "$C1")" ] \
@@ -448,7 +448,7 @@ C2="${TMP_DIR}/c41"; make_repo "$C2" 41
 ID2="${C2}/.copilot-tracking/issues/issue-41"
 add_green "$ID2" 41 feat-a
 set_marker "$C2"   # approval matches HEAD
-rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" != "0" ] \
   || fail "check_blocks_verdict_missing: 'review-gate.sh check' must HARD-FAIL on the missing verdict even when approval passes, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -Eiq 'verdict' "$OUT" \
@@ -461,7 +461,7 @@ C3="${TMP_DIR}/c42"; make_repo "$C3" 42
 ID3="${C3}/.copilot-tracking/issues/issue-42"
 add_green "$ID3" 42 feat-a
 add_verdict "$ID3" 42 feat-a
-rc="$(run_in "$C3" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C3" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "no_block_with_verdict: with a review_verdict span present the verdict leg must NOT block approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$C3")" ] \
@@ -482,7 +482,7 @@ fi
 # must degrade to a skip (return 0) rather than break the gate, so approve
 # still proceeds and writes the marker.
 C4="${TMP_DIR}/c43"; make_repo "$C4" 43
-rc="$(run_in "$C4" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C4" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "graceful_skip_no_trace: with no trace the verdict gate must degrade to a skip (return 0), not break approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$C4")" ] \
@@ -517,7 +517,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
          lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the reject-cap PR-gate fixture"
@@ -551,9 +551,9 @@ make_repo() {
   pad="$(printf '%02d' "$issue")"
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
-  mkdir -p "${dir}/scripts/lib" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lib/lifecycle-runtime-lib.sh review-gate.sh check-trace-consistency.sh \
+  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
            lib/trace-lib.sh lib/issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
@@ -624,7 +624,7 @@ ID1="${C1}/.copilot-tracking/issues/issue-30"
 add_reject "$ID1" 30 feat-a
 add_reject "$ID1" 30 feat-a
 add_reject "$ID1" 30 feat-a
-rc="$(run_in "$C1" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C1" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" != "0" ] \
   || fail "approve_blocks_reject_cap: 'review-gate.sh approve' must HARD-FAIL when a feature hit the 3-rejection cap, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ ! -f "$(marker_path "$C1")" ] \
@@ -643,7 +643,7 @@ add_reject "$ID2" 31 feat-a
 add_reject "$ID2" 31 feat-a
 add_reject "$ID2" 31 feat-a
 set_marker "$C2"   # approval matches HEAD
-rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$C2" "$OUT" SKIP_CI_GATE=1 -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" != "0" ] \
   || fail "check_blocks_reject_cap: 'review-gate.sh check' must HARD-FAIL on the reject cap even when approval passes, got exit ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -Eiq 'reject' "$OUT" \
@@ -659,7 +659,7 @@ ID2B="${C2B}/.copilot-tracking/issues/issue-33"
 add_reject "$ID2B" 33 feat-a
 add_reject "$ID2B" 33 feat-a
 add_reject "$ID2B" 33 feat-a
-rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "release_reject_cap: RELEASE_REJECT_CAP=1 must release the capped approve path — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$C2B")" ] \
@@ -670,10 +670,10 @@ grep -Eiq 'review_reject_cap_exceeded' "$OUT" \
   || fail "release_reject_cap: the release log must carry the cap findings it overrides (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'review-gate.reject-cap-release' "${ID2B}/trace.jsonl" \
   || fail "release_reject_cap: the release must be recorded as a reject-cap-release span in the issue trace"
-rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$C2B" "$OUT" RELEASE_REJECT_CAP=1 REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" = "0" ] \
   || fail "release_reject_cap: the release must also cover the strict trace gate (REQUIRE_TRACE_CONSISTENCY=1) — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-rc="$(run_in "$C2B" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$C2B" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 SKIP_CI_GATE=1 -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" != "0" ] \
   || fail "release_reject_cap: without RELEASE_REJECT_CAP=1 the capped check path must still hard-block, got exit ${rc}"
 
@@ -684,7 +684,7 @@ C3="${TMP_DIR}/c32"; make_repo "$C3" 32
 ID3="${C3}/.copilot-tracking/issues/issue-32"
 add_reject "$ID3" 32 feat-a
 add_reject "$ID3" 32 feat-a
-rc="$(run_in "$C3" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$C3" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "no_block_below_cap: with only 2 rejections the reject-cap leg must NOT block approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 [ -f "$(marker_path "$C3")" ] \
@@ -714,8 +714,8 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 FIX="${TMP_DIR}/repo"
 git clone -q "$REPO" "$FIX"
 git -C "$FIX" remote remove origin
-mkdir -p "${FIX}/scripts/lib" "${FIX}/docs" "${FIX}/.copilot/skills"
-for f in review-gate.sh lib/issue-lib.sh lib/trace-lib.sh lib/ci-coverage-lib.sh check-trace-consistency.sh check-feature-list.sh; do
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/docs" "${FIX}/.copilot/skills"
+for f in validation/review-gate.sh lib/issue-lib.sh lib/trace-lib.sh lib/ci-coverage-lib.sh check-trace-consistency.sh validation/check-feature-list.sh; do
   [ -f "${ROOT}/scripts/$f" ] && cp "${ROOT}/scripts/$f" "${FIX}/scripts/$f"
 done
 printf 'guide\n' > "${FIX}/docs/guide.md"
@@ -727,32 +727,32 @@ git -C "$FIX" add -A && git -C "$FIX" commit -qm "add docs fixture"
 cd "$FIX"
 mkdir -p .copilot-tracking/review-gate
 
-./scripts/review-gate.sh approve >/dev/null 2>&1 || fail "approve failed"
+./scripts/validation/review-gate.sh approve >/dev/null 2>&1 || fail "approve failed"
 
 # 1. docs-only delta carries
 printf 'more\n' >> docs/guide.md && git add docs/guide.md && git commit -qm "docs: more"
-out="$(./scripts/review-gate.sh check 2>&1)" || fail "docs-only delta must carry the approval (got: $out)"
+out="$(./scripts/validation/review-gate.sh check 2>&1)" || fail "docs-only delta must carry the approval (got: $out)"
 grep -q "carried" <<<"$out" || fail "carry notice missing (got: $out)"
 
 # 2. script delta must fail
 printf '# x\n' >> scripts/lib/issue-lib.sh && git add scripts/lib/issue-lib.sh && git commit -qm "chore: touch"
-if ./scripts/review-gate.sh check >/dev/null 2>&1; then
+if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then
   fail "script delta must invalidate the approval"
 fi
 git reset -q --hard HEAD~1
 
 # 3. doctrine markdown must fail
-./scripts/review-gate.sh approve >/dev/null 2>&1
+./scripts/validation/review-gate.sh approve >/dev/null 2>&1
 printf 'x\n' >> .copilot/skills/doc.md && git add .copilot/skills/doc.md && git commit -qm "docs: doctrine"
-if ./scripts/review-gate.sh check >/dev/null 2>&1; then
+if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then
   fail ".copilot/** markdown must invalidate the approval (doctrine is behavior)"
 fi
 git reset -q --hard HEAD~1
 
 # 4. AGENTS.md must fail
-./scripts/review-gate.sh approve >/dev/null 2>&1
+./scripts/validation/review-gate.sh approve >/dev/null 2>&1
 printf 'x\n' >> AGENTS.md && git add AGENTS.md && git commit -qm "docs: agents"
-if ./scripts/review-gate.sh check >/dev/null 2>&1; then
+if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then
   fail "AGENTS.md must invalidate the approval (doctrine is behavior)"
 fi
 

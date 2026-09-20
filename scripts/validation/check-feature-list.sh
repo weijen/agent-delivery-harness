@@ -17,9 +17,9 @@
 # feature list.
 #
 # Usage:
-#   ./scripts/check-feature-list.sh 31
-#   ./scripts/check-feature-list.sh ISSUE=31
-#   ./scripts/check-feature-list.sh 31 SLUG=custom-slug   # slug is irrelevant to
+#   ./scripts/validation/check-feature-list.sh 31
+#   ./scripts/validation/check-feature-list.sh ISSUE=31
+#   ./scripts/validation/check-feature-list.sh 31 SLUG=custom-slug   # slug is irrelevant to
 #                                                          # resolution but accepted
 #
 # Exit codes: 0 ok (or warning-only) · 1 usage / invalid / hard-fail
@@ -30,7 +30,7 @@ red()    { printf '\033[31m%s\033[0m\n' "$*"; }
 green()  { printf '\033[32m%s\033[0m\n' "$*"; }
 yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/issue-lib.sh
 source "${SCRIPT_DIR}/lib/issue-lib.sh"
 
@@ -96,7 +96,7 @@ for arg in "$@"; do
   esac
 done
 if [ -z "$NUM_ARG" ]; then
-  red "usage: ./scripts/check-feature-list.sh <issue-number> [SLUG=custom-slug]"
+  red "usage: ./scripts/validation/check-feature-list.sh <issue-number> [SLUG=custom-slug]"
   exit 1
 fi
 ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"

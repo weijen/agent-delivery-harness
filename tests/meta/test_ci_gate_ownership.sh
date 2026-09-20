@@ -54,9 +54,10 @@ for path in "${paths[@]}"; do
 	mkdir -p "${FIX}/$(dirname "$path")"
 	printf '#!/usr/bin/env bash\nset -euo pipefail\n:\n' >"${FIX}/${path}"
 done
-if [ -f "${ROOT}/scripts/check-shell.sh" ]; then
-	cp "${ROOT}/scripts/check-shell.sh" "${FIX}/scripts/"
-	paths+=(scripts/check-shell.sh)
+if [ -f "${ROOT}/scripts/validation/check-shell.sh" ]; then
+	mkdir -p "${FIX}/scripts/validation"
+	cp "${ROOT}/scripts/validation/check-shell.sh" "${FIX}/scripts/validation/"
+	paths+=(scripts/validation/check-shell.sh)
 fi
 mkdir -p "${FIX}/tests/scripts/fixtures"
 printf 'deliberately not shell\n' >"${FIX}/tests/scripts/fixtures/invalid.sh"
@@ -121,12 +122,12 @@ for profile in source adopter; do
 		|| fail "${profile} lint must cover each intended identity exactly once"
 done
 
-assert_owner "Python profile gates" './scripts/python-gates.sh' "$SMOKE"
+assert_owner "Python profile gates" './scripts/validation/python-gates.sh' "$SMOKE"
 assert_owner "Python dependency sync" 'uv sync --all-groups' "$SMOKE"
 assert_owner "Python lock integrity" 'uv lock --check' "$PYTHON"
 assert_owner "tombstone history" './scripts/check-install-harness-tombstones.sh' "$SMOKE"
-assert_owner "shell syntax" './scripts/check-shell.sh syntax' "$SMOKE"
-assert_owner "shellcheck" './scripts/check-shell.sh lint' "$SMOKE"
+assert_owner "shell syntax" './scripts/validation/check-shell.sh syntax' "$SMOKE"
+assert_owner "shellcheck" './scripts/validation/check-shell.sh lint' "$SMOKE"
 assert_owner "frontmatter validation" 'validate-customization-frontmatter.sh' "$SMOKE"
 assert_owner "harness sensor suite" 'Run harness sensor suite' "$SMOKE"
 assert_owner "L0 suite" 'run-l0-suite.sh' "$SMOKE"
@@ -139,7 +140,7 @@ done
 
 (
 	cd "$ROOT"
-	./scripts/review-gate.sh ci-gate >/dev/null
+	./scripts/validation/review-gate.sh ci-gate >/dev/null
 ) || fail "unique Harness Smoke ownership must satisfy the project CI coverage gate"
 
 printf 'CI gate ownership is unique\n'

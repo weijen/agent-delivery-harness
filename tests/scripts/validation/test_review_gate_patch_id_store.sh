@@ -9,11 +9,11 @@
 #               1-line marker, proving Scenario A's assertion detects the regression.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 
 # shellcheck source=/dev/null
@@ -61,7 +61,7 @@ git -C "$ORIGIN_WORK" remote add origin "${TMP_DIR}/origin.git"
 
 # Feature repo on a feature/review-gate branch (no issue-NN slug →
 # resolve_issue_number skips gracefully → all trace-based gates skip).
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 REPO="$FIXTURE_REPO"
 mkdir -p "${REPO}/docs"
 
@@ -84,7 +84,7 @@ make_commit "second feature commit"
 head_sha="$(git rev-parse HEAD)"
 marker_dir="${REPO}/.copilot-tracking/review-gate"
 marker_file="${marker_dir}/approved-head"
-rg="${REPO}/scripts/review-gate.sh"
+rg="${REPO}/scripts/validation/review-gate.sh"
 
 # ── Scenario A: approve writes a 2-line marker ───────────────────────────────
 approve_rc=0
@@ -142,13 +142,13 @@ emit "Scenario C: check passes with legacy single-line marker (backward compatib
 # This proves the helper's two-line write is the load-bearing contract mechanism.
 # (Red-first evidence from Scenario A failing pre-implementation already
 # satisfies the teeth obligation; this is additional positive mutation proof.)
-mutant_rg="${TMP_DIR}/review-gate-mutant.sh"
-mkdir -p "${TMP_DIR}/lib"
+mutant_rg="${TMP_DIR}/validation/review-gate-mutant.sh"
+mkdir -p "${TMP_DIR}/lib" "${TMP_DIR}/validation"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/lib/"
 # The #442 evidence re-bind gate is hard: the mutant's SCRIPT_DIR needs the
 # evidence chain beside it or approve refuses before reaching the marker write.
-for dep in rebind-evidence.sh run-sensors.sh affected-sensors.sh \
-  verify-sensor-evidence.sh lib/trace-lib.sh; do
+for dep in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
+  validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
   cp "${ROOT}/scripts/${dep}" "${TMP_DIR}/${dep}"
 done
 # Replace the helper's two-line write with a one-line SHA-only marker.
@@ -156,7 +156,7 @@ done
 sed '
 /printf.*"\$sha".*"\$patch_id".*> "\$path"/c\
   printf '\''%s\\n'\'' "$sha" > "$path"
-' "${ROOT}/scripts/review-gate.sh" > "$mutant_rg"
+' "${ROOT}/scripts/validation/review-gate.sh" > "$mutant_rg"
 chmod +x "$mutant_rg"
 
 rm -f "$marker_file"
@@ -237,7 +237,7 @@ emit "Scenario E: patch identity is unchanged across a content-preserving rebase
 # A branch with zero commits above origin/main must record the deterministic
 # empty-stream identity (git hash-object --stdin </dev/null), not a blank line.
 # This distinguishes it from the origin-unavailable case (Scenario G).
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 F_REPO="$FIXTURE_REPO"
 _saved_dir="$(pwd)"
 cd "$F_REPO"
@@ -248,7 +248,7 @@ git reset -q --hard origin/main
 git checkout -q -b feature/empty-test
 
 f_approve_rc=0
-./scripts/review-gate.sh approve >"${TMP_DIR}/approve-f.out" 2>&1 || f_approve_rc=$?
+./scripts/validation/review-gate.sh approve >"${TMP_DIR}/approve-f.out" 2>&1 || f_approve_rc=$?
 f_marker="${F_REPO}/.copilot-tracking/review-gate/approved-head"
 
 if [ "$f_approve_rc" -ne 0 ]; then
@@ -279,7 +279,7 @@ emit "Scenario F: empty branch (zero commits above origin/main) gets determinist
 # succeed (approval is valid), write 2 lines, and record a blank line 2 so that
 # carry fails closed later. This case must not be confused with an empty branch
 # (Scenario F: empty branch with valid origin/main gets a specific non-blank hash).
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 G_REPO="$FIXTURE_REPO"
 cd "$G_REPO"
 git checkout -q -b feature/no-origin-test
@@ -295,7 +295,7 @@ git -c user.name="Harness Test" -c user.email="harness-test@example.invalid" \
 # No origin remote configured: git merge-base origin/main HEAD will fail.
 
 g_approve_rc=0
-./scripts/review-gate.sh approve >"${TMP_DIR}/approve-g.out" 2>&1 || g_approve_rc=$?
+./scripts/validation/review-gate.sh approve >"${TMP_DIR}/approve-g.out" 2>&1 || g_approve_rc=$?
 g_marker="${G_REPO}/.copilot-tracking/review-gate/approved-head"
 g_head_sha="$(git rev-parse HEAD)"
 
@@ -323,7 +323,7 @@ cd "$_saved_dir"
 emit "Scenario G: origin/main unavailable — approve succeeds, marker has 2 lines, line 2 is blank"
 
 # ── Scenario H: sibling issue worktrees keep independent canonical state ─────
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 H_MAIN="$FIXTURE_REPO"
 H_WT_398="${TMP_DIR}/h-wt-398"
 H_WT_399="${TMP_DIR}/h-wt-399"
@@ -335,7 +335,7 @@ git -C "$H_WT_398" add issue-398.txt
 git -C "$H_WT_398" -c user.name="Harness Test" \
   -c user.email="harness-test@example.invalid" commit -q -m "issue 398 state"
 h_head_398="$(git -C "$H_WT_398" rev-parse HEAD)"
-(cd "$H_WT_398" && REVIEW_GATE_ISSUE=398 ./scripts/review-gate.sh approve) \
+(cd "$H_WT_398" && REVIEW_GATE_ISSUE=398 ./scripts/validation/review-gate.sh approve) \
   >"${TMP_DIR}/approve-h-398.out" 2>&1 \
   || fail "Scenario H: issue 398 approve failed"
 
@@ -344,7 +344,7 @@ git -C "$H_WT_399" add issue-399.txt
 git -C "$H_WT_399" -c user.name="Harness Test" \
   -c user.email="harness-test@example.invalid" commit -q -m "issue 399 state"
 h_head_399="$(git -C "$H_WT_399" rev-parse HEAD)"
-(cd "$H_WT_399" && REVIEW_GATE_ISSUE=399 ./scripts/review-gate.sh approve) \
+(cd "$H_WT_399" && REVIEW_GATE_ISSUE=399 ./scripts/validation/review-gate.sh approve) \
   >"${TMP_DIR}/approve-h-399.out" 2>&1 \
   || fail "Scenario H: issue 399 approve failed"
 h_marker_398="${H_MAIN}/.copilot-tracking/review-gate/issue-398/approved-head"
@@ -360,13 +360,13 @@ else
   git -C "$H_MAIN" checkout -q --detach "$h_head_398"
   (
     cd "$H_MAIN"
-    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=398 ./scripts/review-gate.sh check
+    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=398 ./scripts/validation/review-gate.sh check
   ) >"${TMP_DIR}/check-h-398.out" 2>&1 \
     || fail "Scenario H: canonical issue 398 closeout check failed"
   git -C "$H_MAIN" checkout -q --detach "$h_head_399"
   (
     cd "$H_MAIN"
-    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=399 ./scripts/review-gate.sh check
+    SKIP_CI_GATE=1 REVIEW_GATE_ISSUE=399 ./scripts/validation/review-gate.sh check
   ) \
     >"${TMP_DIR}/check-h-399.out" 2>&1 \
     || fail "Scenario H: canonical issue 399 closeout check failed"
@@ -418,7 +418,7 @@ chmod +x "${BIN}/gh"
 # and adds feature.txt (no conflict with unrelated main changes).
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh,check-trace-consistency.sh,lib/issue-lib.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh,check-trace-consistency.sh,lib/issue-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/schemas" "${dir}/docs"
@@ -475,19 +475,19 @@ make_pr_repo "$RA" 310
 # Instrument review-gate invocations independently of trace suppression. The
 # wrapper is committed before approval so create-pr still starts clean and the
 # approved patch identity includes the fixture itself.
-mv "${RA}/scripts/review-gate.sh" "${RA}/scripts/review-gate.real.sh"
-cat > "${RA}/scripts/review-gate.sh" <<'SH'
+mv "${RA}/scripts/validation/review-gate.sh" "${RA}/scripts/validation/review-gate.real.sh"
+cat > "${RA}/scripts/validation/review-gate.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 [ -z "${REVIEW_GATE_CALL_LOG:-}" ] || printf '%s\n' "${1:-}" >> "$REVIEW_GATE_CALL_LOG"
 exec "$(dirname "$0")/review-gate.real.sh" "$@"
 SH
-chmod +x "${RA}/scripts/review-gate.sh" "${RA}/scripts/review-gate.real.sh"
-git -C "$RA" add scripts/review-gate.sh scripts/review-gate.real.sh
+chmod +x "${RA}/scripts/validation/review-gate.sh" "${RA}/scripts/validation/review-gate.real.sh"
+git -C "$RA" add scripts/validation/review-gate.sh scripts/validation/review-gate.real.sh
 git -C "$RA" commit -q -m "test: instrument review gate calls"
 
 # Approve before the rebase (pre-rebase HEAD is approved with 2-line marker).
-(cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+(cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh approve) \
   || fail "(A) setup: initial approve failed"
 PRE_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
 MARKER_A="${RA}/.copilot-tracking/review-gate/issue-310/approved-head"
@@ -571,7 +571,7 @@ printf 'ok - (A) content-preserving rebase: carry succeeds, PR opens without sec
 RB="${TMP_DIR}/rb"
 make_pr_repo "$RB" 310
 
-(cd "$RB" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+(cd "$RB" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh approve) \
   || fail "(B) setup: initial approve failed"
 MARKER_LINE1_BEFORE_B="$(sed -n '1p' "${RB}/.copilot-tracking/review-gate/issue-310/approved-head" | tr -d '[:space:]')"
 
@@ -650,7 +650,7 @@ ln -sf "${RWM_MAIN}-origin.git" "${RWM_WT}-origin.git"
 mkdir -p "${RWM_WT}/.copilot-tracking/issues/issue-310"
 printf '# Progress\n\nwork\n' > "${RWM_WT}/.copilot-tracking/issues/issue-310/progress.md"
 
-(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh approve) \
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh approve) \
   || fail "(Wm) setup: approve from linked worktree failed"
 PRE_REBASE_HEAD_WM="$(git -C "$RWM_WT" rev-parse HEAD)"
 WT_MARKER_WM="${RWM_WT}/.copilot-tracking/review-gate/issue-310/approved-head"
@@ -668,7 +668,7 @@ advance_origin_main_unrelated "$RWM_WT"
 # Direct carry call: must refuse (exit non-zero) because canonical marker != expected.
 CARRY_OUT_WM="${TMP_DIR}/wm-carry.out"
 CARRY_RC_WM=0
-(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_WM") \
+(cd "$RWM_WT" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_WM") \
   > "$CARRY_OUT_WM" 2>&1 || CARRY_RC_WM=$?
 [ "$CARRY_RC_WM" -ne 0 ] \
   || { cat "$CARRY_OUT_WM"; fail "(Wm) carry must refuse when canonical main-root marker SHA != expected pre-rebase SHA"; }

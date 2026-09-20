@@ -16,7 +16,7 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -26,13 +26,13 @@ fail() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
-[ -f "${ROOT}/scripts/rebind-evidence.sh" ] \
-  || fail "scripts/rebind-evidence.sh not found — #442 F1 not implemented yet"
+[ -f "${ROOT}/scripts/validation/rebind-evidence.sh" ] \
+  || fail "scripts/validation/rebind-evidence.sh not found — #442 F1 not implemented yet"
 
 # --- Fixture repo on an issue branch ------------------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-for s in rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh lib/trace-lib.sh; do
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
+for s in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"
@@ -43,7 +43,7 @@ git -C "$FIX" checkout -q -b feature/issue-77-fixture-work
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 
-rebind() { (cd "$FIX" && ./scripts/rebind-evidence.sh "$@" 2>&1); }
+rebind() { (cd "$FIX" && ./scripts/validation/rebind-evidence.sh "$@" 2>&1); }
 
 # 1. No evidence yet → rebind runs the gate and records a green pre-review row.
 out="$(rebind --gate pre-review)" || fail "rebind with green sensors must exit 0 (got: $out)"
@@ -53,7 +53,7 @@ grep -q 're-running --gate pre-review' <<<"$out" \
 jq -e --arg h "$head_sha" 'select(.head == $h and .mode == "pre-review" and .failed == 0)' \
   >/dev/null <<<"$(tail -n1 "$EVIDENCE")" \
   || fail "recorded row must be a green pre-review row bound to HEAD"
-(cd "$FIX" && ./scripts/verify-sensor-evidence.sh 77 --head "$head_sha" --mode pre-review >/dev/null) \
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$head_sha" --mode pre-review >/dev/null) \
   || fail "verify --head --mode pre-review must pass after rebind"
 
 # 2. Red sensors → exit 1, no green row for the new state.
@@ -92,10 +92,10 @@ set -e
 #    over red sensors (no marker written), succeeds over green sensors (marker
 #    written + fresh pre-review row), and refuses when the rebind script is
 #    missing (hard gate — no silent downgrade).
-for s in review-gate.sh lib/lifecycle-runtime-lib.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
+for s in validation/review-gate.sh lib/lifecycle-runtime-lib.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
   [ -f "${ROOT}/scripts/${s}" ] && cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
-approve() { (cd "$FIX" && ./scripts/review-gate.sh approve 2>&1); }
+approve() { (cd "$FIX" && ./scripts/validation/review-gate.sh approve 2>&1); }
 marker_of() { # newest approved-head marker content, if any
   cat "${FIX}"/.copilot-tracking/review-gate/*/approved-head 2>/dev/null | sed -n 1p
 }
@@ -120,12 +120,12 @@ set -e
   || fail "a refused approve must not record the red HEAD as approved"
 git -C "$FIX" rm -q tests/scripts/test_red.sh; git -C "$FIX" commit -q -m "unregress"
 
-mv "${FIX}/scripts/rebind-evidence.sh" "${FIX}/scripts/rebind-evidence.sh.away"
+mv "${FIX}/scripts/validation/rebind-evidence.sh" "${FIX}/scripts/validation/rebind-evidence.sh.away"
 set +e
 out="$(approve)"
 rc=$?
 set -e
-mv "${FIX}/scripts/rebind-evidence.sh.away" "${FIX}/scripts/rebind-evidence.sh"
+mv "${FIX}/scripts/validation/rebind-evidence.sh.away" "${FIX}/scripts/validation/rebind-evidence.sh"
 [ "$rc" = "1" ] \
   || fail "approve with rebind-evidence.sh missing must refuse — the gate is hard (got ${rc}: $out)"
 

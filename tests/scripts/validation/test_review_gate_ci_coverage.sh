@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_review_gate_ci_coverage.sh — regression + e2e sensor for issue #129,
-# feature f2: the fail-closed ci-gate in scripts/review-gate.sh.
+# feature f2: the fail-closed ci-gate in scripts/validation/review-gate.sh.
 #
 # Asserts:
 #   1. `review-gate.sh ci-gate` FAILS CLOSED (non-zero) when a code surface is
@@ -14,11 +14,11 @@
 # Exit codes: 0 all behaviors honored · 1 a behavior regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts review-gate.sh,lib/ci-coverage-lib.sh
+fixture_repo --with-scripts validation/review-gate.sh,lib/ci-coverage-lib.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 A="$FIXTURE_REPO"
 
@@ -28,9 +28,9 @@ fail() {
 }
 
 PY_SURFACE=$'[project]\nname = "fixture"\nversion = "0.0.0"\n'
-CI_WORKFLOW=$'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
+CI_WORKFLOW=$'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/validation/python-gates.sh'
 SMOKE_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest -q'
-SMOKE_PY_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
+SMOKE_PY_WORKFLOW=$'name: harness-smoke\non: [push]\njobs:\n  smoke:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/validation/python-gates.sh'
 
 # ============================================================================
 # Part A — standalone `ci-gate` subcommand (single git repo)
@@ -43,14 +43,14 @@ OUT="${TMP_DIR}/a.out"
 run_a() { ( cd "$A"; "$@" ) >"$OUT" 2>&1; }
 
 # 3. docs-only -> passes (exit 0)
-if ! run_a ./scripts/review-gate.sh ci-gate; then
+if ! run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must pass for a docs-only repo"
 fi
 
 # Missing detector library is an error, not a disabled success path.
 mv "${A}/scripts/lib/ci-coverage-lib.sh" "${TMP_DIR}/ci-coverage-lib.sh"
 set +e
-run_a ./scripts/review-gate.sh ci-gate
+run_a ./scripts/validation/review-gate.sh ci-gate
 missing_lib_rc=$?
 set -e
 mv "${TMP_DIR}/ci-coverage-lib.sh" "${A}/scripts/lib/ci-coverage-lib.sh"
@@ -68,7 +68,7 @@ cat >"${A}/profiles/python.profile.sh" <<'SH'
 profile_detect() { return 42; }
 SH
 set +e
-run_a ./scripts/review-gate.sh ci-gate
+run_a ./scripts/validation/review-gate.sh ci-gate
 detector_error_rc=$?
 set -e
 cp "${TMP_DIR}/python.profile.sh" "${A}/profiles/python.profile.sh"
@@ -77,14 +77,14 @@ cp "${TMP_DIR}/python.profile.sh" "${A}/profiles/python.profile.sh"
 grep -qi 'ci-gate.*error' "$OUT" \
   || { cat "$OUT"; fail "surface detector failure must report a ci-gate error"; }
 
-if run_a ./scripts/review-gate.sh ci-gate; then
+if run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must FAIL CLOSED when a code surface has no project CI"
 fi
 grep -qi "no project CI runs the gates" "$OUT" || { cat "$OUT"; fail "ci-gate failure missing the expected message"; }
 
 # Only the exact documented value bypasses; other populated values still fail.
 for non_bypass in 0 true yes; do
-  if run_a env SKIP_CI_GATE="$non_bypass" ./scripts/review-gate.sh ci-gate; then
+  if run_a env SKIP_CI_GATE="$non_bypass" ./scripts/validation/review-gate.sh ci-gate; then
     cat "$OUT"; fail "SKIP_CI_GATE=${non_bypass} must not bypass ci-gate"
   fi
   if grep -qi 'bypassing' "$OUT"; then
@@ -95,19 +95,19 @@ done
 # 1b. harness-smoke.yml without the profile signature -> still fails
 mkdir -p "${A}/.github/workflows"
 printf '%s\n' "$SMOKE_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
-if run_a ./scripts/review-gate.sh ci-gate; then
+if run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "unrelated harness-smoke steps must not count as project CI"
 fi
 
 # 1c. harness-smoke.yml explicitly running the profile gate -> passes
 printf '%s\n' "$SMOKE_PY_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
-if ! run_a ./scripts/review-gate.sh ci-gate; then
+if ! run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "harness-smoke must count when it explicitly owns the profile gate"
 fi
 
 # 4. SKIP_CI_GATE=1 bypass with a logged WARN
 printf '%s\n' "$SMOKE_WORKFLOW" > "${A}/.github/workflows/harness-smoke.yml"
-if ! run_a env SKIP_CI_GATE=1 ./scripts/review-gate.sh ci-gate; then
+if ! run_a env SKIP_CI_GATE=1 ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "SKIP_CI_GATE=1 must bypass ci-gate (exit 0)"
 fi
 grep -qi "SKIP_CI_GATE" "$OUT" || { cat "$OUT"; fail "SKIP_CI_GATE bypass must log a WARN"; }
@@ -115,20 +115,20 @@ grep -qi "SKIP_CI_GATE" "$OUT" || { cat "$OUT"; fail "SKIP_CI_GATE bypass must l
 # 2. covering workflow -> passes
 rm "${A}/.github/workflows/harness-smoke.yml"
 printf '%s\n' "$CI_WORKFLOW" > "${A}/.github/workflows/ci.yml"
-if ! run_a ./scripts/review-gate.sh ci-gate; then
+if ! run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must pass once a workflow runs the gates"
 fi
 
 # 2b. a .yaml (not .yml) workflow is also recognised
 rm "${A}/.github/workflows/ci.yml"
 printf '%s\n' "$CI_WORKFLOW" > "${A}/.github/workflows/ci.yaml"
-if ! run_a ./scripts/review-gate.sh ci-gate; then
+if ! run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must recognise .yaml (not just .yml) workflows"
 fi
 
 # 1c. multi-surface: an added, uncovered Node surface still fails (per-surface)
 printf '{"name":"fixture"}\n' > "${A}/package.json"
-if run_a ./scripts/review-gate.sh ci-gate; then
+if run_a ./scripts/validation/review-gate.sh ci-gate; then
   cat "$OUT"; fail "ci-gate must fail when ANY surface (node) lacks project CI"
 fi
 grep -qi 'missing for:.*node' "$OUT" || { cat "$OUT"; fail "multi-surface failure must name the uncovered surface (node)"; }
@@ -161,7 +161,7 @@ EOF
 chmod +x "${TMP_DIR}/bin/gh"
 
 # origin/main with the harness scripts + profiles + a docs/PROGRESS.md baseline
-fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/ci-coverage-lib.sh
+fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/ci-coverage-lib.sh
 OW="$FIXTURE_REPO"
 mkdir -p "${OW}/docs"
 cp -R "${ROOT}/profiles" "${OW}/profiles"
@@ -171,7 +171,7 @@ git -C "$OW" commit -q -m "add progress and profiles"
 git clone -q --bare "$OW" "${TMP_DIR}/origin.git"
 
 # working repo on a feature branch off origin/main
-fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/ci-coverage-lib.sh
+fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/ci-coverage-lib.sh
 R="$FIXTURE_REPO"
 cd "$R"
 git remote add origin "${TMP_DIR}/origin.git"
@@ -187,7 +187,7 @@ printf '%s' "$PY_SURFACE" > pyproject.toml
 printf '# Progress\n\nissue-129\n' > docs/PROGRESS.md
 git add pyproject.toml docs/PROGRESS.md
 make_commit "surface + status doc, no project CI"
-./scripts/review-gate.sh approve >/dev/null
+./scripts/validation/review-gate.sh approve >/dev/null
 : > "$GH_LOG"
 if ./scripts/create-pr.sh --title "t" --body "b" >"${TMP_DIR}/b-block.out" 2>&1; then
   cat "${TMP_DIR}/b-block.out"; fail "create-pr opened a PR despite missing project CI"
@@ -202,7 +202,7 @@ printf '%s\n' "$CI_WORKFLOW" > .github/workflows/ci.yml
 printf '# Progress\n\nissue-129 covered\n' > docs/PROGRESS.md
 git add .github/workflows/ci.yml docs/PROGRESS.md
 make_commit "surface + status doc + project CI"
-./scripts/review-gate.sh approve >/dev/null
+./scripts/validation/review-gate.sh approve >/dev/null
 : > "$GH_LOG"
 if ! ./scripts/create-pr.sh --title "t" --body "b" >"${TMP_DIR}/b-pass.out" 2>&1; then
   cat "${TMP_DIR}/b-pass.out"; fail "create-pr blocked even with a covering workflow"
@@ -259,7 +259,7 @@ chmod +x "${BIN}/uv"
 
 # new_repo <name> — fresh git repo carrying a copy of init.sh + profiles + lib.
 new_repo() {
-  fixture_repo --with-scripts init.sh,lib/ci-coverage-lib.sh,python-gates.sh
+  fixture_repo --with-scripts init.sh,lib/ci-coverage-lib.sh,validation/python-gates.sh
   local dir="$FIXTURE_REPO"
   cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" config commit.gpgsign true
@@ -325,7 +325,7 @@ fi
 new_repo covered
 r="$NEW_REPO"
 python_surface "$r"
-add_workflow "$r" ci.yml $'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/python-gates.sh'
+add_workflow "$r" ci.yml $'name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./scripts/validation/python-gates.sh'
 if ! run_init "$r"; then
   cat "$OUT"; fail "covered project must pass preflight (exit 0)"
 fi

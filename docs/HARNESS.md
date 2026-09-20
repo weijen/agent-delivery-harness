@@ -73,7 +73,7 @@ The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
 `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
 in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 The local runner and both workflow profiles share
-`scripts/affected-sensors.sh --list` discovery. Empty full suites fail; empty
+`scripts/validation/affected-sensors.sh --list` discovery. Empty full suites fail; empty
 scoped selections remain valid.
 Affected resolution selects from that same sensor set, including relocated
 sensors but never helpers. Relocated shared libraries and schema/contract
@@ -96,7 +96,7 @@ flowchart TD
   I --> J{All issue features pass?}
   J -- no --> E
   J -- yes --> K[pre-review gate + code-review-subagent, once]
-  K --> L[./scripts/review-gate.sh approve]
+  K --> L[./scripts/validation/review-gate.sh approve]
   L --> M[./scripts/create-pr.sh]
   M --> N[Pull request]
   N --> Q[./scripts/merge-pr.sh CI-green gate]
@@ -125,7 +125,7 @@ The normal path is:
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
-9. Run `./scripts/review-gate.sh approve` for the current HEAD.
+9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
 10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
 11. Merge the PR when checks are green and findings are resolved.
 12. Run `./scripts/finish-issue.sh <N>` from the main checkout.
@@ -201,7 +201,7 @@ Do not look for either group in the other location. Closeout migrates the finali
 | `.copilot-tracking/issues/issue-NN/progress.md` | Running local log of completed features, verification, commits, and next work. |
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
 | `.copilot-tracking/plans/*.md` | Local deep-plan documents (multi-issue runs, prompts). |
-| `.copilot-tracking/review-gate/issue-NN/approved-head` (issue-scoped; the un-scoped `review-gate/approved-head` survives only as a read-only legacy fallback) | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
+| `.copilot-tracking/review-gate/issue-NN/approved-head` (issue-scoped; the un-scoped `review-gate/approved-head` survives only as a read-only legacy fallback) | Local marker written by `./scripts/validation/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
 
 `progress.md` includes an Action Log section rendered from trace spans (#332), covering substantive lifecycle actions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
@@ -279,7 +279,7 @@ event, no double-count); pure legacy coordinates with no matching explicit-ID sp
 legacy coordinates shared by multiple explicit-ID events are ambiguous and render the round count `n/a` with the
 numeric count omitted.
 
-`./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
+`./scripts/validation/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
 and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
 state. Incomplete (`passes:false`) features are a non-blocking warning by default and a hard failure under
@@ -344,7 +344,7 @@ tool/model/skill analysis reads native records through the path documented in
 Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md))
 remains a labeled reference example.
 
-The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
+The trace record is itself audited by the **trace gate** (`./scripts/validation/review-gate.sh trace`): it wraps the
 report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation
 folded from the retired `validate-trace.sh` (issue #335) — and emits one `review-gate.trace` tool span per run
 with numeric finding counts. The retired log_without_span / span_without_log Action-Log reconciliation was
@@ -355,8 +355,8 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
-`./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
-`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then after
+`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
+`./scripts/create-pr.sh` runs `./scripts/validation/review-gate.sh check` before syncing, then after
 `git fetch origin main` + `git rebase origin/main`, attempts to carry the prior approval forward
 by patch-id identity (issue #310): if the branch's ordered patch stream is unchanged, the approval
 carries automatically to the post-rebase HEAD with no second approve needed. Any content-changing
@@ -415,7 +415,7 @@ remain schema-valid.
 
 `.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
 (the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
-through `scripts/check-shell.sh`, and validates Copilot customization frontmatter.
+through `scripts/validation/check-shell.sh`, and validates Copilot customization frontmatter.
 The shared shell gate recursively covers scripts, profiles, sensor/library trees,
 eval tools and available optional adapters, excluding fixture subtrees. Syntax
 parses each file separately; lint consumes the same unique file set. The runner is
@@ -479,7 +479,7 @@ PR time:
 - **Preflight WARN** — `./scripts/init.sh` warns when a code surface is present but no
   `.github/workflows/*.y*ml` references that surface's gate commands. Seen at the first
   `start-issue`.
-- **Pre-PR fail-closed `ci-gate`** — `./scripts/review-gate.sh ci-gate` (run inside
+- **Pre-PR fail-closed `ci-gate`** — `./scripts/validation/review-gate.sh ci-gate` (run inside
   `review-gate.sh check`, so `./scripts/create-pr.sh` enforces it with no extra step) refuses to
   open a PR under the same condition. The documented escape hatch is `SKIP_CI_GATE=1`, which
   bypasses the gate with a **logged** warning for a repo that legitimately has no project CI yet.

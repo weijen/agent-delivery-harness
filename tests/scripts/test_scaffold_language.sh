@@ -88,7 +88,7 @@ rm -f "$pf/profiles/python.profile.sh"
 ( cd "$pf" && ./scripts/scaffold-language.sh python --write >"$OUT" 2>&1 ) \
   || { cat "$OUT"; echo "case-f: fresh Python scaffold failed"; exit 1; }
 for gate in format_check lint typecheck test; do
-  grep -qF "./scripts/python-gates.sh ${gate}" "$pf/profiles/python.profile.sh" \
+  grep -qF "./scripts/validation/python-gates.sh ${gate}" "$pf/profiles/python.profile.sh" \
     || { echo "case-f: generated Python ${gate} slot bypasses python-gates.sh"; exit 1; }
 done
 if grep -E '^profile_gate_.*uv run (ruff|mypy|pytest)' "$pf/profiles/python.profile.sh"; then
@@ -100,8 +100,8 @@ fi
 f="${TMP_DIR}/f"; seed_repo "$f"
 ( cd "$f" && ./scripts/scaffold-language.sh node --write >/dev/null 2>&1 )
 ( cd "$f" && git diff --quiet -- \
-  scripts/lib/issue-lib.sh scripts/start-issue.sh scripts/check-feature-list.sh \
-  scripts/review-gate.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh ) \
+  scripts/lib/issue-lib.sh scripts/start-issue.sh scripts/validation/check-feature-list.sh \
+  scripts/validation/review-gate.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh ) \
   || { echo "case-f: generator modified a lifecycle script"; exit 1; }
 
 printf 'scaffold-language generator sensor passed\n'

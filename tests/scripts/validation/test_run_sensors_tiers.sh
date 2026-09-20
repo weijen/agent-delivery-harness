@@ -17,7 +17,7 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -26,13 +26,43 @@ fail() {
   exit 1
 }
 
+validation_commands=(
+  affected-sensors check-feature-list check-shell python-gates rebind-evidence
+  review-gate run-sensors verify-sensor-evidence
+)
+validation_sensors=(
+  affected_sensors feature_list_check python_gates rebind_carry rebind_evidence
+  rebind_repair_loop repair_feature_items repair_review_mode review_gate
+  review_gate_ci_coverage review_gate_patch_id_store run_sensors_tiers
+  same_class_escalation sensor_evidence_recording sensor_evidence_verify
+  shellcheck_version_parity shellcheck_version_pin verdict_currency_gate
+)
+for name in "${validation_commands[@]}"; do
+  [ -x "${ROOT}/scripts/validation/${name}.sh" ] \
+    || fail "canonical validation command missing: ${name}"
+  if [ "$name" != run-sensors ]; then
+    [ ! -e "${ROOT}/scripts/${name}.sh" ] \
+      || fail "internal validation command retains a flat wrapper: ${name}"
+  fi
+done
+discovered="$("${ROOT}/scripts/validation/affected-sensors.sh" --list)"
+for name in "${validation_sensors[@]}"; do
+  canonical="tests/scripts/validation/test_${name}.sh"
+  [ -f "${ROOT}/${canonical}" ] || fail "canonical validation sensor missing: ${name}"
+  [ ! -e "${ROOT}/tests/scripts/test_${name}.sh" ] || fail "duplicate flat sensor: ${name}"
+  [ "$(grep -Fxc "$canonical" <<<"$discovered")" = 1 ] \
+    || fail "canonical discovery must include ${canonical} exactly once"
+done
+
 [ -f "${ROOT}/scripts/run-sensors.sh" ] \
   || fail "scripts/run-sensors.sh not found — the #347 tiered runner is not implemented yet"
 
 # --- Hermetic fixture repo: runner + resolver + two sensors ---------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
+cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/validation/run-sensors.sh" \
+  "${ROOT}/scripts/validation/affected-sensors.sh" "${FIX}/scripts/validation/"
 printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
 #!/usr/bin/env bash
@@ -69,6 +99,13 @@ grep -q "^SENSORS green head=${head_sha} scope=scoped ran=1 failed=0$" <<<"$out"
   || fail "scoped summary line malformed (got: $out)"
 grep -q 'test_always_red' <<<"$out" \
   && fail "green must NOT run sensors outside the scoped set"
+mkdir -p "${FIX}/unrelated/nested"
+canonical_out="$(cd "${FIX}/unrelated/nested" && \
+  "${FIX}/scripts/validation/run-sensors.sh" green --declared tests/scripts/test_widget.sh --diff HEAD)"
+public_out="$(cd "${FIX}/unrelated/nested" && \
+  "${FIX}/scripts/run-sensors.sh" green --declared tests/scripts/test_widget.sh --diff HEAD)"
+[ "$canonical_out" = "$out" ] && [ "$public_out" = "$out" ] \
+  || fail "public and canonical runners must preserve arguments/output from nested cwd"
 
 # 2. Affected mapping drives green: change widget.sh → its referencing sensor runs.
 printf '#!/usr/bin/env bash\necho widget2\n' > "${FIX}/scripts/widget.sh"
@@ -143,7 +180,7 @@ done
 # resolver returns 2 and the runner conservatively executes FULL with a warning.
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 set +e
-resolver_out="$(cd "$FIX" && ./scripts/affected-sensors.sh \
+resolver_out="$(cd "$FIX" && ./scripts/validation/affected-sensors.sh \
   --declared tests/scripts/test_widget.sh --diff refs/heads/does-not-exist 2>&1)"
 resolver_rc=$?
 set -e
@@ -195,7 +232,7 @@ run_ci() {
 }
 
 mkdir -p "${FIX}/tests/scripts/nested" "${FIX}/tests/meta/nested" \
-  "${FIX}/tests/scripts/lib" "${FIX}/tests/meta/fixtures" \
+  "${FIX}/tests/scripts/lib" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta/fixtures" \
   "${FIX}/tests/scripts/nested/helpers"
 for sensor in tests/scripts/nested/test_nested.sh tests/meta/nested/test_nested.sh; do
   cat >"${FIX}/${sensor}" <<'SH'
@@ -243,7 +280,7 @@ done
 
 # 10. Empty full discovery is not a passing gate; an empty scoped set is valid.
 mv "${FIX}/tests" "${TMP_DIR}/saved-tests"
-mkdir -p "${FIX}/tests/scripts" "${FIX}/tests/meta"
+mkdir -p "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
 for mode in local source adopter; do
   if case "$mode" in
     local) run --gate pre-review ;;

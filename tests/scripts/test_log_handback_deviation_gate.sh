@@ -26,7 +26,7 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts/lib" "${FIX}/schemas" "${FIX}/docs"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/schemas" "${FIX}/docs"
 cp "${ROOT}/scripts/log-handback.sh" "${FIX}/scripts/"
 cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
 cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"

@@ -2,9 +2,9 @@
 # affected-sensors.sh — resolve the scoped sensor set for a change (issue #343).
 #
 # Usage:
-#   scripts/affected-sensors.sh [--declared <list>] [--diff <base-ref>] [<changed-path>...]
-#   scripts/affected-sensors.sh --tests-root <dir> --repo-root <dir> ...   (fixture override)
-#   scripts/affected-sensors.sh --list   (canonical full-suite discovery, no execution)
+#   scripts/validation/affected-sensors.sh [--declared <list>] [--diff <base-ref>] [<changed-path>...]
+#   scripts/validation/affected-sensors.sh --tests-root <dir> --repo-root <dir> ...   (fixture override)
+#   scripts/validation/affected-sensors.sh --list   (canonical full-suite discovery, no execution)
 #
 # Given the set of changed repo-relative paths (explicit args, or derived from
 # git when --diff <base-ref> is passed: committed vs base, staged, and unstaged
@@ -33,7 +33,7 @@
 # never runs sensors — it only resolves the set.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TESTS_ROOT=""
 DECLARED=""

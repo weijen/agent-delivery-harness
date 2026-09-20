@@ -81,7 +81,7 @@ chmod +x "${BIN}/gh"
 # make_pr_repo <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
 make_pr_repo() {
   local pad="$1" dir=""
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   dir="$FIXTURE_REPO"
   mkdir -p "${dir}/docs"
   printf '# Progress\n\nbaseline\n' > "${dir}/docs/PROGRESS.md"
@@ -112,7 +112,7 @@ run_cpr() {
 # ============================================================================
 make_pr_repo 90
 RA="$PR_REPO"
-(cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RA" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "setup: approve in gh-create-fail repo failed"
 OUT_A="${TMP_DIR}/a.out"
 if run_cpr "$RA" a "$OUT_A" GH_CREATE_FAIL=1 -- --title t --body b; then
@@ -129,7 +129,7 @@ fi
 # ============================================================================
 make_pr_repo 90
 RB="$PR_REPO"
-(cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RB" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "setup: approve in blank-number repo failed"
 OUT_B="${TMP_DIR}/b.out"
 if run_cpr "$RB" b "$OUT_B" GH_VIEW_BLANK=1 -- --title t --body b; then
@@ -210,7 +210,7 @@ chmod +x "${BIN}/gh"
 # make_pr_repo <dir> <issue-pad> — feature/issue-<pad>-fixture on a bare origin.
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"
@@ -383,7 +383,7 @@ advance_origin_main_unrelated "$RA"
 # Not itself part of this feature's contract; it is the only way to reach a
 # state where the NEXT run's rebase is a no-op and gate-check passes, so the
 # push (and therefore the hook) is actually reached.
-(cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RA" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(a) setup: approve of the pre-rebase tip failed"
 OUT_A0="${TMP_DIR}/a0.out"
 if run_cpr "$RA" a0 "$OUT_A0" -- --title t --body b; then
@@ -404,7 +404,7 @@ corrupt_orig_head "$RA"
 
 # --- (a1) The interesting run: rebase no-ops (already synced from a0), gate
 # passes, --force-with-lease is attempted for real and the hook rejects it.
-(cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RA" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(a1) setup: approve of the rebased HEAD failed"
 OUT_A1="${TMP_DIR}/a1.out"
 if run_cpr "$RA" a1 "$OUT_A1" -- --title t --body b; then
@@ -431,7 +431,7 @@ git -C "$RA" rev-parse -q --verify "$OWNED_REF_A" >/dev/null 2>&1 \
   || fail "(a1) owned pre-sync ref ${OWNED_REF_A} must still exist — retained across the policy-rejection fallback until the branch push finally succeeds"
 
 # --- (a2) Approve the fallback merge HEAD and re-run: succeeds, non-rewriting.
-(cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RA" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(a2) setup: approve of the fallback merge HEAD failed"
 OUT_A2="${TMP_DIR}/a2.out"
 run_cpr "$RA" a2 "$OUT_A2" -- --title t --body b \
@@ -464,13 +464,13 @@ advance_origin_main_unrelated "$RB"
 
 # --- (b0) Same pre-existing establishing run as (a0): reach a state where the
 # next run's rebase is a no-op, so the actual push attempt is reached.
-(cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RB" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(b0) setup: approve of the pre-rebase tip failed"
 OUT_B0="${TMP_DIR}/b0.out"
 if run_cpr "$RB" b0 "$OUT_B0" -- --title t --body b; then
   cat "$OUT_B0"; fail "(b0) establishing run: create-pr.sh must exit non-zero — the rebase changed HEAD and it is not yet approved"
 fi
-(cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RB" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(b) setup: approve of the rebased HEAD failed"
 HEAD_BEFORE_B="$(git -C "$RB" rev-parse HEAD)"
 # Break the PUSH url only (fetch keeps working) so the rebase step's own
@@ -517,7 +517,7 @@ install_rulesets_protected_ref_hook "${RD}-origin.git"
 advance_origin_main_unrelated "$RD"
 
 # --- (d0) Same pre-existing establishing run as (a0)/(b0).
-(cd "$RD" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RD" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(d0) setup: approve of the pre-rebase tip failed"
 OUT_D0="${TMP_DIR}/d0.out"
 if run_cpr "$RD" d0 "$OUT_D0" -- --title t --body b; then
@@ -531,7 +531,7 @@ fi
 # RED assertion against the unmodified classifier: today GH013 is on the
 # unconditional deny-list, so this exact, unambiguous protected-ref shape is
 # (wrongly) treated as a hard failure instead of reaching the fallback.
-(cd "$RD" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RD" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(d1) setup: approve of the rebased HEAD failed"
 OUT_D1="${TMP_DIR}/d1.out"
 if run_cpr "$RD" d1 "$OUT_D1" -- --title t --body b; then
@@ -561,7 +561,7 @@ git -C "$RD" rev-parse -q --verify "$OWNED_REF_D" >/dev/null 2>&1 \
   || fail "(d1) owned pre-sync ref ${OWNED_REF_D} must still exist — retained across the GH013 Rulesets fallback until the branch push finally succeeds"
 
 # --- (d2) Approve the fallback merge HEAD and re-run: succeeds, non-rewriting.
-(cd "$RD" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RD" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(d2) setup: approve of the fallback merge HEAD failed"
 OUT_D2="${TMP_DIR}/d2.out"
 run_cpr "$RD" d2 "$OUT_D2" -- --title t --body b \
@@ -598,7 +598,7 @@ install_rulesets_mixed_deny_hook "${RE}-origin.git"
 advance_origin_main_unrelated "$RE"
 
 # --- (e0) Same pre-existing establishing run as (a0)/(b0)/(d0).
-(cd "$RE" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RE" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(e0) setup: approve of the pre-rebase tip failed"
 OUT_E0="${TMP_DIR}/e0.out"
 if run_cpr "$RE" e0 "$OUT_E0" -- --title t --body b; then
@@ -608,7 +608,7 @@ fi
 # --- (e) The interesting run: rebase no-ops, gate passes, --force-with-lease
 # is attempted for real and the mixed GH013+secret-scanning hook rejects it.
 # This must stay a hard failure — never swallowed as a fallback trigger.
-(cd "$RE" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RE" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(e) setup: approve of the rebased HEAD failed"
 HEAD_BEFORE_E="$(git -C "$RE" rev-parse HEAD)"
 OUT_E="${TMP_DIR}/e.out"
@@ -688,7 +688,7 @@ chmod +x "${BIN}/gh"
 # conflict.txt (merge-conflict raw material, mirroring test_trace_create_pr.sh).
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"
@@ -754,7 +754,7 @@ run_cpr() {
 # ============================================================================
 RA="${TMP_DIR}/ra"
 make_pr_repo "$RA" 326
-(cd "$RA" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RA" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(a) setup: approve failed"
 HEAD_BEFORE_A="$(git -C "$RA" rev-parse HEAD)"
 OUT_A="${TMP_DIR}/a.out"
@@ -777,7 +777,7 @@ ORIGIN_REF_A="$(git --git-dir="${RA}-origin.git" rev-parse "refs/heads/feature/i
 RB="${TMP_DIR}/rb"
 make_pr_repo "$RB" 327
 advance_origin_main_unrelated "$RB"
-(cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RB" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(b) setup: approve failed"
 OUT_B1="${TMP_DIR}/b1.out"
 if run_cpr "$RB" b1 "$OUT_B1" CREATE_PR_NO_REWRITE=1 -- --title t --body b; then
@@ -796,7 +796,7 @@ PARENT_COUNT_B="$(git -C "$RB" show -s --format='%P' HEAD | wc -w | tr -d '[:spa
 git -C "$RB" merge-base --is-ancestor origin/main HEAD \
   || fail "(b) after the first run origin/main must be an ancestor of the merge HEAD"
 
-(cd "$RB" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RB" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(b) setup: approve of the merge HEAD failed"
 OUT_B2="${TMP_DIR}/b2.out"
 run_cpr "$RB" b2 "$OUT_B2" CREATE_PR_NO_REWRITE=1 -- --title t --body b \
@@ -820,7 +820,7 @@ printf 'feature\n' > "${RC}/conflict.txt"
 git -C "$RC" add conflict.txt
 git -C "$RC" commit -q -m "issue-328: touch conflict.txt on the branch"
 advance_origin_main_conflicting "$RC"
-(cd "$RC" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$RC" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "(c) setup: approve failed"
 OUT_C="${TMP_DIR}/c.out"
 if run_cpr "$RC" c "$OUT_C" CREATE_PR_NO_REWRITE=1 -- --title t --body b; then
@@ -867,7 +867,7 @@ chmod +x "${BIN}/gh"
 # origin, with the review gate otherwise satisfied.
 make_pr_repo() {
   local dir="$1" pad="$2"
-  fixture_repo --with-scripts create-pr.sh,review-gate.sh,lib/trace-lib.sh
+  fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   git clone -q "$FIXTURE_REPO" "$dir"
   git -C "$dir" remote remove origin
   git -C "$dir" config user.name "Harness Test"
@@ -906,7 +906,7 @@ R1="${TMP_DIR}/r328"
 PAD=328
 make_pr_repo "$R1" "$PAD"
 advance_origin_main "$R1"
-(cd "$R1" && PATH="$BIN" ./scripts/review-gate.sh approve) >/dev/null 2>&1 \
+(cd "$R1" && PATH="$BIN" ./scripts/validation/review-gate.sh approve) >/dev/null 2>&1 \
   || fail "setup: approve in fixture repo failed"
 
 BRANCH="feature/issue-${PAD}-fixture"

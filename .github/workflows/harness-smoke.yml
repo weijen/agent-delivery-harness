@@ -44,13 +44,13 @@ jobs:
         run: uv sync --all-groups
 
       - name: Python profile gates
-        run: ./scripts/python-gates.sh
+        run: ./scripts/validation/python-gates.sh
 
       - name: Check shell syntax
-        run: ./scripts/check-shell.sh syntax
+        run: ./scripts/validation/check-shell.sh syntax
 
       - name: Run shellcheck
-        run: ./scripts/check-shell.sh lint
+        run: ./scripts/validation/check-shell.sh lint
 
       - name: Validate customization frontmatter
         shell: bash
@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          discovered="$(./scripts/affected-sensors.sh --list)" || exit 1
+          discovered="$(./scripts/validation/affected-sensors.sh --list)" || exit 1
           if [ -z "$discovered" ]; then
             echo "No harness sensor scripts found." >&2
             exit 1

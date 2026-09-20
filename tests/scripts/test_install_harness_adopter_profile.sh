@@ -389,7 +389,7 @@ core=(
 	tests/scripts/test_harness_contract.sh
 	tests/scripts/test_install_harness.sh
 	tests/scripts/test_issue_scaffold.sh
-	tests/scripts/test_review_gate.sh
+	tests/scripts/validation/test_review_gate.sh
 	tests/scripts/test_trace_lifecycle_e2e.sh
 )
 for sensor in "${core[@]}"; do

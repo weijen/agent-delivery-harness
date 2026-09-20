@@ -77,10 +77,13 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
 - **Separate commands from sourced libraries.** The adopter-discoverability
   migration (#472) uses shallow `lifecycle`, `validation`, `install`, `trace`,
   `maintenance` and `lib` categories where responsibilities justify them.
-  The first stage puts shared libraries in `scripts/lib/`; these are sourced
-  dependencies, not ordinary commands, and have no duplicate flat wrappers.
-  Remaining command categories migrate in the serial child issues, not all at
-  once. `layout_moves` in `docs/harness-contract.yml` records exact old-to-new
+  The current stage puts shared libraries in `scripts/lib/` and validation
+  commands in `scripts/validation/`, with matching validation sensors under
+  `tests/scripts/validation/`. Libraries are sourced dependencies, not ordinary
+  commands, and have no duplicate flat wrappers. `scripts/run-sensors.sh` is
+  the intentional public compatibility entrypoint; other validation tools use
+  their canonical paths. Remaining command categories migrate in the serial
+  child issues, not all at once. `layout_moves` in `docs/harness-contract.yml` records exact old-to-new
   identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
   public entrypoints as thin compatibility scripts, not one wrapper per internal

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# test_affected_sensors.sh — regression sensor for scripts/affected-sensors.sh
+# test_affected_sensors.sh — regression sensor for scripts/validation/affected-sensors.sh
 # (issue #343, tiered sensor execution).
 #
 # Contract under test:
-#   scripts/affected-sensors.sh [--declared <list>] [--diff <base>] \
+#   scripts/validation/affected-sensors.sh [--declared <list>] [--diff <base>] \
 #       [--repo-root <dir>] [--tests-root <dir>] [<changed-path>...]
 #
 #   * Prints the scoped sensor set (sorted, unique, repo-relative) for the
@@ -20,8 +20,8 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-RESOLVER="${ROOT}/scripts/affected-sensors.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+RESOLVER="${ROOT}/scripts/validation/affected-sensors.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -31,11 +31,11 @@ fail() {
 }
 
 [ -f "$RESOLVER" ] \
-  || fail "scripts/affected-sensors.sh not found — the #343 scoped-sensor resolver is not implemented yet"
+  || fail "scripts/validation/affected-sensors.sh not found — the #343 scoped-sensor resolver is not implemented yet"
 
 # --- Fixture repo: two subject scripts, three sensors --------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts/lib" "${FIX}/tests/scripts" "${FIX}/tests/meta" "${FIX}/docs"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta" "${FIX}/docs"
 printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 printf '#!/usr/bin/env bash\necho gadget\n' > "${FIX}/scripts/gadget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
@@ -95,7 +95,7 @@ grep -qx 'tests/scripts/test_gadget.sh' "$OUT" \
 
 # 5. Declared sensors merge into the set, deduplicated; a missing declared
 #    sensor warns and is skipped without failing the call.
-mkdir -p "${FIX}/tests/scripts"
+mkdir -p "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation"
 run_resolver "$OUT" "$ERR" \
   --declared "tests/scripts/test_gadget.sh,tests/scripts/no-such-sensor.sh" \
   scripts/widget.sh

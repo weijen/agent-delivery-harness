@@ -21,11 +21,11 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 REPO="$FIXTURE_REPO"
 
@@ -88,7 +88,7 @@ append_verdict() {
 }
 
 approve() {
-  bash scripts/review-gate.sh approve >"${TMP_DIR}/approve.out" 2>&1
+  bash scripts/validation/review-gate.sh approve >"${TMP_DIR}/approve.out" 2>&1
 }
 
 # --- S1 verdict-at-head -------------------------------------------------------
@@ -197,7 +197,7 @@ emit "malformed trace line never disables the gate"
 
 # --- S9 approve from a subdirectory still sees root-level staleness -----------
 mkdir -p sub
-if (cd sub && bash ../scripts/review-gate.sh approve >"${TMP_DIR}/approve.out" 2>&1); then
+if (cd sub && bash ../scripts/validation/review-gate.sh approve >"${TMP_DIR}/approve.out" 2>&1); then
   fail "S9: approve from a subdirectory must refuse the same stale state"
 fi
 grep -q 'verdict currency' "${TMP_DIR}/approve.out" \
@@ -225,7 +225,7 @@ emit "ref-name reviewed_sha refused"
 # --- S12 linked-worktree layout: feature_list in the worktree, trace at the ---
 # main root (the live-run layout that produced Unilever issue-21). A gate that
 # resolves both from the main root skips silently here — the F1 regression.
-fixture_repo --worktree 1 --with-scripts review-gate.sh
+fixture_repo --worktree 1 --with-scripts validation/review-gate.sh
 WT="$FIXTURE_WORKTREE"
 MAIN="$FIXTURE_MAIN"
 WT_TRACK="${WT}/.copilot-tracking/issues/issue-01"
@@ -248,7 +248,7 @@ JSON
 printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":1,"harness.version":"0.0.0-test","span_id":"a000000000000004","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"F1","harness.outcome":"pass","harness.review_mode":"full","harness.reviewed_sha":"%s"}\n' \
   "$(git rev-parse HEAD)" > "${MAIN_TRACK}/trace.jsonl"
 
-if ! bash scripts/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
+if ! bash scripts/validation/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
   fail "S12: worktree approve with verdict at HEAD should pass"
   sed 's/^/# /' "${FIXTURE_TMP_DIR}/approve.out" >&2
 fi
@@ -258,7 +258,7 @@ grep -q 'verdict currency gate skipped' "${FIXTURE_TMP_DIR}/approve.out" \
 printf 'wt-v2\n' > product.txt
 git add product.txt
 git commit -q -m "feat: worktree product v2 (unreviewed)"
-if bash scripts/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
+if bash scripts/validation/review-gate.sh approve >"${FIXTURE_TMP_DIR}/approve.out" 2>&1; then
   fail "S12: stale verdict in the split layout must refuse, not skip-approve"
 fi
 grep -q 'verdict currency' "${FIXTURE_TMP_DIR}/approve.out" \

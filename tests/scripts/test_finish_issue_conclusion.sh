@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts lib/finish-lib.sh,lib/economics-report-lib.sh,lib/trace-lib.sh,log-handback.sh,check-trace-consistency.sh,lib/issue-lib.sh,start-issue.sh,finish-issue.sh,check-feature-list.sh
+fixture_repo --with-scripts lib/finish-lib.sh,lib/economics-report-lib.sh,lib/trace-lib.sh,log-handback.sh,check-trace-consistency.sh,lib/issue-lib.sh,start-issue.sh,finish-issue.sh,validation/check-feature-list.sh
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/native-economics-fixture.sh"
 
