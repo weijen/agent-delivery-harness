@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# test_rebind_repair_loop.sh — regression sensor for issue #442 F3: the
-# foundry issue-48 repair sequence can no longer produce stale gate evidence.
-#
-# Reproduced sequence (the #383 "pre-verdict dependency cycle"):
-#   1. pre-review gate runs green at SHA A (evidence bound to A);
-#   2. a repair commit lands → HEAD becomes B; evidence for B is now owed;
-#   3. the harness re-binds (the deterministic script action) instead of
-#      leaving the staleness for the next review round to discover.
-#
-# Contract under test:
-#   * after step 2, verify --head B fails (the old failure mode is real);
-#   * after rebind, verify --head B --mode pre-review passes — the reviewer's
-#     prescribed check (#441) finds current evidence and can emit no
-#     stale-evidence finding;
-#   * the evidence history keeps the row at A (append-only re-bind, no
-#     rewriting of past evidence).
+# Repaired candidates require a new explicit final result; history stays intact.
 #
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
@@ -46,9 +31,9 @@ EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 
 # 1. Gate green at SHA A.
 sha_a="$(git -C "$FIX" rev-parse HEAD)"
-(cd "$FIX" && ./scripts/validation/rebind-evidence.sh --gate pre-review >/dev/null) \
+(cd "$FIX" && ./scripts/run-sensors.sh --gate pre-pr >/dev/null) \
   || fail "gate at SHA A must pass"
-(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_a" --mode pre-review >/dev/null) \
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_a" --mode pre-pr >/dev/null) \
   || fail "evidence must be bound to SHA A"
 
 # 2. Repair commit lands → HEAD B; the old failure mode: evidence is stale.
@@ -57,20 +42,25 @@ git -C "$FIX" commit -qam "repair finding"
 sha_b="$(git -C "$FIX" rev-parse HEAD)"
 [ "$sha_a" != "$sha_b" ] || fail "fixture must move HEAD"
 set +e
-(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_b" --mode pre-review >/dev/null 2>&1)
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_b" --mode pre-pr >/dev/null 2>&1)
 rc=$?
 set -e
 [ "$rc" = "1" ] \
   || fail "pre-rebind, evidence for the repaired HEAD must be missing (the reproduced #383 gap)"
 
-# 3. Re-bind → the reviewer's prescribed check now passes; no stale finding possible.
-(cd "$FIX" && ./scripts/validation/rebind-evidence.sh --gate pre-review >/dev/null) \
-  || fail "rebind at the repaired HEAD must pass"
-(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_b" --mode pre-review >/dev/null) \
-  || fail "post-rebind, the reviewer's prescribed check must find current evidence at B"
+# 3. Compatibility verification refuses staleness without executing a gate.
+before="$(cat "$EVIDENCE")"
+if (cd "$FIX" && ./scripts/validation/rebind-evidence.sh --gate pre-pr >/dev/null 2>&1); then
+  fail "stale evidence was silently refreshed"
+fi
+[ "$(cat "$EVIDENCE")" = "$before" ] || fail "stale check changed evidence history"
+(cd "$FIX" && ./scripts/run-sensors.sh --gate pre-pr >/dev/null) \
+  || fail "explicit final gate at repaired HEAD must pass"
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 77 --head "$sha_b" --mode pre-pr >/dev/null) \
+  || fail "explicit final gate must produce current evidence at B"
 
 # Append-only: the SHA-A row is still present (evidence history preserved).
 grep -q "\"head\":\"${sha_a}\"" "$EVIDENCE" \
   || fail "re-bind must append, not rewrite, past evidence"
 
-printf 'PASS: issue-48 repair sequence re-binds evidence instead of leaving a stale finding\n'
+printf 'PASS: repaired candidates need explicit final validation and preserve prior evidence\n'

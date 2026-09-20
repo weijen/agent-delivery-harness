@@ -106,7 +106,7 @@ fixture_repo() {
           *,lib/ci-coverage-lib.sh,*) ;;
           *) scripts+=("lib/ci-coverage-lib.sh") ;;
         esac
-        # approve runs the #442 evidence re-bind gate (hard): ship its chain.
+        # Review/publication fixtures use explicit gates and their evidence verifier.
         for dep in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
           validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
           case ",${scripts_csv}," in

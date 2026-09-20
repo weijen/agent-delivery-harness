@@ -153,11 +153,11 @@ Workflow per issue:
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
    A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
    re-reviews are `repair`-mode and scoped to the revised features. Repair commits move HEAD,
-   so gate evidence is re-bound automatically: `./scripts/validation/review-gate.sh approve` runs
-   `./scripts/validation/rebind-evidence.sh` first (#442) — it carries when a green row is already bound
-   to the current HEAD and otherwise re-runs the owed gate. Never hand-manage evidence
-   staleness, and never treat stale-evidence discovery as review material: re-binding is a
-   script action at approve time. Same-class escalation (#317/#327) applies to your own repairs: on the second
+   so the resulting candidate needs its own explicit final pre-PR validation.
+   `./scripts/validation/review-gate.sh approve` records review approval only and never
+   runs sensors. The retained `rebind-evidence.sh` compatibility helper only
+   verifies existing rows; it cannot refresh missing, stale or invalid evidence.
+   Same-class escalation (#317/#327) applies to your own repairs: on the second
    same-class failure stop point-fixing and fix the class.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
