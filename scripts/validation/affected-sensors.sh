@@ -44,7 +44,10 @@ usage() {
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --declared) DECLARED="${2:-}"; shift 2 ;;
+    --declared)
+      [ "$#" -ge 2 ] && [ -n "$2" ] \
+        || { printf 'affected-sensors.sh: --declared requires a value\n' >&2; exit 2; }
+      DECLARED="$2"; shift 2 ;;
     --diff) DIFF_BASE="${2:-}"; shift 2 ;;
     --list) LIST=1; shift ;;
     --repo-root) REPO_ROOT="$(cd "${2:?}" && pwd)"; shift 2 ;;
@@ -162,7 +165,12 @@ emit() { # emit <repo-relative-sensor-path>
 
 # Declared entries must also belong to the canonical sensor set.
 if [ -n "$DECLARED" ]; then
-  for d in $(printf '%s' "$DECLARED" | tr ',' ' '); do
+  IFS=$' \t\n' read -r -d '' -a DECLARED_SENSORS < <(printf '%s\0' "${DECLARED//,/ }")
+  if [ "${#DECLARED_SENSORS[@]}" -eq 0 ]; then
+    printf 'affected-sensors.sh: --declared must contain at least one sensor identity\n' >&2
+    exit 2
+  fi
+  for d in "${DECLARED_SENSORS[@]}"; do
     if grep -Fxq -- "$d" <<< "$BOUNDARY_LIST"; then
       printf 'affected-sensors.sh: declared sensor %s is boundary-only; declare a targeted feature sensor instead\n' "$d" >&2
       exit 2

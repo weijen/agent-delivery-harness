@@ -92,6 +92,13 @@ assert_runs docs
 reject_without_execution green --declared tests/scripts/test_boundary.sh --diff "$feature_base"
 grep -qi 'boundary' "$OUT" || fail "incompatible declaration needs an actionable explanation"
 reject_without_execution green --declared tests/scripts/missing.sh --diff "$feature_base"
+for declaration in '' ' , ' 'tests/scripts/test_doc*.sh' 'tests/scripts/test_[d]ocs.sh'; do
+  reject_without_execution green --declared "$declaration" --diff "$feature_base"
+done
+: >"$SENSOR_RUN_LOG"
+run green --declared $'tests/scripts/test_shared.sh,\n tests/scripts/test_docs.sh' --diff "$feature_base" \
+  || fail "valid comma and whitespace separated declarations were rejected"
+assert_runs shared docs
 reject_without_execution green --declared tests/scripts/test_docs.sh --diff missing-ref
 reject_without_execution green --declared tests/scripts/test_docs.sh
 reject_without_execution green --declared tests/scripts/test_docs.sh --diff
