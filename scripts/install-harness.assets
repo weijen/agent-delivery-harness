@@ -92,7 +92,6 @@ tests/scripts/test_economics_span.sh
 tests/scripts/validation/test_feature_list_check.sh
 tests/scripts/test_feature_start_pr_gate.sh
 tests/scripts/test_finish_issue_conclusion.sh
-tests/scripts/test_fixture_adoption.sh
 tests/scripts/test_fixture.sh
 tests/scripts/test_github_identity_binding.sh
 tests/scripts/test_harness_contract.sh
