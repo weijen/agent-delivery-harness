@@ -7,6 +7,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+if ! selected="$("$ROOT/scripts/validation/affected-sensors.sh" \
+	--declared tests/meta/test_l0_ci_gate.sh)" \
+	|| ! grep -Fxq tests/meta/test_l0_ci_gate.sh <<<"$selected"; then
+	printf 'miniature TAP helper coverage must be feature-eligible\n' >&2
+	exit 1
+fi
+
 fail=0
 note() { echo "✗ $*"; fail=1; }
 
