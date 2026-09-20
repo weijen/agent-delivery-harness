@@ -148,14 +148,14 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 
 # --- Fixture: main repo with all harness scripts + bare origin ------------------
 R="${TMP_DIR}/repo"
-mkdir -p "${R}/scripts" "${R}/schemas" "${R}/docs" "${R}/tests/scripts"
-printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
-for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh check-feature-list.sh review-gate.sh \
-         create-pr.sh run-sensors.sh affected-sensors.sh merge-pr.sh finish-issue.sh \
-         finish-lib.sh economics-report-lib.sh trace-lib.sh \
-         ci-coverage-lib.sh \
-         rebind-evidence.sh verify-sensor-evidence.sh; do
-  cp "${ROOT}/scripts/${s}" "${R}/scripts/"
+mkdir -p "${R}/scripts/lib" "${R}/scripts/validation" "${R}/schemas" "${R}/docs" "${R}/tests/scripts" "${R}/tests/scripts/validation"
+printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
+         create-pr.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh merge-pr.sh finish-issue.sh \
+         lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
+         lib/ci-coverage-lib.sh \
+         validation/rebind-evidence.sh validation/verify-sensor-evidence.sh; do
+  cp "${ROOT}/scripts/${s}" "${R}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${R}/schemas/trace-schema.v1.json"
 cat > "${R}/scripts/init.sh" <<'SH'
@@ -199,7 +199,7 @@ printf '# Progress\n\nissue-42 shipped\n' > "${WT}/docs/PROGRESS.md"
 git -C "$WT" add docs/PROGRESS.md
 git -C "$WT" commit -q -m "issue-42: progress update"
 
-run_step check "$WT" ./scripts/check-feature-list.sh 42 SLUG=e2e
+run_step check "$WT" ./scripts/validation/check-feature-list.sh 42 SLUG=e2e
 
 # The end-of-issue review records a passing per-feature verdict at HEAD before
 # approve — required since #447 (verdict currency): approve refuses when the
@@ -207,7 +207,7 @@ run_step check "$WT" ./scripts/check-feature-list.sh 42 SLUG=e2e
 printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","harness.issue":42,"harness.version":"0.0.0-e2e","span_id":"e2e0000000000001","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor","harness.lifecycle_step":"review_verdict","harness.feature_id":"a","harness.outcome":"pass","harness.review_mode":"full","harness.reviewed_sha":"%s"}\n' \
   "$(git -C "$WT" rev-parse HEAD)" >> "$TRACE"
 
-run_step approve "$WT" ./scripts/review-gate.sh approve
+run_step approve "$WT" ./scripts/validation/review-gate.sh approve
 run_step create-pr "$WT" ./scripts/create-pr.sh --title "t" --body "b"
 run_step merge-pr "$WT" ./scripts/merge-pr.sh
 

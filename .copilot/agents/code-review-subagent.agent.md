@@ -13,7 +13,7 @@ assets. Your job covers spec compliance, test/sensor adequacy, code quality, and
 verdicts of one review, not separate subagents.
 
 Before any authenticated GitHub or Git operation, source
-`scripts/github-identity-lib.sh` and call `harness_identity_activate` so the
+`scripts/lib/github-identity-lib.sh` and call `harness_identity_activate` so the
 repository-bound identity and per-process GitHub token are used. Never mutate
 global GitHub CLI state or run `gh auth switch`.
 Scratch output goes to `.copilot-tracking/tmp/` (gitignored); `/tmp` is read-only in sandboxed runs.
@@ -332,7 +332,7 @@ a **process violation**.
 4. **Apply the contract-v2 evidence authority.** Review the four current boundaries: `gate_start` worktree evidence;
    `gate_sensors` feature-green evidence in the **script-recorded** row set —
    `.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl`, written by `run-sensors.sh` itself and validated with
-   `scripts/verify-sensor-evidence.sh <NN> --head <reviewed-sha> --mode pre-review` (`--mode pre-pr` at the pre-PR
+   `scripts/validation/verify-sensor-evidence.sh <NN> --head <reviewed-sha> --mode pre-review` (`--mode pre-pr` at the pre-PR
    gate — the mode filter is required: a scoped mid-loop green row is NOT gate evidence) (#441); `gate_review`, where this review handback
    supplies the `review_verdict` and approved-head evidence is recorded following an `APPROVED` review verdict; and
    `gate_merge_closeout` CI,

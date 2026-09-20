@@ -43,9 +43,9 @@ __FINISH_LIB_SOURCED=1
 # teardown on a checkout that predates the trace tooling. Returns 0 to proceed,
 # 1 to block (the caller performs the `exit 1`).
 finish_trace_gate() {
-  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+  if [ -x "${SCRIPT_DIR}/validation/review-gate.sh" ]; then
     if ! REVIEW_GATE_ISSUE="${ISSUE_NUM}" TRACE_COLLAPSE_CHILD_SPANS=1 \
-      "${SCRIPT_DIR}/review-gate.sh" trace; then
+      "${SCRIPT_DIR}/validation/review-gate.sh" trace; then
       if [ "${REQUIRE_TRACE_CONSISTENCY:-0}" = "1" ]; then
         red "✗ trace gate blocked the finish (REQUIRE_TRACE_CONSISTENCY=1)."
         echo "  Resolve the findings above (or unset the flag) and re-run:"
@@ -60,7 +60,7 @@ finish_trace_gate() {
       return 1
     fi
   else
-    yellow "⚠ trace gate skipped: scripts/review-gate.sh not found"
+    yellow "⚠ trace gate skipped: scripts/validation/review-gate.sh not found"
   fi
   return 0
 }
@@ -161,9 +161,9 @@ finish_closeout_cruft_gate() {
 
   # Preserve existing gate output and telemetry when a complete installation
   # provides review-gate.sh. The local shared-vocabulary scan is authoritative.
-  if [ -x "${SCRIPT_DIR}/review-gate.sh" ]; then
+  if [ -x "${SCRIPT_DIR}/validation/review-gate.sh" ]; then
     REVIEW_GATE_ISSUE="${ISSUE_NUM}" REQUIRE_LOG_COMPLETE=1 \
-      "${SCRIPT_DIR}/review-gate.sh" log-completeness \
+      "${SCRIPT_DIR}/validation/review-gate.sh" log-completeness \
       || return 1
   fi
   return 0

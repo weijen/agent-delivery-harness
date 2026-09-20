@@ -98,18 +98,18 @@ target, capability, fixture, expected outcome, grader, and blocking policy.
 {
   "id": "l0-review-gate-freshness",
   "schema_version": 1,
-  "target": "scripts/review-gate.sh",
+  "target": "scripts/validation/review-gate.sh",
   "capability": "blocks_stale_review_approval",
   "boundary": "script-lifecycle",
   "fixture": {
     "type": "generated",
-    "builder": "tests/scripts/test_review_gate.sh",
+    "builder": "tests/scripts/validation/test_review_gate.sh",
     "builder_version": 1
   },
   "expected_outcome": "reject",
   "grader": {
     "type": "shell",
-    "command": "tests/scripts/test_review_gate.sh"
+    "command": "tests/scripts/validation/test_review_gate.sh"
   },
   "blocking": true
 }
@@ -151,10 +151,10 @@ purpose. They should run quickly, use local temporary fixtures, and block PRs.
 ### L0 Targets
 
 - `scripts/init.sh`
-- `scripts/issue-lib.sh`
+- `scripts/lib/issue-lib.sh`
 - `scripts/start-issue.sh`
-- `scripts/check-feature-list.sh`
-- `scripts/review-gate.sh`
+- `scripts/validation/check-feature-list.sh`
+- `scripts/validation/review-gate.sh`
 - `scripts/create-pr.sh`
 - `scripts/finish-issue.sh`
 - `docs/harness-contract.yml`
@@ -165,8 +165,8 @@ purpose. They should run quickly, use local temporary fixtures, and block PRs.
 | --- | --- | --- | --- |
 | `l0-harness-contract` | `tests/scripts/test_harness_contract.sh` | Contract obligations remain declared and present. | Contract parse result, owner pattern checks, script parse status. |
 | `l0-lifecycle-order` | `tests/scripts/test_lifecycle_order.sh` | Critical lifecycle ordering is preserved. | Temporary repo state, worktree/branch presence, push/PR side effects. |
-| `l0-review-gate` | `tests/scripts/test_review_gate.sh` | Review approval is bound to current HEAD. | HEAD SHA, marker file content, create-pr exit behavior. |
-| `l0-feature-list` | `tests/scripts/test_feature_list_check.sh` | Feature completion schema and hard/warn semantics hold. | JSON parse status, exit code, warning/hard failure evidence. |
+| `l0-review-gate` | `tests/scripts/validation/test_review_gate.sh` | Review approval is bound to current HEAD. | HEAD SHA, marker file content, create-pr exit behavior. |
+| `l0-feature-list` | `tests/scripts/validation/test_feature_list_check.sh` | Feature completion schema and hard/warn semantics hold. | JSON parse status, exit code, warning/hard failure evidence. |
 | `l0-issue-scaffold` | `tests/scripts/test_issue_scaffold.sh` | Tracking and Action Log scaffold are created. | File existence, Markdown heading presence, issue directory state. |
 
 The existing shell tests are bootstrap inputs. The runner should eventually emit
@@ -215,7 +215,7 @@ reuses this exact schema.
   "results": [
     {
       "case_id": "l0-review-gate-stale-head",
-      "target": "scripts/review-gate.sh",
+      "target": "scripts/validation/review-gate.sh",
       "capability": "blocks_stale_review_approval",
       "boundary": "script-lifecycle",
       "label": "reject",

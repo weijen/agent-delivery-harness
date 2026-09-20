@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test_trace_lib_redaction.sh — regression sensor for scripts/trace-lib.sh
+# test_trace_lib_redaction.sh — regression sensor for scripts/lib/trace-lib.sh
 # built-in secret redaction (issue #93, feature trace-lib-redaction).
 #
 # trace_redact runs over the fully-serialized span line immediately before
@@ -41,12 +41,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/trace-lib.sh}"
+LIB="${TRACE_LIB_UNDER_TEST:-${ROOT}/scripts/lib/trace-lib.sh}"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts trace-lib.sh
+fixture_repo --with-scripts lib/trace-lib.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 
 fail() {
@@ -111,8 +111,8 @@ XAPI_SECRET='synthetic-api-key-value-0001'
 
 # --- Fixture: throwaway git repo faking an issue-07 worktree ---------------------
 REPO="$FIXTURE_REPO"
-if [ "$LIB" != "${ROOT}/scripts/trace-lib.sh" ]; then
-  cp "$LIB" "${REPO}/scripts/trace-lib.sh"
+if [ "$LIB" != "${ROOT}/scripts/lib/trace-lib.sh" ]; then
+  cp "$LIB" "${REPO}/scripts/lib/trace-lib.sh"
 fi
 cd "$REPO"
 git checkout -q -b feature/issue-07-redaction-fixture
@@ -123,7 +123,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 TRACE_FILE="${REPO}/.copilot-tracking/issues/issue-07/trace.jsonl"
 
 # shellcheck source=/dev/null
-source "${REPO}/scripts/trace-lib.sh" \
+source "${REPO}/scripts/lib/trace-lib.sh" \
   || fail "sourcing trace-lib.sh failed under set -euo pipefail"
 declare -F trace_span >/dev/null \
   || fail "trace-lib.sh did not define a trace_span function"

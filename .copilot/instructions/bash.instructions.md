@@ -61,9 +61,13 @@ harness contract and the AGENTS.md conventions.
 ## Harness script tests (`tests/scripts/test_*.sh`)
 
 - Tests are standalone `set -euo pipefail` scripts with `fail()`/`note()` helpers.
-  `scripts/affected-sensors.sh --list` discovers `test_*.sh` recursively below
+  `scripts/validation/affected-sensors.sh --list` discovers `test_*.sh` recursively below
   `tests/scripts/` and `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/`.
   The local `run-sensors.sh` runner and both CI profiles use this same set.
+- Whole-suite wrappers put `# harness-sensor-stage: boundary` in the leading
+  comment header. Canonical full discovery retains them; feature selection
+  defers them and rejects explicit boundary-only declarations. Keep targeted
+  runtime e2e and miniature hermetic runner fixtures available at feature time.
 - Build a throwaway repo per test with `mktemp -d` + `git init`; never touch the
   developer's real checkout or network.
 - **Fake every external CLI.** Provide fake `gh`/tool binaries on an isolated
@@ -110,9 +114,9 @@ The point-in-time triage that applied this rubric lives at
 
 ## Validation before declaring work done
 
-- `./scripts/check-shell.sh syntax` — recursively parse each intended shell file
+- `./scripts/validation/check-shell.sh syntax` — recursively parse each intended shell file
   separately; never pass a filename list to one `bash -n` invocation.
-- `./scripts/check-shell.sh lint` — lint the same recursive scripts, profiles,
+- `./scripts/validation/check-shell.sh lint` — lint the same recursive scripts, profiles,
   sensors, libraries, eval tools and installed optional adapter surface once.
   Fixture subtrees are excluded. Touched shell must be shellcheck-clean.
   Suppress a finding only with a justified, scoped directive

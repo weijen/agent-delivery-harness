@@ -16,7 +16,7 @@ OUT="${TMP_DIR}/install.out"
 
 asset_target="${TMP_DIR}/asset-target"
 asset_outside="${TMP_DIR}/asset-outside"
-mkdir -p "${asset_target}/scripts" "${asset_outside}"
+mkdir -p "${asset_target}/scripts/lib" "${asset_target}/scripts/validation" "${asset_outside}"
 ln -s "${asset_outside}/init.sh" "${asset_target}/scripts/init.sh"
 if "${INSTALL}" "${asset_target}" --write >"${OUT}" 2>&1; then
 	fail "dangling asset destination must fail"

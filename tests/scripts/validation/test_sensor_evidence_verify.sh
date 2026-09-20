@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_sensor_evidence_verify.sh — regression sensor for issue #441 F2:
-# scripts/verify-sensor-evidence.sh validates script-recorded evidence rows.
+# scripts/validation/verify-sensor-evidence.sh validates script-recorded evidence rows.
 #
 # Contract under test:
 #   verify-sensor-evidence.sh <issue> [--head <sha>] [--mode <label>]
@@ -14,7 +14,7 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -24,17 +24,19 @@ fail() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
-[ -f "${ROOT}/scripts/verify-sensor-evidence.sh" ] \
-  || fail "scripts/verify-sensor-evidence.sh not found — #441 F2 not implemented yet"
+[ -f "${ROOT}/scripts/validation/verify-sensor-evidence.sh" ] \
+  || fail "scripts/validation/verify-sensor-evidence.sh not found — #441 F2 not implemented yet"
 
 # --- Fixture repo with real recorder output -----------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" \
-   "${ROOT}/scripts/verify-sensor-evidence.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/trace-lib.sh" ] && cp "${ROOT}/scripts/trace-lib.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/issue-lib.sh" ] && cp "${ROOT}/scripts/issue-lib.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/github-identity-lib.sh" ] && cp "${ROOT}/scripts/github-identity-lib.sh" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
+cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/validation/run-sensors.sh" \
+   "${ROOT}/scripts/validation/affected-sensors.sh" \
+   "${ROOT}/scripts/validation/verify-sensor-evidence.sh" "${FIX}/scripts/validation/"
+[ -f "${ROOT}/scripts/lib/trace-lib.sh" ] && cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
+[ -f "${ROOT}/scripts/lib/issue-lib.sh" ] && cp "${ROOT}/scripts/lib/issue-lib.sh" "${FIX}/scripts/lib/"
+[ -f "${ROOT}/scripts/lib/github-identity-lib.sh" ] && cp "${ROOT}/scripts/lib/github-identity-lib.sh" "${FIX}/scripts/lib/"
 printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
@@ -47,7 +49,7 @@ EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
   || fail "fixture green run must pass"
 [ -f "$EVIDENCE" ] || fail "fixture recorder must produce an evidence file"
 
-verify() { (cd "$FIX" && ./scripts/verify-sensor-evidence.sh "$@" 2>&1); }
+verify() { (cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh "$@" 2>&1); }
 
 # 1. Valid recorder-written rows verify clean.
 verify 77 >/dev/null || fail "recorder-written evidence must verify (exit 0)"

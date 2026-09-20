@@ -22,10 +22,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lifecycle-runtime-lib.sh
-source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
-# shellcheck source=scripts/issue-lib.sh
-source "${SCRIPT_DIR}/issue-lib.sh"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
+# shellcheck source=scripts/lib/issue-lib.sh
+source "${SCRIPT_DIR}/lib/issue-lib.sh"
 
 lifecycle_runtime_trace_init start-issue
 

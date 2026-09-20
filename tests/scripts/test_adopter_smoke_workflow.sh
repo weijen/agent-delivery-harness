@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# harness-sensor-stage: boundary
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -35,16 +36,16 @@ for step in shell_syntax shell_lint frontmatter core_sensors; do
 done
 
 TARGET="${TMP_DIR}/adopter"
-mkdir -p "${TARGET}/scripts" "${TARGET}/tests/scripts/lib" "${TARGET}/schemas" \
+mkdir -p "${TARGET}/scripts/lib" "${TARGET}/scripts/validation" "${TARGET}/tests/scripts/lib" "${TARGET}/tests/scripts/validation" "${TARGET}/schemas" \
 	"${TARGET}/tests/evals/bin" "${TARGET}/.copilot/skills/fixture" "${TARGET}/profiles"
-for script in issue-lib.sh start-issue.sh lifecycle-runtime-lib.sh \
-	check-feature-list.sh init.sh trace-lib.sh ci-coverage-lib.sh github-identity-lib.sh \
-	affected-sensors.sh check-shell.sh; do
+for script in lib/issue-lib.sh start-issue.sh lib/lifecycle-runtime-lib.sh \
+	validation/check-feature-list.sh init.sh lib/trace-lib.sh lib/ci-coverage-lib.sh lib/github-identity-lib.sh \
+	validation/affected-sensors.sh validation/check-shell.sh; do
 	cp "${ROOT}/scripts/${script}" "${TARGET}/scripts/${script}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${TARGET}/schemas/"
 cp "${ROOT}/tests/scripts/lib/tap.sh" "${TARGET}/tests/scripts/lib/"
-cp "${ROOT}/tests/scripts/test_feature_list_check.sh" "${TARGET}/tests/scripts/"
+cp "${ROOT}/tests/scripts/validation/test_feature_list_check.sh" "${TARGET}/tests/scripts/validation/"
 cp "${ROOT}/tests/evals/bin/validate-customization-frontmatter.sh" "${TARGET}/tests/evals/bin/"
 cp "${ROOT}/profiles/python.profile.sh" "${ROOT}/profiles/node.profile.sh" "${TARGET}/profiles/"
 printf '%s\n' '---' 'name: fixture' 'description: Safe validation fixture.' '---' \
@@ -58,7 +59,7 @@ run_step shell_syntax || { cat "${TMP_DIR}/step.out" >&2; fail "valid installed 
 run_step shell_lint || { cat "${TMP_DIR}/step.out" >&2; fail "valid installed shell lint failed"; }
 run_step frontmatter || { cat "${TMP_DIR}/step.out" >&2; fail "valid installed frontmatter failed"; }
 run_step core_sensors || { cat "${TMP_DIR}/step.out" >&2; fail "real installed core sensor failed"; }
-grep -Fq 'PASS tests/scripts/test_feature_list_check.sh' "${TMP_DIR}/step.out" \
+grep -Fq 'PASS tests/scripts/validation/test_feature_list_check.sh' "${TMP_DIR}/step.out" \
 	|| fail "workflow did not execute the installed core sensor"
 
 printf '#!/usr/bin/env bash\nexit 1\n' >"${TARGET}/tests/scripts/test_failure.sh"
@@ -69,7 +70,7 @@ grep -Fq 'FAIL tests/scripts/test_failure.sh' "${TMP_DIR}/step.out" \
 	|| fail "failed sensor was not identified"
 rm "${TARGET}/tests/scripts/test_failure.sh"
 
-mv "${TARGET}/tests/scripts/test_feature_list_check.sh" "${TMP_DIR}/saved-sensor.sh"
+mv "${TARGET}/tests/scripts/validation/test_feature_list_check.sh" "${TMP_DIR}/saved-sensor.sh"
 if run_step core_sensors; then
 	fail "an empty installed sensor set must not be green"
 fi

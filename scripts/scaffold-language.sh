@@ -108,10 +108,10 @@ load_metadata() {
 # shellcheck disable=SC2016  # literal command text is intentional in the emitted descriptor
 gate_spec() {
 	case "$1:$2" in
-	python:format_check) printf './scripts/python-gates.sh format_check|ruff format clean|ruff format would reformat|uv run ruff format .' ;;
-	python:lint) printf './scripts/python-gates.sh lint|ruff clean|ruff failed|uv run ruff check' ;;
-	python:typecheck) printf './scripts/python-gates.sh typecheck|mypy clean|mypy failed|uv run mypy' ;;
-	python:test) printf './scripts/python-gates.sh test|pytest passing|pytest failed|uv run pytest' ;;
+	python:format_check) printf './scripts/validation/python-gates.sh format_check|ruff format clean|ruff format would reformat|uv run ruff format .' ;;
+	python:lint) printf './scripts/validation/python-gates.sh lint|ruff clean|ruff failed|uv run ruff check' ;;
+	python:typecheck) printf './scripts/validation/python-gates.sh typecheck|mypy clean|mypy failed|uv run mypy' ;;
+	python:test) printf './scripts/validation/python-gates.sh test|pytest passing|pytest failed|uv run pytest' ;;
 	go:format_check) printf 'test -z "$(gofmt -l .)"|gofmt clean|gofmt would reformat|gofmt -w .' ;;
 	go:lint) printf 'go vet ./...|go vet clean|go vet failed|go vet ./...' ;;
 	go:test) printf 'go test ./...|go test passing|go test failed|go test ./...' ;;
@@ -215,8 +215,8 @@ EOF
 }
 
 # The shared dry/write/update three-way reconcile skeleton.
-# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
-. "${SCRIPT_DIR}/reconcile-lib.sh"
+# shellcheck source=scripts/lib/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/lib/reconcile-lib.sh"
 
 # Reconcile hooks for scaffold-language: the desired content is an in-memory
 # canonical string ($RC_CANONICAL) materialised at the target path ($RC_PATH),

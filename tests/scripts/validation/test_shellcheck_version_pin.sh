@@ -3,7 +3,7 @@
 # version rather than the runner's mutable distro package.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORKFLOW="${ROOT}/.github/workflows/harness-smoke.yml"
 
 fail() {

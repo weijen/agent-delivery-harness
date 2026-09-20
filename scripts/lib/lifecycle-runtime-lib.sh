@@ -13,14 +13,14 @@ lifecycle_runtime_trace_init() {
   runtime_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
   if [ -f "${runtime_dir}/trace-lib.sh" ]; then
-    # shellcheck source=scripts/trace-lib.sh
+    # shellcheck source=scripts/lib/trace-lib.sh
     source "${runtime_dir}/trace-lib.sh"
   fi
   if ! declare -F trace_span >/dev/null 2>&1; then
     TRACE_NOOP_WARNED=0
     trace_span() {
       if [ "${TRACE_NOOP_WARNED}" = "0" ]; then
-        printf '%s: warning: scripts/trace-lib.sh not found — trace spans disabled\n' \
+        printf '%s: warning: scripts/lib/trace-lib.sh not found — trace spans disabled\n' \
           "$LIFECYCLE_RUNTIME_CALLER" >&2
         TRACE_NOOP_WARNED=1
       fi

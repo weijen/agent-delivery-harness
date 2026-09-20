@@ -32,7 +32,7 @@ VALIDATOR="${SCRIPT_DIR}/validate-manifest.sh"
 
 # Repo root (tests/evals/bin -> ../../..); used to reach the shared redactor.
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
-TRACE_LIB="${ROOT_DIR}/scripts/trace-lib.sh"
+TRACE_LIB="${ROOT_DIR}/scripts/lib/trace-lib.sh"
 
 # Fail-closed redaction gate (feature f3): the grader's captured evidence is
 # scrubbed with the repo's single redaction policy `trace_redact` before it can

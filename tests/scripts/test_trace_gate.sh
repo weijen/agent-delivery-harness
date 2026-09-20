@@ -97,10 +97,10 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in lifecycle-runtime-lib.sh review-gate.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-trace-consistency.sh \
-         trace-lib.sh issue-lib.sh start-issue.sh check-feature-list.sh \
-         ci-coverage-lib.sh \
-         rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh validation/check-feature-list.sh \
+         lib/ci-coverage-lib.sh \
+         validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the trace-gate fixture"
 done
@@ -136,14 +136,14 @@ chmod +x "${BIN}/gh"
 make_gate_fixture() {
   local dir="$1" issue="$2" pad
   pad="$(printf '%02d' "$issue")"
-  mkdir -p "${dir}/scripts" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts"
-  printf '#!/usr/bin/env bash\nbash -n scripts/review-gate.sh\n' >"${dir}/tests/scripts/test_review_syntax.sh"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts" "${dir}/tests/scripts/validation"
+  printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${dir}/tests/scripts/test_review_syntax.sh"
   local s
-  for s in issue-lib.sh lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh finish-lib.sh economics-report-lib.sh check-feature-list.sh \
-           review-gate.sh trace-lib.sh check-trace-consistency.sh \
-           ci-coverage-lib.sh \
-           rebind-evidence.sh run-sensors.sh affected-sensors.sh verify-sensor-evidence.sh; do
-    cp "${ROOT}/scripts/${s}" "${dir}/scripts/"
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh validation/check-feature-list.sh \
+           validation/review-gate.sh lib/trace-lib.sh check-trace-consistency.sh \
+           lib/ci-coverage-lib.sh \
+           validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
+    cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
   git -C "$dir" init -q -b main
@@ -209,10 +209,10 @@ WT1="${F1}/.worktrees/issue-80"
 TRACE1="${F1}/.copilot-tracking/issues/issue-80/trace.jsonl"
 
 # --- 1a. CLEAN trace: `trace` exits 0 in BOTH modes -------------------------------
-rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh trace)"
+rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "0" ] \
   || fail "clean trace, default: 'review-gate.sh trace' must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh trace)"
+rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "0" ] \
   || fail "clean trace, blocking flag: exit must stay 0 when there are no findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 
@@ -227,7 +227,7 @@ rc=0
 
 # --- 1b. DIRTY trace: warn-only default -------------------------------------------
 dirty_gate_fixture "$F1" 80
-rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh trace)"
+rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "0" ] \
   || fail "dirty trace, default: warn-only — exit must stay 0 with findings, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'invalid_json' "$OUT" \
@@ -252,7 +252,7 @@ if [ -n "$span" ]; then
 fi
 
 # --- 1c. DIRTY trace: REQUIRE_TRACE_CONSISTENCY=1 blocks --------------------------
-rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh trace)"
+rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "1" ] \
   || fail "dirty trace, blocking flag: exit must be 1, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'role_attribution_gap' "$OUT" \
@@ -273,14 +273,14 @@ fi
 printf '# Progress\n\nissue-80 work\n' > "${WT1}/docs/PROGRESS.md"
 git -C "$WT1" add docs/PROGRESS.md
 git -C "$WT1" commit -q -m "issue-80: progress update"
-rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh approve)"
+rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] || hard_fail "setup: review-gate approve failed in F1 (output: $(tr '\n' '|' < "$OUT"))"
-rc="$(run_in "$WT1" "$OUT" -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" = "0" ] \
   || fail "check, default: trace findings must NOT change check's exit semantics when approval passes, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'role_attribution_gap' "$OUT" \
   || fail "check, default: the warn-only trace gate must run inside check and surface its findings (output: $(tr '\n' '|' < "$OUT"))"
-rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/review-gate.sh check)"
+rc="$(run_in "$WT1" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- ./scripts/validation/review-gate.sh check)"
 [ "$rc" != "0" ] \
   || fail "check, blocking flag: trace findings must fail check under REQUIRE_TRACE_CONSISTENCY=1 (output: $(tr '\n' '|' < "$OUT"))"
 
@@ -330,7 +330,7 @@ rm "${F4}/.copilot-tracking/issues/issue-83/progress.md" \
 # fallback path, proving the consistency half is LIVE.
 printf '{"schema_version":1,"timestamp":"2026-07-06T12:10:00Z","span":"agent","harness.issue":83,"harness.version":"abc1234","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"rogue-role","harness.lifecycle_step":"deviation","harness.feature_id":"-","harness.outcome":"blocked"}\n' \
   >> "${F4}/.copilot-tracking/issues/issue-83/trace.jsonl"
-rc="$(run_in "$WT4" "$OUT" -- ./scripts/review-gate.sh trace)"
+rc="$(run_in "$WT4" "$OUT" -- ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "0" ] \
   || fail "real layout: warn-only default must exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 if grep -q 'consistency half skipped' "$OUT"; then
@@ -350,7 +350,7 @@ rm "${F5}/.copilot-tracking/issues/issue-84/progress.md" \
   "${WT5}/.copilot-tracking/issues/issue-84/progress.md"
 printf 'GATE_FIXTURE_NOT_JSON {\n' >> "$TRACE5"
 rc="$(run_in "$WT5" "$OUT" REQUIRE_TRACE_CONSISTENCY=1 -- \
-  ./scripts/review-gate.sh trace)"
+  ./scripts/validation/review-gate.sh trace)"
 [ "$rc" = "1" ] \
   || fail "missing progress: trace findings must still block under REQUIRE_TRACE_CONSISTENCY=1, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
 grep -q 'invalid_json' "$OUT" \

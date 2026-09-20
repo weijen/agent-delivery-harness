@@ -162,12 +162,12 @@ if [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "fail" ]; then
 fi
 
 HAVE_TRACE_LIB=0
-if [ -f "${SCRIPT_DIR}/trace-lib.sh" ]; then
-  # shellcheck source=scripts/trace-lib.sh
-  source "${SCRIPT_DIR}/trace-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/trace-lib.sh" ]; then
+  # shellcheck source=scripts/lib/trace-lib.sh
+  source "${SCRIPT_DIR}/lib/trace-lib.sh"
   HAVE_TRACE_LIB=1
 else
-  warn "scripts/trace-lib.sh not found — agent span skipped"
+  warn "scripts/lib/trace-lib.sh not found — agent span skipped"
 fi
 
 SPAN_ISSUE=""

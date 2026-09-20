@@ -19,10 +19,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lifecycle-runtime-lib.sh
-source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
-# shellcheck source=scripts/issue-lib.sh
-source "${SCRIPT_DIR}/issue-lib.sh"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
+# shellcheck source=scripts/lib/issue-lib.sh
+source "${SCRIPT_DIR}/lib/issue-lib.sh"
 
 lifecycle_runtime_trace_init finish-issue
 
@@ -32,15 +32,15 @@ lifecycle_runtime_trace_init finish-issue
 # Guarded source: a missing finish-lib.sh must never break teardown — fall back
 # to no-op helpers (the optional closeout steps are skipped and the gate lets
 # teardown proceed, exactly as when their underlying tooling is absent).
-if [ -f "${SCRIPT_DIR}/finish-lib.sh" ]; then
-  # shellcheck source=scripts/finish-lib.sh
-  source "${SCRIPT_DIR}/finish-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/finish-lib.sh" ]; then
+  # shellcheck source=scripts/lib/finish-lib.sh
+  source "${SCRIPT_DIR}/lib/finish-lib.sh"
 fi
 if ! declare -F finish_trace_gate >/dev/null 2>&1; then
-  printf 'finish-issue: warning: scripts/finish-lib.sh not found — closeout helpers disabled\n' >&2
+  printf 'finish-issue: warning: scripts/lib/finish-lib.sh not found — closeout helpers disabled\n' >&2
   finish_trace_gate() { return 0; }
   finish_closeout_orchestrate() {
-    red "✗ closeout orchestration blocked: scripts/finish-lib.sh is unavailable."
+    red "✗ closeout orchestration blocked: scripts/lib/finish-lib.sh is unavailable."
     echo "  The worktree is left intact."
     return 1
   }
@@ -112,7 +112,7 @@ check_feature_completion() {
     return 0
   fi
   TRACE_COLLAPSE_CHILD_SPANS=1 \
-    "${SCRIPT_DIR}/check-feature-list.sh" "$ISSUE_NUM"
+    "${SCRIPT_DIR}/validation/check-feature-list.sh" "$ISSUE_NUM"
 }
 
 # The worktree's own checked-out branch is the deterministic source of truth —

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# harness-sensor-stage: boundary
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -62,11 +63,11 @@ jq -se --arg version "$(cat "${ROOT}/VERSION")" '
 	and (.[0] | has("harness.outcome") | not)
 ' "$trace" >/dev/null || fail "installed emitter omitted its version or fabricated missing observations"
 
-mv "${TARGET}/scripts/trace-lib.sh" "${TMP_DIR}/trace-lib.saved"
+mv "${TARGET}/scripts/lib/trace-lib.sh" "${TMP_DIR}/trace-lib.saved"
 CLAUDE_PROJECT_DIR="$TARGET" bash -c "$command" <"${TMP_DIR}/payload" >"${TMP_DIR}/hook.out"
 [ ! -s "${TMP_DIR}/hook.out" ] || fail "missing installed emitter disturbed the session"
 [ "$(wc -l <"$trace" | tr -d ' ')" = 1 ] || fail "missing emitter produced fake evidence"
-mv "${TMP_DIR}/trace-lib.saved" "${TARGET}/scripts/trace-lib.sh"
+mv "${TMP_DIR}/trace-lib.saved" "${TARGET}/scripts/lib/trace-lib.sh"
 
 FRESH="${TMP_DIR}/fresh"
 "${TARGET}/scripts/install-harness.sh" "$FRESH" --write --with-claude >"$OUT" 2>&1 \

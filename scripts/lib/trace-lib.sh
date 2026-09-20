@@ -258,13 +258,13 @@ trace_span() {
 
   # harness.version is the SemVer release, read from the top-level VERSION
   # file (the source of truth for "which release"). Resolve the harness root
-  # robustly: prefer the VERSION sitting next to scripts/ (${TRACE_LIB_DIR}/..),
+  # robustly: prefer VERSION at the root above scripts/lib/,
   # else the git toplevel of the harness scripts. First line, trimmed; falls
   # back to 0.0.0-dev when the file is missing or empty so the required
   # harness.version field is always stamped.
   local version_file=""
-  if [ -f "${TRACE_LIB_DIR}/../VERSION" ]; then
-    version_file="${TRACE_LIB_DIR}/../VERSION"
+  if [ -f "${TRACE_LIB_DIR}/../../VERSION" ]; then
+    version_file="${TRACE_LIB_DIR}/../../VERSION"
   else
     local harness_top=""
     harness_top="$(git -C "$TRACE_LIB_DIR" rev-parse --show-toplevel 2>/dev/null || true)"

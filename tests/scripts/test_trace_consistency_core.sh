@@ -63,7 +63,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 HELPER="${ROOT}/scripts/log-handback.sh"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -87,7 +87,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$HELPER" ] \
   || hard_fail "scripts/log-handback.sh not found (${HELPER}) — fixtures are built with the real emitter"
 [ -f "$LIB" ] \
-  || hard_fail "scripts/trace-lib.sh not found (${LIB})"
+  || hard_fail "scripts/lib/trace-lib.sh not found (${LIB})"
 
 # RED gate: the script under test must exist before behavior can be specified.
 [ -f "$CHECKER" ] \
@@ -105,9 +105,9 @@ fi
 
 # --- Fixture: MAIN repo + linked worktree, pairs produced by the REAL helper ---
 MAIN="${TMP_DIR}/main-repo"
-mkdir -p "${MAIN}/scripts"
+mkdir -p "${MAIN}/scripts/lib" "${MAIN}/scripts/validation"
 cp "$HELPER" "${MAIN}/scripts/log-handback.sh"
-cp "$LIB" "${MAIN}/scripts/trace-lib.sh"
+cp "$LIB" "${MAIN}/scripts/lib/trace-lib.sh"
 cp "${ROOT}/scripts/render-action-log.sh" "${MAIN}/scripts/render-action-log.sh"
 git -C "$MAIN" init -q -b main
 git -C "$MAIN" config user.name "Harness Test"

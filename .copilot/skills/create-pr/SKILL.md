@@ -21,7 +21,7 @@ CI-green merge through the harness scripts. Prefer the scripts (`scripts/start-i
 3. **Pre-PR gates** — before pushing, run the companion skills that exist here and record the HEAD review:
    - **`code-review`** — self-review the diff; fix Critical/Warning findings first.
    - **`security-audit`** — scan the diff for injection, secrets, workflow-permission and pinning gaps.
-   - **`scripts/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
+   - **`scripts/validation/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
    Stage only the files you intend to publish (respect public-exposure hygiene); never blanket-stage with `git add -A`.
 4. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` re-syncs onto latest `main`, re-checks the review
    approval, pushes, and opens the PR. Use the template below and link the issue with `Closes #<NN>`.

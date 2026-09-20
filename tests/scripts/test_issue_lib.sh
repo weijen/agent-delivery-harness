@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression sensor for scripts/issue-lib.sh — the single source of truth for
+# Regression sensor for scripts/lib/issue-lib.sh — the single source of truth for
 # per-issue naming used by the worktree harness. issue-lib.sh is SOURCED (not
 # executed), so this test sources it inside throwaway git repos and asserts the
 # pure naming contract: issue-number parsing, zero-padding, slug derivation +
@@ -25,14 +25,14 @@ canon() { (cd "$1" && pwd -P); }
 
 # --- A throwaway "main" checkout that carries a copy of issue-lib.sh -----------
 REPO="${TMP_DIR}/myrepo"
-mkdir -p "${REPO}/scripts"
-cp "${ROOT}/scripts/issue-lib.sh" "${REPO}/scripts/issue-lib.sh"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation"
+cp "${ROOT}/scripts/lib/issue-lib.sh" "${REPO}/scripts/lib/issue-lib.sh"
 cd "${REPO}"
 git init -q -b main
 git config user.name "Harness Test"
 git config user.email "harness-test@example.invalid"
 printf 'fixture\n' > README.md
-git add README.md scripts/issue-lib.sh
+git add README.md scripts/lib/issue-lib.sh
 git commit -q -m initial
 
 # A fake gh whose `issue view --json title` behavior is controlled by GH_TITLE:
@@ -54,7 +54,7 @@ chmod +x "${TMP_DIR}/bin/gh"
 export PATH="${TMP_DIR}/bin:${PATH}"
 
 # shellcheck source=/dev/null
-source "${REPO}/scripts/issue-lib.sh"
+source "${REPO}/scripts/lib/issue-lib.sh"
 
 # --- 1. issue_parse_number ---------------------------------------------------
 [ "$(issue_parse_number 31)" = "31" ]        || fail "parse: bare number not returned verbatim"
@@ -113,7 +113,7 @@ git worktree add -q -b feature/issue-99-x "$WT" main
 (
   cd "$WT"
   # shellcheck source=/dev/null
-  source "${REPO}/scripts/issue-lib.sh"
+  source "${REPO}/scripts/lib/issue-lib.sh"
   got="$(cd "$(issue_main_root)" && pwd -P)"
   [ "$got" = "$expected_main" ] || { printf 'FAIL: main-root from linked worktree got %s want %s\n' "$got" "$expected_main" >&2; exit 1; }
   # Naming computed from inside the worktree must match the main-checkout naming.

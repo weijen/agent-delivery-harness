@@ -124,8 +124,8 @@ list_files() {
 }
 
 # The shared dry/write/update three-way reconcile skeleton.
-# shellcheck source=scripts/reconcile-lib.sh disable=SC1091
-. "${SCRIPT_DIR}/reconcile-lib.sh"
+# shellcheck source=scripts/lib/reconcile-lib.sh disable=SC1091
+. "${SCRIPT_DIR}/lib/reconcile-lib.sh"
 
 # Reconcile hooks for install-harness: the desired content is a real source file
 # ($RC_SRC) copied to the target ($RC_DST), both set by reconcile() below. They
@@ -432,7 +432,19 @@ list_excluded_files() {
 			candidates+="${rel}"$'\n'
 		done <"$LOCK_FILE"
 	fi
+	# A missing lock row is not permission to silently ignore an old layout
+	# copy. The maintained migration map identifies it; the lock still owns
+	# deletion proof, so unknown/customized copies take the conflict path.
+	files="$(awk '
+		/^layout_moves:/ { selected=1; next }
+		selected && /^[^ #]/ { exit }
+		selected && /^  - from:/ { print $3 }
+	' "${REPO_ROOT}/docs/harness-contract.yml")" || return 1
+	candidates+="${files}"$'\n'
 	while IFS= read -r rel; do
+		case "$rel" in
+			/* | . | .. | ../* | */../* | */..) die "unsafe excluded asset path '${rel}'" ;;
+		esac
 		case "$rel" in
 			"" | README.md | AGENTS.md | .env.example | docs/tech-debt-tracker.md | \
 			.github/harness-identity.env | .claude/settings.json) continue ;;
@@ -820,7 +832,7 @@ if [ "$MODE" != "dry" ] \
 		printf 'added .github/harness-identity.env to the target .gitignore (machine-local file)\n'
 	fi
 	# shellcheck source=/dev/null
-	source "${REPO_ROOT}/scripts/github-identity-lib.sh"
+	source "${REPO_ROOT}/scripts/lib/github-identity-lib.sh"
 	if ! harness_identity_configure_git "$TARGET_DIR"; then
 		printf 'error: could not apply the target repository GitHub identity binding\n' >&2
 		rc=1

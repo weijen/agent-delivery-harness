@@ -16,7 +16,7 @@ git init -q "$REPO"
 git -C "$REPO" config user.name "Harness Test"
 git -C "$REPO" config user.email "harness-test@example.invalid"
 mkdir -p \
-  "${REPO}/scripts" \
+  "${REPO}/scripts/lib" "${REPO}/scripts/validation" \
   "${REPO}/docs" \
   "${REPO}/.github/workflows"
 printf '#!/usr/bin/env bash\n' >"${REPO}/scripts/install-harness.sh"

@@ -46,8 +46,8 @@ HARNESS_GIT_NAME=\$(touch ${sentinel})
 HARNESS_GIT_EMAIL=11629+weijen@users.noreply.github.com
 EOF
 
-# shellcheck source=scripts/github-identity-lib.sh
-source "${ROOT}/scripts/github-identity-lib.sh"
+# shellcheck source=scripts/lib/github-identity-lib.sh
+source "${ROOT}/scripts/lib/github-identity-lib.sh"
 
 export GH_TOKEN="token-for-wrong-account"
 export GITHUB_TOKEN="another-wrong-token"
@@ -97,13 +97,13 @@ mkdir -p "${PH}/.github"
 git init -q -b main "$PH"
 cp "${ROOT}/.github/harness-identity.env.example" "${PH}/.github/harness-identity.env"
 ph_rc=0
-ph_out="$( (cd "$PH" && . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || ph_rc=$?
+ph_out="$( (cd "$PH" && . "${ROOT}/scripts/lib/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || ph_rc=$?
 [ "$ph_rc" -eq 2 ] || fail "placeholder binding must be treated as absent (rc=2), got rc=${ph_rc}: ${ph_out}"
 grep -qi "placeholder" <<<"$ph_out" || fail "placeholder binding must warn about placeholders: ${ph_out}"
 printf 'HARNESS_GH_ACCOUNT=real-account\nHARNESS_GIT_EMAIL=a@users.noreply.github.com\n' > "${PH}/.github/harness-identity.env"
 git -C "$PH" -c user.email=t@t.invalid -c user.name=t add -f .github/harness-identity.env
 git -C "$PH" -c user.email=t@t.invalid -c user.name=t commit -qm bind
-tr_out="$( (cd "$PH" && . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || true
+tr_out="$( (cd "$PH" && . "${ROOT}/scripts/lib/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || true
 grep -qi "COMMITTED" <<<"$tr_out" || fail "a committed binding must emit the machine-local warning: ${tr_out}"
 
 # EMU logins contain underscores (name_shortcode); the account pattern must
@@ -111,7 +111,7 @@ grep -qi "COMMITTED" <<<"$tr_out" || fail "a committed binding must emit the mac
 printf 'HARNESS_GH_ACCOUNT=someone_contoso\nHARNESS_GIT_EMAIL=1+someone_contoso@users.noreply.github.com\n' \
   > "${PH}/.github/harness-identity.env"
 emu_rc=0
-( . "${ROOT}/scripts/github-identity-lib.sh" && harness_identity_load "$PH" ) >/dev/null 2>&1 || emu_rc=$?
+( . "${ROOT}/scripts/lib/github-identity-lib.sh" && harness_identity_load "$PH" ) >/dev/null 2>&1 || emu_rc=$?
 [ "$emu_rc" -eq 0 ] || fail "an EMU underscore account must be a valid binding (rc=${emu_rc})"
 
 printf 'GitHub identity binding contract honored\n'
@@ -129,12 +129,12 @@ fail() {
 
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
-mkdir -p "${REPO}/scripts" "${REPO}/.github" "$BIN"
-cp "${ROOT}/scripts/start-issue.sh" \
-  "${ROOT}/scripts/issue-lib.sh" \
-  "${ROOT}/scripts/lifecycle-runtime-lib.sh" \
-  "${ROOT}/scripts/github-identity-lib.sh" \
-  "${REPO}/scripts/"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/.github" "$BIN"
+cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+cp "${ROOT}/scripts/lib/issue-lib.sh" \
+  "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" \
+  "${ROOT}/scripts/lib/github-identity-lib.sh" \
+  "${REPO}/scripts/lib/"
 
 cat >"${REPO}/.github/harness-identity.env" <<'EOF'
 HARNESS_GH_ACCOUNT=weijen

@@ -14,7 +14,7 @@
 #       must not even surface a "command not found"; the hook exits 0 silently.
 #   G2. stdin parses as a JSON object (slurped once) — malformed / empty /
 #       oversized garbage stdin → silent exit 0.
-#   G3. the core scripts/trace-lib.sh exists — absent → silent exit 0.
+#   G3. the core scripts/lib/trace-lib.sh exists — absent → silent exit 0.
 #   G4. issue context resolves from the payload `cwd` (git -C <cwd>, fallback
 #       $PWD) with trace-lib precedence: TRACE_ISSUE → feature/issue-NN-*
 #       branch → issue-NN worktree basename. Unresolvable = "not a harness
@@ -62,7 +62,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -76,7 +76,7 @@ command -v jq >/dev/null 2>&1 \
   || fail "jq is required to build fixture hook payloads"
 
 [ -f "$LIB" ] \
-  || fail "scripts/trace-lib.sh not found (${LIB}) — hook fixtures need the real core emitter"
+  || fail "scripts/lib/trace-lib.sh not found (${LIB}) — hook fixtures need the real core emitter"
 
 # RED gate: the hook under test must exist before anything can be exercised.
 [ -f "$HOOK" ] \
@@ -154,9 +154,9 @@ assert_silent_noop() {
 
 # --- Fixture A: plain git repo on main — NOT a harness issue context ------------
 PLAIN_REPO="${TMP_DIR}/plainrepo"
-mkdir -p "${PLAIN_REPO}/scripts" "${PLAIN_REPO}/optional/runtime-adapters"
+mkdir -p "${PLAIN_REPO}/scripts/lib" "${PLAIN_REPO}/optional/runtime-adapters"
 cp "$HOOK" "${PLAIN_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
-cp "$LIB" "${PLAIN_REPO}/scripts/trace-lib.sh"
+cp "$LIB" "${PLAIN_REPO}/scripts/lib/trace-lib.sh"
 (
   cd "$PLAIN_REPO" || exit 1
   git init -q -b main
@@ -170,15 +170,15 @@ cp "$LIB" "${PLAIN_REPO}/scripts/trace-lib.sh"
 
 # --- Fixture B: directory that is not a git repo at all --------------------------
 NONREPO="${TMP_DIR}/nonrepo"
-mkdir -p "${NONREPO}/scripts" "${NONREPO}/optional/runtime-adapters"
+mkdir -p "${NONREPO}/scripts/lib" "${NONREPO}/optional/runtime-adapters"
 cp "$HOOK" "${NONREPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
-cp "$LIB" "${NONREPO}/scripts/trace-lib.sh"
+cp "$LIB" "${NONREPO}/scripts/lib/trace-lib.sh"
 
 # --- Fixture C: issue-worktree-shaped repo (valid harness context) ---------------
 ISSUE_REPO="${TMP_DIR}/issuerepo"
-mkdir -p "${ISSUE_REPO}/scripts" "${ISSUE_REPO}/optional/runtime-adapters"
+mkdir -p "${ISSUE_REPO}/scripts/lib" "${ISSUE_REPO}/optional/runtime-adapters"
 cp "$HOOK" "${ISSUE_REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
-cp "$LIB" "${ISSUE_REPO}/scripts/trace-lib.sh"
+cp "$LIB" "${ISSUE_REPO}/scripts/lib/trace-lib.sh"
 (
   cd "$ISSUE_REPO" || exit 1
   git init -q -b main
@@ -272,7 +272,7 @@ fi
 # Case 5 — core trace-lib.sh missing (guard G3), valid context
 # =============================================================================
 LIBLESS="${TMP_DIR}/libless"
-mkdir -p "${LIBLESS}/scripts" "${LIBLESS}/optional/runtime-adapters"
+mkdir -p "${LIBLESS}/scripts/lib" "${LIBLESS}/optional/runtime-adapters"
 cp "$HOOK" "${LIBLESS}/optional/runtime-adapters/claude-code-trace-hook.sh"
 run_hook "case5-no-trace-lib" "$ISSUE_REPO" \
   "${LIBLESS}/optional/runtime-adapters/claude-code-trace-hook.sh" "$PAYLOAD_ISSUE"

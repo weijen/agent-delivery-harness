@@ -26,8 +26,9 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/schemas" "${FIX}/docs"
-cp "${ROOT}/scripts/log-handback.sh" "${ROOT}/scripts/trace-lib.sh" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/schemas" "${FIX}/docs"
+cp "${ROOT}/scripts/log-handback.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
 cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid

@@ -36,13 +36,13 @@ make_commit() {
   git reset -q --hard "$commit"
 }
 
-mkdir -p "${TMP_DIR}/repo/scripts"
-cp "${ROOT}/scripts/issue-lib.sh" "${TMP_DIR}/repo/scripts/issue-lib.sh"
+mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/repo/scripts/validation"
+cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
 cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
 cp "${ROOT}/scripts/finish-issue.sh" "${TMP_DIR}/repo/scripts/finish-issue.sh"
-cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lifecycle-runtime-lib.sh"
-cp "${ROOT}/scripts/finish-lib.sh" "${TMP_DIR}/repo/scripts/finish-lib.sh"
-cp "${ROOT}/scripts/check-feature-list.sh" "${TMP_DIR}/repo/scripts/check-feature-list.sh"
+cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
+cp "${ROOT}/scripts/lib/finish-lib.sh" "${TMP_DIR}/repo/scripts/lib/finish-lib.sh"
+cp "${ROOT}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/repo/scripts/validation/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 
 cd "${TMP_DIR}/repo"
@@ -173,9 +173,10 @@ fail() {
 
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
-mkdir -p "${REPO}/scripts" "$BIN"
-cp "${ROOT}/scripts/start-issue.sh" "${ROOT}/scripts/issue-lib.sh" \
-  "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${REPO}/scripts/"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "$BIN"
+cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+cp "${ROOT}/scripts/lib/issue-lib.sh" \
+  "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${REPO}/scripts/lib/"
 cat >"${BIN}/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' 'Repo-local worktree fixture'
@@ -325,11 +326,11 @@ chmod +x "${BIN}/gh"
 unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 
 REPO="${TMP_DIR}/repo"
-mkdir -p "${REPO}/scripts"
-cp "${ROOT}/scripts/issue-lib.sh" "${REPO}/scripts/"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation"
+cp "${ROOT}/scripts/lib/issue-lib.sh" "${REPO}/scripts/lib/"
 cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
-cp "${ROOT}/scripts/lifecycle-runtime-lib.sh" "${REPO}/scripts/"
-cp "${ROOT}/scripts/trace-lib.sh" "${REPO}/scripts/"
+cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${REPO}/scripts/lib/"
+cp "${ROOT}/scripts/lib/trace-lib.sh" "${REPO}/scripts/lib/"
 cat > "${REPO}/scripts/init.sh" <<'SH'
 #!/usr/bin/env bash
 echo "stub preflight"

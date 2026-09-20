@@ -169,15 +169,15 @@ end_scenario "declared scripts exist, are executable, and parse (bash -n)"
 # --- 2. Required-script backstop (contract must not silently shrink) ---------
 for required in \
   scripts/init.sh \
-  scripts/github-identity-lib.sh \
-  scripts/issue-lib.sh \
+  scripts/lib/github-identity-lib.sh \
+  scripts/lib/issue-lib.sh \
   scripts/start-issue.sh \
-  scripts/check-feature-list.sh \
-  scripts/review-gate.sh \
+  scripts/validation/check-feature-list.sh \
+  scripts/validation/review-gate.sh \
   scripts/create-pr.sh \
   scripts/merge-pr.sh \
   scripts/finish-issue.sh \
-  scripts/trace-lib.sh; do
+  scripts/lib/trace-lib.sh; do
   case " ${declared_scripts} " in
     *" ${required} "*) : ;;
     *) fail "contract no longer declares required script: ${required}" ;;
@@ -208,10 +208,10 @@ for section in "${gate_sections[@]}"; do
 done
 require_contract_record gate_sensors id scoped-green scripts/create-pr.sh
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
-if grep -q -- '--last' scripts/run-sensors.sh; then
+if grep -q -- '--last' scripts/run-sensors.sh scripts/validation/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
 fi
-if grep -Eq 'status_doc_gate|status-doc' scripts/review-gate.sh; then
+if grep -Eq 'status_doc_gate|status-doc' scripts/validation/review-gate.sh; then
   fail "review-gate.sh must not retain the retired status-document gate surface"
 fi
 end_scenario "contract declares four complete gates with wired sensors and CI-green merge"
@@ -225,11 +225,11 @@ require_contract_record evidence id sensor-summary
 require_contract_record evidence id progress-prose
 require_contract_record policy id hard-gates-observed-only
 require_contract_record policy id new-rules-warn-first
-require_contract_record sha_bindings id approval-head scripts/review-gate.sh
+require_contract_record sha_bindings id approval-head scripts/validation/review-gate.sh
 require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
 require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
 require_contract_record bypasses id FORCE scripts/finish-issue.sh
-require_contract_record bypasses id SKIP_CI_GATE scripts/review-gate.sh
+require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh
 require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
 while IFS= read -r rec; do
   [ -n "$rec" ] || continue
@@ -246,7 +246,7 @@ done < <(parse_records bypasses)
 end_scenario "contract declares evidence governance, SHA bindings, and audited bypasses"
 
 # --- 2d. Trace-lib registration backstop (issue #93) -------------------------
-# scripts/trace-lib.sh is the language-neutral tracing primitive sourced by the
+# scripts/lib/trace-lib.sh is the language-neutral tracing primitive sourced by the
 # lifecycle scripts. The required-script backstop above forces the contract to
 # keep declaring it in the scripts list (section 1 then enforces that it
 # exists, is executable, and parses with bash -n), and section 4 asserts it
@@ -257,8 +257,8 @@ end_scenario "contract declares evidence governance, SHA bindings, and audited b
 # while check-feature-list.sh sources trace-lib.sh directly.
 te_required=(
   scripts/start-issue.sh
-  scripts/check-feature-list.sh
-  scripts/review-gate.sh
+  scripts/validation/check-feature-list.sh
+  scripts/validation/review-gate.sh
   scripts/create-pr.sh
   scripts/merge-pr.sh
   scripts/finish-issue.sh
@@ -269,7 +269,7 @@ for owner in "${te_required[@]}"; do
     fail "trace_emission/${owner}: instrumented script missing"
     continue
   fi
-  if [ "$owner" = "scripts/check-feature-list.sh" ]; then
+  if [ "$owner" = "scripts/validation/check-feature-list.sh" ]; then
     grep -Eq 'trace_span' "$abs" \
       || fail "trace_emission/${owner}: no trace_span reference — trace emission removed (issue #94)"
     grep -Eq 'trace-lib\.sh' "$abs" \
@@ -344,8 +344,8 @@ neutral_tokens="$(parse_nested_list language_neutral tokens)"
 # Trace-lib language-neutral backstop (issue #93): the tracing primitive must
 # stay inside the language-neutral boundary so it never grows language
 # branches; the owners loop below then applies the token guard to it.
-printf '%s\n' "$neutral_owners" | grep -qx 'scripts/trace-lib.sh' \
-  || fail "language_neutral.owners no longer includes scripts/trace-lib.sh (issue #93 tracing primitive)"
+printf '%s\n' "$neutral_owners" | grep -qx 'scripts/lib/trace-lib.sh' \
+  || fail "language_neutral.owners no longer includes scripts/lib/trace-lib.sh (issue #93 tracing primitive)"
 
 while IFS= read -r owner; do
   [ -n "$owner" ] || continue
@@ -402,6 +402,59 @@ else
   fail "missing ${DOCTRINE}"
 fi
 end_scenario "doctrine states feature_start retirement and historical tolerance"
+
+# Sourceable libraries have a single canonical home, including linked worktrees.
+libraries=(ci-coverage economics-report finish github-identity issue lifecycle-runtime reconcile trace)
+for library in "${libraries[@]}"; do
+  old="scripts/${library}-lib.sh"
+  canonical="scripts/lib/${library}-lib.sh"
+  [ -f "${ROOT}/${canonical}" ] || fail "canonical sourceable library missing: ${canonical}"
+  [ ! -e "${ROOT}/${old}" ] || fail "flat duplicate library remains: ${old}"
+  mapped="$(parse_records layout_moves | awk -F '\t' -v old="$old" '
+    $1 == "from=" old { for (i=2; i<=NF; i++) if ($i ~ /^to=/) {sub(/^to=/, "", $i); print $i} }
+  ')"
+  [ "$mapped" = "$canonical" ] || fail "layout map must preserve identity: ${old} -> ${canonical}"
+done
+if [ "$sec_fails" -eq 0 ]; then
+  layout_tmp="$(mktemp -d)"
+  trap 'rm -rf "$layout_tmp"' EXIT
+  layout_repo="${layout_tmp}/source"
+  mkdir -p "${layout_repo}/scripts/lib" "${layout_repo}/scripts/validation" "${layout_repo}/profiles" "${layout_repo}/schemas"
+  cp "${ROOT}/scripts/lib/"*.sh "${layout_repo}/scripts/lib/"
+  cp "${ROOT}/profiles/"*.profile.sh "${layout_repo}/profiles/"
+  cp "${ROOT}/schemas/trace-schema.v1.json" "${layout_repo}/schemas/"
+  printf '9.8.7-layout\n' >"${layout_repo}/VERSION"
+  git -C "$layout_repo" init -q -b main
+  git -C "$layout_repo" config user.name "Harness Test"
+  git -C "$layout_repo" config user.email "harness-test@example.invalid"
+  git -C "$layout_repo" config commit.gpgsign false
+  git -C "$layout_repo" add scripts profiles schemas VERSION
+  git -C "$layout_repo" commit -qm "library layout fixture"
+  git -C "$layout_repo" worktree add -q -b feature/issue-07-layout "${layout_tmp}/linked"
+  layout_main="$(cd "$layout_repo" && pwd -P)"
+  for checkout in "$layout_repo" "${layout_tmp}/linked"; do
+    mkdir -p "${checkout}/unrelated/cwd"
+    if ! (
+      cd "${checkout}/unrelated/cwd" || exit 1
+      for library in "${libraries[@]}"; do
+        # shellcheck source=/dev/null
+        source "${checkout}/scripts/lib/${library}-lib.sh" || exit 1
+      done
+      [ "$(harness_identity_repo_root)" = "$(cd "$checkout" && pwd -P)" ] &&
+      [ "$(cd "$(issue_repo_root)" && pwd -P)" = "$layout_main" ] &&
+      [ -f "${CI_COVERAGE_PROFILES_DIR}/python.profile.sh" ] &&
+      declare -F reconcile_entry >/dev/null &&
+      lifecycle_runtime_trace_init layout-fixture &&
+      TRACE_ISSUE=7 trace_span lifecycle "harness.lifecycle_step=preflight" "harness.outcome=pass"
+    ); then
+      fail "sourceable library behavior failed from nested cwd: ${checkout}"
+    fi
+  done
+  jq -se 'length == 2 and all(.[]; .["harness.version"] == "9.8.7-layout")' \
+    "${layout_main}/.copilot-tracking/issues/issue-07/trace.jsonl" >/dev/null \
+    || fail "both checkout modes must emit real VERSION identity to the main-root trace"
+fi
+end_scenario "canonical sourceable libraries preserve checkout/worktree roots and trace identity"
 
 # --- Result: one TAP plan line; non-zero exit iff any scenario failed ---------
 tap_done

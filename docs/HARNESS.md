@@ -17,9 +17,10 @@ separate from replaceable language support and project-specific conventions:
   behavior is frozen in the machine-readable contract
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
   `tests/scripts/test_harness_contract.sh`. The owner scripts
-  (`scripts/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
-  `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`,
-  `finish-issue.sh`) must stay
+  (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
+  `scripts/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
+  `scripts/validation/review-gate.sh`, `scripts/create-pr.sh`,
+  `scripts/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
@@ -73,12 +74,23 @@ The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
 `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
 in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
 The local runner and both workflow profiles share
-`scripts/affected-sensors.sh --list` discovery. Empty full suites fail; empty
+`scripts/validation/affected-sensors.sh --list` discovery. Empty full suites fail; empty
 scoped selections remain valid.
 Affected resolution selects from that same sensor set, including relocated
-sensors but never helpers. Relocated shared libraries and schema/contract
-authorities retain conservative FULL fallback; discovery/read failures cannot
-silently reduce coverage.
+sensors but never helpers. Feature greens require an explicit fixed feature
+base: record `git rev-parse HEAD` before the first edit, then use that SHA for
+every green of that feature, including after partial commits. Earlier completed
+features do not remain in scope just because the branch still differs from main.
+Shared libraries and schema/contract authorities use the same scoped mapping,
+not a FULL fallback. Discovery/read errors and invalid declarations stop the run.
+
+Real source, installed-profile and L0 whole-suite wrappers declare
+`# harness-sensor-stage: boundary` in their leading comment header. They remain
+in full discovery for pre-review, pre-PR and CI, but are deferred from feature
+selection. Declaring one as feature coverage fails explicitly rather than
+silently dropping it. Feature greens retain targeted runtime e2e and miniature
+hermetic fixtures that exercise full-runner behavior. This stage separation
+does not remove assertions or authorize reusing boundary-gate evidence.
 
 ## Lifecycle
 
@@ -96,7 +108,7 @@ flowchart TD
   I --> J{All issue features pass?}
   J -- no --> E
   J -- yes --> K[pre-review gate + code-review-subagent, once]
-  K --> L[./scripts/review-gate.sh approve]
+  K --> L[./scripts/validation/review-gate.sh approve]
   L --> M[./scripts/create-pr.sh]
   M --> N[Pull request]
   N --> Q[./scripts/merge-pr.sh CI-green gate]
@@ -125,7 +137,7 @@ The normal path is:
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
   smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
-9. Run `./scripts/review-gate.sh approve` for the current HEAD.
+9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
 10. Open the PR with `./scripts/create-pr.sh --title "..." --body-file body.md`.
 11. Merge the PR when checks are green and findings are resolved.
 12. Run `./scripts/finish-issue.sh <N>` from the main checkout.
@@ -201,7 +213,7 @@ Do not look for either group in the other location. Closeout migrates the finali
 | `.copilot-tracking/issues/issue-NN/progress.md` | Running local log of completed features, verification, commits, and next work. |
 | `.copilot-tracking/issues/issue-NN/plan.md` | Optional local implementation plan for non-trivial issue work. |
 | `.copilot-tracking/plans/*.md` | Local deep-plan documents (multi-issue runs, prompts). |
-| `.copilot-tracking/review-gate/issue-NN/approved-head` (issue-scoped; the un-scoped `review-gate/approved-head` survives only as a read-only legacy fallback) | Local marker written by `./scripts/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
+| `.copilot-tracking/review-gate/issue-NN/approved-head` (issue-scoped; the un-scoped `review-gate/approved-head` survives only as a read-only legacy fallback) | Local marker written by `./scripts/validation/review-gate.sh approve`; must match current HEAD before `./scripts/create-pr.sh` opens a PR. |
 
 `progress.md` includes an Action Log section rendered from trace spans (#332), covering substantive lifecycle actions,
 subagent handbacks, verification results, review outcomes, and any deviation stop/report/recover entry.
@@ -216,7 +228,7 @@ branch; abandonment requires explicit `ABANDONED=1`. An identical conclusion is
 idempotent, while a conflicting conclusion is never overwritten.
 
 `./scripts/finish-issue.sh` then migrates that worktree `progress.md` before `git worktree remove`.
-Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/finish-lib.sh`) to copy the file verbatim
+Its `progress_migrate` stage calls `best_effort_progress_migrate` (`scripts/lib/finish-lib.sh`) to copy the file verbatim
 into the issue's tracking directory at the **main checkout** root. This mirrors `trace.jsonl`'s survival rationale — a linked worktree is
 deleted by teardown, so the migrated main-root `progress.md` survives it the same way `trace.jsonl` does, staying
 available for the post-hoc `check-trace-consistency.sh` audit. The copy helper
@@ -224,7 +236,7 @@ is failure-atomic and independently warn-only, but closeout treats a missing,
 unsafe, unwritable, or failed migration as a hard pre-teardown block. This
 prevents worktree removal from destroying the only finalized record.
 
-`scripts/economics-report-lib.sh` retains sourceable helpers that can stamp a **delivery economics** block into an
+`scripts/lib/economics-report-lib.sh` retains sourceable helpers that can stamp a **delivery economics** block into an
 issue `progress.md` (between `<!-- delivery-economics:start -->` / `<!-- delivery-economics:end -->` markers,
 idempotently) from the issue trace and `feature_list.json`. No lifecycle entrypoint invokes these helpers after
 the trace reporter's retirement in #419. When invoked directly, the block reports wall-clock span as both
@@ -234,7 +246,7 @@ measured is **omitted entirely** and never fabricated as `0` or a half-present `
 trace-derived token row appears only when a runtime adapter reported `gen_ai.usage.*` on model spans; otherwise it is
 omitted — issue #329 retired the old `- Tokens: n/a` line, because a half-present field is worse than an absent one.
 These report-time computations and stamps live in
-`scripts/economics-report-lib.sh`; `scripts/finish-lib.sh` remains limited to
+`scripts/lib/economics-report-lib.sh`; `scripts/lib/finish-lib.sh` remains limited to
 migration, closeout gates, finalization, teardown orchestration, and state
 hygiene.
 
@@ -279,7 +291,7 @@ event, no double-count); pure legacy coordinates with no matching explicit-ID sp
 legacy coordinates shared by multiple explicit-ID events are ambiguous and render the round count `n/a` with the
 numeric count omitted.
 
-`./scripts/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
+`./scripts/validation/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
 and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
 state. Incomplete (`passes:false`) features are a non-blocking warning by default and a hard failure under
@@ -318,7 +330,7 @@ feedback; a red markdownlint result never blocks issue work.
 ### Trace emission
 
 Every lifecycle script (`start-issue.sh`, `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`,
-`merge-pr.sh`, `finish-issue.sh`) emits schema-v1 trace spans via `scripts/trace-lib.sh` to the per-issue trace
+`merge-pr.sh`, `finish-issue.sh`) emits schema-v1 trace spans via `scripts/lib/trace-lib.sh` to the per-issue trace
 file `.copilot-tracking/issues/issue-NN/trace.jsonl` at the **main checkout** root — one append-only file per
 issue regardless of which worktree a script runs from, so the record survives worktree teardown. The trace is
 local-only, gitignored, and never committed. Tracing never blocks the lifecycle: every trace failure — including
@@ -344,7 +356,7 @@ tool/model/skill analysis reads native records through the path documented in
 Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md))
 remains a labeled reference example.
 
-The trace record is itself audited by the **trace gate** (`./scripts/review-gate.sh trace`): it wraps the
+The trace record is itself audited by the **trace gate** (`./scripts/validation/review-gate.sh trace`): it wraps the
 report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation
 folded from the retired `validate-trace.sh` (issue #335) — and emits one `review-gate.trace` tool span per run
 with numeric finding counts. The retired log_without_span / span_without_log Action-Log reconciliation was
@@ -355,8 +367,8 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
-`./scripts/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
-`./scripts/create-pr.sh` runs `./scripts/review-gate.sh check` before syncing, then after
+`./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state.
+`./scripts/create-pr.sh` runs `./scripts/validation/review-gate.sh check` before syncing, then after
 `git fetch origin main` + `git rebase origin/main`, attempts to carry the prior approval forward
 by patch-id identity (issue #310): if the branch's ordered patch stream is unchanged, the approval
 carries automatically to the post-rebase HEAD with no second approve needed. Any content-changing
@@ -370,6 +382,9 @@ Immediately before every push path, `create-pr.sh` runs
 `./scripts/run-sensors.sh green --diff origin/main`. The affected-sensor resolver therefore
 enforces the contract's scoped sensor gate at the PR boundary; a failing sensor or discovery
 error stops the push.
+This PR check intentionally considers the branch diff; it is not the base used
+for an individual feature. It does not re-enable feature-time FULL fallback or
+replace the required full pre-review/pre-PR results.
 
 **Push contract.** `--force-with-lease` in `create-pr.sh` applies only to the run's own single-writer
 feature branch — the one the issue's worktree owns exclusively — and never to `main` or any shared branch
@@ -415,7 +430,7 @@ remain schema-valid.
 
 `.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
 (the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
-through `scripts/check-shell.sh`, and validates Copilot customization frontmatter.
+through `scripts/validation/check-shell.sh`, and validates Copilot customization frontmatter.
 The shared shell gate recursively covers scripts, profiles, sensor/library trees,
 eval tools and available optional adapters, excluding fixture subtrees. Syntax
 parses each file separately; lint consumes the same unique file set. The runner is
@@ -479,13 +494,13 @@ PR time:
 - **Preflight WARN** — `./scripts/init.sh` warns when a code surface is present but no
   `.github/workflows/*.y*ml` references that surface's gate commands. Seen at the first
   `start-issue`.
-- **Pre-PR fail-closed `ci-gate`** — `./scripts/review-gate.sh ci-gate` (run inside
+- **Pre-PR fail-closed `ci-gate`** — `./scripts/validation/review-gate.sh ci-gate` (run inside
   `review-gate.sh check`, so `./scripts/create-pr.sh` enforces it with no extra step) refuses to
   open a PR under the same condition. The documented escape hatch is `SKIP_CI_GATE=1`, which
   bypasses the gate with a **logged** warning for a repo that legitimately has no project CI yet.
 
 Detection signatures live in each `profiles/<id>.profile.sh` (`PROFILE_CI_SIGNATURES`); the
-language-neutral gate scripts read them through `scripts/ci-coverage-lib.sh`, so `review-gate.sh`
+language-neutral gate scripts read them through `scripts/lib/ci-coverage-lib.sh`, so `review-gate.sh`
 and `create-pr.sh` stay free of any language token.
 
 It is still not:
@@ -500,7 +515,7 @@ workflow.
 ## Harness Versioning & Releases
 
 The top-level `VERSION` file is the authoritative **SemVer** release identity for the harness. It is the source of
-truth that `scripts/trace-lib.sh` reads for the `harness.version` stamped on every trace span; the exact commit
+truth that `scripts/lib/trace-lib.sh` reads for the `harness.version` stamped on every trace span; the exact commit
 behind that release is carried separately by the optional `harness.commit` field (the short git SHA of the harness
 scripts at emit time).
 

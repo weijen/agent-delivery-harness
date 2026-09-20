@@ -4,13 +4,13 @@
 #
 # The harness stamps every trace span with a `harness.version` identity so
 # before/after comparisons across a harness upgrade stay interpretable. Today
-# that field carries the git SHA of the harness scripts (see scripts/trace-lib.sh:
+# that field carries the git SHA of the harness scripts (see scripts/lib/trace-lib.sh:
 # version="$(git -C "$TRACE_LIB_DIR" rev-parse --short HEAD ...)"), which conflates
 # "which code" with "which release". This feature introduces an explicit SemVer
 # release identity:
 #
 #   * a top-level VERSION file (SemVer) is the source of truth for harness.version;
-#   * scripts/trace-lib.sh reads VERSION (fallback 0.0.0-dev when absent) instead
+#   * scripts/lib/trace-lib.sh reads VERSION (fallback 0.0.0-dev when absent) instead
 #     of the git SHA;
 #   * a NEW optional span field harness.commit carries the short git SHA (the
 #     "which code" signal that harness.version used to carry), typed as a string;
@@ -19,7 +19,7 @@
 #   * docs document the versioning/bump policy.
 #
 # This sensor builds throwaway git-repo fixtures the way test_trace_lib.sh does
-# (mktemp + git init, copy scripts/trace-lib.sh in, source under strict mode,
+# (mktemp + git init, copy scripts/lib/trace-lib.sh in, source under strict mode,
 # call trace_span, read the emitted JSONL with jq) and pins the following, all as
 # BEHAVIOR/CONTENT (never presence-only):
 #
@@ -53,7 +53,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 VALIDATE="${ROOT}/scripts/check-trace-consistency.sh"
 VERSION_FILE="${ROOT}/VERSION"
@@ -73,18 +73,18 @@ command -v jq >/dev/null 2>&1 \
   || fail "jq is required to validate harness versioning behavior"
 
 [ -f "$LIB" ] \
-  || fail "scripts/trace-lib.sh not found (${LIB})"
+  || fail "scripts/lib/trace-lib.sh not found (${LIB})"
 [ -f "$CONTRACT" ] \
   || fail "trace schema contract not found (${CONTRACT})"
 
-# Build a throwaway git repo that fakes a harness checkout: scripts/trace-lib.sh
+# Build a throwaway git repo that fakes a harness checkout: scripts/lib/trace-lib.sh
 # in place, optionally a VERSION file with a caller-chosen value. Mirrors the
 # test_trace_lib.sh fixture bootstrap. Prints the repo's short HEAD SHA.
 # Usage: build_repo <dest-dir> [version-content]
 build_repo() {
   local dest="$1" version_content="${2-}"
-  mkdir -p "${dest}/scripts"
-  cp "$LIB" "${dest}/scripts/trace-lib.sh"
+  mkdir -p "${dest}/scripts/lib" "${dest}/scripts/validation"
+  cp "$LIB" "${dest}/scripts/lib/trace-lib.sh"
   printf 'fixture\n' > "${dest}/README.md"
   if [ "$#" -ge 2 ]; then
     printf '%s\n' "$version_content" > "${dest}/VERSION"
@@ -114,7 +114,7 @@ emit_span() {
     export TRACE_ISSUE=7
     unset TRACE_PARENT_SPAN_ID 2>/dev/null || true
     # shellcheck source=/dev/null
-    source "${repo}/scripts/trace-lib.sh"
+    source "${repo}/scripts/lib/trace-lib.sh"
     trace_span lifecycle "harness.lifecycle_step=preflight" "harness.outcome=pass" \
       >/dev/null 2>&1 || true
     cat "${repo}/.copilot-tracking/issues/issue-07/trace.jsonl"

@@ -8,12 +8,12 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lifecycle-runtime-lib.sh
-source "${SCRIPT_DIR}/lifecycle-runtime-lib.sh"
-if [ -f "${SCRIPT_DIR}/issue-lib.sh" ]; then
-  # shellcheck source=scripts/issue-lib.sh
-  source "${SCRIPT_DIR}/issue-lib.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/issue-lib.sh" ]; then
+  # shellcheck source=scripts/lib/issue-lib.sh
+  source "${SCRIPT_DIR}/lib/issue-lib.sh"
 fi
 
 lifecycle_runtime_trace_init review-gate
@@ -21,9 +21,9 @@ lifecycle_runtime_trace_init review-gate
 # --- Project-CI coverage lib (issue #129) ------------------------------------
 # The lib owns all language-specific gate-command tokens so this script stays
 # language-neutral (docs/harness-contract.yml).
-if [ -f "${SCRIPT_DIR}/ci-coverage-lib.sh" ]; then
-  # shellcheck source=scripts/ci-coverage-lib.sh
-  source "${SCRIPT_DIR}/ci-coverage-lib.sh"
+if [ -f "${SCRIPT_DIR}/lib/ci-coverage-lib.sh" ]; then
+  # shellcheck source=scripts/lib/ci-coverage-lib.sh
+  source "${SCRIPT_DIR}/lib/ci-coverage-lib.sh"
 fi
 
 # One span per gate operation, emitted from a stage-tracked EXIT trap (plan
@@ -89,7 +89,7 @@ trap trace__gate_exit EXIT
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/review-gate.sh approve|check|ci-gate|trace|log-completeness|carry-rebase-approval
+Usage: ./scripts/validation/review-gate.sh approve|check|ci-gate|trace|log-completeness|carry-rebase-approval
 
 Commands:
   approve     Record the current HEAD as reviewed.
@@ -138,7 +138,7 @@ ci_gate() {
   fi
 
   if ! declare -F ci_coverage_uncovered_surfaces >/dev/null 2>&1; then
-    red "✗ ci-gate error: scripts/ci-coverage-lib.sh not found."
+    red "✗ ci-gate error: scripts/lib/ci-coverage-lib.sh not found."
     exit 1
   fi
 
@@ -830,11 +830,11 @@ case "$command" in
     # a missing rebind script refuses approval — the installer ships
     # scripts/ as one unit, so absence means a broken installation, and a
     # silent downgrade here would recreate the fake-hard-gate class.
-    if [ ! -f "${SCRIPT_DIR}/rebind-evidence.sh" ]; then
-      red "✗ approve refused: scripts/rebind-evidence.sh is missing — the #442 evidence re-bind gate is hard; repair the installation."
+    if [ ! -f "${SCRIPT_DIR}/validation/rebind-evidence.sh" ]; then
+      red "✗ approve refused: scripts/validation/rebind-evidence.sh is missing — the #442 evidence re-bind gate is hard; repair the installation."
       exit 1
     fi
-    if ! bash "${SCRIPT_DIR}/rebind-evidence.sh" --gate pre-review; then
+    if ! bash "${SCRIPT_DIR}/validation/rebind-evidence.sh" --gate pre-review; then
       red "✗ approve refused: gate evidence could not be re-bound to the current HEAD (sensors red or no issue context) — not recording approval."
       exit 1
     fi
@@ -943,7 +943,7 @@ case "$command" in
     if [ ! -f "$marker_read_file" ]; then
       TRACE_STAGE="no_marker"
       red "✗ current HEAD has not been approved by the review gate."
-      echo "  Run review, resolve findings, then: ./scripts/review-gate.sh approve"
+      echo "  Run review, resolve findings, then: ./scripts/validation/review-gate.sh approve"
       exit 1
     fi
     IFS= read -r approved_sha < "$marker_read_file" || true
@@ -987,7 +987,7 @@ case "$command" in
         red "✗ current HEAD has not been approved by the review gate."
         echo "  approved: ${approved_sha:-<empty>}"
         echo "  current:  ${head_sha}"
-        echo "  Re-run review for the current HEAD, then: ./scripts/review-gate.sh approve"
+        echo "  Re-run review for the current HEAD, then: ./scripts/validation/review-gate.sh approve"
         exit 1
       fi
     else

@@ -76,7 +76,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HOOK="${ROOT}/optional/runtime-adapters/claude-code-trace-hook.sh"
-LIB="${ROOT}/scripts/trace-lib.sh"
+LIB="${ROOT}/scripts/lib/trace-lib.sh"
 CONTRACT="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -89,7 +89,7 @@ fail() {
 command -v jq >/dev/null 2>&1 \
   || fail "jq is required to build transcripts and validate spans"
 [ -f "$CONTRACT" ] || fail "trace schema contract not found (${CONTRACT})"
-[ -f "$LIB" ] || fail "scripts/trace-lib.sh not found (${LIB})"
+[ -f "$LIB" ] || fail "scripts/lib/trace-lib.sh not found (${LIB})"
 [ -f "$HOOK" ] \
   || fail "optional/runtime-adapters/claude-code-trace-hook.sh not found (${HOOK}) — feature claude-hook-stop-spans (issue #96) has no hook to test"
 
@@ -126,9 +126,9 @@ line_count() {
 
 # --- Fixture: issue-worktree-shaped repo ----------------------------------------
 REPO="${TMP_DIR}/issuerepo"
-mkdir -p "${REPO}/scripts" "${REPO}/optional/runtime-adapters"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/optional/runtime-adapters"
 cp "$HOOK" "${REPO}/optional/runtime-adapters/claude-code-trace-hook.sh"
-cp "$LIB" "${REPO}/scripts/trace-lib.sh"
+cp "$LIB" "${REPO}/scripts/lib/trace-lib.sh"
 (
   cd "$REPO" || exit 1
   git init -q -b main

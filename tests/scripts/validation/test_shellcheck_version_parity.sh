@@ -3,7 +3,7 @@
 # keeps a mismatch advisory.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -14,7 +14,7 @@ fail() {
 
 make_fixture() {
   local dir="$1" version="$2"
-  mkdir -p "${dir}/scripts" "${dir}/profiles" "${dir}/.github/workflows" "${dir}/bin"
+  mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/profiles" "${dir}/.github/workflows" "${dir}/bin"
   cp "${ROOT}/scripts/init.sh" "${dir}/scripts/init.sh"
   cp "${ROOT}/profiles/python.profile.sh" "${ROOT}/profiles/node.profile.sh" "${dir}/profiles/"
   cp "${ROOT}/.github/workflows/harness-smoke.yml" "${dir}/.github/workflows/"

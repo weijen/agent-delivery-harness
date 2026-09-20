@@ -19,7 +19,7 @@
 # Exit codes: 0 contract honored · 1 a contract obligation regressed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -32,9 +32,11 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 # --- Hermetic fixture repo on an issue branch ---------------------------------
 FIX="${TMP_DIR}/fixture-repo"
-mkdir -p "${FIX}/scripts" "${FIX}/tests/scripts" "${FIX}/tests/meta"
-cp "${ROOT}/scripts/run-sensors.sh" "${ROOT}/scripts/affected-sensors.sh" "${FIX}/scripts/"
-[ -f "${ROOT}/scripts/trace-lib.sh" ] && cp "${ROOT}/scripts/trace-lib.sh" "${FIX}/scripts/"
+mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
+cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/validation/run-sensors.sh" \
+  "${ROOT}/scripts/validation/affected-sensors.sh" "${FIX}/scripts/validation/"
+[ -f "${ROOT}/scripts/lib/trace-lib.sh" ] && cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
 cat > "${FIX}/tests/scripts/test_green.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0

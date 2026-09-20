@@ -93,22 +93,22 @@ fixture_repo() {
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
     case ",${scripts_csv}," in
-      *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,review-gate.sh,*)
+      *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,validation/review-gate.sh,*)
         case ",${scripts_csv}," in
-          *,lifecycle-runtime-lib.sh,*) ;;
-          *) scripts+=("lifecycle-runtime-lib.sh") ;;
+          *,lib/lifecycle-runtime-lib.sh,*) ;;
+          *) scripts+=("lib/lifecycle-runtime-lib.sh") ;;
         esac
         ;;
     esac
     case ",${scripts_csv}," in
-      *,review-gate.sh,*)
+      *,validation/review-gate.sh,*)
         case ",${scripts_csv}," in
-          *,ci-coverage-lib.sh,*) ;;
-          *) scripts+=("ci-coverage-lib.sh") ;;
+          *,lib/ci-coverage-lib.sh,*) ;;
+          *) scripts+=("lib/ci-coverage-lib.sh") ;;
         esac
         # approve runs the #442 evidence re-bind gate (hard): ship its chain.
-        for dep in rebind-evidence.sh run-sensors.sh affected-sensors.sh \
-          verify-sensor-evidence.sh trace-lib.sh; do
+        for dep in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
+          validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
           case ",${scripts_csv}," in
             *,"${dep}",*) ;;
             *) scripts+=("${dep}") ;;
@@ -123,13 +123,19 @@ fixture_repo() {
           *) scripts+=("run-sensors.sh") ;;
         esac
         case ",${scripts_csv}," in
-          *,affected-sensors.sh,*) ;;
-          *) scripts+=("affected-sensors.sh") ;;
+          *,validation/affected-sensors.sh,*) ;;
+          *) scripts+=("validation/affected-sensors.sh") ;;
         esac
         ;;
     esac
     for script in "${scripts[@]}"; do
-      [[ "$script" =~ ^[A-Za-z0-9._-]+\.sh$ ]] || {
+      if [ "$script" = run-sensors.sh ]; then
+        scripts+=("validation/run-sensors.sh")
+        break
+      fi
+    done
+    for script in "${scripts[@]}"; do
+      [[ "$script" =~ ^((lib|validation)/)?[A-Za-z0-9._-]+\.sh$ ]] || {
         _fixture_usage_error "invalid script name: $script"
         return 2
       }
@@ -148,6 +154,7 @@ fixture_repo() {
   "$_fixture_mkdir" -p "${repo}/scripts"
 
   for script in "${scripts[@]}"; do
+    "$_fixture_mkdir" -p "${repo}/scripts/$(dirname "$script")"
     "$_fixture_cp" "${FIXTURE_SOURCE_ROOT}/scripts/${script}" "${repo}/scripts/${script}"
   done
   if [ -f "${repo}/scripts/run-sensors.sh" ]; then

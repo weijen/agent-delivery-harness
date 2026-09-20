@@ -16,7 +16,7 @@ fail() {
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "$FIXTURE_LIB"
 
-fixture_repo --with-scripts trace-lib.sh,log-handback.sh
+fixture_repo --with-scripts lib/trace-lib.sh,log-handback.sh
 FIRST_TMP="$FIXTURE_TMP_DIR"
 
 [ "$FIXTURE_MAIN" = "$FIXTURE_REPO" ] \
@@ -31,12 +31,12 @@ FIRST_TMP="$FIXTURE_TMP_DIR"
   || fail "default fixture repository is not on main"
 git -C "$FIXTURE_REPO" rev-parse --verify HEAD >/dev/null 2>&1 \
   || fail "default fixture repository has no baseline commit"
-for script in trace-lib.sh log-handback.sh; do
+for script in lib/trace-lib.sh log-handback.sh; do
   [ -f "${FIXTURE_REPO}/scripts/${script}" ] \
     || fail "requested script was not copied: ${script}"
 done
 
-fixture_repo --worktree 7 --with-scripts issue-lib.sh --progress
+fixture_repo --worktree 7 --with-scripts lib/issue-lib.sh --progress
 [ "$FIXTURE_TMP_DIR" != "$FIRST_TMP" ] \
   || fail "each fixture_repo call must allocate an isolated root"
 [ "$FIXTURE_ISSUE" = "07" ] \
@@ -67,8 +67,8 @@ ln -s "$FIXTURE_LIB" "${SELF_TMP}/linked-fixture.sh"
   PATH="$PINNED_BIN"
   # shellcheck source=/dev/null
   source "${SELF_TMP}/linked-fixture.sh"
-  fixture_repo --with-scripts trace-lib.sh
-  [ -f "${FIXTURE_REPO}/scripts/trace-lib.sh" ]
+  fixture_repo --with-scripts lib/trace-lib.sh
+  [ -f "${FIXTURE_REPO}/scripts/lib/trace-lib.sh" ]
 ) || fail "symlinked helper failed under a pinned PATH"
 
 # The helper-owned EXIT trap removes every allocated fixture root.

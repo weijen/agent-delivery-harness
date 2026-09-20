@@ -83,7 +83,7 @@ of `.message.model`, `.message.usage.input_tokens`, and
 `.message.usage.output_tokens`. Anything partial or unreadable degrades to the
 `agent` span alone — the harness doctrine is *omit, never fake*.
 
-All emission goes through `scripts/trace-lib.sh`, so spans land at the main
+All emission goes through `scripts/lib/trace-lib.sh`, so spans land at the main
 checkout root (even from a linked worktree), match the schema contract in
 `schemas/trace-schema.v1.json`, and pass through `trace_redact` before
 touching disk.
@@ -127,7 +127,7 @@ trace vocabulary. No exporter is enabled or required.
    sensors; it never creates or edits `.claude/settings.json` or
    `.claude/settings.local.json`. Bash, Git and `jq` must be on PATH; validation
    also uses ShellCheck. The hook resolves its emitter at
-   `../../scripts/trace-lib.sh`, with root `VERSION` from the same installation.
+   `../../scripts/lib/trace-lib.sh`, with root `VERSION` from the same installation.
    Repeat `--with-claude` on upgrades. Before omitting it, remove your own hook
    entries: the installer prunes unchanged unselected bundle assets using its
    ownership rules, but never changes your settings for you.

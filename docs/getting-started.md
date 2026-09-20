@@ -77,6 +77,14 @@ descriptor. There are two common ways to start:
   beside the preserved file and remembers that exclusion, making an unchanged
   repeat idempotent. Symlinked destinations are refused, not followed.
 
+  Layout upgrades use `layout_moves` in `docs/harness-contract.yml` to recognize
+  old paths even when their lock row is missing. The map identifies candidates;
+  it never substitutes for ownership proof. The `v0.45.2` rehearsal covers
+  default, developer and Claude profiles moving to `scripts/lib/` and
+  `scripts/validation/`, including customized, protected and unknown-owner
+  copies. Only the documented public `scripts/run-sensors.sh` remains as a flat
+  compatibility entrypoint; internal tools and sensors use their mapped paths.
+
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,
   evaluation-authoring, meta, and top-level documentation obligation sensors.
@@ -132,6 +140,20 @@ their entire directories into the default payload.
 
 Either way, project-specific product specs, architecture notes, and delivery
 plans live under `docs/` and are linked from the project's own `AGENTS.md`.
+
+### Current script layout
+
+Shared libraries live in `scripts/lib/`: source them as dependencies rather than
+running them as commands. Validation commands live in `scripts/validation/`,
+with their corresponding sensors in `tests/scripts/validation/`. For example,
+use `./scripts/validation/review-gate.sh approve` for review approval.
+The public `./scripts/run-sensors.sh` entrypoint forwards to the categorized
+implementation and preserves its arguments and exit status.
+
+Lifecycle, installation, trace and maintenance commands still use their current
+flat paths; their category migrations are later stages, not part of this one.
+See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
+`layout_moves` identities in [the harness contract](harness-contract.yml).
 
 ## 2. Check prerequisites
 
@@ -298,7 +320,7 @@ capability. If your environment supports this, example harness entrypoints you
 might scope include:
 
 - `scripts/log-handback.sh` — logs conductor↔subagent handback events
-- `scripts/review-gate.sh` — runs the review gate checks
+- `scripts/validation/review-gate.sh` — runs the review gate checks
 
 These are examples, not an exhaustive list — additional harness scripts may be
 invoked depending on the issue workflow. Verify the exact configuration syntax

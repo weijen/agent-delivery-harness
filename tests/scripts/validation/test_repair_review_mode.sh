@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DOC_AGENT="${ROOT}/.copilot/agents/code-review-subagent.agent.md"
 DOC_HARNESS="${ROOT}/.copilot/instructions/harness.instructions.md"
 

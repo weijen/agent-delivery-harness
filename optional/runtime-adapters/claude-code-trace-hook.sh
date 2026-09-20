@@ -4,7 +4,7 @@
 # Single hook entrypoint for the opt-in Claude Code adapter: wired via a
 # user-copied .claude/settings.json snippet, it receives one JSON payload on
 # stdin for PreToolUse / PostToolUse / Stop / SubagentStop and appends spans
-# to the per-issue trace.jsonl through scripts/trace-lib.sh.
+# to the per-issue trace.jsonl through scripts/lib/trace-lib.sh.
 #
 # HARD SESSION-SAFETY CONTRACT (plan D2; sensor
 # optional/runtime-adapters/tests/test_claude_hook_noop.sh): this script runs inside a LIVE
@@ -16,7 +16,7 @@
 # Pinned guard order (G1–G5, conductor-resolved):
 #   G1. jq available (checked BEFORE any jq invocation)
 #   G2. stdin (slurped exactly once) parses as a JSON object
-#   G3. ../../scripts/trace-lib.sh exists relative to this optional bundle
+#   G3. ../../scripts/lib/trace-lib.sh exists relative to this optional bundle
 #   G4. issue context resolves from the payload cwd (fallback: $PWD) with
 #       trace-lib precedence: TRACE_ISSUE → feature/issue-NN-* branch →
 #       issue-NN worktree basename; unresolvable = not a harness run
@@ -397,7 +397,7 @@ hook__on_stop() {
 
 hook__main() {
   local payload="${1-}"
-  local lib="${HOOK_DIR}/../../scripts/trace-lib.sh"
+  local lib="${HOOK_DIR}/../../scripts/lib/trace-lib.sh"
   local cwd=""
   local event=""
 

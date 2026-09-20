@@ -37,7 +37,7 @@ grep -Fq $'\tscripts/init.sh' "${TARGET}/.harness-lock" \
 # Upstream-only: target stays at v1 while source moves to v2.
 printf '\n# upstream init v2\n' >>"${SOURCE}/scripts/init.sh"
 # Adopter-only: target changes while source stays at v1.
-printf '\n# adopter issue-lib customization\n' >>"${TARGET}/scripts/issue-lib.sh"
+printf '\n# adopter issue-lib customization\n' >>"${TARGET}/scripts/lib/issue-lib.sh"
 # Both changed: target and source diverge independently from v1.
 printf '\n# adopter create-pr customization\n' >>"${TARGET}/scripts/create-pr.sh"
 printf '\n# upstream create-pr v2\n' >>"${SOURCE}/scripts/create-pr.sh"
@@ -64,7 +64,7 @@ fi
 
 grep -Fq '# upstream init v2' "${TARGET}/scripts/init.sh" \
 	|| fail "upstream-only change was not safely installed"
-grep -Fq '# adopter issue-lib customization' "${TARGET}/scripts/issue-lib.sh" \
+grep -Fq '# adopter issue-lib customization' "${TARGET}/scripts/lib/issue-lib.sh" \
 	|| fail "adopter-only change was overwritten"
 grep -Fq '# adopter create-pr customization' "${TARGET}/scripts/create-pr.sh" \
 	|| fail "both-changed adopter file was overwritten"
@@ -78,7 +78,7 @@ grep -Fq '# upstream create-pr v2' "$REJECT" \
 	|| fail ".rej does not contain the rejected upstream change"
 grep -Fq 'conflict scripts/create-pr.sh' "$OUT" \
 	|| fail "conflict path was not reported"
-grep -Fq 'kept scripts/issue-lib.sh (adopter changed)' "$OUT" \
+grep -Fq 'kept scripts/lib/issue-lib.sh (adopter changed)' "$OUT" \
 	|| fail "adopter-only classification was not reported"
 
 if ! "${SOURCE}/scripts/install-harness.sh" "$TARGET" --update >"$OUT" 2>&1; then
@@ -106,7 +106,7 @@ fail() {
 TARGET="${TMP_DIR}/target"
 OUT="${TMP_DIR}/update.out"
 SENTINEL="${TMP_DIR}/must-not-exist"
-mkdir -p "${TARGET}/scripts" "${TARGET}/docs"
+mkdir -p "${TARGET}/scripts/lib" "${TARGET}/scripts/validation" "${TARGET}/docs"
 cat >"${TARGET}/.harness-keep" <<EOF
 # Adopter-owned harness surfaces
 scripts/init.sh
@@ -153,7 +153,7 @@ OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
 
 dry_target="${TMP_DIR}/dry"
-mkdir -p "${dry_target}/scripts"
+mkdir -p "${dry_target}/scripts/lib" "${dry_target}/scripts/validation"
 : >"${dry_target}/scripts/.gitkeep"
 "$INSTALL" "$dry_target" >"$OUT" 2>&1
 grep -qF "would remove retired scripts/.gitkeep" "$OUT" || {
@@ -167,7 +167,7 @@ grep -qF "would remove retired scripts/.gitkeep" "$OUT" || {
 }
 
 clean_target="${TMP_DIR}/clean"
-mkdir -p "${clean_target}/scripts"
+mkdir -p "${clean_target}/scripts/lib" "${clean_target}/scripts/validation"
 : >"${clean_target}/scripts/.gitkeep"
 "$INSTALL" "$clean_target" --write >"$OUT" 2>&1
 grep -qF "removed retired scripts/.gitkeep" "$OUT" || {
@@ -181,7 +181,7 @@ grep -qF "removed retired scripts/.gitkeep" "$OUT" || {
 }
 
 modified_target="${TMP_DIR}/modified"
-mkdir -p "${modified_target}/scripts"
+mkdir -p "${modified_target}/scripts/lib" "${modified_target}/scripts/validation"
 printf 'adopter content\n' >"${modified_target}/scripts/.gitkeep"
 if "$INSTALL" "$modified_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
@@ -227,7 +227,7 @@ grep -qF "modified retired" "$OUT" || {
 }
 
 target="${TMP_DIR}/target"
-mkdir -p "${target}/scripts"
+mkdir -p "${target}/scripts/lib" "${target}/scripts/validation"
 printf 'adopter content\n' >"${target}/scripts/.gitkeep"
 if "$INSTALL" "$target" --update >"$OUT" 2>&1; then
 	cat "$OUT"
@@ -292,7 +292,7 @@ OUT="${TMP_DIR}/update.out"
 "${SOURCE}/scripts/install-harness.sh" "$TARGET" --write >/dev/null 2>&1
 
 printf '\n# upstream init v2\n' >>"${SOURCE}/scripts/init.sh"
-printf '\n# adopter issue-lib\n' >>"${TARGET}/scripts/issue-lib.sh"
+printf '\n# adopter issue-lib\n' >>"${TARGET}/scripts/lib/issue-lib.sh"
 printf '\n# adopter create-pr\n' >>"${TARGET}/scripts/create-pr.sh"
 printf '\n# upstream create-pr v2\n' >>"${SOURCE}/scripts/create-pr.sh"
 

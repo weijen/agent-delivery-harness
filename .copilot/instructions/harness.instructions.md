@@ -126,13 +126,22 @@ Workflow per issue:
 2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
-   **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff origin/main`
-   — never the full suite mid-loop (the runner enforces this; a resolver-declared FULL fallback
-   is the only exception). These `green` and `--gate` forms are the only sensor
+   **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>`.
+   Before the feature's first edit, capture `git rev-parse HEAD` in its local plan;
+   keep that base fixed across partial commits and repair greens. Do not replace
+   it with a moving HEAD or keep inheriting completed features through origin/main.
+   Never run the full suite mid-loop, including as recovery for shared changes or
+   discovery errors: invalid selection stops visibly. Real whole-suite wrappers
+   carry `# harness-sensor-stage: boundary` before their first shell statement and
+   run at full issue gates/CI, not inside feature greens. Targeted e2e and miniature
+   hermetic runner fixtures remain feature-eligible; an incompatible declaration
+   is an error, never silently dropped coverage. Historical FULL-fallback evidence
+   remains readable but is not permission to emit new feature-time full runs.
+   These `green` and `--gate` forms are the only sensor
    execution shapes; their process exit is the gate result. Green summaries are
    **recorded by the runner itself** into the issue's `sensor-evidence.jsonl` (#441) —
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
-   script-recorded rows with `scripts/verify-sensor-evidence.sh <NN> --head <sha>
+   script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <sha>
    --mode pre-review` (or `--mode pre-pr`): the mode filter is required because a
    scoped mid-loop green row is not gate evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
@@ -142,8 +151,8 @@ Workflow per issue:
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
    A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
    re-reviews are `repair`-mode and scoped to the revised features. Repair commits move HEAD,
-   so gate evidence is re-bound automatically: `./scripts/review-gate.sh approve` runs
-   `./scripts/rebind-evidence.sh` first (#442) — it carries when a green row is already bound
+   so gate evidence is re-bound automatically: `./scripts/validation/review-gate.sh approve` runs
+   `./scripts/validation/rebind-evidence.sh` first (#442) — it carries when a green row is already bound
    to the current HEAD and otherwise re-runs the owed gate. Never hand-manage evidence
    staleness, and never treat stale-evidence discovery as review material: re-binding is a
    script action at approve time. Same-class escalation (#317/#327) applies to your own repairs: on the second
@@ -248,7 +257,7 @@ the moment to check whether an older rule it supersedes can be deleted.
 
 | Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
 |---|---|---|---|
-| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + the `scripts/affected-sensors.sh` set (`FULL` report → whole suite) — **never the full suite by default** | — | **BLOCKING** for the feature's `passes:true` |
+| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + feature-affected sensors from a fixed feature base; boundary-only whole-suite wrappers are deferred — **no FULL fallback** | — | **BLOCKING** for the feature's `passes:true`; invalid scope/declarations stop the run |
 | Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
 | Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
 | **Pre-PR verify gate** | full suite | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
@@ -318,7 +327,7 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 When the issue's features are all `passes:true`, do **not** open the PR yet. First run the
 **Pre-PR verify gate** (the BLOCKING row in §4) over the whole branch diff (`main...HEAD`):
 
-1. **Approve the current HEAD after review.** Run `./scripts/review-gate.sh approve` only after
+1. **Approve the current HEAD after review.** Run `./scripts/validation/review-gate.sh approve` only after
    deterministic gates and review findings are resolved for the current HEAD. Any new commit requires
    a fresh approval.
 2. **Sync onto the latest `main` — deterministic, not optional.** This is mechanised by
@@ -382,7 +391,7 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/review-gate.sh check`, fetches + rebases onto `origin/main`, attempts to
+  it checks `./scripts/validation/review-gate.sh check`, fetches + rebases onto `origin/main`, attempts to
   carry the prior approval by patch-id identity (issue #310) when the rebase is content-preserving,
   then runs the authoritative check for the final post-sync HEAD, pushes, and runs `gh pr create`.
   Do not hand-run `gh pr create` against a stale base.

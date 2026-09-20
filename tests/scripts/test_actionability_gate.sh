@@ -263,7 +263,7 @@ assert_has 'review_verdict_missing feat-missing'
 
 # 6. The writer validates atomically, then emits all current finding fields in
 # one review span.
-fixture_repo --with-scripts log-handback.sh,trace-lib.sh,issue-lib.sh
+fixture_repo --with-scripts log-handback.sh,lib/trace-lib.sh,lib/issue-lib.sh
 EMIT_REPO="$FIXTURE_REPO"
 git -C "$EMIT_REPO" checkout -q -b feature/issue-318-test
 mkdir -p "${EMIT_REPO}/.copilot-tracking/issues/issue-318"
@@ -330,9 +330,9 @@ ECON_TRACE="${TMP_DIR}/economics.jsonl"
 } > "$ECON_TRACE"
 ECONOMICS="$(
   # ROOT is resolved dynamically by the fixture.
-  # shellcheck source=scripts/economics-report-lib.sh
+  # shellcheck source=scripts/lib/economics-report-lib.sh
   # shellcheck disable=SC1091
-  source "${ROOT}/scripts/economics-report-lib.sh"
+  source "${ROOT}/scripts/lib/economics-report-lib.sh"
   economics_review_event_summary "$ECON_TRACE"
 )"
 printf '%s\n' "$ECONOMICS" | jq -e '
