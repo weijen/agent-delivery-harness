@@ -2,6 +2,28 @@
 
 <!-- version list -->
 
+## v0.46.2 (2026-09-20)
+
+### Chores
+
+- **release**: Sync uv.lock for 0.46.1
+  ([`406a8a6`](https://github.com/weijen/agent-delivery-harness/commit/406a8a60a9412570a4ff65981622f861e1c68920))
+
+### Performance Improvements
+
+- **#497**: Scope doctrine mutation checks
+  ([#501](https://github.com/weijen/agent-delivery-harness/pull/501),
+  [`ab0c368`](https://github.com/weijen/agent-delivery-harness/commit/ab0c3685206c2ad7cd8109dcb0e4c9ba2ecc9293))
+
+- **#497**: Scope log recipe mutation checks
+  ([#501](https://github.com/weijen/agent-delivery-harness/pull/501),
+  [`ab0c368`](https://github.com/weijen/agent-delivery-harness/commit/ab0c3685206c2ad7cd8109dcb0e4c9ba2ecc9293))
+
+- **#497**: Scope mutation sensor execution
+  ([#501](https://github.com/weijen/agent-delivery-harness/pull/501),
+  [`ab0c368`](https://github.com/weijen/agent-delivery-harness/commit/ab0c3685206c2ad7cd8109dcb0e4c9ba2ecc9293))
+
+
 ## v0.46.1 (2026-09-20)
 
 ### Bug Fixes
