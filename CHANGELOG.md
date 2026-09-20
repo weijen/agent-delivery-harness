@@ -2,6 +2,72 @@
 
 <!-- version list -->
 
+## v0.46.3 (2026-09-20)
+
+### Bug Fixes
+
+- **#499**: Eliminate duplicate source L0 execution
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+- **#499**: Keep source TAP checks out of adopter tests
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+- **#499**: Validate L0 results with miniature graders
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.46.2
+  ([`0d8b1f9`](https://github.com/weijen/agent-delivery-harness/commit/0d8b1f98a19dfbb1dd029822f518944a98cc49a6))
+
+### Performance Improvements
+
+- **#499**: Run source L0 functional sensors once
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+### Testing
+
+- **#496**: Register retired sensor tombstones
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#496**: Retire completed extraction shape assertions
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#496**: Retire duplicate feature-start shape sensor
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#496**: Retire fixture adoption shape guard
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#496**: Retire historical document snapshots
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#496**: Retire obsolete structural and historical assertions
+  ([#502](https://github.com/weijen/agent-delivery-harness/pull/502),
+  [`aed75ce`](https://github.com/weijen/agent-delivery-harness/commit/aed75ce656761a2de23cafff27de298082185f7f))
+
+- **#499**: Align source fixture with current gate order
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+- **#499**: Isolate TAP contracts from functional replay
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+- **#499**: Protect real L0 manifest wiring cheaply
+  ([#504](https://github.com/weijen/agent-delivery-harness/pull/504),
+  [`a26d9d0`](https://github.com/weijen/agent-delivery-harness/commit/a26d9d0977a1abca4548aa257861345ad22dad43))
+
+
 ## v0.46.2 (2026-09-20)
 
 ### Chores
