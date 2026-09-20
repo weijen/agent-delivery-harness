@@ -92,6 +92,32 @@ silently dropping it. Feature greens retain targeted runtime e2e and miniature
 hermetic fixtures that exercise full-runner behavior. This stage separation
 does not remove assertions or authorize reusing boundary-gate evidence.
 
+### Sensor diagnostics
+
+Each nonempty local runner invocation prints a `DIAGNOSTICS <index>` location
+and a `SENSOR <path> elapsed_ms=<n> exit_status=<n> log=<path>` record per
+attempt. Existing `PASS`/`FAIL` and final `SENSORS` lines retain their meaning.
+The index is tab-separated: sensor, elapsed_ms, actual exit_status, log.
+Adjacent `run.tsv` records HEAD, mode and scope; a unique run directory prevents
+repeated attempts from overwriting each other. Elapsed wall time includes
+output capture/redaction, not just CPU execution; it is never a pass threshold.
+
+Logs are sanitized before writing and retained beneath the main checkout's
+ignored `.copilot-tracking/issues/issue-NN/sensor-runs/` directory, surviving
+issue-worktree removal. Without issue context they use
+`.copilot-tracking/sensor-runs/`. Run directories are private (0700).
+Credential-shaped quoted lines and multiline private keys are withheld;
+other known secret shapes use the shared trace redactor. Redaction is not a
+license to print arbitrary sensitive data: sensors must not dump environments,
+customer data or credentials. Diagnostics remain local, never commit/upload them
+without a separate exposure check.
+
+Storage/redaction failures print explicit warnings and `log=unavailable`.
+The runner drains discarded output without rerunning the sensor or substituting
+a capture exit code for the sensor's exit. The gate still reflects sensor results;
+a failing sensor never creates green evidence. Diagnostic indexes are not gate
+evidence and cannot authorize publication. Existing CI execution loops are unchanged.
+
 ## Lifecycle
 
 ```mermaid

@@ -103,7 +103,9 @@ canonical_out="$(cd "${FIX}/unrelated/nested" && \
   "${FIX}/scripts/validation/run-sensors.sh" green --declared tests/scripts/test_widget.sh --diff HEAD)"
 public_out="$(cd "${FIX}/unrelated/nested" && \
   "${FIX}/scripts/run-sensors.sh" green --declared tests/scripts/test_widget.sh --diff HEAD)"
-[ "$canonical_out" = "$out" ] && [ "$public_out" = "$out" ] \
+result_lines() { grep -E '^(PASS |FAIL |SKIP |SENSORS )'; }
+[ "$(result_lines <<<"$canonical_out")" = "$(result_lines <<<"$out")" ] \
+  && [ "$(result_lines <<<"$public_out")" = "$(result_lines <<<"$out")" ] \
   || fail "public and canonical runners must preserve arguments/output from nested cwd"
 
 # 2. Affected mapping drives green: change widget.sh → its referencing sensor runs.
