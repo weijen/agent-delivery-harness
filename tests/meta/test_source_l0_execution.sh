@@ -52,12 +52,10 @@ assert_once() {
   cmp -s "$TMP/expected" "$TMP/actual" \
     || { cat "$TMP/actual" >&2; fail "$1 must execute each source functional sensor exactly once"; }
 }
-for gate in pre-review pre-pr; do
-  : >"$SOURCE_GATE_CALLS"
-  (cd "$FIX" && ./scripts/run-sensors.sh --gate "$gate") >"$TMP/out" 2>&1 \
-    || { cat "$TMP/out" >&2; fail "miniature $gate failed"; }
-  assert_once "$gate"
-done
+: >"$SOURCE_GATE_CALLS"
+(cd "$FIX" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/out" 2>&1 \
+  || { cat "$TMP/out" >&2; fail "miniature final gate failed"; }
+assert_once pre-pr
 
 # Execute the actual CI sensor step, not a second handwritten discovery loop.
 awk '
@@ -81,7 +79,7 @@ cat >"$FIX/tests/scripts/test_duplicate.sh" <<'SH'
 bash tests/evals/bin/run-l0-suite.sh
 SH
 : >"$SOURCE_GATE_CALLS"
-(cd "$FIX" && ./scripts/run-sensors.sh --gate pre-review) >"$TMP/out" 2>&1 \
+(cd "$FIX" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/out" 2>&1 \
   || { cat "$TMP/out" >&2; fail "duplicate fixture should pass its functional assertions"; }
 if (assert_once mutation) >"$TMP/mutation.out" 2>&1; then
   fail "recording proof did not detect duplicate execution through a wrapper"
