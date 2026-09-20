@@ -139,11 +139,13 @@ into issues:
 
 ## Documentation classification inventory
 
-This accounts for the 62 files audited in #465 at `1e57ee2`. Canonical homes
-reflect #468; classifications are the intended payload boundary for #469, not
-a claim that the current installer already applies that boundary. History is
-retained as provenance, research remains available to maintainers, and optional
-assets require explicit selection. The profile design is additionally split to
+This records the 62 files audited in #465 at `1e57ee2`, with canonical homes
+from #468 and the proposed classifications for #469. It is historical provenance,
+not a fixed inventory of current files or an installer manifest. Current payload
+selection is defined by the [adopter manifest](../../scripts/install-harness.assets)
+and [developer additions](../../scripts/install-harness.dev.assets). Research
+remains available to maintainers, and optional assets require explicit selection.
+The profile design is additionally split to
 [docs/archive/multi-language-profiles.md](../archive/multi-language-profiles.md).
 
 <!-- documentation-inventory:start -->
