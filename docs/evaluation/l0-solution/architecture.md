@@ -102,6 +102,12 @@ validator at `tests/evals/bin/validate-customization-frontmatter.sh`, so the
 deterministic eval layer is an extension of CI rather than a separate system.
 Tier A blocks PRs.
 
+Source functional discovery owns L0 regression execution: each functional sensor
+runs once per ordinary gate. Evaluation wrappers use miniature recording fixtures,
+not a second execution of the same source workloads. The real L0 report driver
+remains an explicit evaluation entrypoint, with lightweight manifest/wiring
+coverage. Installed developer/adopter validation remains a separate boundary.
+
 Tier A scope owned here:
 
 - L0 script-lifecycle and contract checks.

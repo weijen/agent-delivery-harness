@@ -145,7 +145,7 @@ grep -q 'SENSORS pre-pr .*scope=full ran=8 failed=3$' "$OUT" \
 
 # The actual whole-suite wrappers must be explicitly classified, not renamed.
 for sensor in tests/scripts/test_adopter_smoke_workflow.sh \
-  tests/scripts/test_install_harness_dev_profile.sh tests/meta/test_l0_ci_gate.sh \
+  tests/scripts/test_install_harness_dev_profile.sh \
   tests/scripts/test_claude_adapter.sh tests/scripts/test_install_harness_claude.sh; do
   if [ -f "${ROOT}/${sensor}" ]; then
     rc=0

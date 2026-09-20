@@ -130,7 +130,8 @@ assert_owner "shell syntax" './scripts/validation/check-shell.sh syntax' "$SMOKE
 assert_owner "shellcheck" './scripts/validation/check-shell.sh lint' "$SMOKE"
 assert_owner "frontmatter validation" 'validate-customization-frontmatter.sh' "$SMOKE"
 assert_owner "harness sensor suite" 'Run harness sensor suite' "$SMOKE"
-assert_owner "L0 suite" 'run-l0-suite.sh' "$SMOKE"
+[ "$(count_literal 'run-l0-suite.sh')" -eq 0 ] \
+	|| fail "source L0 functional coverage belongs to discovery, not a second evaluation run"
 
 for workflow in "$SMOKE" "$PYTHON"; do
 	if grep -Eq 'uv run (ruff|mypy|pytest)' "$workflow"; then

@@ -55,6 +55,12 @@ reproducible, and free on public-repo standard runners, so they are part of the
 CI pipeline and block PRs. They never depend on Azure. In practice this is all of
 L0 plus the deterministic slice of L1.
 
+Ordinary source gates run the L0 functional sensors once through discovery, not
+again through the evaluation report driver. Tiny recording graders protect
+evaluation contracts and real-manifest wiring. Explicit scorecard generation
+remains available via `bash tests/evals/bin/run-l0-suite.sh`; see
+[Routine Gates and Requested Scorecards](spec.md#routine-gates-and-requested-scorecards).
+
 **Tier B — model-driven, non-deterministic, report-only, on Azure.** Every eval
 that needs a live model call — live skill-selection trigger runs, LLM-as-judge
 behavior scoring, multi-trial reliability datasets — runs on Azure on a nightly

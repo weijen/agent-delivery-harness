@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# run-l0-suite.sh — L0 suite driver / CI gate for feature f2-l0-ci-gate (issue #64).
+# run-l0-suite.sh — explicit L0 evaluation/report driver.
 #
 # Runs the L0 eval-case manifests through the sibling `run-evals.sh` runner,
 # prints each case-level scorecard to stdout as evidence, and BLOCKS (exits
 # non-zero) when any case is a blocking failure — i.e. when any scorecard result
-# carries `blocking_decision == "block"`. This is the gate the harness-smoke CI
-# workflow invokes so that breaking one L0 capability turns the job red with
-# attributable, case-level evidence.
+# carries `blocking_decision == "block"`. Broken runner responses also block.
+# Ordinary source gates run functional sensors once through discovery; they do
+# not invoke this report driver. Its contracts use miniature recording graders.
 #
 # Usage: run-l0-suite.sh [MANIFEST_DIR]
 #   * NO arg  — runs the default L0 set `tests/evals/manifests/scripts/l0-*.json`.
 #   * DIR arg — runs that directory's `l0-*.json` manifests (used by the sensor to
 #               gate a synthetic temp set of manifests without touching real ones).
 #
-# Exit codes: 0 every case non-blocking · 1 at least one case blocked · 2 no
+# Exit codes: 0 every case non-blocking · 1 blocked case or broken runner output · 2 no
 #             manifests matched / usage error. Scorecards are always emitted for
 #             the cases that ran, regardless of the overall exit.
 
@@ -89,11 +89,25 @@ for manifest in "${manifests[@]}"; do
 		continue
 	fi
 
+	# A broken runner response is not evidence that the case passed.
+	case_id="$(jq -r '.id // ""' "$manifest" 2>/dev/null || true)"
+	if ! printf '%s\n' "$scorecard" | jq -se --arg id "$case_id" '
+		length == 1 and (.[0] |
+			(.results | type == "array" and length == 1) and
+			((.results[0].case_id // "") == $id) and
+			(.results[0].status | IN("pass", "fail", "not_run", "invalid_manifest", "infrastructure_error")) and
+			(.results[0].blocking_decision | IN("pass", "warn", "block")))
+	' >/dev/null 2>&1; then
+		printf '# BLOCKING: malformed or mismatched scorecard for %s (runner exited %s)\n' "$manifest" "$rc" >&2
+		blocked=1
+		continue
+	fi
+
 	# Print the case-level scorecard as evidence.
 	printf '%s\n' "$scorecard"
 
-	# A case blocks iff any result row carries blocking_decision == "block".
-	if printf '%s\n' "$scorecard" \
+	# A runner failure or an explicit blocking decision fails the suite.
+	if [ "$rc" -ne 0 ] || printf '%s\n' "$scorecard" \
 		| jq -e 'any(.results[]?; .blocking_decision == "block")' >/dev/null 2>&1; then
 		blocked=1
 	fi
