@@ -141,15 +141,18 @@ Workflow per issue:
    execution shapes; their process exit is the gate result. Green summaries are
    **recorded by the runner itself** into the issue's `sensor-evidence.jsonl` (#441) —
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
-   script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <sha>
-   --mode pre-review` (or `--mode pre-pr`): the mode filter is required because a
-   scoped mid-loop green row is not gate evidence. A direct
+   script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha>
+   --mode green` and matches the scoped command/log to that feature's tested changes.
+   Feature greens run before their commit, so their recorded SHA is not a claim
+   that the final reviewed HEAD already passed a full suite. Only after approval,
+   use `--head <final-sha> --mode pre-pr` for final full evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** first run
    `./scripts/create-pr.sh --prepare` to synchronize before final verification,
-   then run `./scripts/run-sensors.sh --gate pre-review`,
-   then invoke the `code-review-subagent` in `full` mode over the whole branch diff. It issues
+   then invoke the `code-review-subagent` in `full` mode over the whole branch diff
+   with scoped feature evidence and appropriate cheap syntax/format/lint checks.
+   Do not require or run a full suite before review. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
    A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
    re-reviews are `repair`-mode and scoped to the revised features. Repair commits move HEAD,
@@ -166,6 +169,9 @@ Workflow per issue:
    pre-PR evidence; it neither executes sensors nor synchronizes the candidate.
    New local changes require new evidence. Later main changes rely on PR CI,
    without claiming that existing green checks cover every subsequent base update.
+   If the final full gate fails, repair with scoped checks, obtain relevant
+   re-review and approval, then rerun the final gate on the repaired candidate.
+   One full gate describes the successful unchanged-candidate path, not a retry cap.
 
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
 complete, verify the claim against an actual tool result (test output, gh state query, file
@@ -224,8 +230,8 @@ Action Log in `progress.md` is rendered from spans (#332) — never hand-written
 
 What is deliberately gone (#352): red/impl/green handback payloads and their spans as
 obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check
-ceremony at green (the review owns quality), pre-review full-suite duplication beyond the one
-`--gate pre-review` run, and every "return payloads for the conductor to record" convention —
+ceremony at green (the review owns quality), full pre-review execution, automatic
+approval-time evidence rebinding, and every "return payloads for the conductor to record" convention —
 you write your own spans. The trace spine narrows to lifecycle spans emitted by the scripts,
 `deviation`, and `review_verdict`.
 
@@ -264,8 +270,8 @@ the moment to check whether an older rule it supersedes can be deleted.
 |---|---|---|---|
 | GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + feature-affected sensors from a fixed feature base; boundary-only whole-suite wrappers are deferred — **no FULL fallback** | — | **BLOCKING** for the feature's `passes:true`; invalid scope/declarations stop the run |
 | Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
-| Pre-review (once per issue) | full suite | — | **BLOCKING** — review verdicts are valid only over a full-suite-green tree |
-| **Pre-PR verify gate** | full suite | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until run + findings resolved per the severity→action table |
+| Independent review (once per issue) | recorded scoped feature checks; targeted probes only | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — resolve review findings before approval; no full-suite prerequisite |
+| **Pre-PR verify gate** | one final full suite after approval | resolved review verdicts — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until final validation succeeds |
 
 Prefer the cheap deterministic sensors on every change; reserve the expensive inferential sensor
 set (enumerated once in §6) for the Pre-PR verify gate. When a sensor message tells you how to
@@ -336,11 +342,11 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    fetch main and synchronize the issue branch. Default preparation rebases;
    `CREATE_PR_NO_REWRITE=1` merges instead. This explicit step does not run sensors,
    push, open a PR or consume a successful publication round.
-2. **Review and approve the prepared candidate.** Run
-   `./scripts/run-sensors.sh --gate pre-review`, then the single independent
-   end-of-issue review and applicable inferential checks described below.
+2. **Review and approve the prepared candidate.** Invoke the single independent
+   `code-review-subagent` end-of-issue review and applicable inferential checks described below,
+   using scoped feature evidence. A full suite is not a review prerequisite.
    Resolve findings before `./scripts/validation/review-gate.sh approve`.
-   Approval and evidence must cover the resulting HEAD; subsequent changes require
+   Approval runs no sensors. Final evidence must cover the resulting HEAD; subsequent changes require
    the corresponding review and validation obligations again.
 3. **Verify the final candidate before publication.** Full deterministic suite green
    for the current detected surfaces:

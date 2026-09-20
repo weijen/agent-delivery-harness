@@ -3,16 +3,15 @@
 #
 # Usage:
 #   scripts/run-sensors.sh green --diff <fixed-feature-base> [--declared <list>]
-#   scripts/run-sensors.sh --gate pre-review
 #   scripts/run-sensors.sh --gate pre-pr
 #
 # The only execution shapes are `green` and `--gate`.
 # Enforcement by construction: `green` runs declared + feature-affected sensors,
 # never a FULL fallback. Capture the feature base before its first edit and keep
-# it fixed across commits and repairs. The PR wrapper explicitly uses its branch
-# base instead. Invalid selection fails, rather than silently widening coverage.
+# it fixed across commits and repairs. Invalid selection fails, rather than
+# silently widening coverage. Publication verifies evidence without execution.
 # Real whole-suite wrappers are boundary-only; they remain in canonical full
-# discovery for `--gate pre-review`, `--gate pre-pr`, and source/installed CI.
+# discovery for the final `--gate pre-pr` after review, and source/installed CI.
 # Cross-model evidence (2026-07-21/22 runs) shows agents over-comply with
 # verification obligations regardless of prose doctrine; this runner removes
 # the decision from the agent entirely.
@@ -49,6 +48,7 @@ while [ $# -gt 0 ]; do
       ;;
     --gate)
       [ -z "$MODE" ] || { printf 'run-sensors.sh: choose one mode\n' >&2; exit 2; }
+      [ "$#" -ge 2 ] || { usage; exit 2; }
       GATE="${2:-}"
       MODE=gate
       shift 2
@@ -66,13 +66,16 @@ done
 
 if [ "$MODE" = "gate" ]; then
   case "$GATE" in
-    pre-review|pre-pr) ;;
-    *) printf 'run-sensors.sh: --gate must be pre-review or pre-pr (got "%s")\n' "$GATE" >&2; exit 2 ;;
+    pre-pr) ;;
+    pre-review)
+      printf 'run-sensors.sh: pre-review execution is retired; use scoped feature checks, then --gate pre-pr after review approval\n' >&2
+      exit 2 ;;
+    *) printf 'run-sensors.sh: --gate must be pre-pr (got "%s")\n' "$GATE" >&2; exit 2 ;;
   esac
 elif [ "$MODE" != "green" ]; then
   usage; exit 2
 elif [ -z "$DIFF_BASE" ]; then
-  printf 'run-sensors.sh: green requires --diff with the fixed feature base (branch base for PR checks)\n' >&2
+  printf 'run-sensors.sh: green requires --diff with the fixed feature base\n' >&2
   exit 2
 fi
 
@@ -162,7 +165,7 @@ cd "$REPO_ROOT"
 HEAD_SHA="$(git rev-parse HEAD)"
 
 if [ "$MODE" = "gate" ]; then
-  # The two owed full-suite points. Explicit, auditable, twice per issue.
+  # The explicit final full suite; review and approval never invoke it.
   full_set
   run_list full "$GATE" "${ALL[@]}"
   exit $?

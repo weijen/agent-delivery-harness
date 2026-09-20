@@ -118,6 +118,7 @@ tests/scripts/validation/test_rebind_evidence.sh
 tests/scripts/validation/test_rebind_repair_loop.sh
 tests/scripts/validation/test_repair_feature_items.sh
 tests/scripts/validation/test_repair_review_mode.sh
+tests/scripts/validation/test_review_first_lifecycle.sh
 tests/scripts/validation/test_review_gate_ci_coverage.sh
 tests/scripts/validation/test_review_gate_patch_id_store.sh
 tests/scripts/validation/test_review_gate.sh

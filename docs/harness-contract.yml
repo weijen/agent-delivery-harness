@@ -183,6 +183,13 @@ gate_sensors:
     mode: hard
     owner: scripts/validation/run-sensors.sh
     present: run_list scoped green
+  - id: final-full
+    trigger: final candidate approved after independent review and repairs
+    consumes: canonical full sensor discovery without omissions
+    produces: full pre-pr result for the final HEAD; failure blocks publication
+    mode: hard
+    owner: scripts/validation/run-sensors.sh
+    present: run_list full
   - id: pre-pr-evidence
     trigger: PR branch ready to push
     consumes: verified full nonempty pre-pr evidence for the reviewed candidate HEAD
@@ -207,16 +214,16 @@ gate_review:
     owner: scripts/validation/review-gate.sh
     present: gen_ai.tool.name=review-gate.trace
   - id: independent-review
-    trigger: all issue features complete and pre-review sensors green
+    trigger: all issue features complete with scoped feature evidence
     consumes: independent review verdict and reviewed SHA
-    produces: HEAD-bound approved-head marker
+    produces: HEAD-bound approved-head marker without executing sensors
     mode: hard
     owner: scripts/validation/review-gate.sh
     present: approve
   - id: approved-pr
     trigger: independent review approved at current HEAD
-    consumes: HEAD-bound approved-head marker
-    produces: synchronized branch and open PR
+    consumes: HEAD-bound approved-head marker and final full pre-pr evidence
+    produces: exact verified candidate pushed and open PR without synchronization or sensors
     mode: hard
     owner: scripts/create-pr.sh
     present: gh pr create

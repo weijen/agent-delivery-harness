@@ -97,12 +97,12 @@ cp "$EVIDENCE" "$SAVED"
 # from the checksum guard; these are adversarial fixture rows, not gate evidence.
 for mutation in malformed malformed-tail tampered wrong-mode wrong-scope empty-count negative-count string-count failed; do
   case "$mutation" in
-    wrong-mode) filter='.mode="pre-review"' ;;
     malformed) printf 'not json\n' >"$EVIDENCE" ;;
     malformed-tail) { cat "$SAVED"; printf '{"schema_version":'; } >"$EVIDENCE" ;;
     tampered) jq -c '.checksum="sha256:invalid"' "$SAVED" >"$EVIDENCE" ;;
     *)
       case "$mutation" in
+        wrong-mode) filter='.mode="pre-review"' ;;
         wrong-scope) filter='.scope="scoped"' ;;
         empty-count) filter='.ran=0' ;;
         negative-count) filter='.ran=-1' ;;

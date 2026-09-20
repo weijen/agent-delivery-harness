@@ -71,11 +71,11 @@ jq -e . >/dev/null 2>&1 <<<"$row" || fail "evidence row is not valid JSON: $row"
 [ -n "$(jq -r '.checksum // empty' <<<"$row")" ] || fail "evidence row needs a checksum"
 
 # 2. A gate run appends a second row with the gate label and full scope.
-run --gate pre-review >/dev/null || fail "all-green gate run must exit 0"
+run --gate pre-pr >/dev/null || fail "all-green gate run must exit 0"
 [ "$(wc -l < "$EVIDENCE" | tr -d ' ')" = "2" ] \
   || fail "gate run must append a second evidence row"
 row2="$(tail -n1 "$EVIDENCE")"
-[ "$(jq -r '.mode' <<<"$row2")" = "pre-review" ] \
+[ "$(jq -r '.mode' <<<"$row2")" = "pre-pr" ] \
   || fail "gate evidence mode must be the gate name (got: $(jq -r '.mode' <<<"$row2"))"
 [ "$(jq -r '.scope' <<<"$row2")" = "full" ] || fail "gate evidence scope must be full"
 
