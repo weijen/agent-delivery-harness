@@ -120,7 +120,7 @@ diagnostics_capture() { # <log> -- consume all input even when storage/redaction
       { gsub(/\033\[[0-9;]*[A-Za-z]/, ""); gsub(/[[:cntrl:]]/, "") }
       /-----BEGIN .*PRIVATE KEY-----/ { private_key=1; print "[REDACTED private key]" }
       private_key { if (/-----END .*PRIVATE KEY-----/) private_key=0; next }
-      tolower($0) ~ /(secret|token|password|passwd|api_?key|credential|access_key)[[:alnum:]_.]*"?[[:space:]]*[:=][[:space:]]*["\047]/ {
+      tolower($0) ~ /(secret|token|password|passwd|api_?key|credential|access_key)[[:alnum:]_.]*["\047]?[[:space:]]*[:=][[:space:]]*["\047]/ {
         print "[REDACTED quoted credential]"; next
       }
       { print }

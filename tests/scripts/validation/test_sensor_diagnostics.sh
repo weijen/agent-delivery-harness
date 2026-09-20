@@ -26,6 +26,7 @@ cat >"${REPO}/tests/scripts/test_bad.sh" <<'SH'
 printf 'bad\n' >>"${EXECUTIONS:?}"
 printf 'actionable failure: expected 42, got 41\n' >&2
 printf '%s\n' 'password="SYNTHETIC QUOTED VALUE"' '{"password":"SYNTHETICJSONVALUE"}'
+printf "%s\n" "{'password': 'SYNTHETICPYTHONVALUE'}" "{'api_key': \"SYNTHETICMIXEDVALUE\"}"
 if [ "${LARGE_OUTPUT:-0}" = 1 ]; then
   for ((i=0; i<4000; i++)); do printf 'output to drain without breaking the producer\n'; done
 fi
