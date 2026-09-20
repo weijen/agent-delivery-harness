@@ -84,7 +84,7 @@ features do not remain in scope just because the branch still differs from main.
 Shared libraries and schema/contract authorities use the same scoped mapping,
 not a FULL fallback. Discovery/read errors and invalid declarations stop the run.
 
-Real source, installed-profile and L0 whole-suite wrappers declare
+Real whole-suite wrappers, including installed-profile validation, declare
 `# harness-sensor-stage: boundary` in their leading comment header. They remain
 in full discovery for final pre-PR and CI, but are deferred from feature
 selection. Declaring one as feature coverage fails explicitly rather than
@@ -449,7 +449,9 @@ so the suite needs no secrets and runs on fork PRs.
 
 Both installed profiles select [the adopter workflow](../profiles/adopter-smoke.yml)
 for that destination. Only the source repository retains the maintainer workflow,
-including Python profile, tombstone-history and L0 gates. Portable developer
+including Python profile, tombstone-history and source functional gates. L0
+functional sensors run once through discovery, without an additional evaluation
+replay; tiny fixtures protect evaluation-tool and TAP-helper contracts. Portable developer
 installations additionally provide `bash tests/evals/bin/run-l0-suite.sh`
 for explicit evaluation runs.
 Adopters supply their own application CI; the core smoke job does not assume

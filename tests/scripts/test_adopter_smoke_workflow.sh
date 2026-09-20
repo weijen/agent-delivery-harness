@@ -16,8 +16,11 @@ fail() {
 if grep -Eq 'uv sync|python-gates|run-l0-suite|check-install-harness-tombstones|secrets\.|az login' "$WORKFLOW"; then
 	fail "adopter workflow must not depend on maintainer tooling or credentials"
 fi
-grep -Fq 'run-l0-suite.sh' "${ROOT}/.github/workflows/harness-smoke.yml" \
-	|| fail "source repository must retain its full evaluation gate"
+grep -Fq 'Run harness sensor suite' "${ROOT}/.github/workflows/harness-smoke.yml" \
+	|| fail "source repository must retain functional discovery"
+if grep -Eq 'run-l0-suite\.sh|run-evals\.sh' "${ROOT}/.github/workflows/harness-smoke.yml"; then
+	fail "source CI must not replay functional sensors for evaluation reports"
+fi
 
 extract_step() {
 	local id="$1" output="$2"

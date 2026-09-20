@@ -183,6 +183,30 @@ coarse pass/fail row per shell file.
 - Expected results must include observable state, not only text presence.
 - A flaky L0 result is an eval bug and must be fixed, not averaged.
 
+### Routine Gates and Requested Scorecards
+
+Ordinary source gates and CI execute each L0 functional sensor once through
+functional discovery. They do not invoke the full L0 report driver again for
+scorecard generation or TAP-format checks. Evaluation wrapper contracts use tiny
+deterministic graders/manifests; focused TAP drivers protect reporting behavior.
+Real manifest identities, grader paths and default discovery remain covered by
+lightweight wiring checks. Installed developer/adopter validation is a distinct
+boundary and is not removed by source deduplication.
+
+For an explicitly requested evaluation/report, run from the repository root:
+
+```sh
+bash tests/evals/bin/run-l0-suite.sh
+```
+
+The driver emits a JSON scorecard stream on stdout; an optional manifest-directory
+argument selects another `l0-*.json` set. The runner executes `grader.command`
+once, not `fixture.builder`. Missing grader executables retain
+`not_run` / `environment_missing` / `warn`; an existing executable with a broken
+script argument is a target failure. The suite continues across cases and exits
+nonzero for blocking failures or missing/malformed/mismatched runner scorecards.
+Invalid manifests retain their existing `invalid_manifest` warning semantics.
+
 ## Scorecard Schema
 
 Every runner emits a scorecard with case-level rows. The scorecard is the
@@ -269,16 +293,18 @@ L1 layer.
 
 ### `local-fast` (Tier A)
 
-- Runs L0 and deterministic L1 cases (frontmatter lint, description proxy,
-  artifact schema).
+- Runs L0 functional coverage through discovery and deterministic L1 cases
+  (frontmatter lint, description proxy, artifact schema).
 - Requires no Azure configuration and makes no live model call.
-- Writes local scorecards.
+- Writes local scorecards when evaluation/report generation is explicitly requested.
 
 ### `github-pr` (Tier A)
 
-- Runs blocking L0 and mature deterministic L1 cases as part of the CI pipeline.
+- Runs blocking L0 functional sensors once through discovery and mature
+  deterministic L1 checks as part of the CI pipeline; no duplicate full L0 invocation.
 - Uses standard GitHub-hosted Linux runners.
-- Uploads only sanitized scorecards and summaries with short retention.
+- Any requested scorecard uploads must be sanitized and use short retention;
+  ordinary source gates do not generate a second evaluation report.
 - Does not require tenant or subscription IDs and makes no live model call.
 
 ### `azure-l1-nightly` (Tier B)
