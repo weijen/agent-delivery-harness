@@ -23,8 +23,10 @@ for file in "${REVIEWER}" "${AGENTS}" "${WORKFLOW}" "${EVALUATION}"; do
   done
 done
 
-trace_section="$(sed -n '/^## Trace \/ Process Evidence/,/^## /p' "${REVIEWER}")"
-trace_flat="$(printf '%s\n' "${trace_section}" | tr '\n' ' ')"
+reviewer_trace() {
+  sed -n '/^## Trace \/ Process Evidence/,/^## /p' "$1" | tr '\n' ' '
+}
+trace_flat="$(reviewer_trace "${REVIEWER}")"
 for historical_name in red_handback impl_handback green_handback; do
   grep -qF "${historical_name}" <<<"${trace_flat}" \
     || note "reviewer trace guidance lacks historical compatibility for ${historical_name}"
@@ -72,10 +74,12 @@ grep -qiE '(never|not)[^.!?]{0,80}(rewrite|replace|re-write)[^.!?]{0,60}(its own
 # decoy negation cannot shield an affirmative clause in the same sentence.
 # Sentences split on terminator+whitespace+non-lowercase so neither file-path
 # dots nor mid-sentence abbreviations ("e.g. legacy") fragment clauses.
+check_retired_requirements() {
+local trace_flat="$1" retired_terms obligation_verbs negation_strip
+local affirmative_retired=0 sentence lower cleaned
 retired_terms='retired[[:space:]]+(handback|choreography)|red_handback|impl_handback|green_handback'
 obligation_verbs='requir(e|es|ed|ing)|verif(y|ies)|confirm(s|ed|ing)?|ensur(e|es|ing)?|check(s|ed|ing)?|demand(s|ed|ing)?|mandate[sd]?'
 negation_strip='(do not|does not|must not|never|not to|without|no longer|not)[^!?]{0,60}(requir|verif|confirm|ensur|check|demand|mandat)[a-z]*'
-affirmative_retired=0
 while IFS= read -r sentence; do
   lower="$(tr '[:upper:]' '[:lower:]' <<<"${sentence}")"
   cleaned="$(sed -E "s/${negation_strip}//g" <<<"${lower}")"
@@ -91,8 +95,13 @@ done < <(awk '{
   print s
 }' <<<"${trace_flat}")
 if [ "${affirmative_retired}" -eq 1 ]; then
-  note "reviewer trace guidance affirmatively requires retired handback choreography"
+  printf 'FAIL: reviewer trace guidance affirmatively requires retired handback choreography\n' >&2
+  return 1
 fi
+return 0
+}
+check_retired_requirements "${trace_flat}" || fail=$((fail + 1))
+
 if grep -qiE 'require.{0,120}(pre-existing|existing).{0,80}(review_verdict|approval evidence)|(review_verdict|approval evidence).{0,80}(before|prior to).{0,80}(this review|review handback)' <<<"${trace_flat}"; then
   note "reviewer trace guidance requires gate-review evidence before the review can produce it"
 fi
@@ -124,8 +133,8 @@ fi
 # prohibited form the repair reviews flagged — subject-prefixed, additive by
 # span name, alternate obligation verb, and decoy-negation — and that benign
 # historical/negated mentions stay exempt. A poisoned copy of the live reviewer
-# prompt must make this sensor exit non-zero for exactly the guard's reason.
-# Guarded so the child run does not recurse.
+# prompt must fail the same guard for exactly the intended reason. The appended
+# unrelated role violation proves that fixtures do not replay other checks.
 if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
   kill_fixture="$(mktemp)"
   trap 'rm -f "${kill_fixture}"' EXIT
@@ -136,10 +145,15 @@ if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
     'Require red_handback spans for each feature, but do not require green_handback.'; do
     awk -v poison="${poison}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
       "${REVIEWER}" >"${kill_fixture}"
-    kill_out="$(DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="${kill_fixture}" bash "${BASH_SOURCE[0]}" 2>&1)" \
+    printf '\n## Mutation scope sentinel\nThe implementer is an unrelated test-only role.\n' >>"${kill_fixture}"
+    kill_trace="$(reviewer_trace "${kill_fixture}")"
+    kill_out="$(check_retired_requirements "${kill_trace}" 2>&1)" \
       && note "kill-check: sensor passed a prohibited requirement: ${poison}"
     grep -qF 'affirmatively requires retired handback choreography' <<<"${kill_out}" \
       || note "kill-check: sensor rejected the poisoned prompt for the wrong reason: ${poison}"
+    if grep -qF 'reviewer prompt still addresses a retired implementer role' <<<"${kill_out}"; then
+      note "kill-check: mutation replayed an unrelated reviewer-role check"
+    fi
   done
   for benign in \
     'Historical red_handback spans may appear as reader context.' \
@@ -147,8 +161,10 @@ if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
     'Do not, per pre-#352 rules e.g. legacy traces, require red_handback.'; do
     awk -v poison="${benign}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
       "${REVIEWER}" >"${kill_fixture}"
-    DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="${kill_fixture}" bash "${BASH_SOURCE[0]}" >/dev/null 2>&1 \
-      || note "kill-check: sensor false-positived on a benign mention: ${benign}"
+    printf '\n## Mutation scope sentinel\nThe implementer is an unrelated test-only role.\n' >>"${kill_fixture}"
+    kill_trace="$(reviewer_trace "${kill_fixture}")"
+    kill_out="$(check_retired_requirements "${kill_trace}" 2>&1)" \
+      || note "kill-check: sensor false-positived on a benign mention: ${benign}: ${kill_out}"
   done
 fi
 
