@@ -145,7 +145,7 @@ grep -q 'SENSORS pre-pr .*scope=full ran=8 failed=3$' "$OUT" \
 
 # The actual whole-suite wrappers must be explicitly classified, not renamed.
 for sensor in tests/scripts/test_adopter_smoke_workflow.sh \
-  tests/scripts/test_install_harness_dev_profile.sh tests/meta/test_l0_ci_gate.sh \
+  tests/scripts/test_install_harness_dev_profile.sh \
   tests/scripts/test_claude_adapter.sh tests/scripts/test_install_harness_claude.sh; do
   if [ -f "${ROOT}/${sensor}" ]; then
     rc=0
@@ -155,6 +155,12 @@ for sensor in tests/scripts/test_adopter_smoke_workflow.sh \
     fi
   fi
 done
+# Focused TAP drivers use toy assertions, not real functional suites.
+"${ROOT}/scripts/validation/affected-sensors.sh" \
+  --declared tests/meta/test_l0_ci_gate.sh >"$OUT" 2>&1 \
+  || fail "miniature TAP helper coverage must be feature-eligible"
+grep -Fxq tests/meta/test_l0_ci_gate.sh "$OUT" \
+  || fail "miniature TAP helper sensor was omitted"
 # A rename must select consumers of the removed name, not just its destination.
 printf '\nsource scripts/lib/shared-lib.sh\n' >>"${REPO}/tests/scripts/test_shared.sh"
 git -C "$REPO" add .
