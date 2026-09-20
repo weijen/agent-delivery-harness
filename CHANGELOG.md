@@ -2,6 +2,52 @@
 
 <!-- version list -->
 
+## v0.45.3 (2026-09-20)
+
+### Bug Fixes
+
+- **#479**: Categorize harness paths and keep feature gates scoped
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+- **#479**: Keep feature verification strictly scoped
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+- **#479**: Reconcile old layout paths without ownership gaps
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+- **#479**: Retain both paths when selecting rename consumers
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+- **#479**: Validate declared sensor identities literally
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.45.2
+  ([`a71b77e`](https://github.com/weijen/agent-delivery-harness/commit/a71b77e3e98c4d97de4eceaf422bcfb3ad360b40))
+
+### Documentation
+
+- **#479**: Reconcile staged layout guidance and payload paths
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+### Refactoring
+
+- **#479**: Categorize validation commands and sensors
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+- **#479**: Give sourced libraries a canonical lib home
+  ([#483](https://github.com/weijen/agent-delivery-harness/pull/483),
+  [`c370fd4`](https://github.com/weijen/agent-delivery-harness/commit/c370fd40d321f3a9b86333f66bf0629f71ec9bcc))
+
+
 ## v0.45.2 (2026-09-19)
 
 ### Bug Fixes
