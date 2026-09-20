@@ -79,6 +79,7 @@ tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl
 tests/fixtures/copilot-log-review/cli-record-contract.json
 tests/fixtures/copilot-log-review/sample-transcript.jsonl
 tests/scripts/lib/fixture.sh
+tests/scripts/lib/installer-fixture.sh
 tests/scripts/lib/native-economics-fixture.sh
 tests/scripts/lib/tap.sh
 tests/scripts/test_actionability_gate.sh

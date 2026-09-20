@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -17,8 +18,12 @@ TARGET="${TMP_DIR}/target"
 OBSERVER="${TMP_DIR}/init-observer"
 OUT="${TMP_DIR}/update.out"
 
-"${INSTALL}" "${SOURCE}" --write >/dev/null 2>&1
+installer_fixture_source "$SOURCE"
 "${SOURCE}/scripts/install-harness.sh" "${TARGET}" --write >/dev/null 2>&1
+
+asset_count="$(awk '!/^#/ && NF { count++ } END { print count + 0 }' "${TARGET}/.harness-lock")"
+[ "$asset_count" -eq 1 ] \
+	|| fail "atomic fixture must install only its subject asset, got ${asset_count}"
 
 before="$(cat "${TARGET}/scripts/init.sh")"
 ln "${TARGET}/scripts/init.sh" "${OBSERVER}"
