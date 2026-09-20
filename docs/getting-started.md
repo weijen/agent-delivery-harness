@@ -141,6 +141,20 @@ their entire directories into the default payload.
 Either way, project-specific product specs, architecture notes, and delivery
 plans live under `docs/` and are linked from the project's own `AGENTS.md`.
 
+### Current script layout
+
+Shared libraries live in `scripts/lib/`: source them as dependencies rather than
+running them as commands. Validation commands live in `scripts/validation/`,
+with their corresponding sensors in `tests/scripts/validation/`. For example,
+use `./scripts/validation/review-gate.sh approve` for review approval.
+The public `./scripts/run-sensors.sh` entrypoint forwards to the categorized
+implementation and preserves its arguments and exit status.
+
+Lifecycle, installation, trace and maintenance commands still use their current
+flat paths; their category migrations are later stages, not part of this one.
+See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
+`layout_moves` identities in [the harness contract](harness-contract.yml).
+
 ## 2. Check prerequisites
 
 Before anything else, make sure the hard requirements from the

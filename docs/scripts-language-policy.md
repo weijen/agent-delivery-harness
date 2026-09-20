@@ -83,8 +83,8 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   commands, and have no duplicate flat wrappers. `scripts/run-sensors.sh` is
   the intentional public compatibility entrypoint; other validation tools use
   their canonical paths. Remaining command categories migrate in the serial
-  child issues, not all at once. `layout_moves` in `docs/harness-contract.yml` records exact old-to-new
-  identities as each stage lands.
+  child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
+  records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
   public entrypoints as thin compatibility scripts, not one wrapper per internal
   tool. Update callers, explicit installer manifests, ownership-safe upgrades,

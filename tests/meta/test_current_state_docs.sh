@@ -133,4 +133,48 @@ require docs/github-copilot.md '](observability-and-trace-schema.md)'
 require docs/observability-and-trace-schema.md '](../schemas/trace-schema.v1.json)'
 require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
 
+layout_guide="$(awk '
+  /^### Current script layout/ {capture=1; next}
+  capture && /^##/ {exit}
+  capture {print}
+' docs/getting-started.md)"
+[ -n "$layout_guide" ] || fail "onboarding lacks current script layout guidance"
+for authority in scripts/lib/ scripts/validation/ tests/scripts/validation/ scripts/run-sensors.sh; do
+  [ -e "$authority" ] || fail "documented layout authority missing: ${authority}"
+  grep -qF "$authority" <<<"$layout_guide" || fail "onboarding omits ${authority}"
+done
+require docs/getting-started.md '](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md)'
+require docs/scripts-language-policy.md 'layout_moves'
+require docs/scripts-language-policy.md "No unified \`harness\` mono-CLI"
+reject_regex docs/scripts-language-policy.md 'directory stays flat|only sanctioned new subdirectory'
+
+layout_moves="$(awk '
+  /^layout_moves:/ {selected=1; next}
+  selected && /^[^ #]/ {exit}
+  selected && /^  - from:/ {old=$3}
+  selected && /^    to:/ {print old "\t" $2}
+' docs/harness-contract.yml)"
+[ -n "$layout_moves" ] || fail "maintained layout identity map missing"
+for column in 1 2; do
+  [ -z "$(cut -f "$column" <<<"$layout_moves" | sort | uniq -d)" ] \
+    || fail "layout identity map contains duplicate column-${column} paths"
+done
+while IFS=$'\t' read -r old canonical; do
+  [ -f "$canonical" ] || fail "layout map points at missing canonical file: ${canonical}"
+  if [ "$old" = scripts/run-sensors.sh ]; then
+    [ -x "$old" ] || fail "documented public runner disappeared"
+  else
+    [ ! -e "$old" ] || fail "layout retains duplicate old implementation: ${old}"
+  fi
+  grep -qxF "$canonical" scripts/install-harness.assets \
+    || fail "canonical core layout dependency absent from explicit payload: ${canonical}"
+done <<<"$layout_moves"
+for group in lib validation; do
+  grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
+    || fail "active structure policy omits shipped category ${group}"
+done
+for group in lifecycle install trace maintenance; do
+  [ ! -d "scripts/${group}" ] || fail "later category unexpectedly migrated in the first layout child: ${group}"
+done
+
 printf 'current-state documentation checks passed\n'

@@ -17,9 +17,10 @@ separate from replaceable language support and project-specific conventions:
   behavior is frozen in the machine-readable contract
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
   `tests/scripts/test_harness_contract.sh`. The owner scripts
-  (`scripts/lib/issue-lib.sh`, `trace-lib.sh`, `start-issue.sh`,
-  `check-feature-list.sh`, `review-gate.sh`, `create-pr.sh`, `merge-pr.sh`,
-  `finish-issue.sh`) must stay
+  (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
+  `scripts/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
+  `scripts/validation/review-gate.sh`, `scripts/create-pr.sh`,
+  `scripts/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
