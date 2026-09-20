@@ -119,8 +119,9 @@ without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — 
 This repo has a `harness-smoke.yml` GitHub Actions workflow that sets up `uv` and
 syncs the Python environment, runs the Python profile gates (`ruff format
 --check`, `ruff check`, `mypy`, `pytest`), runs the harness shell sensor suite
-(`tests/scripts/` and `tests/meta/`), shell parsing, `shellcheck`, and the L0
-evaluation suite gate. A green run is a hard precondition for merge (enforced via
+(`tests/scripts/` and `tests/meta/`), shell parsing, and `shellcheck`. L0 functional
+sensors run once through discovery; evaluation-tool contracts use tiny fixtures,
+not a second full L0 invocation. A green run is a hard precondition for merge (enforced via
 `./scripts/merge-pr.sh`). It is still not CI/CD delivery, not a deploy pipeline,
 and not GitHub auto-merge; a repo admin may additionally enable a
 branch-protection required check on `main`.
