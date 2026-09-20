@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${ROOT}/tests/scripts/lib/fixture.sh"
 
 fail() { cat "$OUT" >&2; printf 'prepare-pr: %s\n' "$*" >&2; exit 1; }
-for mode in rebase merge conflict dirty; do
+for mode in rebase merge conflict merge-conflict dirty; do
   fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   REPO="$FIXTURE_REPO"
   OUT="${FIXTURE_TMP_DIR}/out"
@@ -45,7 +45,7 @@ SH
   upstream="$(git -C "$PEER" rev-parse HEAD)"
   git -C "$REPO" checkout -qb feature/issue-482-prepare
   printf 'feature\n' >"${REPO}/feature.txt"
-  if [ "$mode" = conflict ]; then
+  if [ "$mode" = conflict ] || [ "$mode" = merge-conflict ]; then
     printf 'conflict\n' >"${REPO}/README.md"
   fi
   git -C "$REPO" add .
@@ -58,7 +58,7 @@ SH
   (
     cd "$REPO"
     no_rewrite=0
-    if [ "$mode" = merge ]; then no_rewrite=1; fi
+    if [ "$mode" = merge ] || [ "$mode" = merge-conflict ]; then no_rewrite=1; fi
     env PATH="${FIXTURE_TMP_DIR}/bin:${PATH}" CREATE_PR_NO_REWRITE="$no_rewrite" \
       ./scripts/create-pr.sh --prepare
   ) >"$OUT" 2>&1 || rc=$?
@@ -67,11 +67,12 @@ SH
   if git --git-dir="$ORIGIN" show-ref --verify --quiet refs/heads/feature/issue-482-prepare; then
     fail "${mode}: preparation pushed"
   fi
-  if [ "$mode" = conflict ] || [ "$mode" = dirty ]; then
+  if [ "$mode" = conflict ] || [ "$mode" = merge-conflict ] || [ "$mode" = dirty ]; then
     [ "$rc" -ne 0 ] || fail "${mode}: unsafe preparation succeeded"
     [ "$(git -C "$REPO" rev-parse HEAD)" = "$before" ] || fail "${mode}: failure moved HEAD"
     [ ! -d "${REPO}/.git/rebase-merge" ] || fail "${mode}: rebase was not aborted"
-    if [ "$mode" = conflict ]; then
+    [ ! -f "${REPO}/.git/MERGE_HEAD" ] || fail "${mode}: merge was not aborted"
+    if [ "$mode" != dirty ]; then
       [ -z "$(git -C "$REPO" status --porcelain)" ] || fail "conflict recovery left dirty files"
     else
       grep -q uncommitted "${REPO}/README.md" || fail "dirty input was lost"

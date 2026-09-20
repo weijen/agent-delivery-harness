@@ -18,13 +18,16 @@ CI-green merge through the harness scripts. Prefer the scripts (`scripts/start-i
    (`feat(#181): …`, `fix(#177): …`); use a **component** scope otherwise (`feat(trace): …`, `docs(ci-gate): …`).
    Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`. Keep the subject ≤ ~72 chars; put detail in the body.
    Keep commit signing on, and end the message with the repo's `Co-authored-by: Copilot …` trailer.
-3. **Pre-PR gates** — before pushing, run the companion skills that exist here and record the HEAD review:
+3. **Pre-PR gates** — first run `scripts/create-pr.sh --prepare` to synchronize
+   before final verification. Then run the companion skills and record the HEAD review:
    - **`code-review`** — self-review the diff; fix Critical/Warning findings first.
    - **`security-audit`** — scan the diff for injection, secrets, workflow-permission and pinning gaps.
    - **`scripts/validation/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
+   - **`scripts/run-sensors.sh --gate pre-pr`** — records the separate full result for the final candidate.
    Stage only the files you intend to publish (respect public-exposure hygiene); never blanket-stage with `git add -A`.
-4. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` re-syncs onto latest `main`, re-checks the review
-   approval, pushes, and opens the PR. Use the template below and link the issue with `Closes #<NN>`.
+4. **Open the PR** — `scripts/create-pr.sh --title "…" --body "…"` verifies review
+   approval and current-HEAD full pre-PR evidence, then pushes the same candidate
+   without further synchronization or test execution. Use the template below and link `Closes #<NN>`.
 5. **Merge** — only after the `Harness smoke` CI run is green. `scripts/merge-pr.sh --squash` verifies `gh pr checks`
    is green, then squash-merges (the PR number is appended to the subject automatically). A green CI run is a hard
    precondition; do **not** enable GitHub auto-merge as a standing practice.

@@ -467,7 +467,7 @@ run_cpr() {
 }
 
 # ============================================================================
-# (A) Content-preserving rebase: carry succeeds, PR opens first try
+# (A) Explicit preparation plus compatibility carry, then verified publication
 # ============================================================================
 RA="${TMP_DIR}/ra"
 make_pr_repo "$RA" 310
@@ -502,7 +502,14 @@ advance_origin_main_unrelated "$RA"
 
 OUT_A="${TMP_DIR}/a.out"
 CALL_LOG_A="${TMP_DIR}/a-review-gate-calls"
-# The carry should work: create-pr.sh must exit 0 without a second approve.
+(
+  cd "$RA"
+  PATH="${BIN}:${PATH}" ./scripts/create-pr.sh --prepare
+  PATH="${BIN}:${PATH}" REVIEW_GATE_CALL_LOG="$CALL_LOG_A" \
+    ./scripts/validation/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_A"
+  ./scripts/run-sensors.sh --gate pre-pr
+) >"$OUT_A" 2>&1 || { cat "$OUT_A"; fail "(A) explicit preparation/carry/pre-PR failed"; }
+# Carry remains an explicit compatibility API, not an implicit publish action.
 if ! run_cpr "$RA" a "$OUT_A" "REVIEW_GATE_CALL_LOG=${CALL_LOG_A}" -- --title "feat: carry" --body "test"; then
   cat "$OUT_A"
   fail "(A) create-pr.sh must exit 0 on content-preserving rebase with carry — no second approve needed"
@@ -511,10 +518,9 @@ fi
 [ -f "${TMP_DIR}/gh-state-a" ] \
   || { cat "$OUT_A"; fail "(A) the PR must open (fake gh pr create must have run)"; }
 
-# Observe actual gate executions rather than inferring them from suppressed
-# child spans: one pre-rebase check, then carry, and no post-carry check.
-[ "$(cat "$CALL_LOG_A")" = $'check\ncarry-rebase-approval' ] \
-  || { cat "$CALL_LOG_A"; fail "(A) expected actual gate calls check then carry only (zero post-rebase checks)"; }
+# Publication performs one authoritative check; it never carries implicitly.
+[ "$(cat "$CALL_LOG_A")" = $'carry-rebase-approval\ncheck' ] \
+  || { cat "$CALL_LOG_A"; fail "(A) expected explicit carry then one publish check"; }
 
 # Marker line 1 must be the post-rebase HEAD.
 POST_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"
@@ -560,13 +566,11 @@ fi
 printf 'ok - (A) content-preserving rebase: carry succeeds, PR opens without second approve\n'
 
 # ============================================================================
-# (B) Post-rebase diff alteration via create-pr path: carry fails closed
+# (B) Post-rebase diff alteration during preparation leaves publication blocked
 #
-# A scoped git wrapper on PATH delegates the real rebase to the real git, then
-# amends the rebased commit to add extra content before create-pr calls carry.
-# This proves the controlled create-pr path: create-pr.sh exits non-zero at the
-# post_sync_gate/authoritative stale check, no PR opens, marker stays pre-rebase,
-# and no carry span is emitted.
+# A scoped git wrapper delegates preparation's rebase to real git, then adds
+# extra content. Publication must reject the stale approval without carrying it;
+# no PR opens, the marker stays pre-rebase, and no carry span is emitted.
 # ============================================================================
 RB="${TMP_DIR}/rb"
 make_pr_repo "$RB" 310
@@ -607,6 +611,10 @@ done
 ln -sf "${BIN}/gh" "${BBIN}/gh"
 
 OUT_B="${TMP_DIR}/b.out"
+(
+  cd "$RB"
+  env PATH="${BBIN}:${PATH}" GH_STATE="${TMP_DIR}/gh-state-b" ./scripts/create-pr.sh --prepare
+) >"$OUT_B" 2>&1 || { cat "$OUT_B"; fail "(B) preparation did not reach the altered-candidate case"; }
 B_CPR_RC=0
 (cd "$RB" && env PATH="${BBIN}:${PATH}" GH_STATE="${TMP_DIR}/gh-state-b" \
   ./scripts/create-pr.sh --title "feat: carry-b" --body "test") \

@@ -132,7 +132,7 @@ SH
 BIN="${TMP_DIR}/bin"
 link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut \
   grep printf jq date od wc awk sort comm uniq mktemp head tail ls cp mv ln touch \
-  uname true false find
+  uname true false find shasum sha256sum
 write_fake_gh "${BIN}/gh"
 export GH_STATE="${TMP_DIR}/gh.state"
 export GH_LOG="${TMP_DIR}/gh.log"
@@ -200,6 +200,7 @@ git -C "$WT" add docs/PROGRESS.md
 git -C "$WT" commit -q -m "issue-42: progress update"
 
 run_step check "$WT" ./scripts/validation/check-feature-list.sh 42 SLUG=e2e
+run_step prepare "$WT" ./scripts/create-pr.sh --prepare
 
 # The end-of-issue review records a passing per-feature verdict at HEAD before
 # approve — required since #447 (verdict currency): approve refuses when the
@@ -208,6 +209,7 @@ printf '{"schema_version":1,"timestamp":"2026-08-08T00:00:00Z","span":"agent","h
   "$(git -C "$WT" rev-parse HEAD)" >> "$TRACE"
 
 run_step approve "$WT" ./scripts/validation/review-gate.sh approve
+run_step pre-pr "$WT" ./scripts/run-sensors.sh --gate pre-pr
 run_step create-pr "$WT" ./scripts/create-pr.sh --title "t" --body "b"
 run_step merge-pr "$WT" ./scripts/merge-pr.sh
 
@@ -282,18 +284,23 @@ finish-issue.sh|finish|finish
 MATRIX
 
 # Collapsed create/finish internals must not reappear as child tool spans. The
-# explicit feature-list check, retained log-completeness gate, and post-teardown
-# report-time economics span are allowed.
+# explicit preparation/feature-list checks, retained log-completeness gate, and
+# post-teardown report-time economics span are allowed.
 unexpected_tools="$(jq -r '
   select(
     .span == "tool"
     and .["gen_ai.tool.name"] != "check-feature-list"
+    and .["gen_ai.tool.name"] != "create-pr.prepare"
     and .["gen_ai.tool.name"] != "review-gate.log-completeness"
     and .["gen_ai.tool.name"] != "finish-issue.economics")
   | .["gen_ai.tool.name"]
 ' "$TRACE")"
 [ -z "$unexpected_tools" ] \
   || fail "collapsed lifecycle children reappeared as tool spans: ${unexpected_tools}"
+jq -se '
+  [.[] | select(.span == "tool" and .["gen_ai.tool.name"] == "create-pr.prepare")]
+  | length == 1
+' "$TRACE" >/dev/null || fail "explicit preparation must emit exactly one tool span"
 
 # 3. Lifecycle subsequence in FILE ORDER is exactly the contract order (D8).
 steps="$(jq -r 'select(.span == "lifecycle") | .["harness.lifecycle_step"]' "$TRACE" | paste -sd, -)"

@@ -146,7 +146,9 @@ Workflow per issue:
    scoped mid-loop green row is not gate evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
-3. **Independent review (gate 3), once, pre-PR:** run `./scripts/run-sensors.sh --gate pre-review`,
+3. **Independent review (gate 3), once, pre-PR:** first run
+   `./scripts/create-pr.sh --prepare` to synchronize before final verification,
+   then run `./scripts/run-sensors.sh --gate pre-review`,
    then invoke the `code-review-subagent` in `full` mode over the whole branch diff. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
    A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
@@ -160,7 +162,10 @@ Workflow per issue:
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
-   gated on live merge evidence #316).
+   gated on live merge evidence #316). Publication verifies current-HEAD full
+   pre-PR evidence; it neither executes sensors nor synchronizes the candidate.
+   New local changes require new evidence. Later main changes rely on PR CI,
+   without claiming that existing green checks cover every subsequent base update.
 
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
 complete, verify the claim against an actual tool result (test output, gh state query, file

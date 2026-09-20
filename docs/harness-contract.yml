@@ -183,13 +183,13 @@ gate_sensors:
     mode: hard
     owner: scripts/validation/run-sensors.sh
     present: run_list scoped green
-  - id: scoped-green
+  - id: pre-pr-evidence
     trigger: PR branch ready to push
-    consumes: declared and affected sensor set resolved from the branch diff
+    consumes: verified full nonempty pre-pr evidence for the reviewed candidate HEAD
     produces: fail-closed process result before PR branch push
     mode: hard
     owner: scripts/create-pr.sh
-    present: run-sensors.sh.*green.*--diff.*origin/main
+    present: validation/verify-sensor-evidence.sh
   - id: evidence-recording
     trigger: any green (failed=0) sensor run in an issue context
     consumes: the runner's own summary result
