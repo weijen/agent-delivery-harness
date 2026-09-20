@@ -115,12 +115,40 @@ diagnostics_init() { # <scope> <mode>
 diagnostics_capture() { # <log> -- consume all input even when storage/redaction fails
   local log="$1"
   if [ -n "$log" ] && {
-    # Raw multiline PEM blocks need framing before the shared line redactor.
+    # Frame raw quoted values and PEM blocks before the shared line redactor.
     awk '
+      BEGIN {
+        credential = "(secret|token|password|passwd|api_?key|credential|access_key)[[:alnum:]_.]*[\"\047]?[[:space:]]*[:=][[:space:]]*[\"\047]"
+      }
+      function quote_end(text, delimiter, i, escaped, character) {
+        for (i = 1; i <= length(text); i++) {
+          character = substr(text, i, 1)
+          if (escaped) escaped = 0
+          else if (character == "\\") escaped = 1
+          else if (character == delimiter) return i
+        }
+        return 0
+      }
+      function open_quote(text, delimiter, ending) {
+        while (match(tolower(text), credential)) {
+          delimiter = substr(text, RSTART + RLENGTH - 1, 1)
+          text = substr(text, RSTART + RLENGTH)
+          ending = quote_end(text, delimiter)
+          if (!ending) return delimiter
+          text = substr(text, ending + 1)
+        }
+        return ""
+      }
       { gsub(/\033\[[0-9;]*[A-Za-z]/, ""); gsub(/[[:cntrl:]]/, "") }
+      quoted != "" {
+        ending = quote_end($0, quoted)
+        if (ending) quoted = open_quote(substr($0, ending + 1))
+        next
+      }
       /-----BEGIN .*PRIVATE KEY-----/ { private_key=1; print "[REDACTED private key]" }
       private_key { if (/-----END .*PRIVATE KEY-----/) private_key=0; next }
-      tolower($0) ~ /(secret|token|password|passwd|api_?key|credential|access_key)[[:alnum:]_.]*["\047]?[[:space:]]*[:=][[:space:]]*["\047]/ {
+      match(tolower($0), credential) {
+        quoted = open_quote($0)
         print "[REDACTED quoted credential]"; next
       }
       { print }

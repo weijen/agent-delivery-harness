@@ -106,7 +106,9 @@ Logs are sanitized before writing and retained beneath the main checkout's
 ignored `.copilot-tracking/issues/issue-NN/sensor-runs/` directory, surviving
 issue-worktree removal. Without issue context they use
 `.copilot-tracking/sensor-runs/`. Run directories are private (0700).
-Credential-shaped quoted lines and multiline private keys are withheld;
+Credential-shaped quoted lines (including single-quoted keys), quoted-value
+continuations through an unescaped matching delimiter, and multiline private
+keys are withheld. Unterminated quoted credentials stay withheld through EOF;
 other known secret shapes use the shared trace redactor. Redaction is not a
 license to print arbitrary sensitive data: sensors must not dump environments,
 customer data or credentials. Diagnostics remain local, never commit/upload them

@@ -27,6 +27,12 @@ printf 'bad\n' >>"${EXECUTIONS:?}"
 printf 'actionable failure: expected 42, got 41\n' >&2
 printf '%s\n' 'password="SYNTHETIC QUOTED VALUE"' '{"password":"SYNTHETICJSONVALUE"}'
 printf "%s\n" "{'password': 'SYNTHETICPYTHONVALUE'}" "{'api_key': \"SYNTHETICMIXEDVALUE\"}"
+printf '%s\n' 'password="SYNTHETICFIRST' 'SYNTHETICCONTINUATION"'
+printf '%s\n' "token='SYNTHETICSINGLE" "SYNTHETICSINGLEEND'"
+printf '%s\n' 'password="SYNTHETICOPEN\"SYNTHETICREST' 'SYNTHETICEND"'
+printf '%s\n' 'password="SYNTHETICONE"; token="SYNTHETICTWO' 'SYNTHETICTHREE"; api_key="SYNTHETICFOUR' 'SYNTHETICFIVE"'
+printf '%s\n' 'password="SYNTHETICEVEN\\"' 'after closed credentials'
+printf '%s\n' 'password="SYNTHETICUNTERMINATED' 'SYNTHETICUNTILEOF'
 if [ "${LARGE_OUTPUT:-0}" = 1 ]; then
   for ((i=0; i<4000; i++)); do printf 'output to drain without breaking the producer\n'; done
 fi
@@ -68,6 +74,7 @@ index="$(index_path)"
 [ "$(sed -n '2p' "$index" | cut -f3)" = 23 ] || fail "actual failing exit status lost"
 log="$(sed -n '2p' "$index" | cut -f4)"
 grep -q 'expected 42, got 41' "$log" || fail "stderr cause lost"
+grep -q 'after closed credentials' "$log" || fail "quoted credential framing suppressed unrelated later output"
 ! grep -q 'SYNTHETIC' "$log" || fail "quoted/JSON secret escaped redaction"
 [ "$(cat "$EXECUTIONS")" = $'good\nbad' ] || fail "selection changed or sensor reran"
 [ "$(wc -l <"${TRACK}/sensor-evidence.jsonl")" = "$rows" ] || fail "failed run fabricated evidence"
