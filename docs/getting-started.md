@@ -82,7 +82,11 @@ descriptor. There are two common ways to start:
   it never substitutes for ownership proof. The `v0.45.2` rehearsal covers
   default, developer and Claude profiles moving to `scripts/lib/` and
   `scripts/validation/` and all five lifecycle implementations in `scripts/lifecycle/`,
-  including customized, protected and unknown-owner copies. Documented public
+  including customized, protected and unknown-owner copies. Legacy Claude bundle
+  retirement requires matching installed lock ownership, even when file bytes
+  match a historical tombstone; unknown/modified copies remain with actionable
+  rejection patches, protected copies remain untouched, and adopter hook
+  settings are never changed. Documented public
   `scripts/run-sensors.sh`, `scripts/init.sh`, `scripts/start-issue.sh`,
   `scripts/create-pr.sh`, `scripts/merge-pr.sh` and `scripts/finish-issue.sh` remain thin compatibility
   entrypoints; internal tools and sensors use their mapped paths.
