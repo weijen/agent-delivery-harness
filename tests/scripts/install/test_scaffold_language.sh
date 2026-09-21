@@ -5,8 +5,12 @@
 # gates a profile adds to init.sh, and never touch the lifecycle scripts.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 GEN="${ROOT}/scripts/scaffold-language.sh"
+[ -x "${ROOT}/scripts/install/scaffold-language.sh" ] || {
+	printf 'canonical language scaffolder is missing\n' >&2
+	exit 1
+}
 TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
@@ -32,10 +36,17 @@ if "$GEN" >"$OUT" 2>&1; then
 	cat "$OUT"; echo "case-a: missing profile arg must exit non-zero"; exit 1
 fi
 grep -qi "usage" "$OUT" || { cat "$OUT"; echo "case-a: no usage on missing arg"; exit 1; }
+for entry in "$GEN" "${ROOT}/scripts/install/scaffold-language.sh"; do
+	if "$entry" node --with-claude >"$OUT" 2>&1; then
+		echo "case-a: scaffolder accepted retired installer flag"; exit 1
+	fi
+	grep -qF -- "unknown option '--with-claude'" "$OUT" \
+		|| { cat "$OUT"; echo "case-a: missing retired-flag refusal"; exit 1; }
+done
 
 # --- Case (b): known profile emits descriptor + instruction file (AC#1, AC#3) -
 b="${TMP_DIR}/b"; seed_repo "$b"
-( cd "$b" && ./scripts/scaffold-language.sh node --write >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-b: --write failed"; exit 1; }
+( cd "$TMP_DIR" && "$b/scripts/install/scaffold-language.sh" node --write >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-b: --write failed"; exit 1; }
 desc="$b/profiles/node.profile.sh"
 inst="$b/.copilot/instructions/node.instructions.md"
 [ -f "$desc" ] || { echo "case-b: descriptor not created"; exit 1; }
@@ -101,7 +112,14 @@ f="${TMP_DIR}/f"; seed_repo "$f"
 ( cd "$f" && ./scripts/scaffold-language.sh node --write >/dev/null 2>&1 )
 ( cd "$f" && git diff --quiet -- \
   scripts/lib/issue-lib.sh scripts/start-issue.sh scripts/validation/check-feature-list.sh \
-  scripts/validation/review-gate.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh ) \
+  scripts/validation/review-gate.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle ) \
   || { echo "case-f: generator modified a lifecycle script"; exit 1; }
+
+mkdir -p "${TMP_DIR}/missing/scripts"
+cp "$GEN" "${TMP_DIR}/missing/scripts/scaffold-language.sh"
+if "${TMP_DIR}/missing/scripts/scaffold-language.sh" --help >"$OUT" 2>&1; then
+	echo 'public scaffolder masked its missing implementation'; exit 1
+fi
+grep -q 'install/scaffold-language.sh' "$OUT" || { cat "$OUT"; echo 'missing implementation not explained'; exit 1; }
 
 printf 'scaffold-language generator sensor passed\n'

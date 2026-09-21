@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/scaffold-language.sh scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # End-to-end upgrade rehearsal (#432): a v0.36.0 install with the five
 # issue-49-shaped local divergences reconciles safely against current HEAD.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 SOURCE="${TMP_DIR}/v0.36.0"
@@ -38,7 +38,7 @@ cat "${TMP_DIR}/legacy-installer" >"${SOURCE}/scripts/install-harness.sh"
 	|| fail "fixture baseline is not v0.36.0"
 
 diverged_paths=(
-	tests/scripts/test_install_harness_three_way.sh
+	tests/scripts/install/test_install_harness_three_way.sh
 	scripts/check-install-harness-tombstones.sh
 	tests/scripts/test_install_harness_tombstone_history.sh
 	tests/scripts/test_install_harness_tombstone_exclusion.sh
@@ -72,7 +72,7 @@ for path in "${diverged_paths[@]}"; do
 	[ -f "${TARGET}/${path}.rej" ] \
 		|| fail "first update did not write ${path}.rej"
 	case "$path" in
-		tests/scripts/test_install_harness_three_way.sh)
+		tests/scripts/install/test_install_harness_three_way.sh)
 			rejected_marker="Regression and e2e sensor"
 			;;
 		scripts/check-install-harness-tombstones.sh | \
