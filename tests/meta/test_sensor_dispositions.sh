@@ -77,6 +77,10 @@ printf '#!/usr/bin/env bash\n# harness-sensor-trigger: maintenance\n:\n' >"$FIX/
 reject 'depend' --gate maintenance
 printf '#!/usr/bin/env bash\n# harness-sensor-depends: ../outside\n:\n' >"$FIX/tests/scripts/test_invalid.sh"
 reject 'depend|unsafe' --gate pre-pr unrelated.md
+printf '#!/usr/bin/env bash\n# harness-sensor-deletes: ../outside\n:\n' >"$FIX/tests/scripts/test_invalid.sh"
+reject 'depend|unsafe' --gate pre-pr unrelated.md
+printf '#!/usr/bin/env bash\n# harness-sensor-deletes: profiles/*\n# harness-sensor-deletes: scripts/*\n:\n' >"$FIX/tests/scripts/test_invalid.sh"
+reject 'metadata' --gate pre-pr unrelated.md
 
 source_resolve() {
 	"$ROOT/scripts/validation/affected-sensors.sh" "$@" >"$TMP/source"
@@ -118,4 +122,64 @@ grep -Fxq 'tests/meta/test_*.sh' "$ROOT/tests/harness-dev-sensors.txt" \
 source_resolve --gate pre-pr scripts/lib/reconcile-lib.sh
 grep -Fxq tests/scripts/test_install_harness_tombstone_history.sh "$TMP/source" \
 	|| fail "retirement acceptance omitted the actual reconciliation dependency"
+
+# Real deletion history, policy metadata and runner; no source-suite replay.
+HISTORY="$TMP/history"
+mkdir -p "$HISTORY/scripts/validation" "$HISTORY/scripts/lib" "$HISTORY/tests/scripts"
+cp "$ROOT/scripts/run-sensors.sh" "$ROOT/scripts/check-install-harness-tombstones.sh" "$HISTORY/scripts/"
+cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors}.sh "$HISTORY/scripts/validation/"
+cp "$ROOT/scripts/lib/trace-lib.sh" "$HISTORY/scripts/lib/"
+{
+	printf '#!/usr/bin/env bash\n'
+	grep '^# harness-sensor-' "$ROOT/tests/scripts/test_install_harness_tombstone_history.sh"
+	printf 'bash scripts/check-install-harness-tombstones.sh .\n'
+} >"$HISTORY/tests/scripts/test_history.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$HISTORY/tests/scripts/test_routine.sh"
+printf '#!/usr/bin/env bash\n' >"$HISTORY/scripts/install-harness.sh"
+: >"$HISTORY/scripts/install-harness.tombstones"
+printf '/.copilot-tracking/\n' >"$HISTORY/.gitignore"
+managed=(
+	profiles/retired.profile.sh scripts/retired.sh tests/fixtures/retired.txt
+	.copilot/instructions/retired.md .github/workflows/harness-smoke.yml
+	docs/HARNESS.md optional/runtime-adapters/retired.sh VERSION
+)
+for path in "${managed[@]}"; do
+	mkdir -p "$HISTORY/$(dirname "$path")"
+	printf 'managed fixture\n' >"$HISTORY/$path"
+done
+git -C "$HISTORY" init -q -b main
+git -C "$HISTORY" config user.name "Harness Test"
+git -C "$HISTORY" config user.email "harness-test@example.invalid"
+git -C "$HISTORY" config commit.gpgsign false
+git -C "$HISTORY" add .
+git -C "$HISTORY" commit -qm 'test: managed history baseline'
+git -C "$HISTORY" update-ref refs/remotes/origin/main HEAD
+printf 'ordinary update\n' >>"$HISTORY/profiles/retired.profile.sh"
+git -C "$HISTORY" commit -qam 'test: ordinary profile update'
+(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 \
+	|| { cat "$TMP/history.out" >&2; fail "ordinary update gate failed"; }
+grep -q 'scope=applicable ran=1 failed=0$' "$TMP/history.out" \
+	|| fail "ordinary profile update must not replay deletion history"
+for path in "${managed[@]}"; do
+	digest="$(shasum -a 256 "$HISTORY/$path" | awk '{print $1}')"
+	rm "$HISTORY/$path"
+	for phase in unstaged staged; do
+		if [ "$phase" = staged ]; then git -C "$HISTORY" add "$path"; fi
+		"$HISTORY/scripts/validation/affected-sensors.sh" --gate pre-pr --diff origin/main >"$TMP/history.selected"
+		grep -Fxq tests/scripts/test_history.sh "$TMP/history.selected" \
+			|| fail "$phase deletion of $path omitted history acceptance"
+	done
+	git -C "$HISTORY" commit -qm 'test: managed deletion without ledger'
+	rc=0
+	(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 || rc=$?
+	if [ "$rc" != 1 ] || ! grep -q 'missing managed deletion history' "$TMP/history.out"; then
+		cat "$TMP/history.out" >&2
+		fail "committed deletion of $path did not fail the actual checker through the runner"
+	fi
+	printf '%s\t%s\n' "$digest" "$path" >>"$HISTORY/scripts/install-harness.tombstones"
+	git -C "$HISTORY" commit -qam 'test: acknowledge managed deletion'
+	(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 \
+		|| { cat "$TMP/history.out" >&2; fail "correct ledger failed for $path"; }
+	git -C "$HISTORY" update-ref refs/remotes/origin/main HEAD
+done
 printf 'bounded dispositions and known dependency obligations honored\n'

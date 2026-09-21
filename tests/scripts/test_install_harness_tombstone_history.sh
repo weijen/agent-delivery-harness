@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
 # harness-sensor-depends: scripts/check-install-harness-tombstones.sh scripts/install-harness* scripts/lib/reconcile-lib.sh optional/* docs/harness-contract.yml tests/scripts/test_install_harness_three_way.sh
+# harness-sensor-deletes: scripts/* profiles/* tests/* .copilot/* .github/workflows/harness-smoke.yml docs/HARNESS.md docs/getting-started.md docs/multi-language-profiles.md docs/harness-contract.yml docs/RELEASING.md docs/evaluation/* docs/runtime-adapters/* optional/* VERSION
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

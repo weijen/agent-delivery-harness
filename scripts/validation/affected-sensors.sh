@@ -95,6 +95,8 @@ if [ "$LIST" -eq 1 ]; then
   exit $?
 fi
 
+# Explicit paths have no status information, so treat them conservatively.
+DELETED=(${CHANGED[@]+"${CHANGED[@]}"})
 if [ -n "$DIFF_BASE" ]; then
   if ! BASE_SHA="$(git -C "$REPO_ROOT" rev-parse --verify "${DIFF_BASE}^{commit}" 2>/dev/null)" \
     || ! git -C "$REPO_ROOT" merge-base --is-ancestor "$BASE_SHA" HEAD 2>/dev/null; then
@@ -102,23 +104,29 @@ if [ -n "$DIFF_BASE" ]; then
     exit 2
   fi
   discover_changed_paths() {
-    local output=""
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
+    local output="" filter="${1:-}"
+    local args=()
+    [ -z "$filter" ] || args+=(--diff-filter=D)
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only --cached 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} --cached 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} 2>/dev/null)" || return 1
     printf '%s\n' "$output"
+    [ -z "$filter" ] || return 0
     output="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" || return 1
     printf '%s\n' "$output"
   }
-  if ! DISCOVERED="$(discover_changed_paths)"; then
+  if ! DISCOVERED="$(discover_changed_paths)" || ! DELETED_PATHS="$(discover_changed_paths deleted)"; then
     printf 'affected-sensors.sh: git discovery failed for diff base %s\n' "$DIFF_BASE" >&2
     exit 2
   fi
   while IFS= read -r p; do
     [ -n "$p" ] && CHANGED+=("$p")
   done < <(printf '%s\n' "$DISCOVERED" | sort -u)
+  while IFS= read -r p; do
+    [ -n "$p" ] && DELETED+=("$p")
+  done < <(printf '%s\n' "$DELETED_PATHS" | sort -u)
 fi
 
 if [ "$GATE" = pre-pr ] && [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DIFF_BASE" ]; then
@@ -132,10 +140,11 @@ if [ -z "$GATE" ] && [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then
 fi
 
 sensor_metadata() {
-  local line stage_seen=0 trigger_seen=0 depends_seen=0 dependency
+  local line stage_seen=0 trigger_seen=0 depends_seen=0 deletes_seen=0 dependency
   stage=feature
   trigger=routine
   dependencies=()
+  deletion_dependencies=()
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       '# harness-sensor-stage:'*)
@@ -158,17 +167,23 @@ sensor_metadata() {
         depends_seen=1
         read -r -a dependencies <<<"${line#'# harness-sensor-depends:'}"
         [ "${#dependencies[@]}" -gt 0 ] || return 2
-        for dependency in "${dependencies[@]}"; do
-          case "$dependency" in
-            /*|..|../*|*/../*|*/..|.|'*'|'**'|*[![:alnum:]_./?*-]*) return 2 ;;
-          esac
-        done
+        ;;
+      '# harness-sensor-deletes:'*)
+        [ "$deletes_seen" -eq 0 ] || return 2
+        deletes_seen=1
+        read -r -a deletion_dependencies <<<"${line#'# harness-sensor-deletes:'}"
+        [ "${#deletion_dependencies[@]}" -gt 0 ] || return 2
         ;;
       '#'*|'') ;;
       *) [[ "$line" =~ ^[[:space:]]*$ ]] || break ;;
     esac
   done <"$1" || return 2
-  [ "$trigger" = routine ] || [ "$depends_seen" -eq 1 ]
+  for dependency in ${dependencies[@]+"${dependencies[@]}"} ${deletion_dependencies[@]+"${deletion_dependencies[@]}"}; do
+    case "$dependency" in
+      /*|..|../*|*/../*|*/..|.|'*'|'**'|*[![:alnum:]_./?*-]*) return 2 ;;
+    esac
+  done
+  [ "$trigger" = routine ] || [ "$depends_seen" -eq 1 ] || [ "$deletes_seen" -eq 1 ]
 }
 
 # --- Scoped resolution ----------------------------------------------------------
@@ -208,6 +223,12 @@ for sensor in "${SENSORS[@]}"; do
     for dependency in ${dependencies[@]+"${dependencies[@]}"}; do
       # The right-hand side is deliberately a declared path glob, not shell code.
       # shellcheck disable=SC2053
+      if [[ "$p" == $dependency ]]; then emit "$sensor"; fi
+    done
+  done
+  for p in ${DELETED[@]+"${DELETED[@]}"}; do
+    for dependency in ${deletion_dependencies[@]+"${deletion_dependencies[@]}"}; do
+      # shellcheck disable=SC2053 # Declared deletion dependency is a path glob.
       if [[ "$p" == $dependency ]]; then emit "$sensor"; fi
     done
   done
