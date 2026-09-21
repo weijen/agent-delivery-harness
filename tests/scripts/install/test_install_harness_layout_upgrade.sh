@@ -64,6 +64,56 @@ awk '
 ' "${ROOT}/docs/harness-contract.yml" >"${TMP_DIR}/layout-moves"
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
 
+# Fresh payloads and historical upgrades are distinct installation boundaries.
+for profile in default developer; do
+	layout_install_calls=0
+	options=()
+	[ "$profile" != developer ] || options=(--with-dev-sensors)
+	fresh="${TMP_DIR}/fresh ${profile}"
+	install_layout "$INSTALL" "$fresh" --write "${options[@]}" \
+		|| fail_layout "fresh ${profile} installation"
+	[ "$layout_install_calls" -eq 1 ] || fail_layout "fresh boundary repeated installation"
+	manifests=("${ROOT}/scripts/install-harness.assets")
+	[ "$profile" != developer ] || manifests+=("${ROOT}/scripts/install-harness.dev.assets")
+	for manifest in "${manifests[@]}"; do
+		while IFS= read -r asset; do
+			case "$asset" in ""|\#*) continue ;; esac
+			[ -f "${fresh}/${asset}" ] && [ ! -L "${fresh}/${asset}" ] \
+				|| fail_layout "fresh ${profile} missing regular dependency ${asset}"
+			expected_source="${ROOT}/${asset}"
+			if [ "$asset" = .github/workflows/harness-smoke.yml ]; then
+				expected_source="${ROOT}/profiles/adopter-smoke.yml"
+			fi
+			cmp -s "$expected_source" "${fresh}/${asset}" \
+				|| fail_layout "fresh ${profile} changed dependency ${asset}"
+		done <"$manifest"
+	done
+	while IFS=$'\t' read -r old canonical audience public; do
+		if [ "$audience" = source-only ] || grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
+			[ ! -e "${fresh}/${canonical}" ] || fail_layout "fresh ${profile} installed source-only ${canonical}"
+		fi
+		if [ -z "$public" ]; then
+			[ ! -e "${fresh}/${old}" ] || fail_layout "fresh ${profile} restored flat ${old}"
+		fi
+	done <"${TMP_DIR}/layout-moves"
+	[ ! -e "${fresh}/optional/runtime-adapters" ] || fail_layout "fresh ${profile} restored Claude payload"
+	mkdir -p "${fresh}/unrelated cwd"
+	(cd "${fresh}/unrelated cwd" && "${fresh}/scripts/install-harness.sh" --help) >"$layout_log" 2>&1 \
+		|| fail_layout "fresh ${profile} installer failed from unrelated cwd"
+	(cd "${fresh}/unrelated cwd" && "${fresh}/scripts/scaffold-language.sh" go --write) >"$layout_log" 2>&1 \
+		|| fail_layout "fresh ${profile} scaffolder failed from unrelated cwd"
+	[ -f "${fresh}/profiles/go.profile.sh" ] && [ ! -e "${fresh}/unrelated cwd/profiles" ] \
+		|| fail_layout "fresh ${profile} scaffolder lost installed root"
+	mv "${fresh}/scripts/lib/reconcile-lib.sh" "${TMP_DIR}/reconcile.saved"
+	if (cd "${fresh}/unrelated cwd" && "${fresh}/scripts/install-harness.sh" --help) >"$layout_log" 2>&1; then
+		fail_layout "fresh ${profile} hid a missing installed dependency with source fallback"
+	fi
+	grep -Fq 'reconcile-lib.sh' "$layout_log" \
+		|| fail_layout "fresh ${profile} missing-dependency diagnostic lost"
+	mv "${TMP_DIR}/reconcile.saved" "${fresh}/scripts/lib/reconcile-lib.sh"
+	printf 'fresh %s payload and no-source-fallback boundary passed\n' "$profile"
+done
+
 for profile in default developer claude; do
 	layout_install_calls=0
 	options=()
