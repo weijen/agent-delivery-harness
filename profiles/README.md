@@ -1,10 +1,10 @@
 # Harness language profiles
 
 This directory holds the harness's **language profile descriptors** and is the
-current descriptor-interface authority. `scripts/init.sh` still uses explicit marker
-checks to select project surfaces. The selected descriptor supplies the surface
-label, dependency sync and quality gates; detection metadata does not replace
-the preflight's marker branches. The lifecycle core stays language-neutral.
+current descriptor-interface authority. `scripts/init.sh` uses the Python
+descriptor's applicability function and explicit marker checks for the other
+project surfaces. The selected descriptor supplies the surface label,
+dependency sync and quality gates. The lifecycle core stays language-neutral.
 
 **Shipped vs generator-supported (issue #274).** Only **Python** and **Node.js**
 ship committed descriptors (`python.profile.sh`, `node.profile.sh`). **Go,
@@ -35,7 +35,7 @@ A descriptor declares these **Profile Interface** fields:
 | Field | How it is expressed | Purpose |
 | --- | --- | --- |
 | `id` | `PROFILE_ID` | Stable profile name (`python`, `go`, `node`, `java`, `ruby`). |
-| `detect` | `PROFILE_DETECT` + `profile_detect()` | Descriptor metadata/helper for identifying the surface; `init.sh` selects profiles through its own explicit marker checks. |
+| `detect` | `PROFILE_DETECT` + `profile_detect()` | Surface metadata/helper; Python preflight and direct gates share this applicability function, while other preflight surfaces use explicit markers. |
 | `variants` | `PROFILE_VARIANTS` | Optional package-manager / build-tool / test-framework variants (e.g. pnpm vs npm, Maven vs Gradle, RSpec vs Minitest). May be empty. |
 | `sync` | `PROFILE_SYNC_*` + `profile_sync()` | Optional dependency synchronization command and its OK/FAIL/FIX messages. |
 | `format_check` | gate slot `format_check` | Optional formatting check command. |
@@ -77,9 +77,25 @@ with a single package manager (as Python's `uv`).
 A gate function may return exit code **2** to signal SKIP — the gate's tool or
 project script is absent, so the gate is reported as a warning rather than a hard
 failure. `scripts/init.sh` reads `PROFILE_GATE_<g>_SKIP` for the skip message.
-Any other non-zero exit is a real failure (FAIL+FIX). Profiles that never opt
-into SKIP (e.g. Python, whose gates only return 0/1) keep their strict hard-fail
-contract; the SKIP branch stays dormant for them.
+Any other non-zero exit is a real failure (FAIL+FIX). Python preserves its
+gate-specific no-input statuses; ruff errors remain failures, not skips.
+
+## Python applicability (`python.profile.sh`)
+
+Python source (`*.py` or `*.pyi`), package-project metadata, build configuration,
+or ruff/mypy/pytest configuration activates the profile. Source discovery
+excludes dependency environments, other issue worktrees and local tracking.
+A non-package uv environment (`[tool.uv] package = false`) containing only
+release metadata and dormant tool dependencies does not activate product gates.
+The harness root uses this shape; add actual source or product configuration
+when a Python component is introduced. No repository name or custom opt-out
+flag controls detection.
+
+Preflight, CI-coverage detection and `python-gates.sh` share the descriptor.
+Without an applicable surface, the direct `all` command reports a skip without
+invoking uv; individual gate commands return the existing skip status 2.
+Discovery errors fail visibly. Lock integrity and release tooling remain
+separate obligations, not evidence that Python product gates should run.
 
 ## The Node.js profile (`node.profile.sh`)
 

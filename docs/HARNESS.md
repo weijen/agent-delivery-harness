@@ -392,12 +392,13 @@ trace carries only the path and one-line summary of that lesson, never its body.
 
 ## Gates And Sensors
 
-`./scripts/init.sh` detects project surfaces with explicit marker-file branches.
+`./scripts/init.sh` detects Python through its shared profile applicability
+function and other project surfaces through explicit marker-file branches.
 For each detected language, `profiles/<id>.profile.sh` supplies the surface
 label, dependency sync, and local gate commands:
 
 - docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
-- Python (`pyproject.toml`): `uv sync --all-groups`, ruff format/check, mypy, and pytest.
+- Python (source or product configuration): `uv sync --all-groups`, ruff format/check, mypy, and pytest. Non-package uv release metadata alone does not activate product gates; lock integrity remains independent.
 - Go (scaffold skeleton; `go.mod`): `gofmt -l`, `go vet ./...`, optional golangci-lint, and `go test ./...`.
 - Node.js (`package.json`): prettier, eslint, optional tsc, and the project's test script — pnpm when the project declares it, otherwise npm.
 - Java (scaffold skeleton; `pom.xml`, `build.gradle`, or `build.gradle.kts`): optional Spotless and Checkstyle/PMD/SpotBugs, plus the test task — Maven or Gradle, preferring `./mvnw`/`./gradlew` wrappers.

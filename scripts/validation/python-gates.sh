@@ -43,6 +43,22 @@ gate="${1:-all}"
 	usage
 	exit 2
 }
+case "$gate" in
+	all|format_check|lint|typecheck|test) ;;
+	*) usage; exit 2 ;;
+esac
+
+# shellcheck source=profiles/python.profile.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/profiles/python.profile.sh"
+if profile_detect; then
+	:
+else
+	status=$?
+	[ "$status" -eq 1 ] || exit "$status"
+	printf 'Python gates skipped: no applicable Python source or product configuration\n'
+	[ "$gate" = all ] && exit 0
+	exit 2
+fi
 
 if [ "$gate" = "all" ]; then
 	for gate in format_check lint typecheck test; do

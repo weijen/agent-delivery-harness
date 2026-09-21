@@ -45,13 +45,74 @@ assert_rc() {
 	[ "$got" -eq "$want" ] || fail "expected rc ${want}, got ${got}: $*"
 }
 
+mkdir -p "$TMP_DIR/empty"
+cd "$TMP_DIR/empty"
+: >"$UV_LOG"
+"$GATES" all >"$TMP_DIR/skip.out"
+[ ! -s "$UV_LOG" ] || fail "empty project invoked Python tools"
+grep -qi 'no applicable Python' "$TMP_DIR/skip.out" || fail "empty skip was not explained"
+assert_rc 2 "$GATES" lint
+assert_rc 2 "$GATES" unknown
+mkdir -p .venv/lib node_modules/tool .worktrees/other
+touch .venv/lib/ignored.py node_modules/tool/ignored.py .worktrees/other/ignored.py
+"$GATES" all >/dev/null
+[ ! -s "$UV_LOG" ] || fail "dependency or other worktree source activated product gates"
+
+cat >pyproject.toml <<'TOML'
+[project]
+name = "tooling-only"
+version = "0.1.0"
+[tool.uv]
+package = false
+[dependency-groups]
+dev = ["ruff", "mypy", "pytest"]
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+TOML
+"$GATES" all >/dev/null
+[ ! -s "$UV_LOG" ] || fail "release metadata or dormant tool dependencies activated product gates"
+applicable() (
+	# shellcheck source=profiles/python.profile.sh
+	source "$ROOT/profiles/python.profile.sh"
+	profile_detect
+)
+if applicable; then fail "profile and direct gates disagree about tooling-only metadata"; fi
+touch component.py
+applicable || fail "new Python source did not activate the profile"
+"$GATES" lint
+[ "$(cat "$UV_LOG")" = 'run ruff check' ] || fail "new source did not activate direct gates"
+rm component.py
+printf '\n[tool.ruff]\nline-length = 100\n' >>pyproject.toml
+applicable || fail "new product configuration did not activate the profile"
+: >"$UV_LOG"
+"$GATES" lint
+[ "$(cat "$UV_LOG")" = 'run ruff check' ] || fail "configuration-only change did not activate direct gates"
+printf '[tool.uv]\npackage = false\n[tool."ruff"]\nline-length = 100\n' >pyproject.toml
+applicable || fail "quoted product configuration was silently treated as tooling-only"
+printf '[tool.uv]\npackage = false\n[tool.black]\nline-length = 100\n' >pyproject.toml
+applicable || fail "other product-tool configuration was silently treated as tooling-only"
+printf '[project]\nname = "product"\nversion = "0.1.0"\n' >pyproject.toml
+applicable || fail "package project configuration did not activate the profile"
+rm pyproject.toml
+touch pytest.ini
+applicable || fail "standalone product configuration did not activate the profile"
+rm pytest.ini
+cat >"$TMP_DIR/bin/find" <<'SH'
+#!/usr/bin/env bash
+exit 7
+SH
+chmod +x "$TMP_DIR/bin/find"
+assert_rc 2 "$GATES" all
+rm "$TMP_DIR/bin/find"
+touch product.py
+
 MYPY_RC=2 assert_rc 2 "$GATES" typecheck
 PYTEST_RC=5 assert_rc 2 "$GATES" test
 PYTEST_RC=4 assert_rc 4 "$GATES" test
 
 : >"$UV_LOG"
 MYPY_RC=2 PYTEST_RC=5 "$GATES" all \
-	|| fail "full run must accept dormant-root skips"
+	|| fail "applicable run must preserve gate-specific skip statuses"
 [ "$(wc -l <"$UV_LOG" | tr -d ' ')" -eq 4 ] \
 	|| fail "full run did not execute all four gates"
 

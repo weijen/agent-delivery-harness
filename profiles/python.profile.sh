@@ -17,7 +17,7 @@ PROFILE_VARIANTS=""                                   # single package manager (
 PROFILE_TOOL_REQUIREMENTS="uv"
 PROFILE_INSTRUCTIONS=".copilot/instructions/python.instructions.md"
 PROFILE_FRAMEWORKS="FastAPI Django Flask"
-PROFILE_SURFACE_LABEL="Python surface detected (pyproject.toml)"
+PROFILE_SURFACE_LABEL="Python surface detected (source or product configuration)"
 # Grep signatures (extended regex) that prove a project-CI workflow runs this
 # surface's gates — the tokens of the profile_gate_* commands below. Consumed by
 # scripts/lib/ci-coverage-lib.sh (issue #129) for the preflight WARN and Pre-PR
@@ -26,7 +26,36 @@ PROFILE_SURFACE_LABEL="Python surface detected (pyproject.toml)"
 PROFILE_CI_SIGNATURES="python-gates\\.sh"
 
 # --- Detection ---------------------------------------------------------------
-profile_detect() { [ -f "$PWD/pyproject.toml" ]; }
+profile_detect() {
+	local config sources
+	for config in setup.py setup.cfg pytest.ini tox.ini mypy.ini .mypy.ini ruff.toml .ruff.toml; do
+		[ ! -f "$config" ] || return 0
+	done
+	if [ -f pyproject.toml ]; then
+		if awk '
+			/^[[:space:]]*\[/ &&
+			$0 !~ /^[[:space:]]*\[(project|dependency-groups|tool\.(uv|semantic_release)(\.[^]]+)?)\][[:space:]]*(#.*)?$/ { found=1 }
+			END { exit !found }
+		' pyproject.toml; then
+			return 0
+		fi
+		# A non-package uv tool environment is not itself a Python product.
+		if ! awk '
+			/^[[:space:]]*\[/ { uv = ($0 ~ /^[[:space:]]*\[tool\.uv\][[:space:]]*(#.*)?$/) }
+			uv && /^[[:space:]]*package[[:space:]]*=[[:space:]]*false[[:space:]]*(#.*)?$/ { found=1 }
+			END { exit !found }
+		' pyproject.toml; then
+			return 0
+		fi
+	fi
+	if ! sources="$(find . -type d \( -name .git -o -name .venv -o -name venv \
+		-o -name node_modules -o -name .worktrees -o -name .copilot-tracking \) -prune -o \
+		-type f \( -name '*.py' -o -name '*.pyi' \) -print)"; then
+		printf 'Python profile: source discovery failed\n' >&2
+		return 2
+	fi
+	[ -n "$sources" ]
+}
 
 # --- Dependency sync ---------------------------------------------------------
 PROFILE_SYNC_OK="uv environment synced"

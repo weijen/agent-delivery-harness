@@ -63,18 +63,18 @@ if [ -e "${TMP_DIR}/real-root-gate-ran" ]; then
 	exit 1
 fi
 
-grep -q "Python surface detected" "$OUT" || { cat "$OUT"; exit 1; }
+if grep -q "Python surface detected" "$OUT"; then
+	echo "dormant release tooling must not activate Python product gates"
+	cat "$OUT"
+	exit 1
+fi
 grep -q "skipping gates until earlier preflight failures are fixed" "$OUT" || { cat "$OUT"; exit 1; }
 if grep -q "Terraform surface detected" "$OUT"; then
 	echo "init.sh must not report Terraform after the repository stack is removed"
 	cat "$OUT"
 	exit 1
 fi
-if grep -q "docs-only project" "$OUT"; then
-	echo "init.sh must not report docs-only on a root with a Python surface"
-	cat "$OUT"
-	exit 1
-fi
+grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 
 # --- Docs-only path (fixture repo with no language/infra surface) -------------
 mkdir -p "${TMP_DIR}/docsrepo/scripts/lib" "${TMP_DIR}/docsrepo/scripts/validation"
@@ -395,7 +395,7 @@ SH
 chmod +x "$b/bin/uv"
 ( cd "$b" && git init -q -b main && printf '[project]\nname="x"\n' > pyproject.toml
   PATH="$b/bin:${PATH}" ./scripts/init.sh >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-b init.sh failed"; exit 1; }
-for s in "Python surface detected (pyproject.toml)" "uv environment synced" \
+for s in "Python surface detected (source or product configuration)" "uv environment synced" \
          "ruff format clean" "ruff clean" "mypy clean" "pytest passing"; do
   grep -qF "$s" "$OUT" || { cat "$OUT"; echo "case-b: missing parity string: $s"; exit 1; }
 done
@@ -433,6 +433,12 @@ make_gh "$d/bin"
   PATH="$d/bin:${PATH}" ./scripts/init.sh >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-d init.sh failed"; exit 1; }
 grep -q "docs-only project surface detected" "$OUT" || { cat "$OUT"; echo "case-d: docs-only label missing"; exit 1; }
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; echo "case-d: shellcheck advisory missing"; exit 1; }
+
+printf '\nprofile_detect() { return 2; }\n' >>"$a/profiles/python.profile.sh"
+if (cd "$a" && PATH="$a/bin:${PATH}" ./scripts/init.sh >"$OUT" 2>&1); then
+	cat "$OUT"; echo "surface discovery error must not pass as docs-only"; exit 1
+fi
+grep -q "surface discovery failed" "$OUT" || { cat "$OUT"; exit 1; }
 
 printf 'init profile wiring/parity passed\n'
 )
