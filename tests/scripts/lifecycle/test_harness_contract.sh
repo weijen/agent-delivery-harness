@@ -231,7 +231,7 @@ require_contract_record evidence id progress-prose
 require_contract_record policy id hard-gates-observed-only
 require_contract_record policy id new-rules-warn-first
 require_contract_record sha_bindings id approval-head scripts/validation/review-gate.sh
-require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
+require_contract_record sha_bindings id review-verdict scripts/trace/log-handback.sh
 require_contract_record sha_bindings id ci-green-head scripts/lifecycle/merge-pr.sh
 require_contract_record bypasses id FORCE scripts/lifecycle/finish-issue.sh
 require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh

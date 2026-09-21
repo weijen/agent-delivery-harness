@@ -93,6 +93,12 @@ fixture_repo() {
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
     case ",${scripts_csv}," in
+      *,log-handback.sh,*) scripts+=("trace/log-handback.sh") ;;
+    esac
+    case ",${scripts_csv}," in
+      *,render-action-log.sh,*) scripts+=("trace/render-action-log.sh") ;;
+    esac
+    case ",${scripts_csv}," in
       *,check-trace-consistency.sh,*) scripts+=("trace/check-trace-consistency.sh") ;;
     esac
     case ",${scripts_csv}," in

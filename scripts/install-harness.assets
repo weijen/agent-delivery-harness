@@ -22,12 +22,14 @@ scripts/install-harness.tombstones
 scripts/lib/issue-lib.sh
 scripts/lib/lifecycle-runtime-lib.sh
 scripts/log-handback.sh
+scripts/trace/log-handback.sh
 scripts/merge-pr.sh
 scripts/lifecycle/merge-pr.sh
 scripts/validation/python-gates.sh
 scripts/validation/rebind-evidence.sh
 scripts/lib/reconcile-lib.sh
 scripts/render-action-log.sh
+scripts/trace/render-action-log.sh
 scripts/validation/review-gate.sh
 scripts/run-sensors.sh
 scripts/validation/run-sensors.sh
@@ -92,7 +94,7 @@ tests/scripts/lib/native-economics-fixture.sh
 tests/scripts/lib/tap.sh
 tests/scripts/trace/test_actionability_gate.sh
 tests/scripts/validation/test_affected_sensors.sh
-tests/scripts/test_aggregate_finding_span.sh
+tests/scripts/trace/test_aggregate_finding_span.sh
 tests/scripts/test_copilot_log_review_recipes.sh
 tests/scripts/lifecycle/test_create_pr_failure.sh
 tests/scripts/lifecycle/test_create_pr_sensor_gate.sh
@@ -113,9 +115,9 @@ tests/scripts/test_issue_lib.sh
 tests/scripts/lifecycle/test_issue_scaffold.sh
 tests/scripts/lifecycle/test_lifecycle_order.sh
 tests/scripts/test_log_completeness_gate.sh
-tests/scripts/test_log_handback_deviation_gate.sh
-tests/scripts/test_log_handback_write_gate.sh
-tests/scripts/test_log_handback.sh
+tests/scripts/trace/test_log_handback_deviation_gate.sh
+tests/scripts/trace/test_log_handback_write_gate.sh
+tests/scripts/trace/test_log_handback.sh
 tests/scripts/test_loop2_single_review_doctrine.sh
 tests/scripts/lifecycle/test_merge_pr_ci_gate.sh
 tests/scripts/trace/test_merge_provenance_gap.sh

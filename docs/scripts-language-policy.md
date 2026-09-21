@@ -92,8 +92,10 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   The consistency checker lives in `scripts/trace/` with its directly owned
   sensors in `tests/scripts/trace/`; documented public
   `scripts/check-trace-consistency.sh` remains a thin compatibility entrypoint.
-  Trace recording/rendering and maintenance migrate in the serial
-  child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
+  The writer and Action Log renderer also live in `scripts/trace/`, behind
+  documented public `scripts/log-handback.sh` and `scripts/render-action-log.sh`
+  entrypoints. Their directly owned sensors live in `tests/scripts/trace/`.
+  Maintenance migrates in its later serial children. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
   public entrypoints as thin compatibility scripts, not one wrapper per internal

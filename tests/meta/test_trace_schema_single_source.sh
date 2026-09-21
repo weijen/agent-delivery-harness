@@ -27,7 +27,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 CONTRACT="$ROOT/schemas/trace-schema.v1.json"
 TRACE_LIB="$ROOT/scripts/lib/trace-lib.sh"
 CONSISTENCY="$ROOT/scripts/trace/check-trace-consistency.sh"
-LOG_HANDBACK="$ROOT/scripts/log-handback.sh"
+LOG_HANDBACK="$ROOT/scripts/trace/log-handback.sh"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 

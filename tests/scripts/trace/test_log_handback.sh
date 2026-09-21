@@ -3,7 +3,7 @@
 # Action Log renderer.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
@@ -16,6 +16,10 @@ fail() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "jq is required"
+for command in log-handback render-action-log; do
+  [ -x "${ROOT}/scripts/trace/${command}.sh" ] \
+    || fail "canonical trace command missing: ${command}"
+done
 
 MAIN="$FIXTURE_REPO"
 WT="${TMP_DIR}/wt-issue-21"
@@ -183,5 +187,51 @@ before_target="$(shasum -a 256 "$REAL_PROGRESS")"
   || fail "renderer followed a progress symlink"
 grep -qi 'symlink' "${TMP_DIR}/symlink.out" \
   || fail "renderer did not report symlink refusal"
+
+# Exercise both published paths from a linked nested cwd, including spaced args.
+mkdir -p "${WT}/nested/cwd" "${WT}/relative trace"
+printf '# Issue 21\n\n## Action Log\n\n## Notes\n\nKeep this note.\n' > "$PROGRESS"
+for prefix in scripts scripts/trace; do
+  writer="${WT}/${prefix}/log-handback.sh"
+  renderer="${WT}/${prefix}/render-action-log.sh"
+  before_count="$(jq -s 'length' "$TRACE")"
+  (cd "${WT}/nested/cwd" && "$writer" conductor feature_start parity pass \
+    "summary with spaces" "and two arguments") || fail "${prefix}: nested writer failed"
+  [ "$(jq -s 'length' "$TRACE")" -eq "$((before_count + 1))" ] \
+    || fail "${prefix}: writer did not append exactly one span"
+  jq -e -s 'last["harness.summary"] == "summary with spaces and two arguments"' \
+    "$TRACE" >/dev/null || fail "${prefix}: arguments changed"
+  grep -Fq 'feature_start parity pass' "$PROGRESS" \
+    || fail "${prefix}: canonical renderer did not update linked progress"
+  before_trace="$(shasum -a 256 "$TRACE")"
+  before_progress="$(shasum -a 256 "$PROGRESS")"
+  status=0
+  (cd "${WT}/nested/cwd" && "$writer" conductor review_verdict parity fail invalid) \
+    >"${TMP_DIR}/reject.out" 2>&1 || status=$?
+  [ "$status" -eq 1 ] || fail "${prefix}: invalid review must return 1"
+  grep -Fq TRACE_ACTIONABLE "${TMP_DIR}/reject.out" \
+    || fail "${prefix}: validation diagnostic lost"
+  [ "$(shasum -a 256 "$TRACE")" = "$before_trace" ] \
+    && [ "$(shasum -a 256 "$PROGRESS")" = "$before_progress" ] \
+    || fail "${prefix}: rejected review modified artifacts"
+  cp "$TRACE" "${WT}/relative trace/trace.jsonl"
+  printf '# Relative\n\n## Action Log\n\n' > "${WT}/relative trace/progress.md"
+  (cd "${WT}/nested/cwd" && "$renderer" "../../relative trace/trace.jsonl") \
+    || fail "${prefix}: relative rendering failed"
+  grep -Fq 'feature_start parity pass' "${WT}/relative trace/progress.md" \
+    || fail "${prefix}: relative rendering lost spans"
+done
+
+for name in log_handback log_handback_write_gate log_handback_deviation_gate aggregate_finding_span; do
+  [ ! -e "${ROOT}/tests/scripts/test_${name}.sh" ] \
+    || fail "duplicate flat sensor: ${name}"
+  grep -Fq "to: tests/scripts/trace/test_${name}.sh" "${ROOT}/docs/harness-contract.yml" \
+    || fail "missing sensor move identity: ${name}"
+done
+rm "${WT}/scripts/trace/log-handback.sh"
+if (cd "${WT}/nested/cwd" && "${WT}/scripts/log-handback.sh" conductor feature_start absent pass probe) \
+    >"${TMP_DIR}/missing-canonical.out" 2>&1; then
+  fail "public writer fell back after canonical implementation removal"
+fi
 
 printf 'current log writer and legacy Action Log reader contract honored\n'
