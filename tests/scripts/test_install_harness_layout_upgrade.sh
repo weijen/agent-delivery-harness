@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -50,10 +50,16 @@ mkdir -p "$legacy_source"
 git -C "$ROOT" archive v0.45.2 scripts profiles tests .copilot docs schemas optional VERSION \
 	.github/harness-identity.env.example | tar -x -C "$legacy_source"
 awk '
+	function emit() {
+		if (old != "") print old "\t" canonical "\t" public
+		old=canonical=public=""
+	}
 	/^layout_moves:/ { selected=1; next }
 	selected && /^[^ #]/ { exit }
-	selected && /^  - from:/ { old=$3 }
-	selected && /^    to:/ { print old "\t" $2 }
+	selected && /^  - from:/ { emit(); old=$3 }
+	selected && /^    to:/ { canonical=$2 }
+	selected && /^    public_entrypoint:/ { public=$2 }
+	END { emit() }
 ' "${ROOT}/docs/harness-contract.yml" >"${TMP_DIR}/layout-moves"
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
 
@@ -104,9 +110,17 @@ for profile in default developer claude; do
 	else
 		[ "$status" -eq 0 ] || fail_layout "${profile} clean upgrade failed"
 	fi
-	while IFS=$'\t' read -r old canonical; do
-		[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
-		[ "$old" != scripts/run-sensors.sh ] || continue
+	while IFS=$'\t' read -r old canonical public; do
+		if grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
+			[ ! -e "${target}/${canonical}" ] || fail_layout "${profile} installed source-only ${canonical}"
+		else
+			[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
+		fi
+		if [ -n "$public" ]; then
+			[ "$public" = "$old" ] && [ -x "${target}/${public}" ] \
+				|| fail_layout "${profile} lost declared public entrypoint ${public}"
+			continue
+		fi
 		if [ "$profile" = default ]; then
 			case "$old" in scripts/trace-lib.sh|scripts/issue-lib.sh|scripts/github-identity-lib.sh) continue ;; esac
 		fi
@@ -133,15 +147,33 @@ for profile in default developer claude; do
 	git -C "$target" config user.name "Harness Test"
 	git -C "$target" config user.email "harness-test@example.invalid"
 	git -C "$target" config commit.gpgsign false
+	mkdir -p "${TMP_DIR}/preflight-bin" "${target}/tests/scripts/lifecycle"
+	cat >"${TMP_DIR}/preflight-bin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+	auth) exit 0 ;;
+	api) printf 'fixture-user\n' ;;
+	*) exit 1 ;;
+esac
+SH
+	printf '#!/usr/bin/env bash\nexit 1\n' >"${TMP_DIR}/preflight-bin/az"
+	chmod +x "${TMP_DIR}/preflight-bin/gh" "${TMP_DIR}/preflight-bin/az"
+	for entry in scripts/init.sh scripts/lifecycle/init.sh; do
+		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}") \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed preflight ${entry}"
+		grep -q 'docs-only project surface detected' "$layout_log" \
+			|| fail_layout "${profile} preflight used the wrong project surface"
+	done
 	# Runtime evidence is local state, not a source change for the installed probe.
 	printf '/.copilot-tracking/\n' >>"${target}/.git/info/exclude"
 	printf '9.8.7-layout\n' >"${target}/VERSION"
-	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/validation/test_installed_probe.sh"
+	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	git -C "$target" add .
 	git -C "$target" commit -qm 'test: upgraded installed layout'
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \
-			--declared tests/scripts/validation/test_installed_probe.sh --diff HEAD) \
+			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed ${runner}"
 		grep -q 'scope=scoped ran=1 failed=0$' "$layout_log" \
 			|| fail_layout "${profile} runner did not use installed sensor selection"
@@ -155,12 +187,12 @@ for profile in default developer claude; do
 	jq -se 'length == 1 and .[0]["harness.version"] == "9.8.7-layout"' \
 		"${target}/.copilot-tracking/issues/issue-91/trace.jsonl" >/dev/null \
 		|| fail_layout "${profile} emitter used source identity instead of installed VERSION"
-	printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/validation/test_installed_probe.sh"
+	printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	if (cd "${target}/unrelated/nested" && "${target}/scripts/run-sensors.sh" green \
-		--declared tests/scripts/validation/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
+		--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
 		fail_layout "${profile} ignored the installed nested failure"
 	fi
-	grep -q '^FAIL tests/scripts/validation/test_installed_probe.sh$' "$layout_log" \
+	grep -q '^FAIL tests/scripts/lifecycle/test_installed_probe.sh$' "$layout_log" \
 		|| fail_layout "${profile} failure did not name the installed sensor"
 	grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
 		|| fail_layout "${profile} targeted failure selected unrelated sensors"

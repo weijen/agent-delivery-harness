@@ -93,6 +93,9 @@ fixture_repo() {
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
     case ",${scripts_csv}," in
+      *,init.sh,*) scripts+=("lifecycle/init.sh") ;;
+    esac
+    case ",${scripts_csv}," in
       *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,validation/review-gate.sh,*)
         case ",${scripts_csv}," in
           *,lib/lifecycle-runtime-lib.sh,*) ;;
@@ -135,7 +138,7 @@ fixture_repo() {
       fi
     done
     for script in "${scripts[@]}"; do
-      [[ "$script" =~ ^((lib|validation)/)?[A-Za-z0-9._-]+\.sh$ ]] || {
+      [[ "$script" =~ ^((lib|validation|lifecycle)/)?[A-Za-z0-9._-]+\.sh$ ]] || {
         _fixture_usage_error "invalid script name: $script"
         return 2
       }

@@ -10,6 +10,7 @@ scripts/finish-issue.sh
 scripts/lib/finish-lib.sh
 scripts/lib/github-identity-lib.sh
 scripts/init.sh
+scripts/lifecycle/init.sh
 scripts/install-harness.sh
 scripts/install-harness.assets
 scripts/install-harness.tombstones

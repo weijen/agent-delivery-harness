@@ -22,9 +22,14 @@
 version: 2
 review_by: 2027-01-23
 
-# Canonical layout migration identities. Old paths are retirement identities,
-# not active entrypoints; callers source the canonical library directly.
+# Canonical layout migration identities. Old paths retire unless an explicit
+# public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/init.sh
+    to: scripts/lifecycle/init.sh
+    public_entrypoint: scripts/init.sh
+  - from: tests/scripts/test_init_gates.sh
+    to: tests/scripts/lifecycle/test_init_gates.sh
   - from: scripts/affected-sensors.sh
     to: scripts/validation/affected-sensors.sh
   - from: scripts/check-feature-list.sh
@@ -102,6 +107,9 @@ layout_moves:
 scripts:
   - id: init
     path: scripts/init.sh
+    role: Stable public preflight entrypoint forwarding to the lifecycle implementation.
+  - id: init-implementation
+    path: scripts/lifecycle/init.sh
     role: Preflight environment sensor; never installs interactively.
   - id: issue-lib
     path: scripts/lib/issue-lib.sh
@@ -310,7 +318,7 @@ env_flags:
     owner: scripts/validation/review-gate.sh
     present: REQUIRE_TRACE_CONSISTENCY
   - name: REQUIRE_AZ
-    owner: scripts/init.sh
+    owner: scripts/lifecycle/init.sh
     present: REQUIRE_AZ
   - name: FORCE
     owner: scripts/finish-issue.sh

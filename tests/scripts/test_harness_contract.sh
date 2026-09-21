@@ -169,6 +169,7 @@ end_scenario "declared scripts exist, are executable, and parse (bash -n)"
 # --- 2. Required-script backstop (contract must not silently shrink) ---------
 for required in \
   scripts/init.sh \
+  scripts/lifecycle/init.sh \
   scripts/lib/github-identity-lib.sh \
   scripts/lib/issue-lib.sh \
   scripts/start-issue.sh \

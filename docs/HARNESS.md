@@ -54,10 +54,15 @@ not overwrite project-specific files without `--write`, creates or updates the
 matching `.copilot/instructions/<language>.instructions.md`, reports the gates the
 profile adds to `init.sh`, and leaves the issue / worktree / review-gate scripts
 untouched. After adding a profile, add a `tests/scripts/test_<id>_profile.sh`
-regression sensor and extend the multi-surface `tests/scripts/test_init_gates.sh`
+regression sensor and extend the multi-surface `tests/scripts/lifecycle/test_init_gates.sh`
 e2e fixture so the new surface is exercised.
 
 ### Non-regression contract
+
+The public preflight path `scripts/init.sh` is a thin `exec` entrypoint for
+`scripts/lifecycle/init.sh`. Both inspect their own checkout from any invocation
+directory, including linked worktrees. Its matching sensor lives under
+`tests/scripts/lifecycle/`; no duplicate flat implementation is retained.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle
@@ -67,7 +72,7 @@ script, keep these sensors green:
   (required scripts exist and parse; the four gates, SHA bindings, audited
   bypasses, and environment flags still match their owners; owner scripts stay
   language-neutral).
-- `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
+- `tests/scripts/lifecycle/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.
 
 The sensor inventory (`test_*.sh` recursively under `tests/scripts/` and

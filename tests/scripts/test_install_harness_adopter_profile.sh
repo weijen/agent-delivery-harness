@@ -175,13 +175,13 @@ upgrade_target="${TMP_DIR}/upgrade"
 # Model the preceding broad payload; portable developer mode no longer ships it.
 for legacy in tests/scripts/test_release_workflow.sh \
 	tests/scripts/test_install_harness_symlinked_parent.sh \
-	tests/scripts/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
+	tests/scripts/lifecycle/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
 	mkdir -p "${upgrade_target}/$(dirname "$legacy")"
 	cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
 	digest="$(shasum -a 256 "${upgrade_target}/${legacy}" | awk '{print $1}')"
 	printf '%s\t%s\n' "$digest" "$legacy" >>"${upgrade_target}/.harness-lock"
 done
-printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/test_init_gates.sh"
+printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/lifecycle/test_init_gates.sh"
 if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "default upgrade must report a modified excluded sensor"
@@ -195,11 +195,11 @@ fi
 	echo "default upgrade left the unmodified symlinked-parent sensor"
 	exit 1
 }
-grep -qF "adopter customization" "${upgrade_target}/tests/scripts/test_init_gates.sh" || {
+grep -qF "adopter customization" "${upgrade_target}/tests/scripts/lifecycle/test_init_gates.sh" || {
 	echo "default upgrade removed a modified harness-dev sensor"
 	exit 1
 }
-grep -qF "preserving modified harness-dev sensor tests/scripts/test_init_gates.sh" "$OUT" || {
+grep -qF "preserving modified harness-dev sensor tests/scripts/lifecycle/test_init_gates.sh" "$OUT" || {
 	cat "$OUT"
 	echo "default upgrade did not report the preserved modified sensor"
 	exit 1
@@ -211,16 +211,16 @@ if "$INSTALL" "$upgrade_target" --update >"$OUT" 2>&1; then
 	echo "--update on a modified excluded sensor must fail visibly"
 	exit 1
 fi
-grep -qF "conflict tests/scripts/test_init_gates.sh" "$OUT" || {
+grep -qF "conflict tests/scripts/lifecycle/test_init_gates.sh" "$OUT" || {
 	cat "$OUT"
 	echo "--update did not report the modified harness-dev conflict"
 	exit 1
 }
-[ -e "${upgrade_target}/tests/scripts/test_init_gates.sh" ] || {
+[ -e "${upgrade_target}/tests/scripts/lifecycle/test_init_gates.sh" ] || {
 	echo "--update removed the modified harness-dev sensor"
 	exit 1
 }
-[ -f "${upgrade_target}/tests/scripts/test_init_gates.sh.rej" ] || {
+[ -f "${upgrade_target}/tests/scripts/lifecycle/test_init_gates.sh.rej" ] || {
 	echo "--update did not emit the rejected harness-dev deletion"
 	exit 1
 }
@@ -334,7 +334,7 @@ fi
 
 while IFS= read -r pattern; do
 	case "$pattern" in
-	tests/scripts/test_*.sh | tests/meta/test_*.sh) ;;
+	tests/scripts/test_*.sh | tests/scripts/lifecycle/test_*.sh | tests/meta/test_*.sh) ;;
 	*)
 		echo "invalid harness-dev sensor pattern: $pattern"
 		exit 1
@@ -369,11 +369,14 @@ while IFS= read -r sensor; do
 		echo "dev-fixture sensor must be harness-dev: $sensor"
 		exit 1
 	}
-done < <(cd "$ROOT" && compgen -G 'tests/scripts/test_*.sh' | sort)
+done < <(cd "$ROOT" && {
+	compgen -G 'tests/scripts/test_*.sh'
+	compgen -G 'tests/scripts/lifecycle/test_*.sh'
+} | sort)
 
 required=(
 	'tests/meta/test_*.sh'
-	tests/scripts/test_init_gates.sh
+	tests/scripts/lifecycle/test_init_gates.sh
 	tests/scripts/test_install_harness_symlinked_parent.sh
 	tests/scripts/test_release_workflow.sh
 	tests/scripts/test_eval_manifest_validator.sh

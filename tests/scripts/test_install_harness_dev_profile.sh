@@ -25,7 +25,7 @@ for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json
 done
 for excluded in .env.example pyproject.toml uv.lock docs/archive docs/evaluation \
 	docs/RELEASING.md docs/runtime-adapters scripts/sync-version.sh scripts/audit-sweep.sh \
-	tests/meta tests/scripts/test_init_gates.sh tests/scripts/test_release_workflow.sh \
+	tests/meta tests/scripts/lifecycle/test_init_gates.sh tests/scripts/test_release_workflow.sh \
 	tests/scripts/test_install_harness_tombstone_history.sh; do
 	[ ! -e "${TARGET}/${excluded}" ] || fail "source-only or optional asset installed: ${excluded}"
 done

@@ -44,6 +44,8 @@ cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/l
 cp "${ROOT}/scripts/lib/finish-lib.sh" "${TMP_DIR}/repo/scripts/lib/finish-lib.sh"
 cp "${ROOT}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/repo/scripts/validation/check-feature-list.sh"
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
+mkdir -p "${TMP_DIR}/repo/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/init.sh" "${TMP_DIR}/repo/scripts/lifecycle/init.sh"
 
 cd "${TMP_DIR}/repo"
 git init -q -b main
