@@ -85,6 +85,51 @@ reject 'metadata' --gate pre-pr unrelated.md
 source_resolve() {
 	"$ROOT/scripts/validation/affected-sensors.sh" "$@" >"$TMP/source"
 }
+git -C "$ROOT" ls-tree -r --name-only v0.45.2 -- tests/scripts tests/meta >"$TMP/baseline-tree"
+grep -E '/test_[^/]*\.sh$' "$TMP/baseline-tree" \
+	| grep -Ev '/(lib|helpers|fixtures)/' >"$TMP/baseline-sensors"
+[ -s "$TMP/baseline-sensors" ] || fail "pre-layout identity baseline unavailable"
+awk '
+	/^layout_moves:/ { active=1; next }
+	active && /^[^ #]/ { exit }
+	active && /^  - from:/ { old=$3 }
+	active && /^    to:/ { print old "\t" $2 }
+' "$ROOT/docs/harness-contract.yml" >"$TMP/moves"
+: >"$TMP/expected-identities"
+while IFS= read -r old; do
+	case "$old" in
+		# #496 retired structural/ceremony checks; #517 withdrew Claude support.
+		tests/meta/test_finish_lib_extracted.sh|tests/scripts/test_fixture_adoption.sh|\
+		tests/scripts/test_trace_feature_start_evidence.sh|tests/scripts/test_claude_adapter.sh)
+			[ ! -e "$ROOT/$old" ] || fail "retired obligation restored: $old"
+			continue ;;
+	esac
+	canonical="$(awk -F '\t' -v path="$old" '$1==path {print $2}' "$TMP/moves")"
+	printf '%s\n' "${canonical:-$old}" >>"$TMP/expected-identities"
+done <"$TMP/baseline-sensors"
+# Include identities added during the series, not just the release baseline.
+awk -F '\t' '$2 ~ /^tests\/.*\/test_[^\/]*\.sh$/ {print $2}' "$TMP/moves" >>"$TMP/expected-identities"
+LC_ALL=C sort -u "$TMP/expected-identities" >"$TMP/intended"
+source_resolve --list
+check_identity_parity() {
+	local inventory="$1" identity
+	while IFS= read -r identity; do
+		[ "$(grep -Fxc "$identity" "$inventory")" -eq 1 ] \
+			|| fail "intended pre-series/mapped sensor not discovered exactly once: $identity"
+	done <"$TMP/intended"
+	if grep -E '/(lib|helpers|fixtures)/' "$inventory"; then fail "helper became an executable sensor"; fi
+}
+check_identity_parity "$TMP/source"
+identity="$(head -1 "$TMP/intended")"
+grep -Fxv "$identity" "$TMP/source" >"$TMP/missing"
+if (check_identity_parity "$TMP/missing") >"$TMP/parity-error" 2>&1; then
+	fail "identity parity accepted omitted coverage"
+fi
+cp "$TMP/source" "$TMP/duplicate"
+printf '%s\n' "$identity" >>"$TMP/duplicate"
+if (check_identity_parity "$TMP/duplicate") >"$TMP/parity-error" 2>&1; then
+	fail "identity parity accepted duplicate execution identity"
+fi
 source_resolve --gate pre-pr unrelated-product.txt
 scoped=(
 	tests/scripts/maintenance/test_audit_sweep.sh
