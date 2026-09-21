@@ -11,7 +11,7 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 roots=()
-for directory in scripts profiles tests/scripts tests/meta tests/evals/bin optional/runtime-adapters; do
+for directory in scripts profiles tests/scripts tests/meta tests/evals/bin; do
   [ ! -d "$directory" ] || roots+=("$directory")
 done
 [ "${#roots[@]}" -gt 0 ] || { printf 'check-shell.sh: no shell roots found\n' >&2; exit 1; }

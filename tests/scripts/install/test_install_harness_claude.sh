@@ -5,7 +5,29 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 OUT="${TMP_DIR}/install.out"
-fail() { cat "$OUT" >&2; printf 'retired-claude: %s\n' "$*" >&2; exit 1; }
+fail() { [ ! -f "$OUT" ] || cat "$OUT" >&2; printf 'retired-claude: %s\n' "$*" >&2; exit 1; }
+
+# Archives and immutable fixtures describe history, not executable integration.
+while IFS= read -r path; do
+	case "$path" in
+		docs/archive/*|tests/scripts/fixtures/*) continue ;;
+		*/claude-code*|*/test_claude_*)
+			[ ! -e "${ROOT}/${path}" ] || fail "active retired adapter asset remains: ${path}"
+			;;
+	esac
+done < <(git -C "$ROOT" ls-files --cached --others --exclude-standard)
+for registry in scripts/install-harness.assets scripts/install-harness.dev.assets tests/harness-dev-sensors.txt; do
+	if grep -Eq 'optional/runtime-adapters|tests/scripts/test_claude_' "${ROOT}/${registry}"; then
+		fail "active retired adapter registration remains: ${registry}"
+	fi
+done
+if git -C "$ROOT" grep -n -E 'CLAUDE_PROJECT_DIR|claude-code-trace-hook|claude-code.settings' \
+	-- .github .copilot profiles >"$OUT"; then
+	fail "active configuration advertises retired adapter"
+fi
+if grep -Fq optional/runtime-adapters "${ROOT}/scripts/validation/check-shell.sh"; then
+	fail "shell discovery still registers retired adapter surface"
+fi
 
 check_refusal() {
 	local source="$1" entry="" mode="" target="${TMP_DIR}/refused"

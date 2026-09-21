@@ -48,8 +48,8 @@ mkdir -p "$FIX" "${TMP_DIR}/bin"
 paths=(scripts/flat.sh scripts/lifecycle/nested.sh scripts/lib/shared.sh
 	tests/scripts/test_flat.sh tests/scripts/nested/test_nested.sh tests/scripts/lib/helper.sh
 	tests/meta/test_flat.sh tests/meta/nested/test_nested.sh profiles/example.profile.sh
-	tests/evals/bin/tool.sh optional/runtime-adapters/hook.sh
-	optional/runtime-adapters/tests/test_hook.sh)
+	tests/evals/bin/tool.sh scripts/trace/writer.sh
+	tests/scripts/trace/test_writer.sh)
 for path in "${paths[@]}"; do
 	mkdir -p "${FIX}/$(dirname "$path")"
 	printf '#!/usr/bin/env bash\nset -euo pipefail\n:\n' >"${FIX}/${path}"
@@ -61,6 +61,8 @@ if [ -f "${ROOT}/scripts/validation/check-shell.sh" ]; then
 fi
 mkdir -p "${FIX}/tests/scripts/fixtures"
 printf 'deliberately not shell\n' >"${FIX}/tests/scripts/fixtures/invalid.sh"
+mkdir -p "${FIX}/optional/runtime-adapters"
+printf 'retired adapter is not an active shell root\n' >"${FIX}/optional/runtime-adapters/retired.sh"
 printf '%s\n' "${paths[@]}" | LC_ALL=C sort >"${TMP_DIR}/expected"
 export REAL_BASH REAL_SHELLCHECK SHELL_INPUT_LOG
 REAL_BASH="$(command -v bash)"

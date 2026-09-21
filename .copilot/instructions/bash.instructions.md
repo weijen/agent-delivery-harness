@@ -117,7 +117,7 @@ The point-in-time triage that applied this rubric lives at
 - `./scripts/validation/check-shell.sh syntax` — recursively parse each intended shell file
   separately; never pass a filename list to one `bash -n` invocation.
 - `./scripts/validation/check-shell.sh lint` — lint the same recursive scripts, profiles,
-  sensors, libraries, eval tools and installed optional adapter surface once.
+  sensors, libraries and eval tools once.
   Fixture subtrees are excluded. Touched shell must be shellcheck-clean.
   Suppress a finding only with a justified, scoped directive
   (e.g. `# shellcheck source=/dev/null` for a dynamically sourced file).

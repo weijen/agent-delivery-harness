@@ -140,7 +140,7 @@ descriptor. There are two common ways to start:
 | Adopter | Exact manifest entries: lifecycle commands/libraries, profiles, current docs/contracts, discoverable guidance, core sensors, frontmatter validator, and the native-log fixtures those sensors actually read. |
 | Portable developer opt-in | Exact additional manifest entries: eval runner/validator, L0 driver and manifests, and eval-authoring sensors. Generated fixtures use core sensors already installed. |
 | Maintainer | Release/history and audit-sweep tooling, source-repository meta tests, evaluation runners/manifests/scorecards, research/archive docs, and maintainer CI/configuration. Not needed to operate a delivery worktree. |
-| Retired source bundle | Claude hook, guide and settings template temporarily remain under `optional/runtime-adapters/` pending source cleanup; neither install profile distributes them. |
+| Retired source bundle | The Claude hook, guide, settings template and sensors formerly under `optional/runtime-adapters/` have been removed. Neither install profile distributes them; archive text and ownership history remain. |
 | Project-owned | Root README/AGENTS, environment examples, runtime settings and debt records. Never imported from this repository as adopter state. |
 
 The source repository retains its complete CI and evaluation suite. Historical
