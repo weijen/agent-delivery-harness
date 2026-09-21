@@ -20,9 +20,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate tombstone history
-        run: ./scripts/check-install-harness-tombstones.sh
-
       - name: Install shellcheck
         shell: bash
         run: |
@@ -37,14 +34,37 @@ jobs:
             /usr/local/bin/shellcheck
           shellcheck --version
 
+      - name: Detect Python product surface
+        id: python_surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          source profiles/python.profile.sh
+          if profile_detect; then
+            echo 'applicable=true' >>"$GITHUB_OUTPUT"
+          else
+            status=$?
+            [ "$status" -eq 1 ] || exit "$status"
+            echo 'applicable=false' >>"$GITHUB_OUTPUT"
+            echo 'No applicable Python product surface; release/lock checks are independent.'
+          fi
+
       - name: Set up uv
+        id: python_setup
+        if: steps.python_surface.outputs.applicable == 'true'
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: Sync Python environment
-        run: uv sync --all-groups
+        id: python_sync
+        if: steps.python_surface.outputs.applicable == 'true'
+        run: |
+          uv sync --all-groups
 
       - name: Python profile gates
-        run: ./scripts/validation/python-gates.sh
+        id: python_gates
+        if: steps.python_surface.outputs.applicable == 'true'
+        run: |
+          ./scripts/validation/python-gates.sh
 
       - name: Check shell syntax
         run: ./scripts/validation/check-shell.sh syntax
@@ -56,27 +76,9 @@ jobs:
         shell: bash
         run: bash tests/evals/bin/validate-customization-frontmatter.sh
       - name: Run harness sensor suite
+        id: core_sensors
         shell: bash
+        env:
+          SENSOR_DIFF_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          set -uo pipefail
-          discovered="$(./scripts/validation/affected-sensors.sh --list)" || exit 1
-          if [ -z "$discovered" ]; then
-            echo "No harness sensor scripts found." >&2
-            exit 1
-          fi
-          mapfile -t tests <<< "$discovered"
-          rc=0
-          for t in "${tests[@]}"; do
-            echo "::group::${t}"
-            if bash "$t"; then
-              echo "PASS ${t}"
-            else
-              echo "FAIL ${t}"
-              rc=1
-            fi
-            echo "::endgroup::"
-          done
-          if [ "$rc" -ne 0 ]; then
-            echo "One or more harness sensors failed." >&2
-          fi
-          exit "$rc"
+          ./scripts/run-sensors.sh --gate ci --diff "${SENSOR_DIFF_BASE:?pull request base is required}"

@@ -116,11 +116,11 @@ without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — 
 > `~/.copilot/config.json` and launching from it remains a harmless convention, no longer a
 > requirement to avoid a lost run.
 
-This repo has a `harness-smoke.yml` GitHub Actions workflow that sets up `uv` and
-syncs the Python environment, runs the Python profile gates (`ruff format
---check`, `ruff check`, `mypy`, `pytest`), runs the harness shell sensor suite
+This repo has a `harness-smoke.yml` GitHub Actions workflow that sets up `uv`,
+syncs and runs Python profile gates only when a Python product surface applies
+(`ruff format --check`, `ruff check`, `mypy`, `pytest`), runs the applicable harness shell sensor set
 (`tests/scripts/` and `tests/meta/`), shell parsing, and `shellcheck`. L0 functional
-sensors run once through discovery; evaluation-tool contracts use tiny fixtures,
+sensors run once through applicable discovery; evaluation-tool contracts use tiny fixtures,
 not a second full L0 invocation. A green run is a hard precondition for merge (enforced via
 `./scripts/merge-pr.sh`). It is still not CI/CD delivery, not a deploy pipeline,
 and not GitHub auto-merge; a repo admin may additionally enable a

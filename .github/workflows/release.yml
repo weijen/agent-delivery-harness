@@ -46,8 +46,25 @@ jobs:
       - name: Pin release branch to the triggering sha
         run: git reset --hard ${{ github.sha }}
 
+      - name: Plan semantic version without writing
+        id: release_plan
+        uses: python-semantic-release/python-semantic-release@39dd2052f2ce8282a5d932c31d58a2ca06d2550e # v10
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          no_operation_mode: true
+          git_committer_name: "github-actions"
+          git_committer_email: "actions@users.noreply.github.com"
+
+      - name: Validate release and historical upgrades
+        id: upgrade_acceptance
+        if: steps.release_plan.outputs.released == 'true'
+        shell: bash
+        run: |
+          ./scripts/run-sensors.sh --gate release
+
       - name: Semantic version release
         id: release
+        if: steps.release_plan.outputs.released == 'true'
         uses: python-semantic-release/python-semantic-release@39dd2052f2ce8282a5d932c31d58a2ca06d2550e # v10
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

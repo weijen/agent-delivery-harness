@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: .github/workflows/release.yml scripts/sync-version.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
+# harness-sensor-depends: .github/workflows/release.yml scripts/sync-version.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
 # test_release_workflow.sh — regression sensor for the release automation
 # workflow (issue #257, feature release-workflow).
 #
@@ -69,6 +69,7 @@ extract_release_job_block() {
 require_pinned_action() {
   local action="$1"
   local version="$2"
+  local expected="${3:-1}"
   local action_pattern pinned_pattern total_matches pinned_matches
 
   action_pattern="^[[:space:]]*uses:[[:space:]]*${action}@"
@@ -76,9 +77,9 @@ require_pinned_action() {
   total_matches="$(count_matches "$action_pattern" "$WF")"
   pinned_matches="$(count_matches "$pinned_pattern" "$WF")"
 
-  [ "$total_matches" -eq 1 ] \
-    || fail "release.yml must reference ${action} exactly once"
-  [ "$pinned_matches" -eq 1 ] \
+  [ "$total_matches" -eq "$expected" ] \
+    || fail "release.yml must reference ${action} exactly ${expected} time(s)"
+  [ "$pinned_matches" -eq "$expected" ] \
     || fail "release.yml must pin ${action} to a 40-character SHA with inline '# ${version}' comment"
 }
 
@@ -129,7 +130,7 @@ grep -qE '^\s*concurrency:' "$WF" \
 
 # pinned third-party actions + PSR token
 require_pinned_action 'actions/checkout' 'v4'
-require_pinned_action 'python-semantic-release/python-semantic-release' 'v10'
+require_pinned_action 'python-semantic-release/python-semantic-release' 'v10' 2
 require_pinned_action 'python-semantic-release/publish-action' 'v10'
 
 grep -qE 'github_token:' "$WF" \

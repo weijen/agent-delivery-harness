@@ -70,9 +70,10 @@ script, keep these sensors green:
 - `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.
 
-The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
-`tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
-in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
+The sensor inventory (`test_*.sh` recursively under `tests/scripts/` and
+`tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees)
+feeds applicable source CI; a green CI run is a hard precondition for merge
+(see [CI Boundary](#ci-boundary)). Installed smoke retains its portable inventory.
 The canonical inventory comes from
 `scripts/validation/affected-sensors.sh --list`. Empty final suites fail; empty
 scoped selections remain valid.
@@ -529,8 +530,9 @@ remain schema-valid.
 
 ## CI Boundary
 
-`.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
-(the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
+`.github/workflows/harness-smoke.yml` runs the complete applicable harness sensor set
+through `run-sensors.sh --gate ci --diff <PR-base>` (the same selection policy
+used by the local final gate), checks shell parsing, runs `shellcheck`
 through `scripts/validation/check-shell.sh`, and validates Copilot customization frontmatter.
 The shared shell gate recursively covers scripts, profiles, sensor/library trees,
 eval tools and available optional adapters, excluding fixture subtrees. Syntax
@@ -540,7 +542,14 @@ so the suite needs no secrets and runs on fork PRs.
 
 Both installed profiles select [the adopter workflow](../profiles/adopter-smoke.yml)
 for that destination. Only the source repository retains the maintainer workflow,
-including Python profile, tombstone-history and source functional gates. L0
+including applicable Python profile, tombstone-history and source functional gates.
+Python detection precedes environment setup/sync; the independent lock check
+still runs. Historical upgrades and maintenance checks run only for declared
+changes or their explicit boundaries, not through an additional unconditional
+workflow step. Release planning uses PSR no-operation mode; when a release is
+planned, `--gate release` must pass before the actual version/tag/release action.
+No-op pushes do not replay upgrade acceptance. `--gate maintenance` remains an
+explicit operator command. L0
 functional sensors run once through discovery, without an additional evaluation
 replay; tiny fixtures protect evaluation-tool and TAP-helper contracts. Portable developer
 installations additionally provide `bash tests/evals/bin/run-l0-suite.sh`

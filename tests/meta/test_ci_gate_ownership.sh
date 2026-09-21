@@ -125,7 +125,9 @@ done
 assert_owner "Python profile gates" './scripts/validation/python-gates.sh' "$SMOKE"
 assert_owner "Python dependency sync" 'uv sync --all-groups' "$SMOKE"
 assert_owner "Python lock integrity" 'uv lock --check' "$PYTHON"
-assert_owner "tombstone history" './scripts/check-install-harness-tombstones.sh' "$SMOKE"
+assert_owner "applicable sensor execution" './scripts/run-sensors.sh --gate ci' "$SMOKE"
+[ "$(count_literal './scripts/check-install-harness-tombstones.sh')" -eq 0 ] \
+	|| fail "tombstone history must have one applicable sensor owner, not a second unconditional step"
 assert_owner "shell syntax" './scripts/validation/check-shell.sh syntax' "$SMOKE"
 assert_owner "shellcheck" './scripts/validation/check-shell.sh lint' "$SMOKE"
 assert_owner "frontmatter validation" 'validate-customization-frontmatter.sh' "$SMOKE"

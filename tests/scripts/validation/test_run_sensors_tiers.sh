@@ -230,7 +230,7 @@ run_ci() {
     body { sub(/^          /, ""); print }
   ' "$workflow" >"${TMP_DIR}/ci-step.sh"
   [ -s "${TMP_DIR}/ci-step.sh" ] || fail "missing sensor execution block in ${workflow}"
-  (cd "$FIX" && bash "${TMP_DIR}/ci-step.sh")
+  (cd "$FIX" && SENSOR_DIFF_BASE="$(git rev-parse origin/main)" bash "${TMP_DIR}/ci-step.sh")
 }
 
 mkdir -p "${FIX}/tests/scripts/nested" "${FIX}/tests/meta/nested" \

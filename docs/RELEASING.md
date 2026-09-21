@@ -13,14 +13,21 @@ required commit format.
 ## How an automatic release happens
 
 1. A `fix:` or `feat:` (or `BREAKING CHANGE`) commit lands on `main`.
-2. `release.yml` runs `semantic-release version`, which:
+2. `release.yml` invokes the pinned PSR action in `no_operation_mode` to determine
+   whether a release is planned, without writing version files, commits or tags.
+3. Only a planned release runs `./scripts/run-sensors.sh --gate release`.
+   This includes real historical upgrade acceptance and release/retirement
+   contracts. A failure stops the job before release writes.
+4. The regular PSR action then runs `semantic-release version`, which:
    - computes the next SemVer from the commits since the last tag,
    - writes `pyproject.toml` `[project].version` (the single source of truth) and
      mirrors it into the root `VERSION` file via `scripts/sync-version.sh`,
    - updates `CHANGELOG.md`, commits, and tags `vX.Y.Z`,
    - creates the matching GitHub Release.
-3. Pushes that carry only non-releasing types (`chore:`, `docs:`, `test:`,
-   `refactor:`, `ci:`, `build:`, `style:`) are a **no-op** — no bump, tag, or release.
+5. Pushes that carry only non-releasing types (`chore:`, `docs:`, `test:`,
+   `refactor:`, `ci:`, `build:`, `style:`) are a **no-op** — no upgrade replay,
+   bump, tag, or release. This does not add tested-base freshness or protection
+   prerequisites; it preserves the existing release trigger and permissions.
 
 | Commit type | Bump |
 |---|---|
@@ -44,6 +51,7 @@ manually, for example:
 
 ```sh
 # From a checkout of main, with python-semantic-release available:
+./scripts/run-sensors.sh --gate release
 semantic-release version --major
 ```
 
