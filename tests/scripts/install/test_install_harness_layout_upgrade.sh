@@ -73,6 +73,7 @@ for profile in default developer claude; do
 	target="${TMP_DIR}/layout-${profile}"
 	install_layout "${legacy_source}/scripts/install-harness.sh" "$target" --write "${options[@]}" \
 		|| fail_layout "${profile} baseline installation"
+	if [ "$profile" = claude ]; then options=(); fi
 	[ -f "${target}/scripts/trace-lib.sh" ] && \
 		[ ! -e "${target}/scripts/lib/trace-lib.sh" ] \
 		|| fail_layout "${profile} fixture is not the actual previous layout"
@@ -141,6 +142,12 @@ for profile in default developer claude; do
 	[ "$profile" != default ] || expected_calls=5
 	[ "$layout_install_calls" -eq "$expected_calls" ] \
 		|| fail_layout "${profile} performed ${layout_install_calls} installer calls; expected ${expected_calls}"
+	if [ "$profile" = claude ]; then
+		while IFS= read -r retired; do
+			case "$retired" in "" | \#*) continue ;; esac
+			[ ! -e "${target}/${retired}" ] || fail_layout "owned legacy bundle was not retired: ${retired}"
+		done <"${legacy_source}/scripts/install-harness.claude.assets"
+	fi
 
 	mkdir -p "${target}/unrelated/nested"
 	for entry in scripts/scaffold-language.sh scripts/install/scaffold-language.sh; do

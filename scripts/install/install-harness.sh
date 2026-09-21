@@ -420,6 +420,17 @@ sha256_file() {
 	fi
 }
 
+# The retired bundle requires lock ownership even when a tombstone matches.
+retirement_requires_lock() {
+	case "$1" in
+		scripts/install-harness.claude.assets | scripts/claude-code-trace-hook.sh | \
+		tests/scripts/test_claude_*.sh | \
+		optional/runtime-adapters/claude-* | optional/runtime-adapters/tests/test_claude_*)
+			return 0 ;;
+	esac
+	return 1
+}
+
 list_excluded_files() {
 	local asset="" files="" candidates="" digest="" rel="" extra="" managed=0
 	for asset in "${HARNESS_ASSETS[@]}"; do
@@ -433,6 +444,11 @@ list_excluded_files() {
 			candidates+="${rel}"$'\n'
 		done <"$LOCK_FILE"
 	fi
+	while IFS=$'\t' read -r digest rel extra; do
+		if retirement_requires_lock "$rel"; then
+			candidates+="${rel}"$'\n'
+		fi
+	done <"$TOMBSTONE_LEDGER" || return 1
 	# A missing lock row is not permission to silently ignore an old layout
 	# copy. The maintained migration map identifies it; the lock still owns
 	# deletion proof, so unknown/customized copies take the conflict path.
@@ -452,7 +468,8 @@ list_excluded_files() {
 		esac
 		grep -qxF "$rel" <<<"$SELECTED_FILES" && continue
 		# Historical retirements retain their existing ledger-based proof.
-		if awk -F '\t' -v path="$rel" '$2==path { found=1 } END { exit !found }' "$TOMBSTONE_LEDGER"; then
+		if ! retirement_requires_lock "$rel" \
+			&& awk -F '\t' -v path="$rel" '$2==path { found=1 } END { exit !found }' "$TOMBSTONE_LEDGER"; then
 			continue
 		fi
 		managed=0
@@ -561,6 +578,7 @@ print_update_summary() {
 		case "$digest" in
 		"" | \#*) continue ;;
 		esac
+		if retirement_requires_lock "$rel"; then continue; fi
 		category="$(classify_deletion_for_summary "$rel" "$digest")"
 		summary_increment "$category"
 	done <"$TOMBSTONE_LEDGER"
@@ -666,6 +684,7 @@ prune_retired() {
 			die "unsafe tombstone path '${rel}'"
 			;;
 		esac
+		if retirement_requires_lock "$rel"; then continue; fi
 		base_hash="$(lock_base_hash "$rel")"
 		if is_protected_path "$rel"; then
 			append_lock_entry "$base_hash" "$rel"
