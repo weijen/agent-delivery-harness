@@ -567,7 +567,7 @@ through `run-sensors.sh --gate ci --diff <PR-base>` (the same selection policy
 used by the local final gate), checks shell parsing, runs `shellcheck`
 through `scripts/validation/check-shell.sh`, and validates Copilot customization frontmatter.
 The shared shell gate recursively covers scripts, profiles, sensor/library trees,
-eval tools and available optional adapters, excluding fixture subtrees. Syntax
+eval tools, excluding fixture subtrees. Syntax
 parses each file separately; lint consumes the same unique file set. The runner is
 `ubuntu-latest`, where `git`, `jq`, and `awk` are preinstalled; the tests fake every external CLI,
 so the suite needs no secrets and runs on fork PRs.

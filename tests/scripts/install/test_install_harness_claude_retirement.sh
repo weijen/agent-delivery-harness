@@ -86,14 +86,20 @@ installed_source="${TMP_DIR}/installed-source"
 installer_fixture_source "$installed_source"
 cp "${ROOT}/scripts/install-harness.tombstones" "${installed_source}/scripts/install-harness.tombstones"
 legacy_hook="optional/runtime-adapters/claude-code-trace-hook.sh"
+historical_hook="${TMP_DIR}/historical-hook"
+git -C "$ROOT" show "e6b837db356c44515e0dc24e8094e896e22308cf:${legacy_hook}" >"$historical_hook"
+historical_digest="$(shasum -a 256 "$historical_hook" | awk '{print $1}')"
+grep -qxF "$(printf '%s\t%s' "$historical_digest" "$legacy_hook")" \
+	"${installed_source}/scripts/install-harness.tombstones" \
+	|| fail "historical hook must match its final-upstream retirement entry"
 for mode in --write --update; do
 	target="${TMP_DIR}/installed-unknown-${mode#--}"
 	mkdir -p "${target}/optional/runtime-adapters"
-	cp "${ROOT}/${legacy_hook}" "${target}/${legacy_hook}"
+	cp "$historical_hook" "${target}/${legacy_hook}"
 	rc=0
 	"${installed_source}/scripts/install-harness.sh" "$target" "$mode" >"$OUT" 2>&1 || rc=$?
 	[ "$rc" -ne 0 ] || fail "installed source silently accepted unknown legacy hook in ${mode}"
-	cmp -s "${ROOT}/${legacy_hook}" "${target}/${legacy_hook}" \
+	cmp -s "$historical_hook" "${target}/${legacy_hook}" \
 		|| fail "installed source changed unknown legacy hook in ${mode}"
 	grep -q 'ownership unknown' "$OUT" || fail "installed source omitted unknown ownership diagnosis"
 	if [ "$mode" = --update ]; then

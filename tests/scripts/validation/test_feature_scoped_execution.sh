@@ -144,15 +144,8 @@ grep -q '^FAIL tests/scripts/test_boundary.sh$' "$OUT" || fail "pre-pr omitted b
 grep -q 'SENSORS pre-pr .*scope=applicable ran=8 failed=3$' "$OUT" \
   || fail "pre-pr did not retain all fixture sensors"
 
-# The actual whole-suite wrappers must be explicitly classified, not renamed.
-sensor=tests/scripts/test_claude_adapter.sh
-if [ -f "${ROOT}/${sensor}" ]; then
-  rc=0
-  "${ROOT}/scripts/validation/affected-sensors.sh" --declared "$sensor" >"$OUT" 2>&1 || rc=$?
-  if [ "$rc" != 2 ] || ! grep -qi 'boundary-only' "$OUT"; then
-    fail "real whole-suite wrapper is not rejected as feature coverage: ${sensor}"
-  fi
-fi
+# Bounded runtime probes remain feature-eligible; whole-suite rejection is
+# covered by the boundary fixture above, not the retired adapter wrapper.
 for sensor in tests/scripts/test_adopter_smoke_workflow.sh tests/scripts/test_adopter_workflow_contract.sh \
   tests/scripts/install/test_install_harness_dev_profile.sh tests/scripts/install/test_install_harness_claude.sh; do
   if [ -f "${ROOT}/${sensor}" ]; then
