@@ -327,8 +327,8 @@ grep -Ev '^[[:space:]]*(#|$)' "$MANIFEST" >"${TMP_DIR}/entries"
 	echo "harness-dev sensor manifest has no entries"
 	exit 1
 }
-if ! diff -u "${TMP_DIR}/entries" <(sort -u "${TMP_DIR}/entries"); then
-	echo "harness-dev sensor manifest must be sorted and unique"
+if ! diff -u "${TMP_DIR}/entries" <(LC_ALL=C sort -u "${TMP_DIR}/entries"); then
+	echo "harness-dev sensor manifest must be C-locale sorted and unique"
 	exit 1
 fi
 

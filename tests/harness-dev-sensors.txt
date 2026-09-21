@@ -1,11 +1,12 @@
 # Sensor paths/globs omitted from adopter installs by default.
 # These enforce this harness repository's own release, documentation,
 # infrastructure, archive, evaluation-authoring, or test-portfolio obligations.
-# Portable developer and optional selections are defined by their asset manifests.
+# Portable developer selection is defined by its asset manifest.
+# Keep entries unique and sorted with LC_ALL=C.
 tests/meta/test_*.sh
 tests/scripts/install/test_install_harness_adopter_profile.sh
-tests/scripts/install/test_install_harness_claude_retirement.sh
 tests/scripts/install/test_install_harness_claude.sh
+tests/scripts/install/test_install_harness_claude_retirement.sh
 tests/scripts/install/test_install_harness_dev_profile.sh
 tests/scripts/install/test_install_harness_layout_upgrade.sh
 tests/scripts/install/test_install_harness_symlinked_parent.sh
