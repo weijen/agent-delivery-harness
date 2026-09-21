@@ -226,8 +226,8 @@ The profile design is additionally split to
 | `docs/harness-contract.yml` | `docs/harness-contract.yml` | adopter |
 | `docs/multi-language-profiles.md` | `docs/multi-language-profiles.md` | adopter |
 | `docs/observability-journey.md` | `docs/archive/observability-journey.md` | history |
-| `docs/runtime-adapters/claude-code.md` | `optional/runtime-adapters/claude-code.md` | optional |
-| `docs/runtime-adapters/claude-code.settings.example.json` | `optional/runtime-adapters/claude-code.settings.example.json` | optional |
+| `docs/runtime-adapters/claude-code.md` | `optional/runtime-adapters/claude-code.md` | retired |
+| `docs/runtime-adapters/claude-code.settings.example.json` | `optional/runtime-adapters/claude-code.settings.example.json` | retired |
 | `docs/runtime-adapters/github-copilot.md` | `docs/github-copilot.md` | adopter |
 | `docs/runtime-adapters/github-copilot.subagent-spike.md` | `docs/archive/runtime-adapters/github-copilot.subagent-spike.md` | history |
 | `docs/runtime-adapters/github-copilot.trace-spike.md` | `docs/archive/runtime-adapters/github-copilot.trace-spike.md` | history |

@@ -481,9 +481,9 @@ live in [harness.instructions.md §3](../.copilot/instructions/harness.instructi
 
 The harness emits lifecycle and handback spans itself. Deep GitHub Copilot
 tool/model/skill analysis reads native records through the path documented in
-[runtime-adapters/github-copilot.md](github-copilot.md); the
-Claude Code adapter ([optional upstream guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md))
-remains a labeled reference example.
+[GitHub Copilot native-record guide](github-copilot.md). GitHub Copilot is the
+retained runtime integration. Claude adapter support is retired; historical
+traces and upgrade records remain readable, not an installation path.
 
 The trace record is itself audited by the **trace gate** (`./scripts/validation/review-gate.sh trace`): it wraps the
 report-only `check-trace-consistency.sh` checker — which now also owns the schema/type/redaction validation

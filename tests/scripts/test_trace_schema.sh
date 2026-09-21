@@ -276,10 +276,13 @@ fi
 # The installed writer/checker must work without any research-directory schema.
 installed="${TMP_DIR}/adopter"
 mkdir -p "${installed}/docs/evaluation"
-sed \
-  -e 's@docs/observability-and-trace-schema.md@docs/evaluation/observability-and-trace-schema.md@g' \
-  -e 's@docs/failure-mode-taxonomy.md@docs/evaluation/failure-mode-taxonomy.md@g' \
-  "$CONTRACT" >"${installed}/docs/evaluation/trace-schema.v1.json"
+# Immutable final-upstream fixture; current schema edits are not old adopter edits.
+legacy_schema="${ROOT}/tests/scripts/fixtures/retired-trace-schema.v1.json"
+legacy_digest="$(shasum -a 256 "$legacy_schema" | awk '{print $1}')"
+grep -qxF "$(printf '%s\tdocs/evaluation/trace-schema.v1.json' "$legacy_digest")" \
+  "${ROOT}/scripts/install-harness.tombstones" \
+  || fail "historical schema fixture must match its retirement ledger"
+cp "$legacy_schema" "${installed}/docs/evaluation/trace-schema.v1.json"
 git -C "$installed" init -q -b feature/issue-77-schema
 if ! bash "${ROOT}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
   cat "${TMP_DIR}/install.log" >&2
