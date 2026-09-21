@@ -173,6 +173,7 @@ for required in \
   scripts/lib/github-identity-lib.sh \
   scripts/lib/issue-lib.sh \
   scripts/start-issue.sh \
+  scripts/lifecycle/start-issue.sh \
   scripts/validation/check-feature-list.sh \
   scripts/validation/review-gate.sh \
   scripts/create-pr.sh \
@@ -257,7 +258,7 @@ end_scenario "contract declares evidence governance, SHA bindings, and audited b
 # The lifecycle entrypoints emit schema-v1 spans via lifecycle-runtime-lib.sh,
 # while check-feature-list.sh sources trace-lib.sh directly.
 te_required=(
-  scripts/start-issue.sh
+  scripts/lifecycle/start-issue.sh
   scripts/validation/check-feature-list.sh
   scripts/validation/review-gate.sh
   scripts/create-pr.sh

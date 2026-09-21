@@ -438,7 +438,7 @@ command -v jq >/dev/null 2>&1 \
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
 for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh finish-issue.sh lib/finish-lib.sh check-trace-consistency.sh \
-         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh validation/check-feature-list.sh; do
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found — required by the log-completeness fixture"
 done
@@ -472,8 +472,9 @@ make_gate_fixture() {
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh \
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh \
            validation/review-gate.sh lib/trace-lib.sh check-trace-consistency.sh; do
+    mkdir -p "${dir}/scripts/$(dirname "$s")"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"
@@ -688,7 +689,8 @@ make_finish_fixture() {
   pad="$(printf '%02d' "$issue")"
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh validation/review-gate.sh; do
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh validation/review-gate.sh; do
+    mkdir -p "${dir}/scripts/$(dirname "$s")"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   chmod +x "${dir}/scripts/"*.sh

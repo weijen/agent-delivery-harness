@@ -96,6 +96,9 @@ fixture_repo() {
       *,init.sh,*) scripts+=("lifecycle/init.sh") ;;
     esac
     case ",${scripts_csv}," in
+      *,start-issue.sh,*) scripts+=("lifecycle/start-issue.sh") ;;
+    esac
+    case ",${scripts_csv}," in
       *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,validation/review-gate.sh,*)
         case ",${scripts_csv}," in
           *,lib/lifecycle-runtime-lib.sh,*) ;;

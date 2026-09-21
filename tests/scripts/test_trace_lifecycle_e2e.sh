@@ -150,11 +150,12 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts/lib" "${R}/scripts/validation" "${R}/schemas" "${R}/docs" "${R}/tests/scripts" "${R}/tests/scripts/validation"
 printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
          create-pr.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh merge-pr.sh finish-issue.sh \
          lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
          lib/ci-coverage-lib.sh \
          validation/rebind-evidence.sh validation/verify-sensor-evidence.sh; do
+  mkdir -p "${R}/scripts/$(dirname "$s")"
   cp "${ROOT}/scripts/${s}" "${R}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${R}/schemas/trace-schema.v1.json"

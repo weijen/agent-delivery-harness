@@ -102,6 +102,8 @@ R1="${TMP_DIR}/r1"
 mkdir -p "${R1}/scripts/lib" "${R1}/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${R1}/scripts/lib/"
 cp "${ROOT}/scripts/start-issue.sh" "${R1}/scripts/"
+mkdir -p "${R1}/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/start-issue.sh" "${R1}/scripts/lifecycle/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${R1}/scripts/lib/"
 # A preflight that FAILS — start-issue must honor it and stop.
 cat > "${R1}/scripts/init.sh" <<'SH'
@@ -205,7 +207,8 @@ set +e
   set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts/lib" "${R3}/scripts/validation"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh; do
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh lifecycle/init.sh; do
+  mkdir -p "${R3}/scripts/$(dirname "$s")"
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/${s}"
 done
 # Pin a PATH that includes jq + a fake gh so the completion check actually runs,

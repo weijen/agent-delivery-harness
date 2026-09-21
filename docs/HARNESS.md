@@ -18,7 +18,7 @@ separate from replaceable language support and project-specific conventions:
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
   `tests/scripts/test_harness_contract.sh`. The owner scripts
   (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
-  `scripts/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
+  `scripts/lifecycle/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
   `scripts/validation/review-gate.sh`, `scripts/create-pr.sh`,
   `scripts/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
@@ -63,6 +63,9 @@ The public preflight path `scripts/init.sh` is a thin `exec` entrypoint for
 `scripts/lifecycle/init.sh`. Both inspect their own checkout from any invocation
 directory, including linked worktrees. Its matching sensor lives under
 `tests/scripts/lifecycle/`; no duplicate flat implementation is retained.
+Likewise, `scripts/start-issue.sh` forwards to `scripts/lifecycle/start-issue.sh`.
+Startup anchors to the invoked checkout and rejects a linked checkout before
+switching to the main root or creating issue state.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle

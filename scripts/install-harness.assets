@@ -11,6 +11,7 @@ scripts/lib/finish-lib.sh
 scripts/lib/github-identity-lib.sh
 scripts/init.sh
 scripts/lifecycle/init.sh
+scripts/lifecycle/start-issue.sh
 scripts/install-harness.sh
 scripts/install-harness.assets
 scripts/install-harness.tombstones
@@ -103,7 +104,7 @@ tests/scripts/test_install_harness_dangling_destination.sh
 tests/scripts/test_install_harness_three_way.sh
 tests/scripts/test_install_harness.sh
 tests/scripts/test_issue_lib.sh
-tests/scripts/test_issue_scaffold.sh
+tests/scripts/lifecycle/test_issue_scaffold.sh
 tests/scripts/test_lifecycle_order.sh
 tests/scripts/test_log_completeness_gate.sh
 tests/scripts/test_log_handback_deviation_gate.sh

@@ -82,8 +82,9 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   `tests/scripts/validation/`. Libraries are sourced dependencies, not ordinary
   commands, and have no duplicate flat wrappers. `scripts/run-sensors.sh` is
   an intentional public compatibility entrypoint; other validation tools use
-  their canonical paths. Preflight lives in `scripts/lifecycle/init.sh` behind
-  the public `scripts/init.sh`, with its sensor in `tests/scripts/lifecycle/`.
+  their canonical paths. Preflight and startup live in `scripts/lifecycle/`
+  behind public `scripts/init.sh` and `scripts/start-issue.sh` entrypoints,
+  with their sensors in `tests/scripts/lifecycle/`.
   Other lifecycle commands and remaining categories migrate in the serial
   child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.

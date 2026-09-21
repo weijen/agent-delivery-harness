@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+[ -x "${ROOT}/scripts/lifecycle/start-issue.sh" ] || {
+	printf 'canonical lifecycle startup implementation is missing\n' >&2
+	exit 1
+}
 TMP_DIR="${ROOT}/.copilot-test-tmp/test-issue-scaffold.$$"
 mkdir -p "$TMP_DIR"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+mkdir -p "${TMP_DIR}/bin"
+printf '#!/usr/bin/env bash\nprintf "Fixture issue\\n"\n' >"${TMP_DIR}/bin/gh"
+chmod +x "${TMP_DIR}/bin/gh"
+export PATH="${TMP_DIR}/bin:${PATH}"
+
+copy_start() {
+  local target="$1"
+  mkdir -p "${target}/scripts/lifecycle"
+  cp "${ROOT}/scripts/start-issue.sh" "${target}/scripts/start-issue.sh"
+  cp "${ROOT}/scripts/lifecycle/start-issue.sh" "${target}/scripts/lifecycle/start-issue.sh"
+}
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/tap.sh"
@@ -38,7 +53,7 @@ make_commit() {
 
 mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/repo/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${TMP_DIR}/repo/scripts/lib/issue-lib.sh"
-cp "${ROOT}/scripts/start-issue.sh" "${TMP_DIR}/repo/scripts/start-issue.sh"
+copy_start "${TMP_DIR}/repo"
 cp "${ROOT}/scripts/finish-issue.sh" "${TMP_DIR}/repo/scripts/finish-issue.sh"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/repo/scripts/lib/lifecycle-runtime-lib.sh"
 cp "${ROOT}/scripts/lib/finish-lib.sh" "${TMP_DIR}/repo/scripts/lib/finish-lib.sh"
@@ -56,9 +71,28 @@ printf 'fixture\n' > README.md
 git add .gitignore README.md scripts
 make_commit "initial"
 
-SKIP_INIT=1 ./scripts/start-issue.sh 123 SLUG=scaffold-test >"${TMP_DIR}/start-issue.out"
+(cd "$TMP_DIR" && SKIP_INIT=1 "${TMP_DIR}/repo/scripts/start-issue.sh" ISSUE=123 SLUG=scaffold-test) \
+  >"${TMP_DIR}/start-issue.out"
 WORKTREE="${TMP_DIR}/repo/.worktrees/issue-123"
 FEATURE_LIST="${WORKTREE}/.copilot-tracking/issues/issue-123/feature_list.json"
+
+for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
+  if (cd "$TMP_DIR" && SKIP_INIT=1 "${WORKTREE}/${entry}" 126 SLUG=forbidden) \
+      >"${TMP_DIR}/linked-refusal.out" 2>&1; then
+    fail "linked-worktree startup must refuse before creating another issue"
+  fi
+  grep -q 'main checkout, not from a worktree' "${TMP_DIR}/linked-refusal.out" \
+    || fail "linked-worktree refusal did not explain the required checkout"
+  [ ! -e "${TMP_DIR}/repo/.worktrees/issue-126" ] || fail "refused startup created a worktree"
+done
+(cd "$TMP_DIR" && SKIP_INIT=1 "${TMP_DIR}/repo/scripts/lifecycle/start-issue.sh" 123 SLUG=scaffold-test) \
+  >"${TMP_DIR}/start-repeat.out"
+grep -q 'reusing it' "${TMP_DIR}/start-repeat.out" || fail "canonical startup lost idempotent reuse"
+mv scripts/lifecycle/start-issue.sh scripts/lifecycle/start-issue.disabled
+if SKIP_INIT=1 ./scripts/start-issue.sh 127 SLUG=missing >"${TMP_DIR}/missing.out" 2>&1; then
+  fail "public startup retained a duplicate implementation or fallback"
+fi
+mv scripts/lifecycle/start-issue.disabled scripts/lifecycle/start-issue.sh
 
 set +e
 (
@@ -176,7 +210,7 @@ fail() {
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
 mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "$BIN"
-cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+copy_start "$REPO"
 cp "${ROOT}/scripts/lib/issue-lib.sh" \
   "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${REPO}/scripts/lib/"
 cat >"${BIN}/gh" <<'EOF'
@@ -220,7 +254,7 @@ printf 'repo-local issue worktree contract honored\n'
 (
 cd "$ROOT"
 
-START_ISSUE="${ROOT}/scripts/start-issue.sh"
+START_ISSUE="${ROOT}/scripts/lifecycle/start-issue.sh"
 
 fails=0
 fail() {
@@ -330,7 +364,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID 2>/dev/null || true
 REPO="${TMP_DIR}/repo"
 mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${REPO}/scripts/lib/"
-cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+copy_start "$REPO"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${REPO}/scripts/lib/"
 cp "${ROOT}/scripts/lib/trace-lib.sh" "${REPO}/scripts/lib/"
 cat > "${REPO}/scripts/init.sh" <<'SH'

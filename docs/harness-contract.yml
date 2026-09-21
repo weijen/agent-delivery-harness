@@ -25,6 +25,11 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/start-issue.sh
+    to: scripts/lifecycle/start-issue.sh
+    public_entrypoint: scripts/start-issue.sh
+  - from: tests/scripts/test_issue_scaffold.sh
+    to: tests/scripts/lifecycle/test_issue_scaffold.sh
   - from: scripts/init.sh
     to: scripts/lifecycle/init.sh
     public_entrypoint: scripts/init.sh
@@ -128,6 +133,9 @@ scripts:
     role: Sourceable project-CI coverage detector; owns language gate-signature tokens so review-gate.sh/create-pr.sh stay language-neutral.
   - id: start-issue
     path: scripts/start-issue.sh
+    role: Stable public issue-start entrypoint forwarding to the lifecycle implementation.
+  - id: start-issue-implementation
+    path: scripts/lifecycle/start-issue.sh
     role: Begin an issue in an isolated branch + worktree; scaffold tracking state.
   - id: check-feature-list
     path: scripts/validation/check-feature-list.sh
@@ -173,7 +181,7 @@ gate_start:
     consumes: live GitHub issue record and successful preflight exit
     produces: isolated branch, worktree, and tracking scaffold
     mode: hard
-    owner: scripts/start-issue.sh
+    owner: scripts/lifecycle/start-issue.sh
     present: git worktree add
   - id: tracking-ready
     trigger: issue tracking scaffold created
@@ -306,10 +314,10 @@ env_flags:
     owner: scripts/lib/issue-lib.sh
     present: ISSUE=
   - name: SLUG=
-    owner: scripts/start-issue.sh
+    owner: scripts/lifecycle/start-issue.sh
     present: SLUG=
   - name: SKIP_INIT
-    owner: scripts/start-issue.sh
+    owner: scripts/lifecycle/start-issue.sh
     present: SKIP_INIT
   - name: REQUIRE_FEATURES_COMPLETE
     owner: scripts/validation/check-feature-list.sh
@@ -345,7 +353,7 @@ language_neutral:
     - scripts/lib/issue-lib.sh
     - scripts/lib/trace-lib.sh
     - scripts/lib/lifecycle-runtime-lib.sh
-    - scripts/start-issue.sh
+    - scripts/lifecycle/start-issue.sh
     - scripts/validation/check-feature-list.sh
     - scripts/validation/review-gate.sh
     - scripts/create-pr.sh

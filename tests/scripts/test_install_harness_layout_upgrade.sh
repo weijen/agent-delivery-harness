@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -153,6 +153,7 @@ for profile in default developer claude; do
 case "$1" in
 	auth) exit 0 ;;
 	api) printf 'fixture-user\n' ;;
+	issue) printf 'Installed startup fixture\n' ;;
 	*) exit 1 ;;
 esac
 SH
@@ -166,11 +167,26 @@ SH
 			|| fail_layout "${profile} preflight used the wrong project surface"
 	done
 	# Runtime evidence is local state, not a source change for the installed probe.
-	printf '/.copilot-tracking/\n' >>"${target}/.git/info/exclude"
+	printf '/.copilot-tracking/\n/.worktrees/\n' >>"${target}/.git/info/exclude"
 	printf '9.8.7-layout\n' >"${target}/VERSION"
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	git -C "$target" add .
 	git -C "$target" commit -qm 'test: upgraded installed layout'
+	for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
+		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}" ISSUE=81 SLUG=installed-start) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed startup ${entry}"
+		[ -f "${target}/.worktrees/issue-81/.copilot-tracking/issues/issue-81/feature_list.json" ] \
+			|| fail_layout "${profile} installed startup omitted its scaffold"
+		if (cd "${target}/unrelated/nested" && \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/.worktrees/issue-81/${entry}" 82 SLUG=refused) \
+			>"$layout_log" 2>&1; then
+			fail_layout "${profile} installed linked-worktree startup was not refused"
+		fi
+		grep -q 'main checkout, not from a worktree' "$layout_log" \
+			|| fail_layout "${profile} installed startup lost its checkout guard"
+		[ ! -e "${target}/.worktrees/issue-82" ] || fail_layout "${profile} refused startup created state"
+	done
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \
 			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) \

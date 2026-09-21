@@ -131,6 +131,8 @@ REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
 mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/.github" "$BIN"
 cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+mkdir -p "${REPO}/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/start-issue.sh" "${REPO}/scripts/lifecycle/"
 cp "${ROOT}/scripts/lib/issue-lib.sh" \
   "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" \
   "${ROOT}/scripts/lib/github-identity-lib.sh" \
@@ -209,7 +211,7 @@ if grep -q 'auth switch' "$GH_LOG"; then
   fail "start-issue must not switch global gh state"
 fi
 
-for entrypoint in lifecycle/init.sh start-issue.sh create-pr.sh merge-pr.sh finish-issue.sh; do
+for entrypoint in lifecycle/init.sh lifecycle/start-issue.sh create-pr.sh merge-pr.sh finish-issue.sh; do
   grep -q 'harness_identity_activate' "${ROOT}/scripts/${entrypoint}" \
     || fail "${entrypoint} must activate the repository identity before GitHub operations"
 done
