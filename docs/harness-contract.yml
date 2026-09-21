@@ -25,6 +25,13 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/merge-pr.sh
+    to: scripts/lifecycle/merge-pr.sh
+    public_entrypoint: scripts/merge-pr.sh
+  - from: tests/scripts/test_merge_pr_ci_gate.sh
+    to: tests/scripts/lifecycle/test_merge_pr_ci_gate.sh
+  - from: tests/scripts/test_post_pr_guardrails.sh
+    to: tests/scripts/lifecycle/test_post_pr_guardrails.sh
   - from: scripts/create-pr.sh
     to: scripts/lifecycle/create-pr.sh
     public_entrypoint: scripts/create-pr.sh
@@ -172,6 +179,9 @@ scripts:
     role: Sync onto main, enforce review gate, push, and open the PR.
   - id: merge-pr
     path: scripts/merge-pr.sh
+    role: Stable public CI-gated merge entrypoint.
+  - id: merge-pr-implementation
+    path: scripts/lifecycle/merge-pr.sh
     role: Verify the PR's CI checks concluded green, then merge through the explicit closeout command.
   - id: finish-issue
     path: scripts/finish-issue.sh
@@ -262,7 +272,7 @@ gate_merge_closeout:
     consumes: GitHub CI checks green at the PR HEAD
     produces: merged PR
     mode: hard
-    owner: scripts/merge-pr.sh
+    owner: scripts/lifecycle/merge-pr.sh
     present: gh pr checks
   - id: issue-closeout
     trigger: PR merged
@@ -301,7 +311,7 @@ sha_bindings:
     present: reviewed_sha
   - id: ci-green-head
     binding: merge consumes CI-green checks at the PR HEAD
-    owner: scripts/merge-pr.sh
+    owner: scripts/lifecycle/merge-pr.sh
     present: gh pr checks
 
 bypasses:
@@ -369,7 +379,7 @@ language_neutral:
     - scripts/validation/check-feature-list.sh
     - scripts/validation/review-gate.sh
     - scripts/lifecycle/create-pr.sh
-    - scripts/merge-pr.sh
+    - scripts/lifecycle/merge-pr.sh
     - scripts/finish-issue.sh
   tokens:
     - python

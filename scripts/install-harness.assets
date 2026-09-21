@@ -20,6 +20,7 @@ scripts/lib/issue-lib.sh
 scripts/lib/lifecycle-runtime-lib.sh
 scripts/log-handback.sh
 scripts/merge-pr.sh
+scripts/lifecycle/merge-pr.sh
 scripts/validation/python-gates.sh
 scripts/validation/rebind-evidence.sh
 scripts/lib/reconcile-lib.sh
@@ -112,9 +113,9 @@ tests/scripts/test_log_handback_deviation_gate.sh
 tests/scripts/test_log_handback_write_gate.sh
 tests/scripts/test_log_handback.sh
 tests/scripts/test_loop2_single_review_doctrine.sh
-tests/scripts/test_merge_pr_ci_gate.sh
+tests/scripts/lifecycle/test_merge_pr_ci_gate.sh
 tests/scripts/test_merge_provenance_gap.sh
-tests/scripts/test_post_pr_guardrails.sh
+tests/scripts/lifecycle/test_post_pr_guardrails.sh
 tests/scripts/validation/test_python_gates.sh
 tests/scripts/validation/test_rebind_carry.sh
 tests/scripts/validation/test_rebind_evidence.sh

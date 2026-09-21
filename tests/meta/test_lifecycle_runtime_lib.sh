@@ -9,7 +9,7 @@ LIB="scripts/lib/lifecycle-runtime-lib.sh"
 CALLERS=(
   scripts/lifecycle/start-issue.sh
   scripts/lifecycle/create-pr.sh
-  scripts/merge-pr.sh
+  scripts/lifecycle/merge-pr.sh
   scripts/finish-issue.sh
   scripts/validation/review-gate.sh
 )

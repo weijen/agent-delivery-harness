@@ -1,5 +1,7 @@
 # Generated from managed deletion history since install-harness.sh was introduced.
 # SHA-256 of final upstream content, followed by retired managed path.
+05d81ba4c5c8069012b4f416d79b5c84d4969826158843c0c2007f5fbe44b74c	tests/scripts/test_merge_pr_ci_gate.sh
+b116f153077e49c889eb1edbe2e9c7d2aee61daadf495e82d15e11afbe9de026	tests/scripts/test_post_pr_guardrails.sh
 971bc36723aba7d845a1cb0fc97962a1caed8f7f0a66555ad9d079d64e0fe80b	tests/scripts/test_create_pr_failure.sh
 ecf4a0936e77ef828e5dbd9d613916f06a2866a4e9108d326cd6916c58f77e5a	tests/scripts/test_create_pr_sensor_gate.sh
 e9a892e8708c1358c390f712d0063b0fbe9621095daf73deade746967de99e05	tests/scripts/test_prepare_pr.sh

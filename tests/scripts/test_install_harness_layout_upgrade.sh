@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -154,6 +154,23 @@ case "$1" in
 	auth) exit 0 ;;
 	api) printf 'fixture-user\n' ;;
 	issue) printf 'Installed startup fixture\n' ;;
+	pr)
+		case "${2:-}" in
+			view)
+				case "$*" in
+					*state,mergeCommit*) printf 'MERGED\tdeadbeef0001cafe\n' ;;
+					*) printf '81\n' ;;
+				esac ;;
+			checks)
+				if [ "${INSTALLED_CI_GREEN:-0}" = 1 ]; then
+					printf 'harness-smoke\tpass\t1m\n'
+				else
+					printf 'harness-smoke\tpending\t0\n'
+					exit 8
+				fi ;;
+			merge) printf '%s\n' "$*" >>"${INSTALLED_MERGE_LOG:?}" ;;
+			*) exit 1 ;;
+		esac ;;
 	*) exit 1 ;;
 esac
 SH
@@ -199,6 +216,23 @@ SH
 		fi
 		grep -q 'current HEAD has not been approved by the review gate' "$layout_log" \
 			|| fail_layout "${profile} installed publication lost its review guard"
+	done
+	for entry in scripts/merge-pr.sh scripts/lifecycle/merge-pr.sh; do
+		merge_log="${TMP_DIR}/merge-${profile}.log"
+		rm -f "$merge_log"
+		if (cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_MERGE_LOG="$merge_log" "${linked}/${entry}" --squash) >"$layout_log" 2>&1; then
+			fail_layout "${profile} installed merge bypassed pending CI"
+		fi
+		if [ -e "$merge_log" ] || ! grep -q 'checks are not green' "$layout_log"; then
+			fail_layout "${profile} pending CI did not prevent merge"
+		fi
+		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_MERGE_LOG="$merge_log" INSTALLED_CI_GREEN=1 "${linked}/${entry}" --squash) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed merge failed despite green checks"
+		if ! grep -q 'pr merge 81 --squash' "$merge_log" || ! grep -q 'PR #81 merged' "$layout_log"; then
+			fail_layout "${profile} installed merge lost flags or authoritative confirmation"
+		fi
 	done
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \

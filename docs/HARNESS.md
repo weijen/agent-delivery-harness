@@ -20,7 +20,7 @@ separate from replaceable language support and project-specific conventions:
   (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
   `scripts/lifecycle/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
   `scripts/validation/review-gate.sh`, `scripts/lifecycle/create-pr.sh`,
-  `scripts/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
+  `scripts/lifecycle/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
@@ -70,6 +70,9 @@ switching to the main root or creating issue state.
 the caller's Git checkout and relative arguments, including nested directories
 in linked worktrees. Publication still consumes existing approval and sensor
 evidence without rerunning tests or rewriting the candidate.
+`scripts/merge-pr.sh` likewise forwards to `scripts/lifecycle/merge-pr.sh`.
+Both preserve the caller's checkout, require green CI and authoritative merge
+confirmation, and keep branch cleanup safe for linked worktrees.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle

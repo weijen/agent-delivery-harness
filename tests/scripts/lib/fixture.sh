@@ -102,6 +102,9 @@ fixture_repo() {
       *,create-pr.sh,*) scripts+=("lifecycle/create-pr.sh") ;;
     esac
     case ",${scripts_csv}," in
+      *,merge-pr.sh,*) scripts+=("lifecycle/merge-pr.sh") ;;
+    esac
+    case ",${scripts_csv}," in
       *,start-issue.sh,*|*,create-pr.sh,*|*,merge-pr.sh,*|*,finish-issue.sh,*|*,validation/review-gate.sh,*)
         case ",${scripts_csv}," in
           *,lib/lifecycle-runtime-lib.sh,*) ;;
