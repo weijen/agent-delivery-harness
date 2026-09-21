@@ -6,12 +6,12 @@
   "boundary": "script-lifecycle",
   "fixture": {
     "type": "generated",
-    "builder": "tests/scripts/test_issue_scaffold.sh"
+    "builder": "tests/scripts/lifecycle/test_issue_scaffold.sh"
   },
   "expected_outcome": "pass",
   "grader": {
     "type": "shell",
-    "command": "bash tests/scripts/test_issue_scaffold.sh"
+    "command": "bash tests/scripts/lifecycle/test_issue_scaffold.sh"
   },
   "blocking": true,
   "contract_refs": [

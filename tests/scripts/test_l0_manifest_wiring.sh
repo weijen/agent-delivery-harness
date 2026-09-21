@@ -8,7 +8,7 @@ fail() { printf 'l0-manifest-wiring: %s\n' "$*" >&2; exit 1; }
 cat >"$TMP/expected" <<'CASES'
 l0-feature-list tests/scripts/validation/test_feature_list_check.sh
 l0-harness-contract tests/scripts/test_harness_contract.sh
-l0-issue-scaffold tests/scripts/test_issue_scaffold.sh
+l0-issue-scaffold tests/scripts/lifecycle/test_issue_scaffold.sh
 l0-lifecycle-order tests/scripts/test_lifecycle_order.sh
 l0-review-gate tests/scripts/validation/test_review_gate.sh
 CASES
