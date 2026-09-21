@@ -11,8 +11,8 @@
 # Any extra args are passed straight through to `gh pr create`.
 #
 # --prepare fetches main and rebases, or merges with CREATE_PR_NO_REWRITE=1.
-# It runs before final review/full pre-PR and never publishes or runs sensors.
-# Normal invocation requires current-HEAD review and full pre-PR evidence,
+# It runs before final review/applicable pre-PR and never publishes or runs sensors.
+# Normal invocation requires current-HEAD review and applicable pre-PR evidence,
 # pushes that exact commit, and opens/updates the PR without synchronization.
 # --force-with-lease is only for the exclusively owned issue branch, never main;
 # CREATE_PR_NO_REWRITE=1 uses a plain push. Rejections never rewrite the candidate.
@@ -81,10 +81,10 @@ for arg in "$@"; do
 Usage: ./scripts/create-pr.sh [--title TITLE] [--body BODY | --body-file FILE] [gh pr create args...]
        ./scripts/create-pr.sh --prepare
 
-Run --prepare before final review and full pre-PR validation. It synchronizes
+Run --prepare before final review and applicable pre-PR validation. It synchronizes
 the issue branch without requiring approval, running sensors or publishing.
 
-Normal invocation checks current-HEAD review and full pre-PR evidence, then
+Normal invocation checks current-HEAD review and applicable pre-PR evidence, then
 pushes that candidate without synchronization or test execution. Arguments pass to
 `gh pr create` (run `gh pr create --help` for its own flags). With no
 PR-creation args and no existing PR, re-run with e.g.
@@ -252,16 +252,16 @@ if [ "$PREPARE_ONLY" -eq 1 ]; then
   else
     git rebase --abort || true
     red "✗ Rebase onto origin/main hit conflicts; preparation aborted."
-    echo "  Resolve the conflict, then repeat preparation, review and full pre-PR."
+    echo "  Resolve the conflict, then repeat preparation, review and applicable pre-PR."
     exit 1
   fi
 
   trace_span tool "gen_ai.tool.name=create-pr.prepare" "harness.outcome=pass"
-  green "✓ Prepared $(git rev-parse HEAD). Complete review and the full pre-PR gate before publishing."
+  green "✓ Prepared $(git rev-parse HEAD). Complete review and the applicable pre-PR gate before publishing."
   exit 0
 fi
 
-# --- 3. Verify the exact candidate's full pre-PR evidence --------------------
+# --- 3. Verify the exact candidate's applicable pre-PR evidence --------------
 TRACE_STAGE="sensor_gate"
 if ! issue="$(trace__resolve_issue)"; then
   red "✗ Cannot resolve the issue for pre-PR evidence. Use an issue branch or TRACE_ISSUE."

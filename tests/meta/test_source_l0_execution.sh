@@ -47,6 +47,7 @@ done <"$TMP/expected"
 git -C "$FIX" init -q -b main
 git -C "$FIX" -c user.name='Harness Test' -c user.email='harness-test@example.invalid' \
   -c commit.gpgsign=false commit --allow-empty -qm 'test: miniature source gate'
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 assert_once() {
   LC_ALL=C sort "$SOURCE_GATE_CALLS" >"$TMP/actual"
   cmp -s "$TMP/expected" "$TMP/actual" \

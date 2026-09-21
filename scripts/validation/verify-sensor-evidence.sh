@@ -12,7 +12,8 @@
 #     tamper-proof: it catches hand-edited bookkeeping, not a determined forger;
 #   * with --head: at least one green (failed=0, ran>0) row is bound to that
 #     sha (further restricted to --mode's label when given). Pre-review and
-#     pre-PR modes require full scope; counts must be nonnegative integers.
+#     pre-PR modes require complete gate scope (applicable, or historical full);
+#     counts must be nonnegative integers.
 #
 # Exit: 0 all checks pass · 1 verification failure / missing file · 2 usage.
 set -euo pipefail
@@ -111,7 +112,8 @@ while IFS= read -r row || [ -n "$row" ]; do
     && [ "$ran" != "0" ]; then
     if [ -z "$MODE_WANT" ] || [ "$mode" = "$MODE_WANT" ]; then
       case "$MODE_WANT" in
-        pre-review|pre-pr) [ "$scope" != full ] || head_match=1 ;;
+        pre-pr) case "$scope" in applicable|full) head_match=1 ;; esac ;;
+        pre-review) [ "$scope" != full ] || head_match=1 ;;
         *) head_match=1 ;;
       esac
     fi

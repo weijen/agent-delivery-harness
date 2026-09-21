@@ -183,16 +183,16 @@ gate_sensors:
     mode: hard
     owner: scripts/validation/run-sensors.sh
     present: run_list scoped green
-  - id: final-full
+  - id: final-applicable
     trigger: final candidate approved after independent review and repairs
-    consumes: canonical full sensor discovery without omissions
-    produces: full pre-pr result for the final HEAD; failure blocks publication
+    consumes: complete applicable sensor selection from the merge base with origin/main; no caller narrowing or discovery fallback
+    produces: applicable pre-pr result for the final HEAD; failure blocks publication
     mode: hard
     owner: scripts/validation/run-sensors.sh
-    present: run_list full
+    present: run_list applicable
   - id: pre-pr-evidence
     trigger: PR branch ready to push
-    consumes: verified full nonempty pre-pr evidence for the reviewed candidate HEAD
+    consumes: verified applicable nonempty pre-pr evidence for the reviewed candidate HEAD; historical full rows remain readable
     produces: fail-closed process result before PR branch push
     mode: hard
     owner: scripts/create-pr.sh
@@ -222,7 +222,7 @@ gate_review:
     present: approve
   - id: approved-pr
     trigger: independent review approved at current HEAD
-    consumes: HEAD-bound approved-head marker and final full pre-pr evidence
+    consumes: HEAD-bound approved-head marker and final applicable pre-pr evidence
     produces: exact verified candidate pushed and open PR without synchronization or sensors
     mode: hard
     owner: scripts/create-pr.sh

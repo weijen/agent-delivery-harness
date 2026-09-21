@@ -8,8 +8,8 @@
 #     * never escalates to full, even for shared changes or discovery errors;
 #     * there is NO agent-facing flag that makes green run the full suite.
 #   run-sensors.sh --gate pre-pr
-#     * runs the full tests/scripts + tests/meta set after review;
-#     * any other gate name → usage error, exit 2.
+#     * runs the complete applicable set after review;
+#     * ci, release and maintenance use their explicit boundaries.
 #   Output: PASS/FAIL lines + summary `SENSORS <label> scope=<s> ran=<n> failed=<m>`;
 #   exit 0 all green, 1 on any sensor failure, 2 on usage error.
 #
@@ -83,6 +83,7 @@ SH
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 export SENSOR_RUN_LOG="${TMP_DIR}/sensor-runs.log"
 : >"$SENSOR_RUN_LOG"
@@ -135,13 +136,13 @@ grep -q "^SENSORS green head=${head_sha} scope=scoped ran=1 failed=0$" <<<"$out"
 [ "$rc" = "0" ] || fail "unrelated red sensors must not run during feature green (got ${rc})"
 rm -f "${FIX}/scripts/lib/trace-lib.sh"
 
-# 5. The final gate runs the full set.
+# 5. All three routine sensors belong to the final applicable set.
 set +e
 out="$(run --gate pre-pr)"
 rc=$?
 set -e
-grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=1$" <<<"$out" \
-  || fail "--gate pre-pr must run the full fixture suite (got: $out)"
+grep -q "^SENSORS pre-pr head=${head_sha} scope=applicable ran=3 failed=1$" <<<"$out" \
+  || fail "--gate pre-pr must run every applicable fixture sensor (got: $out)"
 [ "$rc" = "1" ] || fail "gate run with a red sensor must exit 1 (got ${rc})"
 
 # 6. A subsequent successful gate reports the current result directly.
@@ -154,7 +155,7 @@ git -C "$FIX" add tests/scripts/test_always_red.sh
 git -C "$FIX" commit -q -m "make fixture green"
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 out="$(run --gate pre-pr)" || fail "all-green gate must pass"
-grep -q "^SENSORS pre-pr head=${head_sha} scope=full ran=3 failed=0$" <<<"$out" \
+grep -q "^SENSORS pre-pr head=${head_sha} scope=applicable ran=3 failed=0$" <<<"$out" \
   || fail "successful gate summary malformed (got: $out)"
 
 set +e
@@ -295,4 +296,97 @@ done
 out="$(run green --diff HEAD)" || fail "empty scoped run must remain valid"
 grep -q 'scope=scoped ran=0 failed=0$' <<<"$out" || fail "empty scoped summary is missing"
 
-printf 'PASS: run-sensors tier enforcement honors the #347 contract\n'
+# Real runner/evidence behavior with bounded workloads, not list-only proof.
+FIX="${TMP_DIR}/policy-repo"
+mkdir -p "$FIX/scripts/validation" "$FIX/scripts/lib" "$FIX/tests/scripts"
+cp "$ROOT/scripts/run-sensors.sh" "$FIX/scripts/"
+cp "$ROOT/scripts/validation/run-sensors.sh" "$ROOT/scripts/validation/affected-sensors.sh" \
+  "$ROOT/scripts/validation/verify-sensor-evidence.sh" "$FIX/scripts/validation/"
+cp "$ROOT/scripts/lib/trace-lib.sh" "$FIX/scripts/lib/"
+printf '/.copilot-tracking/\n' >"$FIX/.gitignore"
+for kind in routine relevant upgrade maintenance boundary; do
+  trigger="$kind"
+  [ "$kind" != boundary ] || trigger=upgrade
+  {
+    printf '#!/usr/bin/env bash\n'
+    [ "$kind" != boundary ] || printf '# harness-sensor-stage: boundary\n'
+    printf '# harness-sensor-trigger: %s\n' "$trigger"
+    printf '# harness-sensor-depends: scripts/%s.sh scripts/lib/shared.sh\n' "$kind"
+    # shellcheck disable=SC2016 # Expanded by the recorded workload, not its builder.
+    printf 'printf "%%s\\n" "%s" >>"${SENSOR_RUN_LOG:?}"\n' "$kind"
+    # shellcheck disable=SC2016 # Inject the failure at workload execution time.
+    printf '[ "${SENSOR_FAIL:-}" != "%s" ]\n' "$kind"
+  } >"$FIX/tests/scripts/test_${kind}.sh"
+done
+git -C "$FIX" init -q -b main
+git -C "$FIX" config user.name "Harness Test"
+git -C "$FIX" config user.email "harness-test@example.invalid"
+git -C "$FIX" config commit.gpgsign false
+git -C "$FIX" add .
+git -C "$FIX" commit -qm 'test: bounded gate workloads'
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
+policy_base="$(git -C "$FIX" rev-parse HEAD)"
+git -C "$FIX" checkout -qb feature/issue-495-policy
+printf 'unrelated\n' >"$FIX/product.txt"
+git -C "$FIX" add product.txt
+git -C "$FIX" commit -qm 'test: unrelated product change'
+expect_runs() {
+  local expected="$1"; shift
+  : >"$SENSOR_RUN_LOG"
+  out="$(run "$@" 2>&1)" || fail "policy run failed: $out"
+  printf '%s\n' "$expected" | tr ' ' '\n' | LC_ALL=C sort >"$TMP_DIR/expected"
+  LC_ALL=C sort "$SENSOR_RUN_LOG" >"$TMP_DIR/actual"
+  cmp -s "$TMP_DIR/expected" "$TMP_DIR/actual" \
+    || fail "unexpected executed workloads for $*: $out"
+  grep -q 'scope=applicable ' <<<"$out" || fail "gate mislabeled applicable evidence"
+}
+expect_runs routine --gate pre-pr
+(cd "$FIX" && ./scripts/validation/verify-sensor-evidence.sh 495 \
+  --head "$(git rev-parse HEAD)" --mode pre-pr) || fail "applicable evidence was not verifiable"
+expect_runs routine --gate ci --diff "$policy_base"
+expect_runs 'boundary upgrade' --gate release
+expect_runs maintenance --gate maintenance
+printf 'changed\n' >"$FIX/scripts/relevant.sh"
+git -C "$FIX" add scripts/relevant.sh
+git -C "$FIX" commit -qm 'test: direct dependency change'
+expect_runs 'routine relevant' --gate pre-pr
+printf 'shared\n' >"$FIX/scripts/lib/shared.sh"
+git -C "$FIX" add scripts/lib/shared.sh
+git -C "$FIX" commit -qm 'test: shared dependency change'
+expect_runs 'routine relevant upgrade maintenance boundary' --gate pre-pr
+rows="$(wc -l <"$FIX/.copilot-tracking/issues/issue-495/sensor-evidence.jsonl")"
+rc=0
+out="$(SENSOR_FAIL=maintenance run --gate pre-pr 2>&1)" || rc=$?
+if [ "$rc" != 1 ] || ! grep -q 'scope=applicable ran=5 failed=1$' <<<"$out"; then
+  fail "selected maintenance failure was swallowed: $out"
+fi
+[ "$(wc -l <"$FIX/.copilot-tracking/issues/issue-495/sensor-evidence.jsonl")" = "$rows" ] \
+  || fail "failed applicable gate produced green evidence"
+for invalid in pre-pr ci; do
+  : >"$SENSOR_RUN_LOG"
+  args=(--gate "$invalid")
+  [ "$invalid" != pre-pr ] || args+=(--diff HEAD)
+  rc=0
+  out="$(run "${args[@]}" 2>&1)" || rc=$?
+  [ "$rc" = 2 ] && [ ! -s "$SENSOR_RUN_LOG" ] \
+    || fail "invalid gate base executed sensors: $out"
+done
+git -C "$FIX" update-ref -d refs/remotes/origin/main
+: >"$SENSOR_RUN_LOG"
+rc=0
+out="$(run --gate pre-pr 2>&1)" || rc=$?
+[ "$rc" = 2 ] && [ ! -s "$SENSOR_RUN_LOG" ] \
+  || fail "missing final base produced fallback success: $out"
+grep -qi 'base' <<<"$out" || fail "missing base was not explained"
+git -C "$FIX" update-ref refs/remotes/origin/main "$policy_base"
+cat >"$FIX/tests/scripts/test_0_delete.sh" <<'SH'
+#!/usr/bin/env bash
+rm tests/scripts/test_relevant.sh
+SH
+rc=0
+out="$(run --gate pre-pr 2>&1)" || rc=$?
+if [ "$rc" != 1 ] || ! grep -q '^FAIL tests/scripts/test_relevant.sh$' <<<"$out"; then
+  fail "disappearing selected sensor was silently skipped: $out"
+fi
+
+printf 'PASS: scoped features and applicable boundary execution honored\n'

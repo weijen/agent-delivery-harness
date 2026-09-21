@@ -73,8 +73,8 @@ script, keep these sensors green:
 The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
 `tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
 in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
-The local runner and both workflow profiles share
-`scripts/validation/affected-sensors.sh --list` discovery. Empty full suites fail; empty
+The canonical inventory comes from
+`scripts/validation/affected-sensors.sh --list`. Empty final suites fail; empty
 scoped selections remain valid.
 Affected resolution selects from that same sensor set, including relocated
 sensors but never helpers. Feature greens require an explicit fixed feature
@@ -86,7 +86,7 @@ not a FULL fallback. Discovery/read errors and invalid declarations stop the run
 
 Real whole-suite wrappers, including installed-profile validation, declare
 `# harness-sensor-stage: boundary` in their leading comment header. They remain
-in full discovery for final pre-PR and CI, but are deferred from feature
+in canonical discovery for applicable final pre-PR and CI, but are deferred from feature
 selection. Declaring one as feature coverage fails explicitly rather than
 silently dropping it. Feature greens retain targeted runtime e2e and miniature
 hermetic fixtures that exercise full-runner behavior. This stage separation
@@ -99,6 +99,16 @@ The selector retains canonical inventory through `--list`. Its
 by that change; `--gate release` resolves release/upgrade acceptance, and
 `--gate maintenance` resolves explicit maintenance checks. These are selection
 interfaces, not commands that execute tests.
+
+The local runner executes these sets through `--gate pre-pr`, `--gate release`
+and `--gate maintenance`. Pre-PR derives the change from the candidate's merge
+base with the already available `origin/main`; missing base discovery is an
+error, and final callers cannot narrow the result through declarations or a
+different `--diff`. `--gate ci --diff <pull-request-base>` uses the same policy
+with the workflow's explicit base. Neither command fetches or enforces new
+remote freshness requirements. Gate summaries/evidence use `scope=applicable`,
+not `full`; historical full evidence stays readable. A missing selected sensor
+is a failure, never a successful skip.
 
 Leading sensor comments declare `# harness-sensor-trigger: routine`,
 `relevant`, `upgrade`, or `maintenance`; omission means `routine`.
@@ -453,7 +463,7 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
-Before final review and full pre-PR validation, run
+Before final review and applicable pre-PR validation, run
 `./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
 does not require an approval, execute sensors, push, or open a PR. It aborts
 conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
@@ -466,7 +476,7 @@ without running sensors. After review and repairs, explicitly run the final
 If that gate fails, repair with scoped checks, obtain relevant re-review, then
 run it again on the repaired final candidate; a failed attempt is never green evidence.
 Normal `./scripts/create-pr.sh` checks that approval and verifies a successful,
-full, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
+applicable, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
 tampered, wrong-mode or wrong-scope evidence stops publication with a diagnostic.
 It never runs sensors, fetches main, rebases or merges during publication.
 Historical pre-review evidence remains readable but cannot replace final pre-PR

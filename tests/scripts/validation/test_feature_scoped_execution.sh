@@ -134,13 +134,14 @@ assert_runs docs
 grep -q '^FAIL tests/scripts/test_docs.sh$' "$OUT" || fail "failed feature sensor not identified"
 
 # These are miniature hermetic suites, not real source/installed regressions.
+git -C "$REPO" update-ref refs/remotes/origin/main "$feature_base"
 : >"$SENSOR_RUN_LOG"
 rc=0
 run --gate pre-pr || rc=$?
 [ "$rc" = 1 ] || fail "pre-pr must retain full-suite failures"
 assert_runs shared docs staged unstaged untracked unrelated boundary
 grep -q '^FAIL tests/scripts/test_boundary.sh$' "$OUT" || fail "pre-pr omitted boundary integration"
-grep -q 'SENSORS pre-pr .*scope=full ran=8 failed=3$' "$OUT" \
+grep -q 'SENSORS pre-pr .*scope=applicable ran=8 failed=3$' "$OUT" \
   || fail "pre-pr did not retain all fixture sensors"
 
 # The actual whole-suite wrappers must be explicitly classified, not renamed.

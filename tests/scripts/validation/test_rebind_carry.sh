@@ -38,6 +38,7 @@ SH
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 git -C "$FIX" checkout -q -b feature/issue-77-fixture-work
 EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 export SENSOR_RUN_LOG="${TMP_DIR}/runs.log"
@@ -81,7 +82,7 @@ set -e
   || fail "the tampered historical row must keep failing verification (tamper-evident, got ${rc})"
 
 # Historical pre-review rows remain readable, without authorizing pre-pr.
-legacy="$(jq -c '.mode="pre-review"' <<<"$first_row")"
+legacy="$(jq -c '.mode="pre-review" | .scope="full"' <<<"$first_row")"
 canonical="$(jq -r '["v1", .head, .mode, .scope, (.ran|tostring), (.failed|tostring), .timestamp] | join("|")' <<<"$legacy")"
 checksum="sha256:$(printf '%s' "$canonical" | shasum -a 256 | awk '{print $1}')"
 jq -c --arg checksum "$checksum" '.checksum=$checksum' <<<"$legacy" >"$EVIDENCE"

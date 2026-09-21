@@ -28,8 +28,8 @@ and executing focused sensors. This keeps your verdict independent of the discus
 The delivering agent's scoped feature gates are RECORDED in `sensor-evidence.jsonl`.
 Audit those rows and their command/log-to-feature mapping, including changes since
 each run. Feature greens precede commits: their recorded SHA need not equal the
-final review SHA and does not attest to final full-suite success.
-Do NOT require or run a full suite before review. Final full pre-PR evidence is
+final review SHA and does not attest to final applicable-gate success.
+Do NOT require or run a full suite before review. Final applicable pre-PR evidence is
 owed after review approval, never as a prerequisite for this review.
 Audit the recorded output, then spend your
 execution budget where recorded evidence does NOT reach: adversarial probes of the diff's edge
@@ -339,7 +339,7 @@ a **process violation**.
    `.copilot-tracking/issues/issue-NN/sensor-evidence.jsonl`, written by `run-sensors.sh` itself and validated with
    `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha> --mode green`.
    Match each recorded row's command/log to the tested feature changes; do not
-   substitute scoped evidence for a final full result. Final current-HEAD
+   substitute feature-scoped evidence for a complete applicable final result. Final current-HEAD
    `--mode pre-pr` evidence is due after approval, not before this review.
    Historical pre-review rows remain readable but are not required (#486).
    `gate_review`, where this review handback
