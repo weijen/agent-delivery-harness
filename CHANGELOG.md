@@ -2,6 +2,106 @@
 
 <!-- version list -->
 
+## v0.48.0 (2026-09-21)
+
+### Bug Fixes
+
+- **#495**: Scope validation to applicable change and release boundaries
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+- **#495**: Select history validation for managed deletions
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+- **#495**: Typecheck activated Python source with meaningful targets
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.47.0
+  ([`14ba10e`](https://github.com/weijen/agent-delivery-harness/commit/14ba10eda682a18d221ad19992f3b7b74cffb616))
+
+### Continuous Integration
+
+- **#495**: Run applicable checks and gate planned releases on upgrades
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+### Documentation
+
+- **#495**: Align final gate instructions with Python applicability
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+### Features
+
+- **#495**: Declare bounded sensor dispositions and dependencies
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+- **#495**: Execute and attest complete applicable boundary gates
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+### Performance Improvements
+
+- **#495**: Isolate historical upgrade acceptance from routine profiles
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+- **#495**: Skip Python product gates without an applicable surface
+  ([#511](https://github.com/weijen/agent-delivery-harness/pull/511),
+  [`8797c9e`](https://github.com/weijen/agent-delivery-harness/commit/8797c9eade769a57bfeb328fcee2a035c1694c2e))
+
+### Testing
+
+- **#505**: Bound atomic installer fixture to one asset
+  ([#508](https://github.com/weijen/agent-delivery-harness/pull/508),
+  [`e1129aa`](https://github.com/weijen/agent-delivery-harness/commit/e1129aac9fa1e0312c878bd46fe5e0fdbb78eb08))
+
+- **#505**: Minimize dangling-destination installer fixtures
+  ([#508](https://github.com/weijen/agent-delivery-harness/pull/508),
+  [`e1129aa`](https://github.com/weijen/agent-delivery-harness/commit/e1129aac9fa1e0312c878bd46fe5e0fdbb78eb08))
+
+- **#505**: Minimize installer filesystem fixtures
+  ([#508](https://github.com/weijen/agent-delivery-harness/pull/508),
+  [`e1129aa`](https://github.com/weijen/agent-delivery-harness/commit/e1129aac9fa1e0312c878bd46fe5e0fdbb78eb08))
+
+- **#505**: Minimize symlinked-parent installer fixtures
+  ([#508](https://github.com/weijen/agent-delivery-harness/pull/508),
+  [`e1129aa`](https://github.com/weijen/agent-delivery-harness/commit/e1129aac9fa1e0312c878bd46fe5e0fdbb78eb08))
+
+- **#506**: Bound historical upgrade repetition and hashing
+  ([#509](https://github.com/weijen/agent-delivery-harness/pull/509),
+  [`23b47b9`](https://github.com/weijen/agent-delivery-harness/commit/23b47b93b1fae3f444b13c6580ba6c1ba35cb3a9))
+
+- **#506**: Bound three-way ownership fixture workloads
+  ([#509](https://github.com/weijen/agent-delivery-harness/pull/509),
+  [`23b47b9`](https://github.com/weijen/agent-delivery-harness/commit/23b47b93b1fae3f444b13c6580ba6c1ba35cb3a9))
+
+- **#506**: Deduplicate installer ownership and upgrade fixtures
+  ([#509](https://github.com/weijen/agent-delivery-harness/pull/509),
+  [`23b47b9`](https://github.com/weijen/agent-delivery-harness/commit/23b47b93b1fae3f444b13c6580ba6c1ba35cb3a9))
+
+- **#507**: Bound installed evaluation inner workloads
+  ([#510](https://github.com/weijen/agent-delivery-harness/pull/510),
+  [`6c96dc6`](https://github.com/weijen/agent-delivery-harness/commit/6c96dc6a2380d94ecd4580654ee1b6a03373fa8b))
+
+- **#507**: Bound installed workflow and evaluation smoke
+  ([#510](https://github.com/weijen/agent-delivery-harness/pull/510),
+  [`6c96dc6`](https://github.com/weijen/agent-delivery-harness/commit/6c96dc6a2380d94ecd4580654ee1b6a03373fa8b))
+
+- **#507**: Isolate miniature adopter workflow contracts
+  ([#510](https://github.com/weijen/agent-delivery-harness/pull/510),
+  [`6c96dc6`](https://github.com/weijen/agent-delivery-harness/commit/6c96dc6a2380d94ecd4580654ee1b6a03373fa8b))
+
+- **#507**: Target distinct installed runtime smoke risks
+  ([#510](https://github.com/weijen/agent-delivery-harness/pull/510),
+  [`6c96dc6`](https://github.com/weijen/agent-delivery-harness/commit/6c96dc6a2380d94ecd4580654ee1b6a03373fa8b))
+
+
 ## v0.47.0 (2026-09-20)
 
 ### Bug Fixes
