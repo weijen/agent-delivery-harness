@@ -81,6 +81,7 @@ descriptor. There are two common ways to start:
   it never substitutes for ownership proof. The `v0.45.2` rehearsal covers
   default, developer and Claude profiles moving to `scripts/lib/` and
   `scripts/validation/` and all five lifecycle implementations in `scripts/lifecycle/`,
+  plus the installer and scaffolder in `scripts/install/`,
   including customized, protected and unknown-owner copies. Legacy Claude bundle
   retirement requires matching installed lock ownership, even when file bytes
   match a historical tombstone; unknown/modified copies remain with actionable
@@ -89,6 +90,11 @@ descriptor. There are two common ways to start:
   `scripts/run-sensors.sh`, `scripts/init.sh`, `scripts/start-issue.sh`,
   `scripts/create-pr.sh`, `scripts/merge-pr.sh` and `scripts/finish-issue.sh` remain thin compatibility
   entrypoints; internal tools and sensors use their mapped paths.
+  The rehearsal exercises real legacy Claude-owned, modified, protected and
+  unknown-owner copies, preserves root docs/settings/environment sentinels,
+  and retains thirteen installer invocations across its three profiles.
+  Installed-source lifecycle, scaffolding and runner probes execute without a
+  source-checkout fallback, including nested failure propagation.
 
   The default **adopter profile** installs product-neutral lifecycle and runtime
   sensors but omits this repository's own release, infrastructure, archive,

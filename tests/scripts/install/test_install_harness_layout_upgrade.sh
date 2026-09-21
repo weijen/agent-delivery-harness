@@ -17,7 +17,7 @@ resolver="$ROOT/scripts/validation/affected-sensors.sh"
 for sensor in "${upgrades[@]}"; do
 	if grep -Fxq "$sensor" "$TMP_DIR/selected"; then fail "unrelated change selected $sensor"; fi
 done
-for path in scripts/install-harness.sh scripts/install-harness.assets scripts/install-harness.dev-assets \
+for path in scripts/install-harness.sh scripts/install-harness.assets scripts/install-harness.dev.assets \
 	scripts/install-harness.tombstones scripts/lib/reconcile-lib.sh scripts/lib/trace-lib.sh \
 	docs/harness-contract.yml profiles/adopter-smoke.yml; do
 	"$resolver" --gate pre-pr "$path" >"$TMP_DIR/selected"
@@ -74,6 +74,11 @@ for profile in default developer claude; do
 	install_layout "${legacy_source}/scripts/install-harness.sh" "$target" --write "${options[@]}" \
 		|| fail_layout "${profile} baseline installation"
 	if [ "$profile" = claude ]; then options=(); fi
+	mkdir -p "${target}/.claude"
+	project_owned=(README.md AGENTS.md .env .env.example .claude/settings.json .claude/settings.local.json)
+	for owned in "${project_owned[@]}"; do
+		printf 'adopter-owned sentinel: %s\n' "$owned" >"${target}/${owned}"
+	done
 	[ -f "${target}/scripts/trace-lib.sh" ] && \
 		[ ! -e "${target}/scripts/lib/trace-lib.sh" ] \
 		|| fail_layout "${profile} fixture is not the actual previous layout"
@@ -82,6 +87,15 @@ for profile in default developer claude; do
 		printf '\n# protected identity customization\n' >>"${target}/scripts/github-identity-lib.sh"
 		printf 'scripts/github-identity-lib.sh\n' >"${target}/.harness-keep"
 		awk -F '\t' '$2 != "scripts/issue-lib.sh"' "${target}/.harness-lock" >"${TMP_DIR}/lock"
+		mv "${TMP_DIR}/lock" "${target}/.harness-lock"
+	fi
+	if [ "$profile" = claude ]; then
+		modified=optional/runtime-adapters/claude-code-trace-hook.sh
+		protected=optional/runtime-adapters/claude-code.md
+		unknown=optional/runtime-adapters/tests/test_claude_hook_noop.sh
+		printf '\n# adopter legacy hook customization\n' >>"${target}/${modified}"
+		printf '%s\n' "$protected" >>"${target}/.harness-keep"
+		awk -F '\t' -v path="$unknown" '$2 != path' "${target}/.harness-lock" >"${TMP_DIR}/lock"
 		mv "${TMP_DIR}/lock" "${target}/.harness-lock"
 	fi
 	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/before-dry"
@@ -108,6 +122,21 @@ for profile in default developer claude; do
 			|| fail_layout "protected old library overwritten"
 		grep -Fq 'kept scripts/github-identity-lib.sh (.harness-keep)' "$layout_log" \
 			|| fail_layout "protected old path was not acknowledged"
+	elif [ "$profile" = claude ]; then
+		[ "$status" -ne 0 ] || fail_layout "legacy modified/unknown bundle must conflict"
+		for retired in "$modified" "$unknown"; do
+			grep -Fq "conflict ${retired}" "$layout_log" || fail_layout "missing legacy conflict: ${retired}"
+			[ -s "${target}/${retired}.rej" ] || fail_layout "missing actionable rejection: ${retired}"
+			grep -q '^-' "${target}/${retired}.rej" || fail_layout "rejection lacks deletion patch"
+		done
+		grep -Fq 'ownership unknown' "$layout_log" || fail_layout "unknown legacy ownership not explained"
+		grep -Fq 'adopter legacy hook customization' "${target}/${modified}" \
+			|| fail_layout "legacy customization lost"
+		for retired in "$protected" "$unknown"; do
+			cmp -s "${legacy_source}/${retired}" "${target}/${retired}" \
+				|| fail_layout "preserved legacy copy changed: ${retired}"
+		done
+		[ ! -e "${target}/${protected}.rej" ] || fail_layout "protected legacy copy received rejection"
 	else
 		[ "$status" -eq 0 ] || fail_layout "${profile} clean upgrade failed"
 	fi
@@ -145,9 +174,18 @@ for profile in default developer claude; do
 	if [ "$profile" = claude ]; then
 		while IFS= read -r retired; do
 			case "$retired" in "" | \#*) continue ;; esac
+			case "$retired" in
+				"$modified"|"$protected"|"$unknown")
+					[ -f "${target}/${retired}" ] || fail_layout "preserved legacy copy vanished: ${retired}"
+					continue ;;
+			esac
 			[ ! -e "${target}/${retired}" ] || fail_layout "owned legacy bundle was not retired: ${retired}"
 		done <"${legacy_source}/scripts/install-harness.claude.assets"
 	fi
+	for owned in "${project_owned[@]}"; do
+		[ "$(cat "${target}/${owned}")" = "adopter-owned sentinel: ${owned}" ] \
+			|| fail_layout "${profile} changed project-owned ${owned}"
+	done
 
 	mkdir -p "${target}/unrelated/nested"
 	for entry in scripts/scaffold-language.sh scripts/install/scaffold-language.sh; do

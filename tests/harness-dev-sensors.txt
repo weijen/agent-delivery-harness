@@ -11,6 +11,7 @@ tests/scripts/install/test_install_harness_dev_profile.sh
 tests/scripts/install/test_install_harness_layout_upgrade.sh
 tests/scripts/install/test_install_harness_symlinked_parent.sh
 tests/scripts/install/test_install_harness_version_skew.sh
+tests/scripts/install/test_lifecycle_install_layout.sh
 tests/scripts/lifecycle/test_init_gates.sh
 tests/scripts/test_adopter_smoke_workflow.sh
 tests/scripts/test_adopter_workflow_contract.sh
