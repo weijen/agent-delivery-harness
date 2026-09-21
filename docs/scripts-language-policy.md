@@ -83,10 +83,13 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   commands, and have no duplicate flat wrappers. `scripts/run-sensors.sh` is
   an intentional public compatibility entrypoint; other validation tools use
   their canonical paths. Preflight, startup, PR publication, merge and closeout live in `scripts/lifecycle/`
-  behind public `scripts/init.sh`, `scripts/start-issue.sh`, `scripts/create-pr.sh`
+  behind public `scripts/init.sh`, `scripts/start-issue.sh`, `scripts/create-pr.sh`,
   `scripts/merge-pr.sh` and `scripts/finish-issue.sh` entrypoints,
   with their sensors in `tests/scripts/lifecycle/`.
-  Installation, trace and maintenance categories migrate in the serial
+  The installer lives in `scripts/install/`, with sensors in `tests/scripts/install/`,
+  behind `scripts/install-harness.sh`. Its explicit manifests and tombstone
+  ledger remain at their existing `scripts/install-harness.*` data paths.
+  Scaffolding, trace and maintenance categories migrate in the serial
   child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented

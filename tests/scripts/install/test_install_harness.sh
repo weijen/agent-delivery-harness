@@ -5,8 +5,10 @@
 # and never touch the target project's own non-harness files.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
+CANONICAL="${ROOT}/scripts/install/install-harness.sh"
+[ -x "$CANONICAL" ] || { printf 'canonical installer is missing\n' >&2; exit 1; }
 TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
@@ -14,11 +16,12 @@ trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
 # Representative assets that MUST land in a target install (one per asset group).
 REQUIRED_FILES=(
 	scripts/install-harness.sh
+	scripts/install/install-harness.sh
 	scripts/init.sh
 	scripts/lib/github-identity-lib.sh
 	scripts/lib/issue-lib.sh
 	profiles/python.profile.sh
-	tests/scripts/test_install_harness.sh
+	tests/scripts/install/test_install_harness.sh
 	tests/harness-dev-sensors.txt
 	.copilot/instructions/harness.instructions.md
 	.copilot/instructions/python.instructions.md
@@ -37,11 +40,13 @@ REQUIRED_FILES=(
 )
 
 # --- Case (a): script shape (executable, parses, shellcheck-clean) ------------
-[ -x "$INSTALL" ] || { echo "case-a: $INSTALL not executable"; exit 1; }
-bash -n "$INSTALL" || { echo "case-a: bash -n failed"; exit 1; }
-if command -v shellcheck >/dev/null 2>&1; then
-	shellcheck "$INSTALL" || { echo "case-a: not shellcheck-clean"; exit 1; }
-fi
+for entry in "$INSTALL" "$CANONICAL"; do
+	[ -x "$entry" ] || { echo "case-a: $entry not executable"; exit 1; }
+	bash -n "$entry" || { echo "case-a: bash -n failed"; exit 1; }
+	if command -v shellcheck >/dev/null 2>&1; then
+		shellcheck -x "$entry" || { echo "case-a: not shellcheck-clean"; exit 1; }
+	fi
+done
 # Missing target dir argument must fail with usage.
 if "$INSTALL" >"$OUT" 2>&1; then
 	cat "$OUT"; echo "case-a: missing target arg must exit non-zero"; exit 1
@@ -50,7 +55,7 @@ grep -qi "usage" "$OUT" || { cat "$OUT"; echo "case-a: no usage on missing arg";
 
 # --- Case (b): dry run is the default and writes nothing (AC: dry run default) -
 b="${TMP_DIR}/b"; mkdir -p "$b"
-"$INSTALL" "$b" >"$OUT" 2>&1 || { cat "$OUT"; echo "case-b: dry run failed"; exit 1; }
+(cd "$TMP_DIR" && "$CANONICAL" "$b") >"$OUT" 2>&1 || { cat "$OUT"; echo "case-b: dry run failed"; exit 1; }
 grep -qF "would create" "$OUT" || { cat "$OUT"; echo "case-b: dry run did not report would-create"; exit 1; }
 if [ -n "$(find "$b" -type f)" ]; then
 	echo "case-b: dry run wrote files into the target"; exit 1
@@ -85,7 +90,8 @@ if find "$c" -name '*.pyc' -o -name '__pycache__' | grep -q .; then
 fi
 
 # --- Case (d): idempotency — a second --write is a clean no-op ----------------
-"$INSTALL" "$c" --write >"$OUT" 2>&1 || { cat "$OUT"; echo "case-d: second --write failed"; exit 1; }
+(cd "$TMP_DIR" && "$c/scripts/install/install-harness.sh" "$c" --write) >"$OUT" 2>&1 \
+	|| { cat "$OUT"; echo "case-d: installed canonical second --write failed"; exit 1; }
 grep -qF "up to date" "$OUT" || { cat "$OUT"; echo "case-d: second --write did not report up-to-date"; exit 1; }
 for rel in "${REQUIRED_FILES[@]}"; do
 	source_rel="$rel"
@@ -125,5 +131,12 @@ if ! grep -qF 'PROJECT LOCAL EDIT' "${sentinel}.rej" \
 	exit 1
 fi
 [ "$(cat "$e/src/app.py")" = "$app_before" ] || { echo "case-f: --update touched a non-harness project file"; exit 1; }
+
+mkdir -p "${TMP_DIR}/missing/scripts"
+cp "$INSTALL" "${TMP_DIR}/missing/scripts/install-harness.sh"
+if "${TMP_DIR}/missing/scripts/install-harness.sh" --help >"$OUT" 2>&1; then
+	echo 'public installer hid a missing canonical implementation'; exit 1
+fi
+grep -q 'install/install-harness.sh' "$OUT" || { cat "$OUT"; echo 'missing implementation was not diagnosed'; exit 1; }
 
 printf 'install-harness sensor passed\n'

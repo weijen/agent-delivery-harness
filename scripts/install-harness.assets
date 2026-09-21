@@ -15,6 +15,7 @@ scripts/init.sh
 scripts/lifecycle/init.sh
 scripts/lifecycle/start-issue.sh
 scripts/install-harness.sh
+scripts/install/install-harness.sh
 scripts/install-harness.assets
 scripts/install-harness.tombstones
 scripts/lib/issue-lib.sh
@@ -102,10 +103,10 @@ tests/scripts/test_fixture.sh
 tests/scripts/test_github_identity_binding.sh
 tests/scripts/lifecycle/test_harness_contract.sh
 tests/scripts/test_harness_versioning.sh
-tests/scripts/test_install_harness_atomic_write.sh
-tests/scripts/test_install_harness_dangling_destination.sh
-tests/scripts/test_install_harness_three_way.sh
-tests/scripts/test_install_harness.sh
+tests/scripts/install/test_install_harness_atomic_write.sh
+tests/scripts/install/test_install_harness_dangling_destination.sh
+tests/scripts/install/test_install_harness_three_way.sh
+tests/scripts/install/test_install_harness.sh
 tests/scripts/test_issue_lib.sh
 tests/scripts/lifecycle/test_issue_scaffold.sh
 tests/scripts/lifecycle/test_lifecycle_order.sh

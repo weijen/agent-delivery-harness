@@ -76,6 +76,11 @@ confirmation, and keep branch cleanup safe for linked worktrees.
 `scripts/finish-issue.sh` forwards to `scripts/lifecycle/finish-issue.sh`.
 Closeout anchors to the invoked checkout and refuses a linked checkout before
 resolving the main root, migrating progress or removing any worktree.
+The public installer `scripts/install-harness.sh` forwards to
+`scripts/install/install-harness.sh`; installer sensors live under
+`tests/scripts/install/`. The implementation resolves its own installed source,
+not the caller's cwd. Exact asset manifests and the tombstone ledger remain at
+their existing `scripts/install-harness.*` data paths.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle

@@ -6,8 +6,8 @@ INSTALLER_FIXTURE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 installer_fixture_source() {
 	local destination="$1" script
-	mkdir -p "${destination}/scripts/lib" "${destination}/tests" "${destination}/docs"
-	for script in install-harness.sh lib/reconcile-lib.sh lib/github-identity-lib.sh; do
+	mkdir -p "${destination}/scripts/lib" "${destination}/scripts/install" "${destination}/tests" "${destination}/docs"
+	for script in install-harness.sh install/install-harness.sh lib/reconcile-lib.sh lib/github-identity-lib.sh; do
 		cp "${INSTALLER_FIXTURE_ROOT}/scripts/${script}" "${destination}/scripts/${script}"
 	done
 	printf '#!/usr/bin/env bash\nprintf "fixture asset\\n"\n' >"${destination}/scripts/init.sh"
