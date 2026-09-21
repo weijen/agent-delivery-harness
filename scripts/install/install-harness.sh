@@ -28,6 +28,22 @@ DEV_SENSOR_MANIFEST="${REPO_ROOT}/tests/harness-dev-sensors.txt"
 ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.assets"
 DEV_ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.dev.assets"
 
+# Installed sources lack these files; their identities still drive retirement.
+LEGACY_CLAUDE_ASSETS=(
+	scripts/install-harness.claude.assets
+	optional/runtime-adapters/claude-code-trace-hook.sh
+	optional/runtime-adapters/claude-code.md
+	optional/runtime-adapters/claude-code.settings.example.json
+	tests/scripts/test_claude_adapter.sh
+	optional/runtime-adapters/tests/test_claude_hook_agent_id_state.sh
+	optional/runtime-adapters/tests/test_claude_hook_noop.sh
+	optional/runtime-adapters/tests/test_claude_hook_skill_inventory.sh
+	optional/runtime-adapters/tests/test_claude_hook_stop_span.sh
+	optional/runtime-adapters/tests/test_claude_hook_subagent_stamp.sh
+	optional/runtime-adapters/tests/test_claude_hook_subagent_stop_enrich.sh
+	optional/runtime-adapters/tests/test_claude_hook_tool_span.sh
+)
+
 # Managed namespaces, used only to reconcile assets no longer selected.
 HARNESS_ASSETS=(
 	scripts
@@ -427,6 +443,7 @@ retirement_requires_lock() {
 
 list_excluded_files() {
 	local asset="" files="" candidates="" digest="" rel="" extra="" managed=0
+	candidates="$(printf '%s\n' "${LEGACY_CLAUDE_ASSETS[@]}")"$'\n'
 	for asset in "${HARNESS_ASSETS[@]}"; do
 		[ -e "${REPO_ROOT}/${asset}" ] || continue
 		files="$(list_files "$asset")" || return 1

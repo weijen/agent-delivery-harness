@@ -80,4 +80,24 @@ for mode in owned unknown modified protected; do
 	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/after"
 	cmp -s "${TMP_DIR}/before" "${TMP_DIR}/after" || fail "${mode} repeat update changed content or ownership"
 done
+
+# Installed sources omit the old bundle, so source enumeration cannot identify it.
+installed_source="${TMP_DIR}/installed-source"
+installer_fixture_source "$installed_source"
+cp "${ROOT}/scripts/install-harness.tombstones" "${installed_source}/scripts/install-harness.tombstones"
+legacy_hook="optional/runtime-adapters/claude-code-trace-hook.sh"
+for mode in --write --update; do
+	target="${TMP_DIR}/installed-unknown-${mode#--}"
+	mkdir -p "${target}/optional/runtime-adapters"
+	cp "${ROOT}/${legacy_hook}" "${target}/${legacy_hook}"
+	rc=0
+	"${installed_source}/scripts/install-harness.sh" "$target" "$mode" >"$OUT" 2>&1 || rc=$?
+	[ "$rc" -ne 0 ] || fail "installed source silently accepted unknown legacy hook in ${mode}"
+	cmp -s "${ROOT}/${legacy_hook}" "${target}/${legacy_hook}" \
+		|| fail "installed source changed unknown legacy hook in ${mode}"
+	grep -q 'ownership unknown' "$OUT" || fail "installed source omitted unknown ownership diagnosis"
+	if [ "$mode" = --update ]; then
+		[ -s "${target}/${legacy_hook}.rej" ] || fail "installed source omitted legacy hook rejection"
+	fi
+done
 printf 'legacy bundle retirement preserves unknown, modified and protected assets\n'
