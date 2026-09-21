@@ -2,6 +2,56 @@
 
 <!-- version list -->
 
+## v0.48.1 (2026-09-21)
+
+### Bug Fixes
+
+- **#487**: Exclude canonical contract sensor from its tracked search
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Preserve executable publication sensor modes
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.48.0
+  ([`177fc62`](https://github.com/weijen/agent-delivery-harness/commit/177fc62909e2a106aae76e93d85a9a4a2f07e057))
+
+### Refactoring
+
+- **#487**: Migrate lifecycle behind stable entrypoints
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Move issue startup behind its public entrypoint
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Move preflight behind its stable public entrypoint
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Relocate CI-gated merge behind stable entrypoint
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Relocate durable closeout and lifecycle contracts
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+- **#487**: Relocate PR publication behind stable entrypoint
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+### Testing
+
+- **#487**: Point L0 scaffold acceptance at the canonical sensor
+  ([#512](https://github.com/weijen/agent-delivery-harness/pull/512),
+  [`296e399`](https://github.com/weijen/agent-delivery-harness/commit/296e399854a2832a857a191f1218fa5e992e132f))
+
+
 ## v0.48.0 (2026-09-21)
 
 ### Bug Fixes
