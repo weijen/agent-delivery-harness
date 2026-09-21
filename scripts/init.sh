@@ -189,7 +189,13 @@ fi
 # 5. Project surfaces --------------------------------------------------------
 echo "[5/6] Project surfaces"
 has_python=0 has_go=0 has_node=0 has_ruby=0 has_java=0 has_terraform=0
-profile_detect && has_python=1
+if profile_detect; then
+  has_python=1
+else
+  detect_status=$?
+  [ "$detect_status" -eq 1 ] \
+    || note_fail "Python surface discovery failed" "inspect project paths and profile detection diagnostics"
+fi
 [ -f "$PWD/go.mod" ] && has_go=1
 [ -f "$PWD/package.json" ] && has_node=1
 [ -f "$PWD/Gemfile" ] && has_ruby=1

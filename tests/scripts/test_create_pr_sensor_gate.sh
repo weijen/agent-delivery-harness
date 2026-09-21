@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Publication consumes full pre-PR evidence; it must never rerun sensors.
+# harness-sensor-depends: scripts/lib/lifecycle-runtime-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/ci-coverage-lib.sh
+# Publication consumes applicable pre-PR evidence; it must never rerun sensors.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -170,4 +171,4 @@ git -C "$REPO" commit -qm 'test: independently tested unreviewed candidate'
   || fail "race candidate pre-PR failed"
 git -C "$REPO" checkout -q "$BRANCH"
 RACE_BRANCH=feature/issue-418-race reject_before_push changed-after-review
-printf 'PR publication verifies full pre-PR evidence without tests or rewriting\n'
+printf 'PR publication verifies applicable pre-PR evidence without tests or rewriting\n'

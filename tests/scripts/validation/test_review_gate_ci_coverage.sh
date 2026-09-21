@@ -228,7 +228,7 @@ fail() {
 # --- Restricted bin: real coreutils + git, plus controllable fakes -----------
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for tool in bash sh env git basename dirname find grep sed tr cut head cat rm mkdir ls uname awk sleep printf; do
+for tool in bash sh env git basename dirname find grep sed tr cut head cat rm mkdir ls uname awk sleep printf python3; do
   p="$(command -v "$tool" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${tool}"
 done
@@ -256,6 +256,7 @@ chmod +x "${BIN}/az"
 # about the coverage WARN, not the uv path, which has its own sensor.
 cat > "${BIN}/uv" <<'SH'
 #!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'run python' ]; then shift 2; exec python3 "$@"; fi
 exit 0
 SH
 chmod +x "${BIN}/uv"

@@ -133,7 +133,7 @@ Workflow per issue:
    Never run the full suite mid-loop, including as recovery for shared changes or
    discovery errors: invalid selection stops visibly. Real whole-suite wrappers
    carry `# harness-sensor-stage: boundary` before their first shell statement and
-   run at full issue gates/CI, not inside feature greens. Targeted e2e and miniature
+   run at applicable issue gates/CI, not inside feature greens. Targeted e2e and miniature
    hermetic runner fixtures remain feature-eligible; an incompatible declaration
    is an error, never silently dropped coverage. Historical FULL-fallback evidence
    remains readable but is not permission to emit new feature-time full runs.
@@ -144,8 +144,8 @@ Workflow per issue:
    script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha>
    --mode green` and matches the scoped command/log to that feature's tested changes.
    Feature greens run before their commit, so their recorded SHA is not a claim
-   that the final reviewed HEAD already passed a full suite. Only after approval,
-   use `--head <final-sha> --mode pre-pr` for final full evidence. A direct
+   that the final reviewed HEAD already passed its applicable gate. Only after approval,
+   use `--head <final-sha> --mode pre-pr` for final applicable evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** first run
@@ -165,13 +165,20 @@ Workflow per issue:
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
-   gated on live merge evidence #316). Publication verifies current-HEAD full
+   gated on live merge evidence #316). Publication verifies current-HEAD applicable
    pre-PR evidence; it neither executes sensors nor synchronizes the candidate.
    New local changes require new evidence. Later main changes rely on PR CI,
    without claiming that existing green checks cover every subsequent base update.
-   If the final full gate fails, repair with scoped checks, obtain relevant
+   If the final applicable gate fails, repair with scoped checks, obtain relevant
    re-review and approval, then rerun the final gate on the repaired candidate.
-   One full gate describes the successful unchanged-candidate path, not a retry cap.
+   One final gate describes the successful unchanged-candidate path, not a retry cap.
+   Final selection includes routine checks and declared relevant-change
+   obligations from the merge base with already available `origin/main`.
+   Missing base or metadata discovery fails; callers cannot narrow pre-PR
+   through `--diff` or declarations. This is not a remote-base freshness gate.
+   `scope=applicable` describes the executed set honestly; it is not the old
+   canonical full inventory. Explicit release and maintenance boundaries retain
+   their groups through `--gate release` and `--gate maintenance`.
 
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
 complete, verify the claim against an actual tool result (test output, gh state query, file
@@ -271,7 +278,7 @@ the moment to check whether an older rule it supersedes can be deleted.
 | GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + feature-affected sensors from a fixed feature base; boundary-only whole-suite wrappers are deferred — **no FULL fallback** | — | **BLOCKING** for the feature's `passes:true`; invalid scope/declarations stop the run |
 | Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
 | Independent review (once per issue) | recorded scoped feature checks; targeted probes only | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — resolve review findings before approval; no full-suite prerequisite |
-| **Pre-PR verify gate** | one final full suite after approval | resolved review verdicts — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until final validation succeeds |
+| **Pre-PR verify gate** | one complete applicable suite after approval | resolved review verdicts — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until final validation succeeds |
 
 Prefer the cheap deterministic sensors on every change; reserve the expensive inferential sensor
 set (enumerated once in §6) for the Pre-PR verify gate. When a sensor message tells you how to
@@ -348,12 +355,12 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    Resolve findings before `./scripts/validation/review-gate.sh approve`.
    Approval runs no sensors. Final evidence must cover the resulting HEAD; subsequent changes require
    the corresponding review and validation obligations again.
-3. **Verify the final candidate before publication.** Full deterministic suite green
+3. **Verify the final candidate before publication.** Complete applicable validation green
    for the current detected surfaces:
    `./scripts/run-sensors.sh --gate pre-pr` plus the profile gates from
-   `./scripts/init.sh`. The dormant root Python surface runs sync/ruff while
-   mypy and pytest skip until `.py` source exists; harness shell changes require
-   shellcheck.
+   `./scripts/init.sh`. Dormant release/toolchain metadata alone invokes no Python
+   product gates. Actual Python source or product configuration activates the
+   shared profile; harness shell changes require shellcheck.
 4. The review in step 2 includes the standalone inferential sensor set over the branch diff
    (**this is the authoritative
    list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
@@ -398,7 +405,7 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
   final gates green, verify-gate findings resolved per the §6 severity→action table —
   Critical/Major/High fixed and re-checked, not merely logged), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/validation/review-gate.sh check` and verified full, nonempty
+  it checks `./scripts/validation/review-gate.sh check` and verified applicable, nonempty
   pre-PR evidence for the clean current HEAD, pushes that exact commit, and runs
   `gh pr create`. Publication never synchronizes, automatically carries approval,
   or executes sensors. Invalid evidence and push failures stop without rewriting

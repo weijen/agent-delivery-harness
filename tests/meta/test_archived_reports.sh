@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: maintenance
+# harness-sensor-depends: docs/archive/* docs/copilot-health-check.md docs/skill-prompt-modernization-review.md docs/subagent-prompt-modernization-review.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

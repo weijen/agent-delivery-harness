@@ -5,6 +5,8 @@
 #   scripts/validation/affected-sensors.sh [--declared <list>] [--diff <base-ref>] [<changed-path>...]
 #   scripts/validation/affected-sensors.sh --tests-root <dir> --repo-root <dir> ...   (fixture override)
 #   scripts/validation/affected-sensors.sh --list   (canonical full-suite discovery, no execution)
+#   scripts/validation/affected-sensors.sh --gate pre-pr --diff <base-ref>
+#   scripts/validation/affected-sensors.sh --gate release|maintenance
 #
 # Given the set of changed repo-relative paths (explicit args, or derived from
 # git when --diff <base-ref> is passed: committed vs base, staged, and unstaged
@@ -36,6 +38,7 @@ TESTS_ROOT=""
 DECLARED=""
 DIFF_BASE=""
 LIST=0
+GATE=""
 CHANGED=()
 
 usage() {
@@ -50,6 +53,11 @@ while [ $# -gt 0 ]; do
       DECLARED="$2"; shift 2 ;;
     --diff) DIFF_BASE="${2:-}"; shift 2 ;;
     --list) LIST=1; shift ;;
+    --gate)
+      case "${2:-}" in
+        pre-pr|release|maintenance) GATE="$2"; shift 2 ;;
+        *) printf 'affected-sensors.sh: --gate requires pre-pr, release or maintenance\n' >&2; exit 2 ;;
+      esac ;;
     --repo-root) REPO_ROOT="$(cd "${2:?}" && pwd)"; shift 2 ;;
     --tests-root) TESTS_ROOT="$(cd "${2:?}" && pwd)"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -60,6 +68,10 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$TESTS_ROOT" ] || TESTS_ROOT="${REPO_ROOT}/tests"
+if [ "$LIST" -eq 1 ] && [ -n "$GATE" ]; then
+  printf 'affected-sensors.sh: --list and --gate are distinct selection modes\n' >&2
+  exit 2
+fi
 
 discover_sensors() (
   local paths=() found directory
@@ -83,6 +95,8 @@ if [ "$LIST" -eq 1 ]; then
   exit $?
 fi
 
+# Explicit paths have no status information, so treat them conservatively.
+DELETED=(${CHANGED[@]+"${CHANGED[@]}"})
 if [ -n "$DIFF_BASE" ]; then
   if ! BASE_SHA="$(git -C "$REPO_ROOT" rev-parse --verify "${DIFF_BASE}^{commit}" 2>/dev/null)" \
     || ! git -C "$REPO_ROOT" merge-base --is-ancestor "$BASE_SHA" HEAD 2>/dev/null; then
@@ -90,49 +104,86 @@ if [ -n "$DIFF_BASE" ]; then
     exit 2
   fi
   discover_changed_paths() {
-    local output=""
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
+    local output="" filter="${1:-}"
+    local args=()
+    [ -z "$filter" ] || args+=(--diff-filter=D)
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} "${BASE_SHA}..HEAD" 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only --cached 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} --cached 2>/dev/null)" || return 1
     printf '%s\n' "$output"
-    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only 2>/dev/null)" || return 1
+    output="$(git -C "$REPO_ROOT" diff --no-renames --name-only ${args[@]+"${args[@]}"} 2>/dev/null)" || return 1
     printf '%s\n' "$output"
+    [ -z "$filter" ] || return 0
     output="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard 2>/dev/null)" || return 1
     printf '%s\n' "$output"
   }
-  if ! DISCOVERED="$(discover_changed_paths)"; then
+  if ! DISCOVERED="$(discover_changed_paths)" || ! DELETED_PATHS="$(discover_changed_paths deleted)"; then
     printf 'affected-sensors.sh: git discovery failed for diff base %s\n' "$DIFF_BASE" >&2
     exit 2
   fi
   while IFS= read -r p; do
     [ -n "$p" ] && CHANGED+=("$p")
   done < <(printf '%s\n' "$DISCOVERED" | sort -u)
+  while IFS= read -r p; do
+    [ -n "$p" ] && DELETED+=("$p")
+  done < <(printf '%s\n' "$DELETED_PATHS" | sort -u)
 fi
 
-if [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then
+if [ "$GATE" = pre-pr ] && [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DIFF_BASE" ]; then
+  printf 'affected-sensors.sh: pre-pr requires --diff or explicit changed paths\n' >&2
+  exit 2
+fi
+if [ -z "$GATE" ] && [ ${#CHANGED[@]} -eq 0 ] && [ -z "$DECLARED" ]; then
   printf 'affected-sensors.sh: no changed paths and no --declared sensors given\n' >&2
   usage >&2
   exit 2
 fi
 
-sensor_stage() {
-  local line stage=feature seen=0
+sensor_metadata() {
+  local line stage_seen=0 trigger_seen=0 depends_seen=0 deletes_seen=0 dependency
+  stage=feature
+  trigger=routine
+  dependencies=()
+  deletion_dependencies=()
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       '# harness-sensor-stage:'*)
-        [ "$seen" -eq 0 ] || return 2
-        seen=1
+        [ "$stage_seen" -eq 0 ] || return 2
+        stage_seen=1
         case "$line" in
           '# harness-sensor-stage: feature') stage=feature ;;
           '# harness-sensor-stage: boundary') stage=boundary ;;
           *) return 2 ;;
         esac
         ;;
+      '# harness-sensor-trigger:'*)
+        [ "$trigger_seen" -eq 0 ] || return 2
+        trigger_seen=1
+        trigger="${line#'# harness-sensor-trigger: '}"
+        case "$trigger" in routine|relevant|upgrade|maintenance) ;; *) return 2 ;; esac
+        ;;
+      '# harness-sensor-depends:'*)
+        [ "$depends_seen" -eq 0 ] || return 2
+        depends_seen=1
+        read -r -a dependencies <<<"${line#'# harness-sensor-depends:'}"
+        [ "${#dependencies[@]}" -gt 0 ] || return 2
+        ;;
+      '# harness-sensor-deletes:'*)
+        [ "$deletes_seen" -eq 0 ] || return 2
+        deletes_seen=1
+        read -r -a deletion_dependencies <<<"${line#'# harness-sensor-deletes:'}"
+        [ "${#deletion_dependencies[@]}" -gt 0 ] || return 2
+        ;;
       '#'*|'') ;;
       *) [[ "$line" =~ ^[[:space:]]*$ ]] || break ;;
     esac
   done <"$1" || return 2
-  printf '%s\n' "$stage"
+  for dependency in ${dependencies[@]+"${dependencies[@]}"} ${deletion_dependencies[@]+"${deletion_dependencies[@]}"}; do
+    case "$dependency" in
+      /*|..|../*|*/../*|*/..|.|'*'|'**'|*[![:alnum:]_./?*-]*) return 2 ;;
+    esac
+  done
+  [ "$trigger" = routine ] || [ "$depends_seen" -eq 1 ] || [ "$deletes_seen" -eq 1 ]
 }
 
 # --- Scoped resolution ----------------------------------------------------------
@@ -143,25 +194,45 @@ SENSORS=()
 [ -z "$SENSOR_LIST" ] || mapfile -t SENSORS <<< "$SENSOR_LIST"
 SENSOR_FILES=()
 BOUNDARY_LIST=""
-for sensor in "${SENSORS[@]}"; do
-  file="${TESTS_ROOT}/${sensor#tests/}"
-  if ! stage="$(sensor_stage "$file")"; then
-    printf 'affected-sensors.sh: invalid or unreadable sensor stage header: %s\n' "$sensor" >&2
-    exit 2
-  fi
-  if [ "$stage" = boundary ]; then
-    BOUNDARY_LIST+="${sensor}"$'\n'
-  else
-    SENSOR_FILES+=("$file")
-  fi
-done
-
 RESULT="$(mktemp)"
 trap 'rm -f "${RESULT}"' EXIT
 
 emit() { # emit <repo-relative-sensor-path>
   printf '%s\n' "$1" >> "$RESULT"
 }
+
+for sensor in "${SENSORS[@]}"; do
+  file="${TESTS_ROOT}/${sensor#tests/}"
+  if ! sensor_metadata "$file"; then
+    printf 'affected-sensors.sh: invalid or unreadable sensor stage header or trigger/dependency metadata: %s\n' "$sensor" >&2
+    exit 2
+  fi
+  if [ "$stage" = boundary ]; then
+    BOUNDARY_LIST+="${sensor}"$'\n'
+    [ -n "$GATE" ] || continue
+  fi
+  case "$GATE:$trigger" in
+    release:upgrade|maintenance:maintenance|pre-pr:routine) emit "$sensor" ;;
+  esac
+  case "$GATE" in release|maintenance) continue ;; esac
+  if [ "$trigger" = routine ]; then
+    SENSOR_FILES+=("$file")
+  fi
+  for p in ${CHANGED[@]+"${CHANGED[@]}"}; do
+    if [ "$p" = "$sensor" ]; then emit "$sensor"; fi
+    for dependency in ${dependencies[@]+"${dependencies[@]}"}; do
+      # The right-hand side is deliberately a declared path glob, not shell code.
+      # shellcheck disable=SC2053
+      if [[ "$p" == $dependency ]]; then emit "$sensor"; fi
+    done
+  done
+  for p in ${DELETED[@]+"${DELETED[@]}"}; do
+    for dependency in ${deletion_dependencies[@]+"${deletion_dependencies[@]}"}; do
+      # shellcheck disable=SC2053 # Declared deletion dependency is a path glob.
+      if [[ "$p" == $dependency ]]; then emit "$sensor"; fi
+    done
+  done
+done
 
 # Declared entries must also belong to the canonical sensor set.
 if [ -n "$DECLARED" ]; then
@@ -187,9 +258,10 @@ if [ -n "$DECLARED" ]; then
 fi
 
 for p in ${CHANGED[@]+"${CHANGED[@]}"}; do
+  case "$GATE" in release|maintenance) break ;; esac
   base="$(basename "$p")"
   [ "${#SENSOR_FILES[@]}" -gt 0 ] || continue
-  if grep -Fxq -- "$p" <<< "$BOUNDARY_LIST"; then
+  if [ -z "$GATE" ] && grep -Fxq -- "$p" <<< "$BOUNDARY_LIST"; then
     printf 'affected-sensors.sh: %s deferred to full issue gates (boundary-only)\n' "$p" >&2
   elif grep -Fxq -- "$p" <<< "$SENSOR_LIST"; then
     emit "$p"
@@ -208,4 +280,4 @@ for p in ${CHANGED[@]+"${CHANGED[@]}"}; do
   fi
 done
 
-sort -u "$RESULT"
+LC_ALL=C sort -u "$RESULT"

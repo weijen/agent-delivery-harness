@@ -47,6 +47,7 @@ done <"$TMP/expected"
 git -C "$FIX" init -q -b main
 git -C "$FIX" -c user.name='Harness Test' -c user.email='harness-test@example.invalid' \
   -c commit.gpgsign=false commit --allow-empty -qm 'test: miniature source gate'
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 assert_once() {
   LC_ALL=C sort "$SOURCE_GATE_CALLS" >"$TMP/actual"
   cmp -s "$TMP/expected" "$TMP/actual" \
@@ -66,7 +67,7 @@ awk '
 ' "$ROOT/.github/workflows/harness-smoke.yml" >"$TMP/ci.sh"
 [ -s "$TMP/ci.sh" ] || fail "CI functional discovery step is missing"
 : >"$SOURCE_GATE_CALLS"
-(cd "$FIX" && bash "$TMP/ci.sh") >"$TMP/out" 2>&1 \
+(cd "$FIX" && SENSOR_DIFF_BASE="$(git rev-parse origin/main)" bash "$TMP/ci.sh") >"$TMP/out" 2>&1 \
   || { cat "$TMP/out" >&2; fail "miniature CI discovery failed"; }
 assert_once CI
 if grep -Eq 'run-l0-suite\.sh|run-evals\.sh' "$ROOT/.github/workflows/harness-smoke.yml"; then

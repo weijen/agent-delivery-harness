@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: upgrade
+# harness-sensor-depends: .github/workflows/release.yml .github/workflows/python-ci.yml scripts/sync-version.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
 # test_release_lock_sync.sh — regression sensor for issue #455: a semantic-
 # release version bump must never strand main with a stale uv.lock.
 #

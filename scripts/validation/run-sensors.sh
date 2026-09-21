@@ -4,6 +4,8 @@
 # Usage:
 #   scripts/run-sensors.sh green --diff <fixed-feature-base> [--declared <list>]
 #   scripts/run-sensors.sh --gate pre-pr
+#   scripts/run-sensors.sh --gate ci --diff <pull-request-base>
+#   scripts/run-sensors.sh --gate release|maintenance
 #
 # The only execution shapes are `green` and `--gate`.
 # Enforcement by construction: `green` runs declared + feature-affected sensors,
@@ -11,13 +13,13 @@
 # it fixed across commits and repairs. Invalid selection fails, rather than
 # silently widening coverage. Publication verifies evidence without execution.
 # Real whole-suite wrappers are boundary-only; they remain in canonical full
-# discovery for the final `--gate pre-pr` after review, and source/installed CI.
+# discovery and run at applicable final/CI boundaries, never feature greens.
 # Cross-model evidence (2026-07-21/22 runs) shows agents over-comply with
 # verification obligations regardless of prose doctrine; this runner removes
 # the decision from the agent entirely.
 #
 # Output: one result line per sensor (PASS/FAIL <path>), then a summary line:
-#   SENSORS <mode> head=<sha> scope=<scoped|full> ran=<n> failed=<m>
+#   SENSORS <mode> head=<sha> scope=<scoped|applicable> ran=<n> failed=<m>
 # The process exit is the authoritative gate result; scope/count are not copied
 # into semantic trace spans.
 # Exit: 0 all green · 1 failed/stale result · 2 usage error.
@@ -66,11 +68,16 @@ done
 
 if [ "$MODE" = "gate" ]; then
   case "$GATE" in
-    pre-pr) ;;
+    pre-pr|release|maintenance)
+      [ -z "$DIFF_BASE$DECLARED" ] \
+        || { printf 'run-sensors.sh: %s does not accept narrower diff/declarations\n' "$GATE" >&2; exit 2; } ;;
+    ci)
+      [ -n "$DIFF_BASE" ] && [ -z "$DECLARED" ] \
+        || { printf 'run-sensors.sh: ci requires --diff and forbids --declared\n' >&2; exit 2; } ;;
     pre-review)
       printf 'run-sensors.sh: pre-review execution is retired; use scoped feature checks, then --gate pre-pr after review approval\n' >&2
       exit 2 ;;
-    *) printf 'run-sensors.sh: --gate must be pre-pr (got "%s")\n' "$GATE" >&2; exit 2 ;;
+    *) printf 'run-sensors.sh: --gate must be pre-pr, ci, release or maintenance (got "%s")\n' "$GATE" >&2; exit 2 ;;
   esac
 elif [ "$MODE" != "green" ]; then
   usage; exit 2
@@ -186,7 +193,6 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   local -a pipeline_status
   diagnostics_init "$scope" "$label"
   for t in "$@"; do
-    [ -f "${REPO_ROOT}/${t}" ] || { printf 'SKIP %s (missing)\n' "$t"; continue; }
     ran=$((ran + 1))
     log=""
     [ -z "$DIAGNOSTICS_DIR" ] || log="${DIAGNOSTICS_DIR}/${ran}.log"
@@ -284,23 +290,30 @@ record_evidence() { # <mode-label> <scope> <ran> <failed>
   return 0
 }
 
-full_set() {
-  local discovered
-  discovered="$("${SCRIPT_DIR}/validation/affected-sensors.sh" --list)" || return 1
-  if [ -z "$discovered" ]; then
-    printf 'run-sensors.sh: no harness sensors found for full suite\n' >&2
-    return 1
-  fi
-  mapfile -t ALL <<< "$discovered"
-}
-
 cd "$REPO_ROOT"
 HEAD_SHA="$(git rev-parse HEAD)"
 
 if [ "$MODE" = "gate" ]; then
-  # The explicit final full suite; review and approval never invoke it.
-  full_set
-  run_list full "$GATE" "${ALL[@]}"
+  case "$GATE" in
+    pre-pr)
+      if ! DIFF_BASE="$(git merge-base origin/main HEAD)"; then
+        printf 'run-sensors.sh: final applicability base discovery failed; prepare origin/main before final validation\n' >&2
+        exit 2
+      fi
+      RESOLVER_ARGS=(--gate pre-pr --diff "$DIFF_BASE") ;;
+    ci) RESOLVER_ARGS=(--gate pre-pr --diff "$DIFF_BASE") ;;
+    *) RESOLVER_ARGS=(--gate "$GATE") ;;
+  esac
+  if ! selected="$("${SCRIPT_DIR}/validation/affected-sensors.sh" "${RESOLVER_ARGS[@]}")"; then
+    printf 'run-sensors.sh: applicable resolver failed; no sensors executed\n' >&2
+    exit 2
+  fi
+  if [ -z "$selected" ]; then
+    printf 'run-sensors.sh: no applicable sensors found for %s\n' "$GATE" >&2
+    exit 1
+  fi
+  mapfile -t ALL <<<"$selected"
+  run_list applicable "$GATE" "${ALL[@]}"
   exit $?
 fi
 

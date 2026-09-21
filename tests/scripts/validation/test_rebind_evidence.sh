@@ -42,6 +42,7 @@ grep -qi 'pre-pr' "$OUT" || fail "missing evidence diagnostic lacks the owed gat
 [ ! -f "$EVIDENCE" ] || fail "verification created evidence"
 
 # The explicit final gate still fails normally and produces no successful row.
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 if (cd "$FIX" && SENSOR_EXIT=1 ./scripts/run-sensors.sh --gate pre-pr) >"$OUT" 2>&1; then
   fail "a red final gate reported success"
 fi

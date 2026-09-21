@@ -26,6 +26,7 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 git -C "$FIX" checkout -q -b feature/issue-77-fixture-work
 EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 

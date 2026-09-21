@@ -70,11 +70,12 @@ script, keep these sensors green:
 - `tests/scripts/test_init_gates.sh` — `init.sh` still detects every surface and
   runs the matching gates.
 
-The full sensor suite (`test_*.sh` recursively under `tests/scripts/` and
-`tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees) runs
-in CI and is a hard precondition for merge (see [CI Boundary](#ci-boundary)).
-The local runner and both workflow profiles share
-`scripts/validation/affected-sensors.sh --list` discovery. Empty full suites fail; empty
+The sensor inventory (`test_*.sh` recursively under `tests/scripts/` and
+`tests/meta/`, excluding `lib/`, `helpers/` and `fixtures/` subtrees)
+feeds applicable source CI; a green CI run is a hard precondition for merge
+(see [CI Boundary](#ci-boundary)). Installed smoke retains its portable inventory.
+The canonical inventory comes from
+`scripts/validation/affected-sensors.sh --list`. Empty final suites fail; empty
 scoped selections remain valid.
 Affected resolution selects from that same sensor set, including relocated
 sensors but never helpers. Feature greens require an explicit fixed feature
@@ -86,11 +87,58 @@ not a FULL fallback. Discovery/read errors and invalid declarations stop the run
 
 Real whole-suite wrappers, including installed-profile validation, declare
 `# harness-sensor-stage: boundary` in their leading comment header. They remain
-in full discovery for final pre-PR and CI, but are deferred from feature
+in canonical discovery for applicable final pre-PR and CI, but are deferred from feature
 selection. Declaring one as feature coverage fails explicitly rather than
 silently dropping it. Feature greens retain targeted runtime e2e and miniature
 hermetic fixtures that exercise full-runner behavior. This stage separation
 does not remove assertions or authorize reusing boundary-gate evidence.
+
+### Sensor selection dispositions
+
+The selector retains canonical inventory through `--list`. Its
+`--gate pre-pr --diff <base>` form resolves routine checks plus checks affected
+by that change; `--gate release` resolves release/upgrade acceptance, and
+`--gate maintenance` resolves explicit maintenance checks. These are selection
+interfaces, not commands that execute tests.
+
+The local runner executes these sets through `--gate pre-pr`, `--gate release`
+and `--gate maintenance`. Pre-PR derives the change from the candidate's merge
+base with the already available `origin/main`; missing base discovery is an
+error, and final callers cannot narrow the result through declarations or a
+different `--diff`. `--gate ci --diff <pull-request-base>` uses the same policy
+with the workflow's explicit base. Neither command fetches or enforces new
+remote freshness requirements. Gate summaries/evidence use `scope=applicable`,
+not `full`; historical full evidence stays readable. A missing selected sensor
+is a failure, never a successful skip.
+
+Leading sensor comments declare `# harness-sensor-trigger: routine`,
+`relevant`, `upgrade`, or `maintenance`; omission means `routine`.
+`# harness-sensor-depends: <space-separated repository-relative paths/globs>`
+records bounded known dependencies.
+`# harness-sensor-deletes: <paths/globs>` declares deletion-only obligations,
+including the managed paths protected by tombstone history. Diff-based selection
+distinguishes committed, staged and unstaged deletions from ordinary updates.
+Explicit path arguments carry no status, so conservatively satisfy either
+dependency kind. Nonroutine dispositions require at least one dependency kind.
+Neither path matching mechanism claims a transitive graph.
+A changed sensor always selects itself. Routine feature selection retains the
+existing text/path matching, augmented by declared dependencies. Nonroutine
+selection uses declared paths rather than incidental prose basename matches.
+Invalid metadata fails visibly; declarations are not a transitive dependency
+graph or proof that every unknown dependency has been found. The independent
+stage header still excludes whole-suite wrappers from feature greens.
+
+| Candidate | Distinct failure protected | Disposition and trigger |
+| --- | --- | --- |
+| Audit sweep | Offline report-only dispatch and report consolidation | Maintenance; driver, prompt, skills or active contract changes |
+| Log-review recipes | Incorrect transcript durations and inventory | Maintenance; recipes, transcript fixtures or trace contract changes |
+| Archived reports | Restored live reports or broken archive links | Maintenance; archived content or former report paths |
+| Economics spans | Incorrect closeout aggregates or fabricated usage | Relevant; finish/report/trace helpers, schema and active contracts |
+| Release workflow and lock synchronization | Unsafe release wiring or stale release lock | Upgrade; release/toolchain inputs, release contract, or explicit release |
+| Tombstone history | Missing or malformed historical retirement ledger | Upgrade; installer/retirement inputs, managed-path deletions, layout contract, or explicit release |
+| Historical v0.36.0 and v0.45.2 upgrades | Lost adopter ownership, unsafe migration or broken installed runtime after upgrade | Upgrade; installer manifests, reconciliation/identity/runtime dependencies, layout contract, or explicit release |
+| Other lifecycle, schema, redaction, evidence and installed integration checks | Their retained runtime contracts | Routine final validation; affected/declared feature selection |
+| Bounded evaluation-driver contracts | Incorrect manifest, blocking result or scorecard behavior | Routine; real whole L0 evaluation remains explicitly invoked through its existing driver |
 
 ### Sensor diagnostics
 
@@ -361,12 +409,13 @@ trace carries only the path and one-line summary of that lesson, never its body.
 
 ## Gates And Sensors
 
-`./scripts/init.sh` detects project surfaces with explicit marker-file branches.
+`./scripts/init.sh` detects Python through its shared profile applicability
+function and other project surfaces through explicit marker-file branches.
 For each detected language, `profiles/<id>.profile.sh` supplies the surface
 label, dependency sync, and local gate commands:
 
 - docs-only: reports that no language gates are present and points agents to shellcheck for touched harness scripts. (markdownlint stays available as optional docs hygiene; it is not a required gate.)
-- Python (`pyproject.toml`): `uv sync --all-groups`, ruff format/check, mypy, and pytest.
+- Python (source or product configuration): `uv sync --all-groups`, ruff format/check, mypy, and pytest. Non-package uv release metadata alone does not activate product gates; lock integrity remains independent.
 - Go (scaffold skeleton; `go.mod`): `gofmt -l`, `go vet ./...`, optional golangci-lint, and `go test ./...`.
 - Node.js (`package.json`): prettier, eslint, optional tsc, and the project's test script — pnpm when the project declares it, otherwise npm.
 - Java (scaffold skeleton; `pom.xml`, `build.gradle`, or `build.gradle.kts`): optional Spotless and Checkstyle/PMD/SpotBugs, plus the test task — Maven or Gradle, preferring `./mvnw`/`./gradlew` wrappers.
@@ -421,7 +470,7 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
-Before final review and full pre-PR validation, run
+Before final review and applicable pre-PR validation, run
 `./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
 does not require an approval, execute sensors, push, or open a PR. It aborts
 conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
@@ -434,7 +483,7 @@ without running sensors. After review and repairs, explicitly run the final
 If that gate fails, repair with scoped checks, obtain relevant re-review, then
 run it again on the repaired final candidate; a failed attempt is never green evidence.
 Normal `./scripts/create-pr.sh` checks that approval and verifies a successful,
-full, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
+applicable, nonempty `pre-pr` evidence row for the same HEAD. Missing, stale, malformed,
 tampered, wrong-mode or wrong-scope evidence stops publication with a diagnostic.
 It never runs sensors, fetches main, rebases or merges during publication.
 Historical pre-review evidence remains readable but cannot replace final pre-PR
@@ -487,8 +536,9 @@ remain schema-valid.
 
 ## CI Boundary
 
-`.github/workflows/harness-smoke.yml` runs the harness shell sensor suite
-(the same recursive discovery used by the local runner), checks shell parsing, runs `shellcheck`
+`.github/workflows/harness-smoke.yml` runs the complete applicable harness sensor set
+through `run-sensors.sh --gate ci --diff <PR-base>` (the same selection policy
+used by the local final gate), checks shell parsing, runs `shellcheck`
 through `scripts/validation/check-shell.sh`, and validates Copilot customization frontmatter.
 The shared shell gate recursively covers scripts, profiles, sensor/library trees,
 eval tools and available optional adapters, excluding fixture subtrees. Syntax
@@ -498,7 +548,14 @@ so the suite needs no secrets and runs on fork PRs.
 
 Both installed profiles select [the adopter workflow](../profiles/adopter-smoke.yml)
 for that destination. Only the source repository retains the maintainer workflow,
-including Python profile, tombstone-history and source functional gates. L0
+including applicable Python profile, tombstone-history and source functional gates.
+Python detection precedes environment setup/sync; the independent lock check
+still runs. Historical upgrades and maintenance checks run only for declared
+changes or their explicit boundaries, not through an additional unconditional
+workflow step. Release planning uses PSR no-operation mode; when a release is
+planned, `--gate release` must pass before the actual version/tag/release action.
+No-op pushes do not replay upgrade acceptance. `--gate maintenance` remains an
+explicit operator command. L0
 functional sensors run once through discovery, without an additional evaluation
 replay; tiny fixtures protect evaluation-tool and TAP-helper contracts. Portable developer
 installations additionally provide `bash tests/evals/bin/run-l0-suite.sh`

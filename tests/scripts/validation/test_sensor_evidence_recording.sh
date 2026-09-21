@@ -44,6 +44,7 @@ SH
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
+git -C "$FIX" update-ref refs/remotes/origin/main HEAD
 git -C "$FIX" checkout -q -b feature/issue-77-fixture-work
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
 
@@ -70,14 +71,14 @@ jq -e . >/dev/null 2>&1 <<<"$row" || fail "evidence row is not valid JSON: $row"
 [ -n "$(jq -r '.timestamp // empty' <<<"$row")" ] || fail "evidence row needs a timestamp"
 [ -n "$(jq -r '.checksum // empty' <<<"$row")" ] || fail "evidence row needs a checksum"
 
-# 2. A gate run appends a second row with the gate label and full scope.
+# 2. A gate run appends a second row with the gate label and applicable scope.
 run --gate pre-pr >/dev/null || fail "all-green gate run must exit 0"
 [ "$(wc -l < "$EVIDENCE" | tr -d ' ')" = "2" ] \
   || fail "gate run must append a second evidence row"
 row2="$(tail -n1 "$EVIDENCE")"
 [ "$(jq -r '.mode' <<<"$row2")" = "pre-pr" ] \
   || fail "gate evidence mode must be the gate name (got: $(jq -r '.mode' <<<"$row2"))"
-[ "$(jq -r '.scope' <<<"$row2")" = "full" ] || fail "gate evidence scope must be full"
+[ "$(jq -r '.scope' <<<"$row2")" = "applicable" ] || fail "gate evidence scope must be applicable"
 
 # 3. A failing run records no row.
 cat > "${FIX}/tests/scripts/test_red.sh" <<'SH'
