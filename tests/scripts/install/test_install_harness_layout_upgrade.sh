@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 fail() { printf 'layout-upgrade disposition: %s\n' "$*" >&2; exit 1; }
 upgrades=(
-	tests/scripts/test_install_harness_layout_upgrade.sh
-	tests/scripts/test_install_harness_version_skew.sh
+	tests/scripts/install/test_install_harness_layout_upgrade.sh
+	tests/scripts/install/test_install_harness_version_skew.sh
 )
 resolver="$ROOT/scripts/validation/affected-sensors.sh"
 "$resolver" --gate pre-pr unrelated-product.txt >"$TMP_DIR/selected"
@@ -29,7 +29,7 @@ done
 for sensor in "${upgrades[@]}"; do
 	grep -Fxq "$sensor" "$TMP_DIR/selected" || fail "release omitted $sensor"
 done
-if grep -q 'archive v0.45.2' "$ROOT/tests/scripts/test_install_harness_adopter_profile.sh"; then
+if grep -q 'archive v0.45.2' "$ROOT/tests/scripts/install/test_install_harness_adopter_profile.sh"; then
 	fail "routine profile sensor still replays the historical matrix"
 fi
 
@@ -132,7 +132,7 @@ for profile in default developer claude; do
 			|| fail_layout "${profile} repeat update"
 	fi
 	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/before-repeat"
-	install_layout "$INSTALL" "$target" --update "${options[@]}" \
+	install_layout "${target}/scripts/install/install-harness.sh" "$target" --update "${options[@]}" \
 		|| fail_layout "${profile} idempotent update"
 	find "$target" -type f -exec shasum -a 256 {} + | sort >"${TMP_DIR}/after-repeat"
 	cmp -s "${TMP_DIR}/before-repeat" "${TMP_DIR}/after-repeat" \

@@ -3,7 +3,7 @@
 # sensors by default, prune clean legacy copies, and expose an explicit opt-in.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
@@ -58,7 +58,7 @@ cmp -s "${ROOT}/profiles/adopter-smoke.yml" \
 	echo "default install shipped a harness-dev release sensor"
 	exit 1
 }
-[ ! -e "${default_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
+[ ! -e "${default_target}/tests/scripts/install/test_install_harness_symlinked_parent.sh" ] || {
 	echo "default install shipped the harness-dev symlinked-parent sensor"
 	exit 1
 }
@@ -174,7 +174,7 @@ upgrade_target="${TMP_DIR}/upgrade"
 "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1
 # Model the preceding broad payload; portable developer mode no longer ships it.
 for legacy in tests/scripts/test_release_workflow.sh \
-	tests/scripts/test_install_harness_symlinked_parent.sh \
+	tests/scripts/install/test_install_harness_symlinked_parent.sh \
 	tests/scripts/lifecycle/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
 	mkdir -p "${upgrade_target}/$(dirname "$legacy")"
 	cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
@@ -191,7 +191,7 @@ fi
 	echo "default upgrade left an unmodified harness-dev sensor"
 	exit 1
 }
-[ ! -e "${upgrade_target}/tests/scripts/test_install_harness_symlinked_parent.sh" ] || {
+[ ! -e "${upgrade_target}/tests/scripts/install/test_install_harness_symlinked_parent.sh" ] || {
 	echo "default upgrade left the unmodified symlinked-parent sensor"
 	exit 1
 }
@@ -229,7 +229,7 @@ printf 'install-harness adopter profile sensor passed\n'
 
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -312,7 +312,7 @@ printf 'installer identity template contract honored\n'
 
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 MANIFEST="${ROOT}/tests/harness-dev-sensors.txt"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -334,7 +334,7 @@ fi
 
 while IFS= read -r pattern; do
 	case "$pattern" in
-	tests/scripts/test_*.sh | tests/scripts/lifecycle/test_*.sh | tests/meta/test_*.sh) ;;
+	tests/scripts/test_*.sh | tests/scripts/lifecycle/test_*.sh | tests/scripts/install/test_*.sh | tests/meta/test_*.sh) ;;
 	*)
 		echo "invalid harness-dev sensor pattern: $pattern"
 		exit 1
@@ -372,12 +372,13 @@ while IFS= read -r sensor; do
 done < <(cd "$ROOT" && {
 	compgen -G 'tests/scripts/test_*.sh'
 	compgen -G 'tests/scripts/lifecycle/test_*.sh'
+	compgen -G 'tests/scripts/install/test_*.sh'
 } | sort)
 
 required=(
 	'tests/meta/test_*.sh'
 	tests/scripts/lifecycle/test_init_gates.sh
-	tests/scripts/test_install_harness_symlinked_parent.sh
+	tests/scripts/install/test_install_harness_symlinked_parent.sh
 	tests/scripts/test_release_workflow.sh
 	tests/scripts/test_eval_manifest_validator.sh
 )
@@ -390,7 +391,7 @@ done
 
 core=(
 	tests/scripts/lifecycle/test_harness_contract.sh
-	tests/scripts/test_install_harness.sh
+	tests/scripts/install/test_install_harness.sh
 	tests/scripts/lifecycle/test_issue_scaffold.sh
 	tests/scripts/validation/test_review_gate.sh
 	tests/scripts/test_trace_lifecycle_e2e.sh
@@ -412,7 +413,7 @@ printf 'harness-dev sensor manifest passed\n'
 
 (
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 TARGET="${TMP_DIR}/installed"

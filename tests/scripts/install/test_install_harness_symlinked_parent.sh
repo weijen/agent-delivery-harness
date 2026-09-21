@@ -2,7 +2,7 @@
 # Behavioral security sensor: installer mutations never traverse symlinked parents.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=tests/scripts/lib/installer-fixture.sh
 source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 TMP_DIR="$(mktemp -d)"

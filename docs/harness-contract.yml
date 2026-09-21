@@ -25,6 +25,29 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/install-harness.sh
+    to: scripts/install/install-harness.sh
+    public_entrypoint: scripts/install-harness.sh
+  - from: tests/scripts/test_install_harness.sh
+    to: tests/scripts/install/test_install_harness.sh
+  - from: tests/scripts/test_install_harness_adopter_profile.sh
+    to: tests/scripts/install/test_install_harness_adopter_profile.sh
+  - from: tests/scripts/test_install_harness_atomic_write.sh
+    to: tests/scripts/install/test_install_harness_atomic_write.sh
+  - from: tests/scripts/test_install_harness_claude.sh
+    to: tests/scripts/install/test_install_harness_claude.sh
+  - from: tests/scripts/test_install_harness_dangling_destination.sh
+    to: tests/scripts/install/test_install_harness_dangling_destination.sh
+  - from: tests/scripts/test_install_harness_dev_profile.sh
+    to: tests/scripts/install/test_install_harness_dev_profile.sh
+  - from: tests/scripts/test_install_harness_layout_upgrade.sh
+    to: tests/scripts/install/test_install_harness_layout_upgrade.sh
+  - from: tests/scripts/test_install_harness_symlinked_parent.sh
+    to: tests/scripts/install/test_install_harness_symlinked_parent.sh
+  - from: tests/scripts/test_install_harness_three_way.sh
+    to: tests/scripts/install/test_install_harness_three_way.sh
+  - from: tests/scripts/test_install_harness_version_skew.sh
+    to: tests/scripts/install/test_install_harness_version_skew.sh
   - from: scripts/finish-issue.sh
     to: scripts/lifecycle/finish-issue.sh
     public_entrypoint: scripts/finish-issue.sh
@@ -135,6 +158,12 @@ layout_moves:
 # `role` is documentation; `path` is the test authority.
 # ---------------------------------------------------------------------------
 scripts:
+  - id: install-harness
+    path: scripts/install-harness.sh
+    role: Stable public harness installation entrypoint.
+  - id: install-harness-implementation
+    path: scripts/install/install-harness.sh
+    role: Install explicit payloads with ownership-safe reconciliation.
   - id: init
     path: scripts/init.sh
     role: Stable public preflight entrypoint forwarding to the lifecycle implementation.
