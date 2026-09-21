@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: maintenance
-# harness-sensor-depends: scripts/audit-sweep.sh .copilot/prompts/audit-sweep.prompt.md .copilot/skills/* docs/harness-contract.yml
+# harness-sensor-depends: scripts/maintenance/audit-sweep.sh .copilot/prompts/audit-sweep.prompt.md .copilot/skills/* docs/harness-contract.yml scripts/install-harness.assets scripts/install-harness.dev.assets tests/harness-dev-sensors.txt
 # test_audit_sweep.sh — regression sensor for the local audit-sweep driver
-# (issue #258): scripts/audit-sweep.sh runs the six audit skills, one fresh
+# (issue #258): scripts/maintenance/audit-sweep.sh runs the six audit skills, one fresh
 # headless `copilot -p` session each, report-only, and consolidates the
 # per-skill reports into one index.md roll-up. .copilot/prompts/audit-sweep.prompt.md
 # is the one-shot entry.
 #
-# The sensor NEVER invokes the real Copilot CLI: it exercises --dry-run (which
-# must not launch copilot) and the --consolidate phase (pure file I/O). A fake
-# `copilot` that hard-fails if called proves --dry-run stays offline.
+# The sensor NEVER invokes the real Copilot CLI: dry-run and consolidation stay
+# offline; execution uses a fake CLI to prove root anchoring and failure status.
 #
 # Legs:
 #   A (audit-sweep-script)        dry-run lists exactly the six audit skills,
@@ -26,8 +25,8 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SCRIPT="${ROOT}/scripts/audit-sweep.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SCRIPT="${ROOT}/scripts/maintenance/audit-sweep.sh"
 PROMPT="${ROOT}/.copilot/prompts/audit-sweep.prompt.md"
 SKILLS_DIR="${ROOT}/.copilot/skills"
 
@@ -62,7 +61,7 @@ mapfile -t EXPECTED < <(
     | sort
 )
 
-[ -f "${SCRIPT}" ] || { fail "scripts/audit-sweep.sh not found"; }
+[ -f "${SCRIPT}" ] || { fail "scripts/maintenance/audit-sweep.sh not found"; }
 [ "${#EXPECTED[@]}" -eq 6 ] || note "expected six audit skills, derived ${#EXPECTED[@]}: ${EXPECTED[*]}"
 
 # ============================================================================
@@ -180,12 +179,62 @@ fi
 if [ -f "${PROMPT}" ]; then
   head -1 "${PROMPT}" | grep -q -- '---' || fail "C: prompt missing YAML frontmatter"
   grep -q 'mode: *agent' "${PROMPT}" || fail "C: prompt is not mode: agent"
-  grep -q 'scripts/audit-sweep.sh' "${PROMPT}" \
-    || fail "C: prompt does not reference ./scripts/audit-sweep.sh"
+  grep -q 'scripts/maintenance/audit-sweep.sh' "${PROMPT}" \
+    || fail "C: prompt does not reference ./scripts/maintenance/audit-sweep.sh"
   grep -q 'index.md' "${PROMPT}" || fail "C: prompt does not reference index.md"
 else
   fail "C: .copilot/prompts/audit-sweep.prompt.md not found"
 fi
+
+# Canonical maintenance identities remain source-only and uniquely discovered.
+for identity in scripts/maintenance/audit-sweep.sh tests/scripts/maintenance/test_audit_sweep.sh; do
+  old="${identity/maintenance\//}"
+  [ ! -e "${ROOT}/${old}" ] || fail "flat duplicate remains: ${old}"
+  if grep -Fxq "$identity" "${ROOT}/scripts/install-harness.assets" "${ROOT}/scripts/install-harness.dev.assets"; then
+    fail "maintainer asset selected for installation: ${identity}"
+  fi
+  awk -v path="$identity" '
+    /^  - from:/ { selected=0 }
+    /^    to:/ { selected=($2==path) }
+    selected && /^    audience: source-only$/ { found=1 }
+    END { exit !found }
+  ' "${ROOT}/docs/harness-contract.yml" || fail "source-only layout identity missing: ${identity}"
+done
+discovered="$("${ROOT}/scripts/validation/affected-sensors.sh" --list)"
+[ "$(grep -Fxc tests/scripts/maintenance/test_audit_sweep.sh <<<"$discovered")" -eq 1 ] \
+  || fail "audit sensor discovery is not unique"
+if grep -E '/(lib|helpers|fixtures)/' <<<"$discovered"; then fail "discovery included helper"; fi
+
+# The real driver runs fake child processes from its checkout, not caller cwd,
+# continues after a failing child and still consolidates both reports.
+mkdir -p "${TMP_DIR}/unrelated cwd"
+export AUDIT_PROBE_LOG="${TMP_DIR}/invocations"
+cat >"${BIN}/copilot" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$PWD" >>"$AUDIT_PROBE_LOG"
+case "$*" in *'--deny-tool write'*) ;; *) exit 98 ;; esac
+printf '| Severity | Priority | File | Finding |\n| --- | --- | --- | --- |\n| LOW | Defer | fixture | fake report |\n'
+case "$*" in *'`find-duplicates`'*) exit 17 ;; *) exit 0 ;; esac
+FAKE
+rc=0
+(cd "${TMP_DIR}/unrelated cwd" && PATH="$RUN_PATH" AUDIT_LOG_ROOT="${TMP_DIR}/audit reports" \
+  "$SCRIPT" find-duplicates security-audit) >"${TMP_DIR}/run.out" 2>&1 || rc=$?
+[ "$rc" -eq 1 ] || fail "child failure must propagate as exit 1, got ${rc}"
+[ "$(wc -l <"$AUDIT_PROBE_LOG" | tr -d ' ')" -eq 2 ] || fail "sweep did not execute both children"
+if grep -Fxv "$ROOT" "$AUDIT_PROBE_LOG"; then fail "child cwd escaped command checkout"; fi
+index="$(find "${TMP_DIR}/audit reports" -name index.md -print)"
+[ -f "$index" ] || fail "failed child prevented consolidation"
+if [ -f "$index" ]; then
+  grep -Fq 'find-duplicates | LOW' "$index" || fail "failed child report lost"
+  grep -Fq 'security-audit | LOW' "$index" || fail "later child report lost"
+  grep -Fq 'FAILED to complete' "$index" || fail "failure marker lost"
+fi
+mkdir -p "${TMP_DIR}/unrelated cwd/relative reports"
+printf '# A report\n' >"${TMP_DIR}/unrelated cwd/relative reports/probe.md"
+(cd "${TMP_DIR}/unrelated cwd" && "$SCRIPT" --consolidate 'relative reports') >/dev/null \
+  || fail "relative consolidation failed"
+[ -f "${TMP_DIR}/unrelated cwd/relative reports/index.md" ] || fail "consolidation changed caller-relative argument"
 
 if [ "${fails}" -ne 0 ]; then
   printf '\n%d audit-sweep obligation(s) failed.\n' "${fails}" >&2

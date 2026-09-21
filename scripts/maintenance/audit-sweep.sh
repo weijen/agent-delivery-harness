@@ -9,13 +9,13 @@
 # pass rolls the per-skill Findings tables into one index.md.
 #
 # This is the deterministic driver the (blocked, #256) scheduled-CI audit will
-# reuse as its entry point: checkout + install CLI + ./scripts/audit-sweep.sh.
+# reuse as its entry point: checkout + install CLI + ./scripts/maintenance/audit-sweep.sh.
 #
 # Usage:
-#   ./scripts/audit-sweep.sh                       # run all six audit skills
-#   ./scripts/audit-sweep.sh find-duplicates security-audit   # run a subset
-#   ./scripts/audit-sweep.sh --dry-run             # print the per-skill commands
-#   ./scripts/audit-sweep.sh --consolidate <dir>   # rebuild index.md from <dir>/*.md
+#   ./scripts/maintenance/audit-sweep.sh                       # run all six audit skills
+#   ./scripts/maintenance/audit-sweep.sh find-duplicates security-audit   # run a subset
+#   ./scripts/maintenance/audit-sweep.sh --dry-run             # print the per-skill commands
+#   ./scripts/maintenance/audit-sweep.sh --consolidate <dir>   # rebuild index.md from <dir>/*.md
 #
 # The audit skill set is DERIVED from .copilot/skills/ (every skill dir minus the
 # three non-audit skills below), so adding an audit skill needs no edit here.
@@ -31,7 +31,7 @@ set -euo pipefail
 NON_AUDIT=("code-review" "create-pr" "public-exposure-audit" "copilot-log-review")
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 SKILLS_DIR="${ROOT}/.copilot/skills"
 CONVENTIONS=".copilot/skills/_audit-conventions.md"
 LOG_ROOT="${AUDIT_LOG_ROOT:-${ROOT}/logs/audit}"

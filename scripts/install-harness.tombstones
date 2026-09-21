@@ -1,5 +1,6 @@
 # Generated from managed deletion history since install-harness.sh was introduced.
 # SHA-256 of final upstream content, followed by retired managed path.
+9c7723466539412734cd3d33eeae4b206ff2a5b5b19810d727610218c698500d	tests/scripts/test_audit_sweep.sh
 8f9de73ef971b7e9b117afda96cb0bbe384b771a580a058cf00d29ec15d2cbac	optional/runtime-adapters/claude-code-trace-hook.sh
 1a56be1a2887a13763b8d994626fa8d3025de62ceb17ea28c5144a600ef586a8	optional/runtime-adapters/claude-code.md
 ab5cc6ae808c016c714f5701938827662a1f3a74b5e86d0b227473ab2f554712	optional/runtime-adapters/claude-code.settings.example.json

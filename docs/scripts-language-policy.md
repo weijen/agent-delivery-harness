@@ -95,7 +95,10 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   The writer and Action Log renderer also live in `scripts/trace/`, behind
   documented public `scripts/log-handback.sh` and `scripts/render-action-log.sh`
   entrypoints. Their directly owned sensors live in `tests/scripts/trace/`.
-  Maintenance migrates in its later serial children. `layout_moves` in `docs/harness-contract.yml`
+  Source-only audit sweep lives in `scripts/maintenance/`, with its sensor in
+  `tests/scripts/maintenance/`, without a flat wrapper. Tombstone history and
+  version synchronization migrate in their later serial children.
+  `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
   public entrypoints as thin compatibility scripts, not one wrapper per internal

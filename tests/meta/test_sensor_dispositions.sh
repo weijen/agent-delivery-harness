@@ -87,7 +87,7 @@ source_resolve() {
 }
 source_resolve --gate pre-pr unrelated-product.txt
 scoped=(
-	tests/scripts/test_audit_sweep.sh
+	tests/scripts/maintenance/test_audit_sweep.sh
 	tests/scripts/test_copilot_log_review_recipes.sh
 	tests/scripts/test_economics_span.sh
 	tests/meta/test_archived_reports.sh
@@ -110,7 +110,7 @@ for sensor in tests/scripts/test_economics_span.sh tests/scripts/test_trace_lib_
 	grep -Fxq "$sensor" "$TMP/source" || fail "shared trace dependency omitted $sensor"
 done
 source_resolve --gate maintenance
-for sensor in tests/scripts/test_audit_sweep.sh tests/scripts/test_copilot_log_review_recipes.sh tests/meta/test_archived_reports.sh; do
+for sensor in tests/scripts/maintenance/test_audit_sweep.sh tests/scripts/test_copilot_log_review_recipes.sh tests/meta/test_archived_reports.sh; do
 	grep -Fxq "$sensor" "$TMP/source" || fail "explicit maintenance omitted $sensor"
 done
 source_resolve --gate release

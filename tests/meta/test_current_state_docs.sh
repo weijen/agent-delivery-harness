@@ -162,7 +162,7 @@ layout_guide="$(awk '
 [ -n "$layout_guide" ] || fail "onboarding lacks current script layout guidance"
 for authority in scripts/lib/ scripts/validation/ tests/scripts/validation/ scripts/run-sensors.sh \
   scripts/lifecycle/ tests/scripts/lifecycle/ scripts/init.sh scripts/install/ tests/scripts/install/ \
-  scripts/trace/ tests/scripts/trace/; do
+  scripts/trace/ tests/scripts/trace/ scripts/maintenance/ tests/scripts/maintenance/; do
   [ -e "$authority" ] || fail "documented layout authority missing: ${authority}"
   grep -qF "$authority" <<<"$layout_guide" || fail "onboarding omits ${authority}"
 done
@@ -173,14 +173,15 @@ reject_regex docs/scripts-language-policy.md 'directory stays flat|only sanction
 
 layout_moves="$(awk '
   function emit() {
-    if (old != "") print old "\t" canonical "\t" public
-    old=canonical=public=""
+    if (old != "") print old "\t" canonical "\t" (audience == "" ? "installed" : audience) "\t" public
+    old=canonical=public=audience=""
   }
   /^layout_moves:/ {selected=1; next}
   selected && /^[^ #]/ {exit}
   selected && /^  - from:/ {emit(); old=$3}
   selected && /^    to:/ {canonical=$2}
   selected && /^    public_entrypoint:/ {public=$2}
+  selected && /^    audience:/ {audience=$2}
   END {emit()}
 ' docs/harness-contract.yml)"
 [ -n "$layout_moves" ] || fail "maintained layout identity map missing"
@@ -188,7 +189,7 @@ for column in 1 2; do
   [ -z "$(cut -f "$column" <<<"$layout_moves" | sort | uniq -d)" ] \
     || fail "layout identity map contains duplicate column-${column} paths"
 done
-while IFS=$'\t' read -r old canonical public; do
+while IFS=$'\t' read -r old canonical audience public; do
   [ -f "$canonical" ] || fail "layout map points at missing canonical file: ${canonical}"
   if [ -n "$public" ]; then
     [ "$public" = "$old" ] && [ -x "$old" ] || fail "documented public entrypoint disappeared"
@@ -197,14 +198,25 @@ while IFS=$'\t' read -r old canonical public; do
   else
     [ ! -e "$old" ] || fail "layout retains duplicate old implementation: ${old}"
   fi
-  grep -qxF "$canonical" scripts/install-harness.assets \
-    || grep -qxF "$canonical" tests/harness-dev-sensors.txt \
-    || fail "canonical layout dependency absent from payload and source-only registry: ${canonical}"
+  case "$audience" in
+    source-only)
+      if grep -qxF "$canonical" scripts/install-harness.assets scripts/install-harness.dev.assets; then
+        fail "source-only layout asset selected for installation: ${canonical}"
+      fi
+      case "$canonical" in
+        tests/*) grep -qxF "$canonical" tests/harness-dev-sensors.txt \
+          || fail "source-only sensor missing registry: ${canonical}" ;;
+      esac ;;
+    installed)
+      grep -qxF "$canonical" scripts/install-harness.assets \
+        || grep -qxF "$canonical" tests/harness-dev-sensors.txt \
+        || fail "canonical layout dependency absent from payload and source-only registry: ${canonical}" ;;
+    *) fail "unknown layout audience: ${audience}" ;;
+  esac
 done <<<"$layout_moves"
-for group in lib validation lifecycle install trace; do
+for group in lib validation lifecycle install trace maintenance; do
   grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
     || fail "active structure policy omits shipped category ${group}"
 done
-[ ! -d scripts/maintenance ] || fail "maintenance category migrated before its owner"
 
 printf 'current-state documentation checks passed\n'

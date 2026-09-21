@@ -483,7 +483,7 @@ small increments, not painful bursts.
 
 - The inferential drift skills do **not** run per PR. Adopters can invoke the installed
   audit skills on demand. Only the harness source checkout provides the owner-driven
-  `scripts/audit-sweep.sh` driver (`--dry-run` first, `--consolidate` for the roll-up);
+  `scripts/maintenance/audit-sweep.sh` driver (`--dry-run` first, `--consolidate` for the roll-up);
   it is a manual maintainer tool, not part of either installed profile or a CI dependency.
 - Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
   `docs/tech-debt-tracker.md` (create on first use).

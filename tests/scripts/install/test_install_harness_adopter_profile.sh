@@ -334,7 +334,7 @@ fi
 
 while IFS= read -r pattern; do
 	case "$pattern" in
-	tests/scripts/test_*.sh | tests/scripts/lifecycle/test_*.sh | tests/scripts/install/test_*.sh | tests/meta/test_*.sh) ;;
+	tests/scripts/test_*.sh | tests/scripts/lifecycle/test_*.sh | tests/scripts/install/test_*.sh | tests/scripts/maintenance/test_*.sh | tests/meta/test_*.sh) ;;
 	*)
 		echo "invalid harness-dev sensor pattern: $pattern"
 		exit 1

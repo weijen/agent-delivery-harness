@@ -51,14 +51,15 @@ git -C "$ROOT" archive v0.45.2 scripts profiles tests .copilot docs schemas opti
 	.github/harness-identity.env.example | tar -x -C "$legacy_source"
 awk '
 	function emit() {
-		if (old != "") print old "\t" canonical "\t" public
-		old=canonical=public=""
+		if (old != "") print old "\t" canonical "\t" (audience == "" ? "installed" : audience) "\t" public
+		old=canonical=public=audience=""
 	}
 	/^layout_moves:/ { selected=1; next }
 	selected && /^[^ #]/ { exit }
 	selected && /^  - from:/ { emit(); old=$3 }
 	selected && /^    to:/ { canonical=$2 }
 	selected && /^    public_entrypoint:/ { public=$2 }
+	selected && /^    audience:/ { audience=$2 }
 	END { emit() }
 ' "${ROOT}/docs/harness-contract.yml" >"${TMP_DIR}/layout-moves"
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
@@ -140,8 +141,9 @@ for profile in default developer claude; do
 	else
 		[ "$status" -eq 0 ] || fail_layout "${profile} clean upgrade failed"
 	fi
-	while IFS=$'\t' read -r old canonical public; do
-		if grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
+	while IFS=$'\t' read -r old canonical audience public; do
+		case "$audience" in installed|source-only) ;; *) fail_layout "invalid audience ${audience}" ;; esac
+		if [ "$audience" = source-only ] || grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
 			[ ! -e "${target}/${canonical}" ] || fail_layout "${profile} installed source-only ${canonical}"
 		else
 			[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
