@@ -355,12 +355,12 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    Resolve findings before `./scripts/validation/review-gate.sh approve`.
    Approval runs no sensors. Final evidence must cover the resulting HEAD; subsequent changes require
    the corresponding review and validation obligations again.
-3. **Verify the final candidate before publication.** Full deterministic suite green
+3. **Verify the final candidate before publication.** Complete applicable validation green
    for the current detected surfaces:
    `./scripts/run-sensors.sh --gate pre-pr` plus the profile gates from
-   `./scripts/init.sh`. The dormant root Python surface runs sync/ruff while
-   mypy and pytest skip until `.py` source exists; harness shell changes require
-   shellcheck.
+   `./scripts/init.sh`. Dormant release/toolchain metadata alone invokes no Python
+   product gates. Actual Python source or product configuration activates the
+   shared profile; harness shell changes require shellcheck.
 4. The review in step 2 includes the standalone inferential sensor set over the branch diff
    (**this is the authoritative
    list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
