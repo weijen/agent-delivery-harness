@@ -265,7 +265,7 @@ if printf '%s\n' "$guide_flat" | grep -qiE 'accepted red-first proof|new runs at
 fi
 grep -qiE '^## Historical.*(retired|compatibility)' "$GUIDE" \
   || fail "guide must distinguish historical compatibility from current operation"
-grep -qF 'conductor only' "${ROOT}/scripts/log-handback.sh" \
+grep -qF 'conductor only' "${ROOT}/scripts/trace/log-handback.sh" \
   || fail "documented single-agent writer must match the implementation"
 SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
 skill_flat="$(tr '\n' ' ' <"$SKILL" | tr -s ' ')"

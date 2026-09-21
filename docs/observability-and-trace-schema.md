@@ -362,7 +362,9 @@ instructions to generate, export or upload these records.
 
 The human-readable Action Log in `progress.md` and the structured trace are two
 views of the same run. The trace is the canonical record;
-`scripts/log-handback.sh` emits the span and calls `scripts/render-action-log.sh`
+`scripts/log-handback.sh` forwards to `scripts/trace/log-handback.sh`, which emits
+the span and calls `scripts/trace/render-action-log.sh` (also available through
+the public `scripts/render-action-log.sh` entrypoint)
 to render the Action Log. Never hand-author a second event record.
 
 Research source notes record actual HTTP(S) URLs and summaries, never fetched

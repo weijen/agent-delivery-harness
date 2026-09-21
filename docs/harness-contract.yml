@@ -25,6 +25,20 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/log-handback.sh
+    to: scripts/trace/log-handback.sh
+    public_entrypoint: scripts/log-handback.sh
+  - from: scripts/render-action-log.sh
+    to: scripts/trace/render-action-log.sh
+    public_entrypoint: scripts/render-action-log.sh
+  - from: tests/scripts/test_log_handback.sh
+    to: tests/scripts/trace/test_log_handback.sh
+  - from: tests/scripts/test_log_handback_write_gate.sh
+    to: tests/scripts/trace/test_log_handback_write_gate.sh
+  - from: tests/scripts/test_log_handback_deviation_gate.sh
+    to: tests/scripts/trace/test_log_handback_deviation_gate.sh
+  - from: tests/scripts/test_aggregate_finding_span.sh
+    to: tests/scripts/trace/test_aggregate_finding_span.sh
   - from: scripts/check-trace-consistency.sh
     to: scripts/trace/check-trace-consistency.sh
     public_entrypoint: scripts/check-trace-consistency.sh
@@ -224,7 +238,16 @@ scripts:
     role: Run scoped or full sensors and record the gate result.
   - id: log-handback
     path: scripts/log-handback.sh
+    role: Stable public semantic writer entrypoint.
+  - id: log-handback-implementation
+    path: scripts/trace/log-handback.sh
     role: Emit semantic handback and review-verdict evidence.
+  - id: render-action-log
+    path: scripts/render-action-log.sh
+    role: Stable public Action Log renderer entrypoint.
+  - id: render-action-log-implementation
+    path: scripts/trace/render-action-log.sh
+    role: Render the Action Log from semantic spans.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
     role: Stable public trace consistency entrypoint.
@@ -373,7 +396,7 @@ sha_bindings:
     present: approved-head
   - id: review-verdict
     binding: review verdict carries reviewed_sha
-    owner: scripts/log-handback.sh
+    owner: scripts/trace/log-handback.sh
     present: reviewed_sha
   - id: ci-green-head
     binding: merge consumes CI-green checks at the PR HEAD

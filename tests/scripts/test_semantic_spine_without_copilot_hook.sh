@@ -48,7 +48,7 @@ case "$SELECTOR" in
       grep -qF "$record" "${ROOT}/docs/harness-contract.yml" \
         || fail "kept semantic-spine or closeout contract record missing: ${record}"
     done
-    grep -q 'trace_span' "${ROOT}/scripts/log-handback.sh" \
+    grep -q 'trace_span' "${ROOT}/scripts/trace/log-handback.sh" \
       || fail "log-handback.sh must keep emitting handback spans"
     printf 'semantic spine capture-removal regression passed\n'
     ;;
@@ -72,7 +72,7 @@ SH
 
     for script in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
       finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
-      check-trace-consistency.sh trace/check-trace-consistency.sh log-handback.sh; do
+      check-trace-consistency.sh trace/check-trace-consistency.sh log-handback.sh trace/log-handback.sh; do
       mkdir -p "${SCRATCH}/repo/scripts/$(dirname "$script")"
       cp "${ROOT}/scripts/${script}" "${SCRATCH}/repo/scripts/${script}"
     done

@@ -557,8 +557,8 @@ finish_closeout_orchestrate() {
   # Must run AFTER migration so the renderer finds the main-root progress.md.
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap
   TRACE_STAGE="action_log_render"
-  if [ -f "${SCRIPT_DIR}/render-action-log.sh" ]; then
-    "${SCRIPT_DIR}/render-action-log.sh" "${ISSUE_NUM}" || true
+  if [ -f "${SCRIPT_DIR}/trace/render-action-log.sh" ]; then
+    "${SCRIPT_DIR}/trace/render-action-log.sh" "${ISSUE_NUM}" || true
   fi
 
   # shellcheck disable=SC2034 # TRACE_STAGE read by finish-issue.sh EXIT trap

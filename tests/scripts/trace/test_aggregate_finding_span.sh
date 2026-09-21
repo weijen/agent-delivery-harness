@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -149,7 +149,7 @@ emit "unparseable timestamp stays current-era (fail-closed)"
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/schemas" "${FIX}/docs"
 mkdir -p "${FIX}/scripts/trace"
-for s in log-handback.sh lib/trace-lib.sh check-trace-consistency.sh trace/check-trace-consistency.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
+for s in log-handback.sh trace/log-handback.sh lib/trace-lib.sh check-trace-consistency.sh trace/check-trace-consistency.sh lib/issue-lib.sh lib/github-identity-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"

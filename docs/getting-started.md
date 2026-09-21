@@ -156,7 +156,10 @@ The trace consistency implementation lives in `scripts/trace/`, with its
 direct sensors in `tests/scripts/trace/`. The documented public
 `scripts/check-trace-consistency.sh` entrypoint preserves both issue-number and
 explicit-path modes; internal gate callers use the canonical implementation.
-Trace recording/rendering remain at their current paths until their own move.
+The semantic writer and Action Log renderer also live in `scripts/trace/`.
+Their documented public `scripts/log-handback.sh` and `scripts/render-action-log.sh`
+entrypoints preserve caller cwd, arguments and exit status. Internal rendering
+calls use the canonical renderer; shared trace libraries remain in `scripts/lib/`.
 
 Shared libraries live in `scripts/lib/`: source them as dependencies rather than
 running them as commands. Validation commands live in `scripts/validation/`,
@@ -180,8 +183,7 @@ The installer and language scaffolder now live in `scripts/install/`, with their
 `scripts/scaffold-language.sh` entrypoints.
 Both run from their own installed source without a source-checkout fallback.
 Exact manifests and the tombstone ledger retain their `scripts/install-harness.*`
-data paths. Trace and maintenance commands still use their flat
-paths pending their later stages.
+data paths. Maintenance commands still use their flat paths pending their later stage.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).
 
