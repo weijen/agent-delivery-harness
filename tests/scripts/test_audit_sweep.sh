@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: maintenance
+# harness-sensor-depends: scripts/audit-sweep.sh .copilot/prompts/audit-sweep.prompt.md .copilot/skills/* docs/harness-contract.yml
 # test_audit_sweep.sh — regression sensor for the local audit-sweep driver
 # (issue #258): scripts/audit-sweep.sh runs the six audit skills, one fresh
 # headless `copilot -p` session each, report-only, and consolidates the

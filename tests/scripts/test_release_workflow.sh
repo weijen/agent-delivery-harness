@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: upgrade
+# harness-sensor-depends: .github/workflows/release.yml scripts/sync-version.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
 # test_release_workflow.sh — regression sensor for the release automation
 # workflow (issue #257, feature release-workflow).
 #

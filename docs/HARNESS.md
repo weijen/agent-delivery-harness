@@ -92,6 +92,36 @@ silently dropping it. Feature greens retain targeted runtime e2e and miniature
 hermetic fixtures that exercise full-runner behavior. This stage separation
 does not remove assertions or authorize reusing boundary-gate evidence.
 
+### Sensor selection dispositions
+
+The selector retains canonical inventory through `--list`. Its
+`--gate pre-pr --diff <base>` form resolves routine checks plus checks affected
+by that change; `--gate release` resolves release/upgrade acceptance, and
+`--gate maintenance` resolves explicit maintenance checks. These are selection
+interfaces, not commands that execute tests.
+
+Leading sensor comments declare `# harness-sensor-trigger: routine`,
+`relevant`, `upgrade`, or `maintenance`; omission means `routine`.
+`# harness-sensor-depends: <space-separated repository-relative paths/globs>`
+records bounded known dependencies and is required for nonroutine dispositions.
+A changed sensor always selects itself. Routine feature selection retains the
+existing text/path matching, augmented by declared dependencies. Nonroutine
+selection uses declared paths rather than incidental prose basename matches.
+Invalid metadata fails visibly; declarations are not a transitive dependency
+graph or proof that every unknown dependency has been found. The independent
+stage header still excludes whole-suite wrappers from feature greens.
+
+| Candidate | Distinct failure protected | Disposition and trigger |
+| --- | --- | --- |
+| Audit sweep | Offline report-only dispatch and report consolidation | Maintenance; driver, prompt, skills or active contract changes |
+| Log-review recipes | Incorrect transcript durations and inventory | Maintenance; recipes, transcript fixtures or trace contract changes |
+| Archived reports | Restored live reports or broken archive links | Maintenance; archived content or former report paths |
+| Economics spans | Incorrect closeout aggregates or fabricated usage | Relevant; finish/report/trace helpers, schema and active contracts |
+| Release workflow and lock synchronization | Unsafe release wiring or stale release lock | Upgrade; release/toolchain inputs, release contract, or explicit release |
+| Tombstone history | Missing or malformed historical retirement ledger | Upgrade; installer/retirement inputs, layout contract, or explicit release |
+| Other lifecycle, schema, redaction, evidence and installed integration checks | Their retained runtime contracts | Routine final validation; affected/declared feature selection |
+| Bounded evaluation-driver contracts | Incorrect manifest, blocking result or scorecard behavior | Routine; real whole L0 evaluation remains explicitly invoked through its existing driver |
+
 ### Sensor diagnostics
 
 Each nonempty local runner invocation prints a `DIAGNOSTICS <index>` location

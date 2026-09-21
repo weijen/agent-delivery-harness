@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# harness-sensor-depends: scripts/lib/lifecycle-runtime-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/ci-coverage-lib.sh
 # Publication consumes full pre-PR evidence; it must never rerun sensors.
 set -euo pipefail
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: maintenance
+# harness-sensor-depends: .copilot/skills/copilot-log-review/* tests/fixtures/copilot-log-review/* docs/observability-and-trace-schema.md schemas/trace-schema.v1.json
 # test_copilot_log_review_recipes.sh — regression sensor for issue #306,
 # feature log-review-recipes: the copilot-log-review SKILL.md ships executable
 # jq Quantify recipes, and they compute correct (never negative) tool durations

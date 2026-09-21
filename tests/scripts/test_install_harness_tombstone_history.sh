@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: upgrade
+# harness-sensor-depends: scripts/check-install-harness-tombstones.sh scripts/install-harness* scripts/lib/reconcile-lib.sh optional/* docs/harness-contract.yml tests/scripts/test_install_harness_three_way.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
