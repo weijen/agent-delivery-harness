@@ -2,6 +2,48 @@
 
 <!-- version list -->
 
+## v0.48.2 (2026-09-21)
+
+### Bug Fixes
+
+- **#488**: Discover legacy Claude assets from installed sources
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+- **#488**: Migrate installer and retire Claude selection
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+- **#488**: Require ownership before retiring Claude bundle
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.48.1
+  ([`4c83345`](https://github.com/weijen/agent-delivery-harness/commit/4c8334528a2892ae0c341446df4a37edf10bd2b9))
+
+### Refactoring
+
+- **#488**: Relocate installed language scaffolding
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+- **#488**: Relocate self-hosting installer and matching sensors
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+- **#488**: Retire Claude install selection and manifest
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+### Testing
+
+- **#488**: Make registry ordering locale independent
+  ([#513](https://github.com/weijen/agent-delivery-harness/pull/513),
+  [`edc11ea`](https://github.com/weijen/agent-delivery-harness/commit/edc11ea3f4d260de7b99aa52735153a6eb57303b))
+
+
 ## v0.48.1 (2026-09-21)
 
 ### Bug Fixes
