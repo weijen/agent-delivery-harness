@@ -665,7 +665,7 @@ scripts at emit time).
 
 Bumping `VERSION` is **automated** (#257): python-semantic-release computes the next SemVer from the
 Conventional Commits landed on `main`, writes `pyproject.toml [project].version` (the single source of
-truth), mirrors it into `VERSION` via `scripts/sync-version.sh` (which also refreshes `uv.lock`, #455),
+truth), mirrors it into `VERSION` via `scripts/maintenance/sync-version.sh` (which also refreshes `uv.lock`, #455),
 and tags + publishes the GitHub Release — see `.github/workflows/release.yml` and
 `docs/RELEASING.md`. Commit types map to bumps:
 

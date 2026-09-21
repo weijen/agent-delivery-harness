@@ -21,7 +21,7 @@ required commit format.
 4. The regular PSR action then runs `semantic-release version`, which:
    - computes the next SemVer from the commits since the last tag,
    - writes `pyproject.toml` `[project].version` (the single source of truth) and
-     mirrors it into the root `VERSION` file via `scripts/sync-version.sh`,
+     mirrors it into the root `VERSION` file via `scripts/maintenance/sync-version.sh`,
    - updates `CHANGELOG.md`, commits, and tags `vX.Y.Z`,
    - creates the matching GitHub Release.
 5. Pushes that carry only non-releasing types (`chore:`, `docs:`, `test:`,
@@ -60,10 +60,12 @@ for automation: PyPI publishing and backfilling historical tags.
 
 ## Lock integrity
 
-[`scripts/sync-version.sh`](../scripts/sync-version.sh) mirrors the bumped
+[`scripts/maintenance/sync-version.sh`](../scripts/maintenance/sync-version.sh) mirrors the bumped
 project version into `VERSION`. When `uv.lock` exists and `uv` is available,
 it also runs `uv lock`; both files are PSR release assets. If `uv` is absent
 (notably inside the PSR Docker action), it warns that the lock was not refreshed.
+The source-only command operates on the caller's working directory, as required
+by PSR, and is not installed in either adopter profile. There is no flat wrapper.
 
 The post-release safety net in
 [`release.yml`](../.github/workflows/release.yml) runs only when a release was

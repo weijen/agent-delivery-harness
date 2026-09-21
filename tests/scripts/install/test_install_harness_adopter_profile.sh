@@ -29,6 +29,8 @@ default_target="${TMP_DIR}/default"
 	exit 1
 }
 for excluded in scripts/sync-version.sh scripts/check-install-harness-tombstones.sh \
+	scripts/maintenance/sync-version.sh tests/scripts/maintenance/test_release_workflow.sh \
+	tests/scripts/maintenance/test_release_lock_sync.sh \
 	scripts/maintenance/check-install-harness-tombstones.sh \
 	docs/RELEASING.md docs/evaluation docs/archive docs/runtime-adapters \
 	tests/evals/bin/run-evals.sh tests/evals/bin/run-l0-suite.sh tests/evals/manifests \
@@ -178,7 +180,11 @@ for legacy in tests/scripts/test_release_workflow.sh \
 	tests/scripts/install/test_install_harness_symlinked_parent.sh \
 	tests/scripts/lifecycle/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
 	mkdir -p "${upgrade_target}/$(dirname "$legacy")"
-	cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
+	if [ "$legacy" = tests/scripts/test_release_workflow.sh ]; then
+		git -C "$ROOT" show "f72e968f50229e60a3d99591d0a5d0c0616743f9:${legacy}" >"${upgrade_target}/${legacy}"
+	else
+		cp "${ROOT}/${legacy}" "${upgrade_target}/${legacy}"
+	fi
 	digest="$(shasum -a 256 "${upgrade_target}/${legacy}" | awk '{print $1}')"
 	printf '%s\t%s\n' "$digest" "$legacy" >>"${upgrade_target}/.harness-lock"
 done
@@ -380,7 +386,7 @@ required=(
 	'tests/meta/test_*.sh'
 	tests/scripts/lifecycle/test_init_gates.sh
 	tests/scripts/install/test_install_harness_symlinked_parent.sh
-	tests/scripts/test_release_workflow.sh
+	tests/scripts/maintenance/test_release_workflow.sh
 	tests/scripts/test_eval_manifest_validator.sh
 )
 for pattern in "${required[@]}"; do

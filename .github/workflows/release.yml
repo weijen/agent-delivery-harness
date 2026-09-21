@@ -3,7 +3,7 @@ name: Release
 # Automated SemVer release for the harness (issue #257). On every push to main,
 # python-semantic-release computes the next version from the Conventional Commits
 # landed since the last tag, updates pyproject.toml [project].version, mirrors it
-# into the root VERSION file (build_command = scripts/sync-version.sh), writes
+# into the root VERSION file (build_command = scripts/maintenance/sync-version.sh), writes
 # CHANGELOG.md, commits, tags, and creates a GitHub Release. It is a no-op when
 # only chore/docs/test/etc. commits landed (no releasable change).
 #

@@ -25,6 +25,8 @@ for owned in README.md AGENTS.md docs/tech-debt-tracker.md .claude/settings.json
 done
 for excluded in .env.example pyproject.toml uv.lock docs/archive docs/evaluation \
 	docs/RELEASING.md docs/runtime-adapters scripts/sync-version.sh scripts/audit-sweep.sh scripts/maintenance/audit-sweep.sh \
+	scripts/maintenance/sync-version.sh tests/scripts/maintenance/test_release_workflow.sh \
+	tests/scripts/maintenance/test_release_lock_sync.sh \
 	tests/meta tests/scripts/lifecycle/test_init_gates.sh tests/scripts/test_release_workflow.sh \
 	tests/scripts/test_install_harness_tombstone_history.sh \
 	scripts/maintenance/check-install-harness-tombstones.sh \
