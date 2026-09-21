@@ -145,17 +145,16 @@ grep -q 'SENSORS pre-pr .*scope=applicable ran=8 failed=3$' "$OUT" \
   || fail "pre-pr did not retain all fixture sensors"
 
 # The actual whole-suite wrappers must be explicitly classified, not renamed.
-for sensor in tests/scripts/test_claude_adapter.sh tests/scripts/install/test_install_harness_claude.sh; do
-  if [ -f "${ROOT}/${sensor}" ]; then
-    rc=0
-    "${ROOT}/scripts/validation/affected-sensors.sh" --declared "$sensor" >"$OUT" 2>&1 || rc=$?
-    if [ "$rc" != 2 ] || ! grep -qi 'boundary-only' "$OUT"; then
-      fail "real whole-suite wrapper is not rejected as feature coverage: ${sensor}"
-    fi
+sensor=tests/scripts/test_claude_adapter.sh
+if [ -f "${ROOT}/${sensor}" ]; then
+  rc=0
+  "${ROOT}/scripts/validation/affected-sensors.sh" --declared "$sensor" >"$OUT" 2>&1 || rc=$?
+  if [ "$rc" != 2 ] || ! grep -qi 'boundary-only' "$OUT"; then
+    fail "real whole-suite wrapper is not rejected as feature coverage: ${sensor}"
   fi
-done
+fi
 for sensor in tests/scripts/test_adopter_smoke_workflow.sh tests/scripts/test_adopter_workflow_contract.sh \
-  tests/scripts/install/test_install_harness_dev_profile.sh; do
+  tests/scripts/install/test_install_harness_dev_profile.sh tests/scripts/install/test_install_harness_claude.sh; do
   if [ -f "${ROOT}/${sensor}" ]; then
     "${ROOT}/scripts/validation/affected-sensors.sh" --declared "$sensor" >"$OUT" 2>&1 \
       || fail "bounded installed/miniature smoke must remain feature-eligible: ${sensor}"

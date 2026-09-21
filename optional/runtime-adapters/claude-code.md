@@ -114,42 +114,21 @@ evidence that no subagent ran:
 These attributes (`harness.subagent`, `harness.skill.name`) use the existing
 trace vocabulary. No exporter is enabled or required.
 
-## Install (copy/merge — never overwrite)
+## Retired installation
 
-1. From a harness source checkout or an existing Claude-enabled installation,
-   install the explicit bundle with its core dependencies:
+The installer rejects the former `--with-claude` flag. Default and developer
+installs no longer distribute this bundle; its source remains temporarily for
+the separate source-cleanup step.
 
-   ```bash
-   ./scripts/install-harness.sh /path/to/project --write --with-claude
-   ```
+Before upgrading an old installation, remove this adapter's hook entries from
+your `.claude/settings.json` and `.claude/settings.local.json` manually, without
+disturbing other settings. The installer never edits those files. It removes
+unchanged legacy assets only with matching installed lock ownership; unknown,
+modified and protected copies remain under the ownership-safe upgrade policy.
 
-   This copies the hook, this guide, the **inactive** example and portable
-   sensors; it never creates or edits `.claude/settings.json` or
-   `.claude/settings.local.json`. Bash, Git and `jq` must be on PATH; validation
-   also uses ShellCheck. The hook resolves its emitter at
-   `../../scripts/lib/trace-lib.sh`, with root `VERSION` from the same installation.
-   Repeat `--with-claude` on upgrades. Before omitting it, remove your own hook
-   entries: the installer prunes unchanged unselected bundle assets using its
-   ownership rules, but never changes your settings for you.
-2. Merge the hook entries from
-   [`claude-code.settings.example.json`](claude-code.settings.example.json)
-   into your project's `.claude/settings.json` (or `.claude/settings.local.json`
-   for a personal, untracked install). If the file already exists, **merge the
-   `hooks` entries into it — do not overwrite existing settings**; you may
-   already have other hooks configured under the same events.
-3. If neither file exists yet, you can copy the template verbatim:
-
-   ```bash
-   mkdir -p .claude
-   cp -n optional/runtime-adapters/claude-code.settings.example.json .claude/settings.local.json
-   ```
-
-4. Optionally verify live delivery: run a tool call from your Claude Code version inside an issue
-   worktree (branch `feature/issue-NN-*` or an `issue-NN` worktree) and check
-   that `.copilot-tracking/issues/issue-NN/trace.jsonl` gained a `tool` span.
-
-The installed smoke runs `tests/scripts/test_claude_adapter.sh` against isolated
-fixtures, not a live session. You can run that command directly with Bash.
+The remaining source sensor `tests/scripts/test_claude_adapter.sh` exercises
+isolated fixtures, not a live session. The runtime notes below describe the
+legacy adapter, not a supported installation path.
 
 The template registers `optional/runtime-adapters/claude-code-trace-hook.sh` for all four
 events; the empty/omitted `matcher` means it observes every tool. The hook is

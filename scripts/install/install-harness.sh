@@ -27,7 +27,6 @@ TOMBSTONE_LEDGER="${SCRIPT_DIR}/install-harness.tombstones"
 DEV_SENSOR_MANIFEST="${REPO_ROOT}/tests/harness-dev-sensors.txt"
 ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.assets"
 DEV_ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.dev.assets"
-CLAUDE_ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.claude.assets"
 
 # Managed namespaces, used only to reconcile assets no longer selected.
 HARNESS_ASSETS=(
@@ -62,7 +61,7 @@ HARNESS_ASSETS=(
 
 usage() {
 	cat <<'USAGE'
-Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors] [--with-claude]
+Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors]
 
   <target-dir>  directory to install the harness assets into
   (no flag)     dry run — print what would be copied, write nothing
@@ -74,9 +73,6 @@ Usage: install-harness.sh <target-dir> [--write|--update] [--with-dev-sensors] [
   --with-dev-sensors
                 add portable eval tools, manifests and development sensors
                 from scripts/install-harness.dev.assets to the core profile
-  --with-claude  add the optional Claude hook, guide, inactive example and tests
-                from scripts/install-harness.claude.assets; never enable hooks
-                or create, overwrite or merge .claude settings
 
 Default selection is explicit in scripts/install-harness.assets: lifecycle
 commands, profiles, core sensors and their fixtures, discoverable instructions,
@@ -98,10 +94,10 @@ upstream content; .harness-keep protects exclusions as well as active assets.
 The shipped tests/harness-dev-sensors.txt classifies maintainer-only sensors.
 Use --with-dev-sensors from a source checkout or an existing developer install;
 a core-only installation does not contain the optional developer payload.
-Likewise --with-claude requires a source checkout or existing Claude bundle.
-Repeat opt-in flags on upgrades to retain those profiles. Before omitting
---with-claude, remove your own Claude hook entries: unchanged unselected assets
-are pruned using lock ownership, but project settings are never changed.
+Repeat the developer opt-in flag on upgrades to retain that profile.
+The former Claude bundle is no longer installed. Remove your own Claude hook
+entries before upgrading: unchanged legacy assets are pruned using lock
+ownership, but project settings are never changed.
 USAGE
 }
 
@@ -391,11 +387,9 @@ list_selected_files() {
 	local manifest="" rel="" label="" entries=0
 	local manifests=("$ASSET_MANIFEST")
 	[ "$WITH_DEV_SENSORS" -eq 0 ] || manifests+=("$DEV_ASSET_MANIFEST")
-	[ "$WITH_CLAUDE" -eq 0 ] || manifests+=("$CLAUDE_ASSET_MANIFEST")
 	for manifest in "${manifests[@]}"; do
 		label=adopter
 		[ "$manifest" != "$DEV_ASSET_MANIFEST" ] || label=developer
-		[ "$manifest" != "$CLAUDE_ASSET_MANIFEST" ] || label=Claude
 		[ -f "$manifest" ] || die "${label} asset manifest missing: ${manifest}"
 		entries=0
 		while IFS= read -r rel || [ -n "$rel" ]; do
@@ -772,13 +766,12 @@ prune_retired() {
 TARGET_DIR=""
 MODE="dry"
 WITH_DEV_SENSORS=0
-WITH_CLAUDE=0
 for arg in "$@"; do
 	case "$arg" in
 	--write) MODE="write" ;;
 	--update) MODE="update" ;;
 	--with-dev-sensors) WITH_DEV_SENSORS=1 ;;
-	--with-claude) WITH_CLAUDE=1 ;;
+	--with-claude) die "--with-claude is retired; the Claude bundle is no longer installed. Remove your own hook settings before upgrading." ;;
 	-h | --help)
 		usage
 		exit 0

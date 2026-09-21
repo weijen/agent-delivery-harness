@@ -36,6 +36,13 @@ if "$GEN" >"$OUT" 2>&1; then
 	cat "$OUT"; echo "case-a: missing profile arg must exit non-zero"; exit 1
 fi
 grep -qi "usage" "$OUT" || { cat "$OUT"; echo "case-a: no usage on missing arg"; exit 1; }
+for entry in "$GEN" "${ROOT}/scripts/install/scaffold-language.sh"; do
+	if "$entry" node --with-claude >"$OUT" 2>&1; then
+		echo "case-a: scaffolder accepted retired installer flag"; exit 1
+	fi
+	grep -qF -- "unknown option '--with-claude'" "$OUT" \
+		|| { cat "$OUT"; echo "case-a: missing retired-flag refusal"; exit 1; }
+done
 
 # --- Case (b): known profile emits descriptor + instruction file (AC#1, AC#3) -
 b="${TMP_DIR}/b"; seed_repo "$b"
