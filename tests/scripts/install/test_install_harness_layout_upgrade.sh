@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/scaffold-language.sh scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/scaffold-language.sh scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/check-trace-consistency.sh scripts/trace/check-trace-consistency.sh scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -262,6 +262,24 @@ SH
 	done
 	linked="${target}/.worktrees/issue-81"
 	mkdir -p "${linked}/nested/cwd"
+	checker_fixture="${linked}/.copilot-tracking/trace-fixture"
+	mkdir -p "$checker_fixture"
+	cp "${linked}/.copilot-tracking/issues/issue-81/progress.md" "${checker_fixture}/progress.md"
+	for entry in scripts/check-trace-consistency.sh scripts/trace/check-trace-consistency.sh; do
+		(cd "${linked}/nested/cwd" && "${linked}/${entry}" 81) >"$layout_log" 2>&1 \
+			|| fail_layout "${profile} installed linked checker ${entry}"
+		grep -Fq '0 violation(s)' "$layout_log" || fail_layout "${profile} checker omitted validation"
+		cp "${target}/.copilot-tracking/issues/issue-81/trace.jsonl" "${checker_fixture}/trace.jsonl"
+		(cd "${linked}/nested/cwd" && "${linked}/${entry}" ../../.copilot-tracking/trace-fixture/trace.jsonl) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed relative-path checker ${entry}"
+		printf 'invalid fixture JSON\n' >>"${checker_fixture}/trace.jsonl"
+		checker_rc=0
+		(cd "${linked}/nested/cwd" && "${linked}/${entry}" ../../.copilot-tracking/trace-fixture/trace.jsonl) \
+			>"$layout_log" 2>&1 || checker_rc=$?
+		if [ "$checker_rc" -ne 1 ] || ! grep -Fq 'invalid_json' "$layout_log"; then
+			fail_layout "${profile} installed checker lost schema finding/status ${entry}"
+		fi
+	done
 	for entry in scripts/create-pr.sh scripts/lifecycle/create-pr.sh; do
 		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" --help) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed publication help ${entry}"
