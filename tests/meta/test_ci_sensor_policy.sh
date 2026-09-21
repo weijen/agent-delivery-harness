@@ -103,6 +103,7 @@ assert_workloads maintenance
 cat >"$TMP/bin/uv" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$UV_LOG"
+if [ "$1 ${2:-}" = 'run python' ]; then shift 2; exec python3 "$@"; fi
 SH
 chmod +x "$TMP/bin/uv"
 python_steps() {
@@ -121,6 +122,6 @@ python_steps
 touch "$FIX/component.py"
 python_steps
 printf '%s\n' 'sync --all-groups' 'run ruff format --check .' 'run ruff check' \
-	'run mypy' 'run pytest -q' >"$TMP/expected-uv"
+	'run python -' 'run mypy --strict .' 'run pytest -q' >"$TMP/expected-uv"
 cmp -s "$TMP/expected-uv" "$UV_LOG" || fail "new Python source did not activate actual CI commands"
 printf 'actual CI, pre-release and explicit maintenance boundaries honored\n'

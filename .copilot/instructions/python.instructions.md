@@ -5,8 +5,8 @@ applyTo: '**/*.py'
 
 # Python Best Practices
 
-> This file activates once the first `pyproject.toml` lands. While the repo is docs-only it is
-> intentionally inert.
+> These conventions apply when Python product source or configuration is introduced.
+> Dormant release/toolchain metadata alone does not activate product gates.
 
 ## Project & environment
 - This project is managed by **uv**. Never call `pip` directly.
@@ -30,7 +30,8 @@ applyTo: '**/*.py'
 - Format and lint with **ruff** (`uv run ruff format` / `uv run ruff check --fix`).
 - Keep line length ≤ 100.
 - Use **full type hints** on all public functions, methods, and module-level constants.
-  Type-check with `uv run mypy` (strict mode is on).
+  Type-check with `./scripts/validation/python-gates.sh typecheck` (configured
+  targets are preserved; unconfigured source uses strict project-wide checking).
 - Prefer small, single-responsibility functions and modules.
 - Use `pathlib.Path` over `os.path`; use f-strings over `%`/`.format`.
 - Prefer `dataclasses` or `pydantic` models over loose dicts for structured data. **All
@@ -52,7 +53,7 @@ applyTo: '**/*.py'
 ```sh
 uv run ruff format
 uv run ruff check --fix
-uv run mypy
+./scripts/validation/python-gates.sh typecheck
 uv run pytest
 ```
 

@@ -77,8 +77,9 @@ with a single package manager (as Python's `uv`).
 A gate function may return exit code **2** to signal SKIP — the gate's tool or
 project script is absent, so the gate is reported as a warning rather than a hard
 failure. `scripts/init.sh` reads `PROFILE_GATE_<g>_SKIP` for the skip message.
-Any other non-zero exit is a real failure (FAIL+FIX). Python preserves its
-gate-specific no-input statuses; ruff errors remain failures, not skips.
+Any other non-zero exit is a real failure (FAIL+FIX). Python preserves genuine
+no-input statuses; ruff errors and mypy usage/configuration errors are failures,
+not skips.
 
 ## Python applicability (`python.profile.sh`)
 
@@ -96,6 +97,13 @@ Without an applicable surface, the direct `all` command reports a skip without
 invoking uv; individual gate commands return the existing skip status 2.
 Discovery errors fail visibly. Lock integrity and release tooling remain
 separate obligations, not evidence that Python product gates should run.
+
+Typechecking preserves configured `files`, `packages` or `modules` from mypy's
+project configuration files. Without targets, actual source activates `mypy .`;
+without any mypy configuration it also enables `--strict`. The gate parses
+configuration in the uv environment, reports malformed configuration, and
+never treats mypy's exit 2 usage error as an empty-input success. A genuine
+absence of source and configured targets is reported before invoking mypy.
 
 ## The Node.js profile (`node.profile.sh`)
 

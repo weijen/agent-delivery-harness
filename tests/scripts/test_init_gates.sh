@@ -119,6 +119,7 @@ SH
 cat > "${TMP_DIR}/fakebin/uv" <<'SH'
 #!/usr/bin/env bash
 printf 'uv %s\n' "$*" >> "${GATE_LOG}"
+if [ "$1 ${2:-}" = 'run python' ]; then shift 2; exec python3 "$@"; fi
 case "$1 $2" in
 	"sync --all-groups") exit 0 ;;
 	"run ruff") exit 0 ;;
@@ -390,9 +391,11 @@ cp -R "${ROOT}/profiles" "$b/profiles"
 make_gh "$b/bin"
 cat > "$b/bin/uv" <<'SH'
 #!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'run python' ]; then shift 2; exec python3 "$@"; fi
 exit 0
 SH
 chmod +x "$b/bin/uv"
+printf 'def fixture() -> int:\n    return 1\n' >"$b/product.py"
 ( cd "$b" && git init -q -b main && printf '[project]\nname="x"\n' > pyproject.toml
   PATH="$b/bin:${PATH}" ./scripts/init.sh >"$OUT" 2>&1 ) || { cat "$OUT"; echo "case-b init.sh failed"; exit 1; }
 for s in "Python surface detected (source or product configuration)" "uv environment synced" \

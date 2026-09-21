@@ -19,11 +19,19 @@ if grep -Eq 'PROFILE_SYNC_|profile_sync[[:space:]]*\(\)' "$NODE_PROFILE"; then
 fi
 
 mkdir -p "${TMP_DIR}/bin"
+export REAL_PYTHON
+REAL_PYTHON="$(command -v python3)"
 cat >"${TMP_DIR}/bin/uv" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"${UV_LOG}"
+if [ "$1 ${2:-}" = 'run python' ]; then
+	shift 2
+	exec "$REAL_PYTHON" "$@"
+fi
 case "$*" in
-*"mypy"*) exit "${MYPY_RC:-0}" ;;
+*"mypy"*)
+	[ "${REQUIRE_MYPY_TARGET:-0}" != 1 ] || [ "$*" = 'run mypy --strict .' ] || exit 2
+	exit "${MYPY_RC:-0}" ;;
 *"pytest"*) exit "${PYTEST_RC:-0}" ;;
 *"ruff format"*) exit "${FORMAT_RC:-0}" ;;
 *"ruff check"*) exit "${LINT_RC:-0}" ;;
@@ -96,6 +104,9 @@ applicable || fail "package project configuration did not activate the profile"
 rm pyproject.toml
 touch pytest.ini
 applicable || fail "standalone product configuration did not activate the profile"
+: >"$UV_LOG"
+assert_rc 2 "$GATES" typecheck
+if grep -q '^run mypy' "$UV_LOG"; then fail "empty source invoked mypy without targets"; fi
 rm pytest.ini
 cat >"$TMP_DIR/bin/find" <<'SH'
 #!/usr/bin/env bash
@@ -106,15 +117,42 @@ assert_rc 2 "$GATES" all
 rm "$TMP_DIR/bin/find"
 touch product.py
 
-MYPY_RC=2 assert_rc 2 "$GATES" typecheck
+MYPY_RC=2 assert_rc 1 "$GATES" typecheck
 PYTEST_RC=5 assert_rc 2 "$GATES" test
 PYTEST_RC=4 assert_rc 4 "$GATES" test
 
 : >"$UV_LOG"
-MYPY_RC=2 PYTEST_RC=5 "$GATES" all \
-	|| fail "applicable run must preserve gate-specific skip statuses"
-[ "$(wc -l <"$UV_LOG" | tr -d ' ')" -eq 4 ] \
-	|| fail "full run did not execute all four gates"
+REQUIRE_MYPY_TARGET=1 PYTEST_RC=5 "$GATES" all \
+	|| fail "new source must supply meaningful typecheck targets"
+[ "$(grep -Fxc 'run mypy --strict .' "$UV_LOG")" -eq 1 ] \
+	|| fail "default typecheck scope must be the project"
+MYPY_RC=2 assert_rc 1 "$GATES" all
+
+for config in pyproject.toml mypy.ini .mypy.ini setup.cfg; do
+	if [ "$config" = pyproject.toml ]; then
+		printf '[tool."mypy"]\nfiles = ["product.py"]\n' >"$config"
+	else
+		printf '[mypy]\nfiles = product.py\n' >"$config"
+	fi
+	: >"$UV_LOG"
+	"$GATES" typecheck
+	grep -Fxq 'run mypy' "$UV_LOG" || fail "configured targets were overridden in $config"
+	rm "$config"
+done
+printf '[tool.mypy]\nstrict = false\n' >pyproject.toml
+: >"$UV_LOG"
+"$GATES" typecheck
+grep -Fxq 'run mypy .' "$UV_LOG" || fail "fallback targets must retain explicit project options"
+printf '[mypy]\nstrict = false\n' >mypy.ini
+printf '[tool.mypy]\nfiles = ["elsewhere.py"]\n' >pyproject.toml
+: >"$UV_LOG"
+"$GATES" typecheck
+grep -Fxq 'run mypy .' "$UV_LOG" || fail "lower-priority config overrode the active mypy configuration"
+rm mypy.ini
+rm pyproject.toml
+printf '[tool.mypy]\nfiles = [invalid TOML\n' >pyproject.toml
+assert_rc 1 "$GATES" typecheck
+rm pyproject.toml
 
 : >"$UV_LOG"
 LINT_RC=7 assert_rc 7 "$GATES" all

@@ -26,6 +26,12 @@ PROFILE_SURFACE_LABEL="Python surface detected (source or product configuration)
 PROFILE_CI_SIGNATURES="python-gates\\.sh"
 
 # --- Detection ---------------------------------------------------------------
+profile_python_sources() {
+	find . -type d \( -name .git -o -name .venv -o -name venv \
+		-o -name node_modules -o -name .worktrees -o -name .copilot-tracking \) -prune -o \
+		-type f \( -name '*.py' -o -name '*.pyi' \) -print
+}
+
 profile_detect() {
 	local config sources
 	for config in setup.py setup.cfg pytest.ini tox.ini mypy.ini .mypy.ini ruff.toml .ruff.toml; do
@@ -48,9 +54,7 @@ profile_detect() {
 			return 0
 		fi
 	fi
-	if ! sources="$(find . -type d \( -name .git -o -name .venv -o -name venv \
-		-o -name node_modules -o -name .worktrees -o -name .copilot-tracking \) -prune -o \
-		-type f \( -name '*.py' -o -name '*.pyi' \) -print)"; then
+	if ! sources="$(profile_python_sources)"; then
 		printf 'Python profile: source discovery failed\n' >&2
 		return 2
 	fi
@@ -86,7 +90,7 @@ PROFILE_GATE_lint_FIX="uv run ruff check"
 profile_gate_typecheck() { ./scripts/validation/python-gates.sh typecheck; }
 PROFILE_GATE_typecheck_OK="mypy clean"
 PROFILE_GATE_typecheck_FAIL="mypy failed"
-PROFILE_GATE_typecheck_FIX="uv run mypy"
+PROFILE_GATE_typecheck_FIX="./scripts/validation/python-gates.sh typecheck"
 
 profile_gate_test() { ./scripts/validation/python-gates.sh test; }
 PROFILE_GATE_test_OK="pytest passing"
