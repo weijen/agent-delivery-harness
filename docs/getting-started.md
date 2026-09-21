@@ -30,7 +30,6 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project --write    # copy missing assets; prune unmodified retired assets
   ./scripts/install-harness.sh /path/to/project --update   # apply safe changes; preserve adopter work; emit conflicts
   ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # portable developer/eval tools and sensors
-  ./scripts/install-harness.sh /path/to/project --write --with-claude  # optional Claude bundle, not hook activation
   ```
 
   It defaults to a dry run and leaves your project's own code in place. Each
@@ -120,15 +119,13 @@ descriptor. There are two common ways to start:
   Environment examples are project-owned in both modes: the installer does not
   distribute `.env.example` or delete existing adopter copies.
 
-  `--with-claude` independently selects `scripts/install-harness.claude.assets`,
-  including the hook, guide, inactive settings example and portable validation.
-  It may be combined with `--with-dev-sensors`. It never creates, merges or
-  overwrites `.claude/settings.json` or `.claude/settings.local.json`; activation
-  is a separate, manual choice described in the
-  [optional guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md).
-  Use a source checkout or existing Claude-enabled install and repeat the flag
-  on upgrades. Before omitting it, remove your hook settings manually: the same
-  ownership rules prune unchanged unselected assets, not your settings.
+  The former `--with-claude` option is retired and rejected explicitly. Neither
+  default nor developer installs include the Claude bundle. Before upgrading an
+  old Claude-enabled installation, remove its hook entries from your settings
+  manually. Upgrades prune unchanged bundle assets only with matching installed
+  lock ownership; customized, protected and unknown-owner copies are preserved.
+  The installer never creates, merges or overwrites `.claude/settings.json` or
+  `.claude/settings.local.json`.
 
 ### Payload audiences
 
@@ -137,7 +134,7 @@ descriptor. There are two common ways to start:
 | Adopter | Exact manifest entries: lifecycle commands/libraries, profiles, current docs/contracts, discoverable guidance, core sensors, frontmatter validator, and the native-log fixtures those sensors actually read. |
 | Portable developer opt-in | Exact additional manifest entries: eval runner/validator, L0 driver and manifests, and eval-authoring sensors. Generated fixtures use core sensors already installed. |
 | Maintainer | Release/history and audit-sweep tooling, source-repository meta tests, evaluation runners/manifests/scorecards, research/archive docs, and maintainer CI/configuration. Not needed to operate a delivery worktree. |
-| Optional | Claude hook, guide and settings template co-located under `optional/runtime-adapters/`; not activated or installed by default. |
+| Retired source bundle | Claude hook, guide and settings template temporarily remain under `optional/runtime-adapters/` pending source cleanup; neither install profile distributes them. |
 | Project-owned | Root README/AGENTS, environment examples, runtime settings and debt records. Never imported from this repository as adopter state. |
 
 The source repository retains its complete CI and evaluation suite. Historical
