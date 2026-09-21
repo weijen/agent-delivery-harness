@@ -217,6 +217,50 @@ done <<<"$layout_moves"
 for group in lib validation lifecycle install trace maintenance; do
   grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
     || fail "active structure policy omits shipped category ${group}"
+  for canonical in "scripts/${group}/"*.sh; do
+    [ "$(cut -f2 <<<"$layout_moves" | grep -Fxc "$canonical")" -eq 1 ] \
+      || fail "canonical implementation lacks one exact migration identity: ${canonical}"
+  done
 done
+
+check_root_files() {
+  local directory="$1" entry relative
+  for entry in "$directory"/*; do
+    if [ -d "$entry" ]; then
+      case "${entry##*/}" in
+        lib|validation|lifecycle|install|trace|maintenance) continue ;;
+        *) fail "scripts root contains an unclassified category: ${entry##*/}" ;;
+      esac
+    fi
+    relative="scripts/${entry##*/}"
+    case "$relative" in
+      scripts/install-harness.assets|scripts/install-harness.dev.assets|scripts/install-harness.tombstones) continue ;;
+    esac
+    [ "$(cut -f4 <<<"$layout_moves" | grep -Fxc "$relative")" -eq 1 ] \
+      || fail "scripts root contains an undeclared public entrypoint or metadata: ${relative}"
+    [ "$(awk '!/^[[:space:]]*(#|$)/ {n++} END {print n+0}' "$entry")" -eq 3 ] \
+      || fail "public entrypoint contains more than strict-mode, root and exec dispatch: ${relative}"
+  done
+}
+check_root_files scripts
+
+# Exercise the closure guard without modifying the source checkout.
+layout_probe="$(mktemp -d)"
+trap 'rm -rf "$layout_probe"' EXIT
+cp scripts/init.sh "$layout_probe/init.sh"
+check_root_files "$layout_probe"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$layout_probe/unclassified.sh"
+if (check_root_files "$layout_probe") >"$layout_probe/.output" 2>&1; then
+  fail "layout closure accepted an unclassified flat implementation"
+fi
+grep -q 'undeclared public entrypoint' "$layout_probe/.output" \
+  || fail "root rejection did not identify the layout defect"
+rm "$layout_probe/unclassified.sh"
+printf '\nprintf extra-behavior\\n\n' >>"$layout_probe/init.sh"
+if (check_root_files "$layout_probe") >"$layout_probe/.output" 2>&1; then
+  fail "layout closure accepted behavior in a compatibility entrypoint"
+fi
+grep -q 'more than strict-mode' "$layout_probe/.output" \
+  || fail "wrapper rejection did not identify extra behavior"
 
 printf 'current-state documentation checks passed\n'
