@@ -86,10 +86,10 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   behind public `scripts/init.sh`, `scripts/start-issue.sh`, `scripts/create-pr.sh`,
   `scripts/merge-pr.sh` and `scripts/finish-issue.sh` entrypoints,
   with their sensors in `tests/scripts/lifecycle/`.
-  The installer lives in `scripts/install/`, with sensors in `tests/scripts/install/`,
-  behind `scripts/install-harness.sh`. Its explicit manifests and tombstone
+  The installer and scaffolder live in `scripts/install/`, with sensors in `tests/scripts/install/`,
+  behind `scripts/install-harness.sh` and `scripts/scaffold-language.sh`. Explicit manifests and the tombstone
   ledger remain at their existing `scripts/install-harness.*` data paths.
-  Scaffolding, trace and maintenance categories migrate in the serial
+  Trace and maintenance categories migrate in the serial
   child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented

@@ -25,6 +25,11 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/scaffold-language.sh
+    to: scripts/install/scaffold-language.sh
+    public_entrypoint: scripts/scaffold-language.sh
+  - from: tests/scripts/test_scaffold_language.sh
+    to: tests/scripts/install/test_scaffold_language.sh
   - from: scripts/install-harness.sh
     to: scripts/install/install-harness.sh
     public_entrypoint: scripts/install-harness.sh
@@ -158,6 +163,12 @@ layout_moves:
 # `role` is documentation; `path` is the test authority.
 # ---------------------------------------------------------------------------
 scripts:
+  - id: scaffold-language
+    path: scripts/scaffold-language.sh
+    role: Stable public language profile generation entrypoint.
+  - id: scaffold-language-implementation
+    path: scripts/install/scaffold-language.sh
+    role: Generate declarative language profiles and instructions.
   - id: install-harness
     path: scripts/install-harness.sh
     role: Stable public harness installation entrypoint.

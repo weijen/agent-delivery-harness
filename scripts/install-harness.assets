@@ -31,6 +31,7 @@ scripts/validation/review-gate.sh
 scripts/run-sensors.sh
 scripts/validation/run-sensors.sh
 scripts/scaffold-language.sh
+scripts/install/scaffold-language.sh
 scripts/start-issue.sh
 scripts/lib/trace-lib.sh
 scripts/validation/verify-sensor-evidence.sh
@@ -131,7 +132,7 @@ tests/scripts/validation/test_review_gate.sh
 tests/scripts/validation/test_run_sensors_tiers.sh
 tests/scripts/validation/test_feature_scoped_execution.sh
 tests/scripts/validation/test_same_class_escalation.sh
-tests/scripts/test_scaffold_language.sh
+tests/scripts/install/test_scaffold_language.sh
 tests/scripts/test_semantic_spine_without_copilot_hook.sh
 tests/scripts/validation/test_sensor_evidence_recording.sh
 tests/scripts/validation/test_sensor_diagnostics.sh
