@@ -16,11 +16,11 @@ separate from replaceable language support and project-specific conventions:
   worktrees, local progress tracking, the review gate, and PR closeout. Its
   behavior is frozen in the machine-readable contract
   [docs/harness-contract.yml](harness-contract.yml) and guarded by
-  `tests/scripts/test_harness_contract.sh`. The owner scripts
+  `tests/scripts/lifecycle/test_harness_contract.sh`. The owner scripts
   (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
   `scripts/lifecycle/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
   `scripts/validation/review-gate.sh`, `scripts/lifecycle/create-pr.sh`,
-  `scripts/lifecycle/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
+  `scripts/lifecycle/merge-pr.sh`, `scripts/lifecycle/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
   recorded in
@@ -73,12 +73,15 @@ evidence without rerunning tests or rewriting the candidate.
 `scripts/merge-pr.sh` likewise forwards to `scripts/lifecycle/merge-pr.sh`.
 Both preserve the caller's checkout, require green CI and authoritative merge
 confirmation, and keep branch cleanup safe for linked worktrees.
+`scripts/finish-issue.sh` forwards to `scripts/lifecycle/finish-issue.sh`.
+Closeout anchors to the invoked checkout and refuses a linked checkout before
+resolving the main root, migrating progress or removing any worktree.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle
 script, keep these sensors green:
 
-- `tests/scripts/test_harness_contract.sh` — scripts still satisfy the contract
+- `tests/scripts/lifecycle/test_harness_contract.sh` — scripts still satisfy the contract
   (required scripts exist and parse; the four gates, SHA bindings, audited
   bypasses, and environment flags still match their owners; owner scripts stay
   language-neutral).

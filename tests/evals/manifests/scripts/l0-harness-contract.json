@@ -6,12 +6,12 @@
   "boundary": "script-lifecycle",
   "fixture": {
     "type": "generated",
-    "builder": "tests/scripts/test_harness_contract.sh"
+    "builder": "tests/scripts/lifecycle/test_harness_contract.sh"
   },
   "expected_outcome": "pass",
   "grader": {
     "type": "shell",
-    "command": "bash tests/scripts/test_harness_contract.sh"
+    "command": "bash tests/scripts/lifecycle/test_harness_contract.sh"
   },
   "blocking": true,
   "contract_refs": [

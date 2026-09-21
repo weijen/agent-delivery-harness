@@ -81,10 +81,10 @@ descriptor. There are two common ways to start:
   old paths even when their lock row is missing. The map identifies candidates;
   it never substitutes for ownership proof. The `v0.45.2` rehearsal covers
   default, developer and Claude profiles moving to `scripts/lib/` and
-  `scripts/validation/` and the preflight/start/publication/merge implementations in `scripts/lifecycle/`,
+  `scripts/validation/` and all five lifecycle implementations in `scripts/lifecycle/`,
   including customized, protected and unknown-owner copies. Documented public
   `scripts/run-sensors.sh`, `scripts/init.sh`, `scripts/start-issue.sh`,
-  `scripts/create-pr.sh` and `scripts/merge-pr.sh` remain thin compatibility
+  `scripts/create-pr.sh`, `scripts/merge-pr.sh` and `scripts/finish-issue.sh` remain thin compatibility
   entrypoints; internal tools and sensors use their mapped paths.
 
   The default **adopter profile** installs product-neutral lifecycle and runtime
@@ -152,15 +152,16 @@ use `./scripts/validation/review-gate.sh approve` for review approval.
 The public `./scripts/run-sensors.sh` entrypoint forwards to the categorized
 implementation and preserves its arguments and exit status.
 
-Preflight, issue startup, PR publication and merge now live in `scripts/lifecycle/`, with their sensors
+Preflight, issue startup, PR publication, merge and closeout now live in `scripts/lifecycle/`, with their sensors
 under `tests/scripts/lifecycle/`; `scripts/init.sh`, `scripts/start-issue.sh`,
-`scripts/create-pr.sh` and `scripts/merge-pr.sh`
+`scripts/create-pr.sh`, `scripts/merge-pr.sh` and `scripts/finish-issue.sh`
 remain their stable public entrypoints. Startup refuses invocation through a
 linked checkout before creating state; its public and canonical paths work from
 an unrelated invocation directory.
 Publication preserves the caller's Git checkout and relative arguments.
 Merge preserves that checkout too, including green-CI gating and worktree-safe cleanup.
-Other lifecycle commands migrate serially. Installation, trace and maintenance
+Closeout also anchors to its invoked checkout and refuses linked-checkout entry
+before migrating progress or removing a worktree. Installation, trace and maintenance
 commands still use their current flat paths pending their later stages.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).

@@ -2,7 +2,7 @@
 #
 # This file is the MACHINE-READABLE AUTHORITY for the harness lifecycle. It is the
 # baseline that future profile / language / init.sh refactors compare against.
-# tests/scripts/test_harness_contract.sh reads this file and verifies that the
+# tests/scripts/lifecycle/test_harness_contract.sh reads this file and verifies that the
 # current scripts still expose the declared behavior.
 #
 # Rule of engagement (TDD discipline): a harness behavior change must FIRST change
@@ -25,6 +25,15 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/finish-issue.sh
+    to: scripts/lifecycle/finish-issue.sh
+    public_entrypoint: scripts/finish-issue.sh
+  - from: tests/scripts/test_finish_issue_conclusion.sh
+    to: tests/scripts/lifecycle/test_finish_issue_conclusion.sh
+  - from: tests/scripts/test_lifecycle_order.sh
+    to: tests/scripts/lifecycle/test_lifecycle_order.sh
+  - from: tests/scripts/test_harness_contract.sh
+    to: tests/scripts/lifecycle/test_harness_contract.sh
   - from: scripts/merge-pr.sh
     to: scripts/lifecycle/merge-pr.sh
     public_entrypoint: scripts/merge-pr.sh
@@ -185,6 +194,9 @@ scripts:
     role: Verify the PR's CI checks concluded green, then merge through the explicit closeout command.
   - id: finish-issue
     path: scripts/finish-issue.sh
+    role: Stable public issue closeout entrypoint.
+  - id: finish-issue-implementation
+    path: scripts/lifecycle/finish-issue.sh
     role: Tear down the worktree after the PR merges.
   - id: finish-lib
     path: scripts/lib/finish-lib.sh
@@ -279,7 +291,7 @@ gate_merge_closeout:
     consumes: merged PR state and complete local issue state
     produces: removed issue worktree and pruned metadata
     mode: hard
-    owner: scripts/finish-issue.sh
+    owner: scripts/lifecycle/finish-issue.sh
     present: git worktree (remove|prune)
 
 # ---------------------------------------------------------------------------
@@ -317,7 +329,7 @@ sha_bindings:
 bypasses:
   - id: FORCE
     audit: operator records the forced-removal rationale in the issue Action Log
-    owner: scripts/finish-issue.sh
+    owner: scripts/lifecycle/finish-issue.sh
     present: FORCE
   - id: SKIP_CI_GATE
     audit: log the skipped project-CI coverage check
@@ -351,10 +363,10 @@ env_flags:
     owner: scripts/lifecycle/init.sh
     present: REQUIRE_AZ
   - name: FORCE
-    owner: scripts/finish-issue.sh
+    owner: scripts/lifecycle/finish-issue.sh
     present: FORCE
   - name: DELETE_BRANCH
-    owner: scripts/finish-issue.sh
+    owner: scripts/lifecycle/finish-issue.sh
     present: DELETE_BRANCH
   - name: SKIP_CI_GATE
     owner: scripts/validation/review-gate.sh
@@ -380,7 +392,7 @@ language_neutral:
     - scripts/validation/review-gate.sh
     - scripts/lifecycle/create-pr.sh
     - scripts/lifecycle/merge-pr.sh
-    - scripts/finish-issue.sh
+    - scripts/lifecycle/finish-issue.sh
   tokens:
     - python
     - pyproject

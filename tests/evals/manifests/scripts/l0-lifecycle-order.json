@@ -6,12 +6,12 @@
   "boundary": "script-lifecycle",
   "fixture": {
     "type": "generated",
-    "builder": "tests/scripts/test_lifecycle_order.sh"
+    "builder": "tests/scripts/lifecycle/test_lifecycle_order.sh"
   },
   "expected_outcome": "pass",
   "grader": {
     "type": "shell",
-    "command": "bash tests/scripts/test_lifecycle_order.sh"
+    "command": "bash tests/scripts/lifecycle/test_lifecycle_order.sh"
   },
   "blocking": true,
   "contract_refs": [

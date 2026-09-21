@@ -163,8 +163,8 @@ purpose. They should run quickly, use local temporary fixtures, and block PRs.
 
 | Eval id | Existing bootstrap command | Capability | Required observable signal |
 | --- | --- | --- | --- |
-| `l0-harness-contract` | `tests/scripts/test_harness_contract.sh` | Contract obligations remain declared and present. | Contract parse result, owner pattern checks, script parse status. |
-| `l0-lifecycle-order` | `tests/scripts/test_lifecycle_order.sh` | Critical lifecycle ordering is preserved. | Temporary repo state, worktree/branch presence, push/PR side effects. |
+| `l0-harness-contract` | `tests/scripts/lifecycle/test_harness_contract.sh` | Contract obligations remain declared and present. | Contract parse result, owner pattern checks, script parse status. |
+| `l0-lifecycle-order` | `tests/scripts/lifecycle/test_lifecycle_order.sh` | Critical lifecycle ordering is preserved. | Temporary repo state, worktree/branch presence, push/PR side effects. |
 | `l0-review-gate` | `tests/scripts/validation/test_review_gate.sh` | Review approval is bound to current HEAD. | HEAD SHA, marker file content, create-pr exit behavior. |
 | `l0-feature-list` | `tests/scripts/validation/test_feature_list_check.sh` | Feature completion schema and hard/warn semantics hold. | JSON parse status, exit code, warning/hard failure evidence. |
 | `l0-issue-scaffold` | `tests/scripts/lifecycle/test_issue_scaffold.sh` | Tracking and Action Log scaffold are created. | File existence, Markdown heading presence, issue directory state. |

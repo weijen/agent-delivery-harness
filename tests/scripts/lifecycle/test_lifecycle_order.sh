@@ -19,7 +19,7 @@
 # toolchain ordering.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CONTRACT="${ROOT}/docs/harness-contract.yml"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -211,7 +211,7 @@ set +e
   set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts/lib" "${R3}/scripts/validation"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh lifecycle/init.sh; do
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh lifecycle/init.sh; do
   mkdir -p "${R3}/scripts/$(dirname "$s")"
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/${s}"
 done

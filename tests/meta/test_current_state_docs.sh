@@ -95,7 +95,7 @@ profile_current="$(awk '
   capture {print}
 ' docs/multi-language-profiles.md)"
 for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-contract.yml \
-  tests/scripts/test_harness_contract.sh .copilot-tracking/review-gate/issue-NN/approved-head; do
+  tests/scripts/lifecycle/test_harness_contract.sh .copilot-tracking/review-gate/issue-NN/approved-head; do
   printf '%s\n' "$profile_current" | grep -qF "$authority" \
     || fail "current profile workflow must reference ${authority}"
   case "$authority" in

@@ -8,6 +8,7 @@ scripts/create-pr.sh
 scripts/lifecycle/create-pr.sh
 scripts/lib/economics-report-lib.sh
 scripts/finish-issue.sh
+scripts/lifecycle/finish-issue.sh
 scripts/lib/finish-lib.sh
 scripts/lib/github-identity-lib.sh
 scripts/init.sh
@@ -96,10 +97,10 @@ tests/scripts/lifecycle/test_prepare_pr.sh
 tests/scripts/test_economics_span.sh
 tests/scripts/validation/test_feature_list_check.sh
 tests/scripts/test_feature_start_pr_gate.sh
-tests/scripts/test_finish_issue_conclusion.sh
+tests/scripts/lifecycle/test_finish_issue_conclusion.sh
 tests/scripts/test_fixture.sh
 tests/scripts/test_github_identity_binding.sh
-tests/scripts/test_harness_contract.sh
+tests/scripts/lifecycle/test_harness_contract.sh
 tests/scripts/test_harness_versioning.sh
 tests/scripts/test_install_harness_atomic_write.sh
 tests/scripts/test_install_harness_dangling_destination.sh
@@ -107,7 +108,7 @@ tests/scripts/test_install_harness_three_way.sh
 tests/scripts/test_install_harness.sh
 tests/scripts/test_issue_lib.sh
 tests/scripts/lifecycle/test_issue_scaffold.sh
-tests/scripts/test_lifecycle_order.sh
+tests/scripts/lifecycle/test_lifecycle_order.sh
 tests/scripts/test_log_completeness_gate.sh
 tests/scripts/test_log_handback_deviation_gate.sh
 tests/scripts/test_log_handback_write_gate.sh

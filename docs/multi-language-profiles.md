@@ -16,7 +16,7 @@ with a profile name for a dry run, `--write` to create missing assets, or
 instruction file, not a new application or arbitrary version-pin files.
 
 [`docs/harness-contract.yml`](harness-contract.yml) already defines the frozen
-lifecycle. [`tests/scripts/test_harness_contract.sh`](../tests/scripts/test_harness_contract.sh)
+lifecycle. [`tests/scripts/lifecycle/test_harness_contract.sh`](../tests/scripts/lifecycle/test_harness_contract.sh)
 guards it; `tests/scripts/lifecycle/test_init_gates.sh` covers marker detection and gate
 execution. Changes to profiles must preserve those contracts.
 Current review approvals live at

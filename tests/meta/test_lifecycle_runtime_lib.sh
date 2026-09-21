@@ -10,7 +10,7 @@ CALLERS=(
   scripts/lifecycle/start-issue.sh
   scripts/lifecycle/create-pr.sh
   scripts/lifecycle/merge-pr.sh
-  scripts/finish-issue.sh
+  scripts/lifecycle/finish-issue.sh
   scripts/validation/review-gate.sh
 )
 fail=0

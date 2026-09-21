@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -169,6 +169,9 @@ case "$1" in
 					exit 8
 				fi ;;
 			merge) printf '%s\n' "$*" >>"${INSTALLED_MERGE_LOG:?}" ;;
+			list)
+				printf '[{"headRefName":"feature/issue-%s-installed-start","state":"MERGED","mergedAt":"2026-05-01T12:30:00Z","number":%s}]\n' \
+					"${INSTALLED_FINISH_ISSUE:?}" "$INSTALLED_FINISH_ISSUE" ;;
 			*) exit 1 ;;
 		esac ;;
 	*) exit 1 ;;
@@ -233,6 +236,31 @@ SH
 		if ! grep -q 'pr merge 81 --squash' "$merge_log" || ! grep -q 'PR #81 merged' "$layout_log"; then
 			fail_layout "${profile} installed merge lost flags or authoritative confirmation"
 		fi
+	done
+	finish_issue=81
+	for entry in scripts/finish-issue.sh scripts/lifecycle/finish-issue.sh; do
+		if [ "$finish_issue" = 82 ]; then
+			(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+				PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/scripts/start-issue.sh" 82 SLUG=installed-start) \
+				>"$layout_log" 2>&1 || fail_layout "${profile} canonical closeout setup"
+		fi
+		issue_dir=".copilot-tracking/issues/issue-${finish_issue}"
+		worktree="${target}/.worktrees/issue-${finish_issue}"
+		printf '%s\n' '{"features":[{"id":"done","title":"Installed probe","steps":[],"passes":true,"regression_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","e2e_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","verification":"installed probe","blocked_on":null}]}' \
+			>"${worktree}/${issue_dir}/feature_list.json"
+		printf '# Installed issue %s\n\nStatus: implementation complete.\n\n## Action Log\n' "$finish_issue" \
+			>"${worktree}/${issue_dir}/progress.md"
+		printf '{"schema_version":1,"timestamp":"2026-05-01T10:00:00Z","span":"agent","harness.issue":%s,"harness.version":"test","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"done","harness.outcome":"pass"}\n' \
+			"$finish_issue" >>"${target}/${issue_dir}/trace.jsonl"
+		(cd "${target}/unrelated/nested" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_FINISH_ISSUE="$finish_issue" "${target}/${entry}" "ISSUE=${finish_issue}" SLUG=installed-start) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed closeout ${entry}"
+		[ ! -e "$worktree" ] || fail_layout "${profile} closeout left its worktree"
+		grep -q '^Conclusion: merged; review verdict: APPROVED.' "${target}/${issue_dir}/progress.md" \
+			|| fail_layout "${profile} closeout lost its durable conclusion"
+		jq -se '[.[] | select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish" and .["harness.worktree_removed"] == "true")] | length == 1' \
+			"${target}/${issue_dir}/trace.jsonl" >/dev/null || fail_layout "${profile} closeout lost its terminal evidence"
+		finish_issue=82
 	done
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \

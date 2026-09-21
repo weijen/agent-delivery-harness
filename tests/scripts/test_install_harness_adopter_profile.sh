@@ -50,7 +50,7 @@ cmp -s "${ROOT}/profiles/adopter-smoke.yml" \
 	echo "default install did not ship the sensor profile manifest"
 	exit 1
 }
-[ -f "${default_target}/tests/scripts/test_harness_contract.sh" ] || {
+[ -f "${default_target}/tests/scripts/lifecycle/test_harness_contract.sh" ] || {
 	echo "default install omitted a core lifecycle sensor"
 	exit 1
 }
@@ -389,7 +389,7 @@ for pattern in "${required[@]}"; do
 done
 
 core=(
-	tests/scripts/test_harness_contract.sh
+	tests/scripts/lifecycle/test_harness_contract.sh
 	tests/scripts/test_install_harness.sh
 	tests/scripts/lifecycle/test_issue_scaffold.sh
 	tests/scripts/validation/test_review_gate.sh

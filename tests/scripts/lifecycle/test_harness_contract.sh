@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CONTRACT="${ROOT}/docs/harness-contract.yml"
 
 # shellcheck source=/dev/null
@@ -181,6 +181,7 @@ for required in \
   scripts/merge-pr.sh \
   scripts/lifecycle/merge-pr.sh \
   scripts/finish-issue.sh \
+  scripts/lifecycle/finish-issue.sh \
   scripts/lib/trace-lib.sh; do
   case " ${declared_scripts} " in
     *" ${required} "*) : ;;
@@ -232,7 +233,7 @@ require_contract_record policy id new-rules-warn-first
 require_contract_record sha_bindings id approval-head scripts/validation/review-gate.sh
 require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
 require_contract_record sha_bindings id ci-green-head scripts/lifecycle/merge-pr.sh
-require_contract_record bypasses id FORCE scripts/finish-issue.sh
+require_contract_record bypasses id FORCE scripts/lifecycle/finish-issue.sh
 require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh
 require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/lifecycle/create-pr.sh
 while IFS= read -r rec; do
@@ -265,7 +266,7 @@ te_required=(
   scripts/validation/review-gate.sh
   scripts/lifecycle/create-pr.sh
   scripts/lifecycle/merge-pr.sh
-  scripts/finish-issue.sh
+  scripts/lifecycle/finish-issue.sh
 )
 for owner in "${te_required[@]}"; do
   abs="${ROOT}/${owner}"

@@ -211,7 +211,7 @@ if grep -q 'auth switch' "$GH_LOG"; then
   fail "start-issue must not switch global gh state"
 fi
 
-for entrypoint in lifecycle/init.sh lifecycle/start-issue.sh lifecycle/create-pr.sh lifecycle/merge-pr.sh finish-issue.sh; do
+for entrypoint in lifecycle/init.sh lifecycle/start-issue.sh lifecycle/create-pr.sh lifecycle/merge-pr.sh lifecycle/finish-issue.sh; do
   grep -q 'harness_identity_activate' "${ROOT}/scripts/${entrypoint}" \
     || fail "${entrypoint} must activate the repository identity before GitHub operations"
 done

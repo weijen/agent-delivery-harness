@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: relevant
-# harness-sensor-depends: scripts/finish-issue.sh scripts/log-handback.sh scripts/check-trace-consistency.sh scripts/lib/finish-lib.sh scripts/lib/economics-report-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/lib/lifecycle-runtime-lib.sh schemas/trace-schema.v1.json docs/observability-and-trace-schema.md docs/harness-contract.yml VERSION
+# harness-sensor-depends: scripts/finish-issue.sh scripts/lifecycle/finish-issue.sh scripts/log-handback.sh scripts/check-trace-consistency.sh scripts/lib/finish-lib.sh scripts/lib/economics-report-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/lib/lifecycle-runtime-lib.sh schemas/trace-schema.v1.json docs/observability-and-trace-schema.md docs/harness-contract.yml VERSION
 # Regression sensor for issue #267, feature f3 `economics-span`.
 #
 # The f2 closeout helper already computes and stamps the operator-facing
