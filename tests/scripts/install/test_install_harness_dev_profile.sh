@@ -26,7 +26,11 @@ done
 for excluded in .env.example pyproject.toml uv.lock docs/archive docs/evaluation \
 	docs/RELEASING.md docs/runtime-adapters scripts/sync-version.sh scripts/audit-sweep.sh scripts/maintenance/audit-sweep.sh \
 	tests/meta tests/scripts/lifecycle/test_init_gates.sh tests/scripts/test_release_workflow.sh \
-	tests/scripts/test_install_harness_tombstone_history.sh; do
+	tests/scripts/test_install_harness_tombstone_history.sh \
+	scripts/maintenance/check-install-harness-tombstones.sh \
+	tests/scripts/maintenance/test_install_harness_tombstone_history.sh \
+	tests/scripts/maintenance/test_install_harness_tombstone_exclusion.sh \
+	tests/scripts/maintenance/test_tombstone_workflow_history.sh; do
 	[ ! -e "${TARGET}/${excluded}" ] || fail "source-only or optional asset installed: ${excluded}"
 done
 for rel in tests/evals/bin/run-evals.sh tests/evals/bin/run-l0-suite.sh \

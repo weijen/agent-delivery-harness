@@ -29,6 +29,7 @@ default_target="${TMP_DIR}/default"
 	exit 1
 }
 for excluded in scripts/sync-version.sh scripts/check-install-harness-tombstones.sh \
+	scripts/maintenance/check-install-harness-tombstones.sh \
 	docs/RELEASING.md docs/evaluation docs/archive docs/runtime-adapters \
 	tests/evals/bin/run-evals.sh tests/evals/bin/run-l0-suite.sh tests/evals/manifests \
 	tests/evals/fixtures tests/evals/baselines tests/evals/scorecards; do

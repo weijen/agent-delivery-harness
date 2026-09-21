@@ -130,6 +130,8 @@ assert_owner "Python lock integrity" 'uv lock --check' "$PYTHON"
 assert_owner "applicable sensor execution" './scripts/run-sensors.sh --gate ci' "$SMOKE"
 [ "$(count_literal './scripts/check-install-harness-tombstones.sh')" -eq 0 ] \
 	|| fail "tombstone history must have one applicable sensor owner, not a second unconditional step"
+[ "$(count_literal './scripts/maintenance/check-install-harness-tombstones.sh')" -eq 0 ] \
+	|| fail "canonical tombstone checker must not duplicate applicable execution"
 assert_owner "shell syntax" './scripts/validation/check-shell.sh syntax' "$SMOKE"
 assert_owner "shellcheck" './scripts/validation/check-shell.sh lint' "$SMOKE"
 assert_owner "frontmatter validation" 'validate-customization-frontmatter.sh' "$SMOKE"
