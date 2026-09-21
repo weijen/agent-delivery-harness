@@ -188,7 +188,9 @@ with its sensor under `tests/scripts/maintenance/`; it is excluded from both ado
 profiles and has no flat compatibility wrapper. The source-only tombstone checker
 also lives in `scripts/maintenance/`, with its history/exclusion/workflow sensors
 under `tests/scripts/maintenance/` and no flat wrapper. Version synchronization
-remains at its flat path until its own serial move.
+also lives in `scripts/maintenance/`, with release sensors in the matching test
+category. Its PSR build command operates on caller cwd and has no flat wrapper;
+release tooling remains excluded from both adopter profiles.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).
 

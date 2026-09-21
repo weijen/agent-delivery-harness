@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: .github/workflows/release.yml scripts/sync-version.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
+# harness-sensor-depends: .github/workflows/release.yml scripts/maintenance/sync-version.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh pyproject.toml uv.lock VERSION docs/RELEASING.md docs/harness-contract.yml
 # test_release_workflow.sh — regression sensor for the release automation
 # workflow (issue #257, feature release-workflow).
 #
@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WF="${ROOT}/.github/workflows/release.yml"
 
 fails=0
@@ -170,7 +170,7 @@ grep -qiF 'python-semantic-release' "$DOC" \
   || fail "RELEASING.md must reference python-semantic-release as the release tool"
 
 lock_notes="$(sed -n '/^## Lock integrity/,/^## /p' "$DOC")"
-for authority in scripts/sync-version.sh release.yml python-ci.yml 'uv lock --check'; do
+for authority in scripts/maintenance/sync-version.sh release.yml python-ci.yml 'uv lock --check'; do
   printf '%s\n' "$lock_notes" | grep -qF "$authority" \
     || fail "release lock guidance must reference ${authority}"
 done
@@ -180,7 +180,7 @@ doc_flat="$(tr '\n' ' ' <"$DOC" | tr -s ' ')"
 if printf '%s\n' "$doc_flat" | grep -qiE 'this is harmless|self-heals|not.{0,12}on the release path|or by landing a commit that carries an explicit'; then
   fail "release guidance must not permit stale locks or a breaking footer to override zero-major policy"
 fi
-for owner in scripts/sync-version.sh .github/workflows/release.yml .github/workflows/python-ci.yml; do
+for owner in scripts/maintenance/sync-version.sh .github/workflows/release.yml .github/workflows/python-ci.yml; do
   grep -qF 'uv lock' "${ROOT}/${owner}" \
     || fail "documented lock owner ${owner} must implement lock management"
 done
@@ -271,7 +271,7 @@ cd "$ROOT"
 
 PYPROJECT="${ROOT}/pyproject.toml"
 VERSION_FILE="${ROOT}/VERSION"
-SYNC="${ROOT}/scripts/sync-version.sh"
+SYNC="${ROOT}/scripts/maintenance/sync-version.sh"
 
 fails=0
 fail() {
@@ -315,7 +315,7 @@ grep -qE 'changelog_file *= *"[^"]+"' "$PYPROJECT" \
 
 # (4) sync-version.sh repairs a drifted VERSION file (mechanism check, no network)
 if [ ! -x "$SYNC" ] && [ ! -f "$SYNC" ]; then
-  fail "scripts/sync-version.sh not found"
+  fail "scripts/maintenance/sync-version.sh not found"
 else
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT

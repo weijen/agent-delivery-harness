@@ -91,8 +91,8 @@ scoped=(
 	tests/scripts/test_copilot_log_review_recipes.sh
 	tests/scripts/test_economics_span.sh
 	tests/meta/test_archived_reports.sh
-	tests/scripts/test_release_workflow.sh
-	tests/scripts/test_release_lock_sync.sh
+	tests/scripts/maintenance/test_release_workflow.sh
+	tests/scripts/maintenance/test_release_lock_sync.sh
 	tests/scripts/maintenance/test_install_harness_tombstone_history.sh
 )
 for sensor in "${scoped[@]}"; do
@@ -114,7 +114,7 @@ for sensor in tests/scripts/maintenance/test_audit_sweep.sh tests/scripts/test_c
 	grep -Fxq "$sensor" "$TMP/source" || fail "explicit maintenance omitted $sensor"
 done
 source_resolve --gate release
-for sensor in tests/scripts/test_release_workflow.sh tests/scripts/test_release_lock_sync.sh tests/scripts/maintenance/test_install_harness_tombstone_history.sh; do
+for sensor in tests/scripts/maintenance/test_release_workflow.sh tests/scripts/maintenance/test_release_lock_sync.sh tests/scripts/maintenance/test_install_harness_tombstone_history.sh; do
 	grep -Fxq "$sensor" "$TMP/source" || fail "release omitted $sensor"
 done
 grep -Fxq 'tests/meta/test_*.sh' "$ROOT/tests/harness-dev-sensors.txt" \

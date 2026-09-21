@@ -98,7 +98,9 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   Source-only audit sweep lives in `scripts/maintenance/`, with its sensor in
   `tests/scripts/maintenance/`, without a flat wrapper. The source-only tombstone
   checker and its owned history/exclusion/workflow sensors use the same categories
-  without a flat wrapper. Version synchronization migrates in its later serial child.
+  without a flat wrapper. Source-only version synchronization and its release
+  sensors also use these categories; PSR calls the canonical command directly,
+  preserving caller cwd rather than anchoring version writes to the script.
   `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
