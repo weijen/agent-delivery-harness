@@ -224,7 +224,7 @@ for group in lib validation lifecycle install trace maintenance; do
 done
 
 check_root_files() {
-  local directory="$1" entry relative
+  local directory="$1" entry relative canonical expected actual
   for entry in "$directory"/*; do
     if [ -d "$entry" ]; then
       case "${entry##*/}" in
@@ -238,8 +238,14 @@ check_root_files() {
     esac
     [ "$(cut -f4 <<<"$layout_moves" | grep -Fxc "$relative")" -eq 1 ] \
       || fail "scripts root contains an undeclared public entrypoint or metadata: ${relative}"
-    [ "$(awk '!/^[[:space:]]*(#|$)/ {n++} END {print n+0}' "$entry")" -eq 3 ] \
-      || fail "public entrypoint contains more than strict-mode, root and exec dispatch: ${relative}"
+    canonical="$(awk -F '\t' -v path="$relative" '$4==path {print $2}' <<<"$layout_moves")"
+    # shellcheck disable=SC2016 # Compare literal dispatch statements without executing them.
+    expected="$(printf '%s\n' 'set -euo pipefail' \
+      'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' \
+      "exec \"\${SCRIPT_DIR}/${canonical#scripts/}\" \"\$@\"")"
+    actual="$(awk '!/^[[:space:]]*(#|$)/' "$entry")"
+    [ "$actual" = "$expected" ] \
+      || fail "public entrypoint is not dispatch-only: ${relative}"
   done
 }
 check_root_files scripts
@@ -260,7 +266,13 @@ printf '\nprintf extra-behavior\\n\n' >>"$layout_probe/init.sh"
 if (check_root_files "$layout_probe") >"$layout_probe/.output" 2>&1; then
   fail "layout closure accepted behavior in a compatibility entrypoint"
 fi
-grep -q 'more than strict-mode' "$layout_probe/.output" \
+grep -q 'not dispatch-only' "$layout_probe/.output" \
   || fail "wrapper rejection did not identify extra behavior"
+sed 's/^set -euo pipefail$/&; export HARNESS_REVIEW_EXTRA=unexpected/' scripts/init.sh >"$layout_probe/init.sh"
+if (check_root_files "$layout_probe") >"$layout_probe/.output" 2>&1; then
+  fail "layout closure accepted same-line environment changes"
+fi
+grep -q 'not dispatch-only' "$layout_probe/.output" \
+  || fail "wrapper rejection did not identify same-line behavior"
 
 printf 'current-state documentation checks passed\n'
