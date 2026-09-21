@@ -26,6 +26,38 @@ for column in 1 2; do
 		|| fail "duplicate migration identity in column ${column}"
 done
 ./scripts/validation/affected-sensors.sh --list >"${TMP_DIR}/discovered"
+# These pre-migration identities are independent of the map being validated.
+migrated_sensors=(
+	lifecycle/test_create_pr_failure.sh
+	lifecycle/test_create_pr_sensor_gate.sh
+	lifecycle/test_finish_issue_conclusion.sh
+	lifecycle/test_harness_contract.sh
+	lifecycle/test_init_gates.sh
+	lifecycle/test_issue_scaffold.sh
+	lifecycle/test_lifecycle_order.sh
+	lifecycle/test_merge_pr_ci_gate.sh
+	lifecycle/test_post_pr_guardrails.sh
+	lifecycle/test_prepare_pr.sh
+	install/test_install_harness.sh
+	install/test_install_harness_adopter_profile.sh
+	install/test_install_harness_atomic_write.sh
+	install/test_install_harness_claude.sh
+	install/test_install_harness_dangling_destination.sh
+	install/test_install_harness_dev_profile.sh
+	install/test_install_harness_layout_upgrade.sh
+	install/test_install_harness_symlinked_parent.sh
+	install/test_install_harness_three_way.sh
+	install/test_install_harness_version_skew.sh
+	install/test_scaffold_language.sh
+)
+for identity in "${migrated_sensors[@]}"; do
+	canonical="tests/scripts/${identity}"
+	old="tests/scripts/${identity#*/}"
+	awk -F '\t' -v from="$old" -v to="$canonical" \
+		'$1==from && $2==to && $3=="" { found=1 } END { exit !found }' "${TMP_DIR}/moves" \
+		|| fail "missing migrated sensor mapping ${old}"
+	[ ! -e "$old" ] || fail "retired flat sensor restored ${old}"
+done
 while IFS=$'\t' read -r old canonical public; do
 	[ -f "$canonical" ] || fail "missing mapped implementation ${canonical}"
 	if [ -z "$public" ]; then
