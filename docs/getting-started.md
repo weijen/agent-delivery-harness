@@ -162,11 +162,12 @@ Publication preserves the caller's Git checkout and relative arguments.
 Merge preserves that checkout too, including green-CI gating and worktree-safe cleanup.
 Closeout also anchors to its invoked checkout and refuses linked-checkout entry
 before migrating progress or removing a worktree.
-The installer now lives in `scripts/install/`, with its sensors under
-`tests/scripts/install/`, behind the stable `scripts/install-harness.sh` entrypoint.
-It runs from its own installed source without a source-checkout fallback.
+The installer and language scaffolder now live in `scripts/install/`, with their sensors under
+`tests/scripts/install/`, behind the stable `scripts/install-harness.sh` and
+`scripts/scaffold-language.sh` entrypoints.
+Both run from their own installed source without a source-checkout fallback.
 Exact manifests and the tombstone ledger retain their `scripts/install-harness.*`
-data paths. Scaffolding, trace and maintenance commands still use their flat
+data paths. Trace and maintenance commands still use their flat
 paths pending their later stages.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).

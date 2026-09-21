@@ -81,6 +81,9 @@ The public installer `scripts/install-harness.sh` forwards to
 `tests/scripts/install/`. The implementation resolves its own installed source,
 not the caller's cwd. Exact asset manifests and the tombstone ledger remain at
 their existing `scripts/install-harness.*` data paths.
+`scripts/scaffold-language.sh` likewise forwards to
+`scripts/install/scaffold-language.sh`, generating profiles in its own source
+checkout or installed repository rather than the caller's directory.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle

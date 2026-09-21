@@ -1,5 +1,6 @@
 # Generated from managed deletion history since install-harness.sh was introduced.
 # SHA-256 of final upstream content, followed by retired managed path.
+6b26f5c52d29268a8fe0408e2b521186510abddfdbef61073a159b67a0b887c4	tests/scripts/test_scaffold_language.sh
 7ebc7adb237426df91efee0c07c2734701355552d88ef613d95fd12f8a20544f	tests/scripts/test_install_harness.sh
 1116e7e39de5bc48ad9eba2fb3592966bf74c213d35a9c98ae3c4b8affe429af	tests/scripts/test_install_harness_adopter_profile.sh
 aaecc83ac1b7a2e6eca7355abef69f3363f3a4fd22e5c770d1751b20b821b342	tests/scripts/test_install_harness_atomic_write.sh

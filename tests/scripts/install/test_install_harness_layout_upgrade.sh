@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/scaffold-language.sh scripts/install/* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -143,6 +143,14 @@ for profile in default developer claude; do
 		|| fail_layout "${profile} performed ${layout_install_calls} installer calls; expected ${expected_calls}"
 
 	mkdir -p "${target}/unrelated/nested"
+	for entry in scripts/scaffold-language.sh scripts/install/scaffold-language.sh; do
+		(cd "${target}/unrelated/nested" && "${target}/${entry}" go --write) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed scaffolder ${entry}"
+		[ -f "${target}/profiles/go.profile.sh" ] && [ -f "${target}/.copilot/instructions/go.instructions.md" ] \
+			|| fail_layout "${profile} installed scaffolder wrote outside its source"
+		bash -n "${target}/profiles/go.profile.sh" || fail_layout "${profile} generated invalid profile"
+	done
+	rm "${target}/profiles/go.profile.sh" "${target}/.copilot/instructions/go.instructions.md"
 	git -C "$target" init -q -b main
 	git -C "$target" config user.name "Harness Test"
 	git -C "$target" config user.email "harness-test@example.invalid"
