@@ -310,7 +310,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh \
          lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the verdict PR-gate fixture"
@@ -346,8 +346,9 @@ make_repo() {
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/trace"
   local s
-  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
+  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh \
            lib/trace-lib.sh lib/issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
@@ -518,7 +519,7 @@ unset TRACE_ISSUE TRACE_PARENT_SPAN_ID REQUIRE_TRACE_CONSISTENCY \
 
 command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (check-trace-consistency and this sensor are jq-driven)"
-for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh \
          lib/trace-lib.sh lib/issue-lib.sh; do
   [ -x "${ROOT}/scripts/${s}" ] \
     || hard_fail "scripts/${s} not found or not executable — required by the reject-cap PR-gate fixture"
@@ -553,8 +554,9 @@ make_repo() {
   git clone -q "$REPO" "$dir"
   git -C "$dir" remote remove origin
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/trace"
   local s
-  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh \
+  for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh \
            lib/trace-lib.sh lib/issue-lib.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
@@ -716,7 +718,8 @@ FIX="${TMP_DIR}/repo"
 git clone -q "$REPO" "$FIX"
 git -C "$FIX" remote remove origin
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/docs" "${FIX}/.copilot/skills"
-for f in validation/review-gate.sh lib/issue-lib.sh lib/trace-lib.sh lib/ci-coverage-lib.sh check-trace-consistency.sh validation/check-feature-list.sh; do
+mkdir -p "${FIX}/scripts/trace"
+for f in validation/review-gate.sh lib/issue-lib.sh lib/trace-lib.sh lib/ci-coverage-lib.sh check-trace-consistency.sh trace/check-trace-consistency.sh validation/check-feature-list.sh; do
   [ -f "${ROOT}/scripts/$f" ] && cp "${ROOT}/scripts/$f" "${FIX}/scripts/$f"
 done
 printf 'guide\n' > "${FIX}/docs/guide.md"

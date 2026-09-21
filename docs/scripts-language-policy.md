@@ -89,7 +89,10 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   The installer and scaffolder live in `scripts/install/`, with sensors in `tests/scripts/install/`,
   behind `scripts/install-harness.sh` and `scripts/scaffold-language.sh`. Explicit manifests and the tombstone
   ledger remain at their existing `scripts/install-harness.*` data paths.
-  Trace and maintenance categories migrate in the serial
+  The consistency checker lives in `scripts/trace/` with its directly owned
+  sensors in `tests/scripts/trace/`; documented public
+  `scripts/check-trace-consistency.sh` remains a thin compatibility entrypoint.
+  Trace recording/rendering and maintenance migrate in the serial
   child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented

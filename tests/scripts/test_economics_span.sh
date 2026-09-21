@@ -50,7 +50,8 @@ copy_fixture_scripts() {
   local dir="$1"
   local s
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
-  for s in lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh log-handback.sh check-trace-consistency.sh lib/issue-lib.sh; do
+  mkdir -p "${dir}/scripts/trace"
+  for s in lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh log-handback.sh check-trace-consistency.sh trace/check-trace-consistency.sh lib/issue-lib.sh; do
     [ -f "${ROOT}/scripts/${s}" ] \
       || hard_fail "scripts/${s} not found — required by economics span fixture"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"

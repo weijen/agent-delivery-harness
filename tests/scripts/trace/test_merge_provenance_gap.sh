@@ -34,8 +34,8 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/trace/check-trace-consistency.sh"
 
 fails=0
 fail() { printf 'FAIL: %s\n' "$*" >&2; fails=$((fails + 1)); }

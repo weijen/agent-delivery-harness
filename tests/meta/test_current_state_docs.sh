@@ -140,7 +140,8 @@ layout_guide="$(awk '
 ' docs/getting-started.md)"
 [ -n "$layout_guide" ] || fail "onboarding lacks current script layout guidance"
 for authority in scripts/lib/ scripts/validation/ tests/scripts/validation/ scripts/run-sensors.sh \
-  scripts/lifecycle/ tests/scripts/lifecycle/ scripts/init.sh scripts/install/ tests/scripts/install/; do
+  scripts/lifecycle/ tests/scripts/lifecycle/ scripts/init.sh scripts/install/ tests/scripts/install/ \
+  scripts/trace/ tests/scripts/trace/; do
   [ -e "$authority" ] || fail "documented layout authority missing: ${authority}"
   grep -qF "$authority" <<<"$layout_guide" || fail "onboarding omits ${authority}"
 done
@@ -179,12 +180,10 @@ while IFS=$'\t' read -r old canonical public; do
     || grep -qxF "$canonical" tests/harness-dev-sensors.txt \
     || fail "canonical layout dependency absent from payload and source-only registry: ${canonical}"
 done <<<"$layout_moves"
-for group in lib validation lifecycle install; do
+for group in lib validation lifecycle install trace; do
   grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
     || fail "active structure policy omits shipped category ${group}"
 done
-for group in trace maintenance; do
-  [ ! -d "scripts/${group}" ] || fail "later category unexpectedly migrated during install work: ${group}"
-done
+[ ! -d scripts/maintenance ] || fail "maintenance category migrated before its owner"
 
 printf 'current-state documentation checks passed\n'

@@ -152,6 +152,12 @@ plans live under `docs/` and are linked from the project's own `AGENTS.md`.
 
 ### Current script layout
 
+The trace consistency implementation lives in `scripts/trace/`, with its
+direct sensors in `tests/scripts/trace/`. The documented public
+`scripts/check-trace-consistency.sh` entrypoint preserves both issue-number and
+explicit-path modes; internal gate callers use the canonical implementation.
+Trace recording/rendering remain at their current paths until their own move.
+
 Shared libraries live in `scripts/lib/`: source them as dependencies rather than
 running them as commands. Validation commands live in `scripts/validation/`,
 with their corresponding sensors in `tests/scripts/validation/`. For example,

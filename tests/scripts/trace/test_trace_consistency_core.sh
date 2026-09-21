@@ -60,8 +60,8 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/trace/check-trace-consistency.sh"
 HELPER="${ROOT}/scripts/log-handback.sh"
 LIB="${ROOT}/scripts/lib/trace-lib.sh"
 TMP_DIR="$(mktemp -d)"
@@ -394,6 +394,25 @@ set -e
   || fail "checker without mktemp must exit 2 (got ${no_mktemp_rc})"
 grep -qi 'mktemp is required' "$ERR" \
   || fail "checker without mktemp must explain the hard requirement"
+
+# Public and canonical entrypoints preserve the invoking checkout and relative paths.
+mkdir -p "${WT}/nested/cwd"
+for entry in "${ROOT}/scripts/check-trace-consistency.sh" "$CHECKER"; do
+  (cd "${TMP_DIR}" && "$entry" case1/trace.jsonl) >"$OUT" 2>"$ERR" \
+    || fail "relative path mode failed for ${entry}"
+  (cd "${WT}/nested/cwd" && "$entry" 33) >"$OUT" 2>"$ERR" \
+    || fail "linked-worktree issue mode failed for ${entry}"
+  grep -Fq '0 violation(s)' "$OUT" || fail "linked issue mode did not validate the fixture"
+  rc=0
+  "$entry" "${TMP_DIR}/case7/trace.jsonl" >"$OUT" 2>"$ERR" || rc=$?
+  [ "$rc" = 1 ] || fail "public/canonical entrypoint lost findings status"
+done
+mkdir -p "${TMP_DIR}/missing/scripts"
+cp "${ROOT}/scripts/check-trace-consistency.sh" "${TMP_DIR}/missing/scripts/"
+if "${TMP_DIR}/missing/scripts/check-trace-consistency.sh" "${TMP_DIR}/case1/trace.jsonl" >"$OUT" 2>"$ERR"; then
+  fail "public entrypoint silently fell back when canonical implementation was missing"
+fi
+grep -Fq 'trace/check-trace-consistency.sh' "$ERR" || fail "missing canonical implementation was not diagnosed"
 
 # --- Result -------------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then

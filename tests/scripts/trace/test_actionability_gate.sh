@@ -5,8 +5,8 @@
 # economics.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/trace/check-trace-consistency.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 

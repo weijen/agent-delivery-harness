@@ -25,6 +25,17 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/check-trace-consistency.sh
+    to: scripts/trace/check-trace-consistency.sh
+    public_entrypoint: scripts/check-trace-consistency.sh
+  - from: tests/scripts/test_trace_consistency_core.sh
+    to: tests/scripts/trace/test_trace_consistency_core.sh
+  - from: tests/scripts/test_trace_consistency_dark_run.sh
+    to: tests/scripts/trace/test_trace_consistency_dark_run.sh
+  - from: tests/scripts/test_actionability_gate.sh
+    to: tests/scripts/trace/test_actionability_gate.sh
+  - from: tests/scripts/test_merge_provenance_gap.sh
+    to: tests/scripts/trace/test_merge_provenance_gap.sh
   - from: scripts/scaffold-language.sh
     to: scripts/install/scaffold-language.sh
     public_entrypoint: scripts/scaffold-language.sh
@@ -216,6 +227,9 @@ scripts:
     role: Emit semantic handback and review-verdict evidence.
   - id: check-trace-consistency
     path: scripts/check-trace-consistency.sh
+    role: Stable public trace consistency entrypoint.
+  - id: check-trace-consistency-implementation
+    path: scripts/trace/check-trace-consistency.sh
     role: Trace/artifact consistency checker with schema validation.
   - id: review-gate
     path: scripts/validation/review-gate.sh

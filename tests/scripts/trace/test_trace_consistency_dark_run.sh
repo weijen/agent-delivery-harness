@@ -38,8 +38,8 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-trace-consistency.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/trace/check-trace-consistency.sh"
 SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 TMP_PARENT="${ROOT}/.copilot-tracking/test-tmp"
 mkdir -p "$TMP_PARENT"
@@ -266,9 +266,10 @@ make_gate_fixture() {
   pad="$(issue_pad "$issue")"
   wt="${dir}/.worktrees/issue-${pad}"
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs"
+  mkdir -p "${dir}/scripts/trace"
   cp "${ROOT}/schemas/trace-schema.v1.json" "${dir}/schemas/trace-schema.v1.json"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh lib/trace-lib.sh check-trace-consistency.sh validation/review-gate.sh; do
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh lib/trace-lib.sh check-trace-consistency.sh trace/check-trace-consistency.sh validation/review-gate.sh; do
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   git -C "$dir" init -q -b main
