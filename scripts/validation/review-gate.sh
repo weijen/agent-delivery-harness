@@ -216,7 +216,7 @@ trace_gate() {
   local t0 issue_num=""
   t0="$(trace_now_ms)"
 
-  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+  if [ ! -x "${SCRIPT_DIR}/trace/check-trace-consistency.sh" ]; then
     yellow "⚠ trace gate skipped: check-trace-consistency.sh not found"
     return 0
   fi
@@ -228,7 +228,7 @@ trace_gate() {
   fi
 
   local cout="" crc=0
-  cout="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || crc=$?
+  cout="$("${SCRIPT_DIR}/trace/check-trace-consistency.sh" "$issue_num" 2>&1)" || crc=$?
   printf '%s\n' "$cout"
 
   local v_cnt=0 w_cnt=0
@@ -407,7 +407,7 @@ review_reject_cap_gate() {
     return 0
   fi
 
-  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+  if [ ! -x "${SCRIPT_DIR}/trace/check-trace-consistency.sh" ]; then
     yellow "⚠ reject-cap gate skipped: check-trace-consistency.sh not found or not executable"
     return 0
   fi
@@ -416,7 +416,7 @@ review_reject_cap_gate() {
   # checker's non-zero exit (exit 1 means findings, exit 2 means it could not
   # run). Only exit 2 degrades to a skip; findings are inspected below.
   local out="" rc=0
-  out="$("${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
+  out="$("${SCRIPT_DIR}/trace/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
   if [ "$rc" -eq 2 ]; then
     yellow "⚠ reject-cap gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
     return 0
@@ -479,7 +479,7 @@ review_verdict_gate() {
     return 0
   fi
 
-  if [ ! -x "${SCRIPT_DIR}/check-trace-consistency.sh" ]; then
+  if [ ! -x "${SCRIPT_DIR}/trace/check-trace-consistency.sh" ]; then
     yellow "⚠ verdict gate skipped: check-trace-consistency.sh not found or not executable"
     return 0
   fi
@@ -491,7 +491,7 @@ review_verdict_gate() {
   # (REVIEW_GATE_APPROVE_PHASE=1) because at approve time the
   # review_gate_approve span is not written until after this gate passes.
   local out="" rc=0
-  out="$(REVIEW_GATE_APPROVE_PHASE=1 "${SCRIPT_DIR}/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
+  out="$(REVIEW_GATE_APPROVE_PHASE=1 "${SCRIPT_DIR}/trace/check-trace-consistency.sh" "$issue_num" 2>&1)" || rc=$?
   if [ "$rc" -eq 2 ]; then
     yellow "⚠ verdict gate skipped: check-trace-consistency.sh could not run for issue ${issue_num} (no trace yet?)"
     return 0

@@ -1,0 +1,1594 @@
+#!/usr/bin/env bash
+# check-trace-consistency.sh — standalone, report-only trace and cross-artifact
+# checker. It validates each trace against the frozen schema contract (folded
+# from validate-trace.sh, issue #335), then checks whether trace.jsonl,
+# feature_list.json, and the review-gate marker tell the same story.
+# Action-Log reconciliation is RETIRED (issue #332): progress.md is rendered
+# from spans by render-action-log.sh and is no longer cross-checked here.
+#
+# Reconciliation retired (issue #332): the log_without_span / span_without_log
+# multiset detector (Phase 2) is removed. trace.jsonl is the canonical record;
+# progress.md Action Log is rendered from spans by render-action-log.sh. All
+# pre-renderer records are tolerated as-is.
+#
+# Core rules (Phase 2, retained):
+#   role_attribution_gap
+#                     every span=="agent" line must carry a gen_ai.agent.name
+#                     inside the closed log-handback role enum (conductor |
+#                     planning-subagent | generator-subagent |
+#                     implementation-subagent | test-subagent |
+#                     code-review-subagent). Line-numbered
+#                     and VALUE-FREE (an out-of-enum role is an attribute
+#                     value and is not echoed):
+#                         VIOLATION consistency: role_attribution_gap line <N>
+#
+# State rules (Phase 3):
+#   review_verdict_missing
+#                     under issue #303 per-feature review is removed and the
+#                     single independent review runs at issue completion; a
+#                     passes:true feature that never received a review verdict
+#                     is a real gap, but ONLY once the review/approve phase has
+#                     started. The phase is active when EITHER a
+#                     review_gate_approve span is present in the trace
+#                     (harness.lifecycle_step=="review_gate_approve") OR the
+#                     environment variable REVIEW_GATE_APPROVE_PHASE=1 is set.
+#                     When active, every passes:true entry in feature_list.json
+#                     must be backed by an agent span with
+#                     harness.lifecycle_step=="review_verdict" and matching
+#                     harness.feature_id (ANY outcome — an approve/reject verdict
+#                     both count as "the feature was reviewed"); a passing
+#                     feature with no such span is flagged once, echoing the
+#                     feature id like the sibling feature-id findings. When the
+#                     phase is NOT active the rule is SILENT — the normal
+#                     mid-issue state where features legitimately pass before the
+#                     end review, so verdict absence is not yet a gap.
+#                         VIOLATION consistency: review_verdict_missing <feature_id>
+#   review_reject_cap_exceeded
+#                     the detection half of the issue #300 stop rule, refined
+#                     by issue #388: flag three countable failures only when
+#                     they show one unrepaired defect (same reviewed SHA or an
+#                     explicit repeat_of chain). Five total countable failures
+#                     remain a hard moving-goalposts backstop. Traces missing
+#                     reviewed_sha retain the historical raw three-failure
+#                     behavior. Report-only here — review-gate enforcement is
+#                     unchanged.
+#                         VIOLATION consistency: review_reject_cap_exceeded <feature_id>
+#   review_reject_count_warning
+#                     three or four countable failures at distinct reviewed
+#                     SHAs without an explicit repeat chain are warn-only.
+#                         WARNING consistency: review_reject_count_warning <feature_id> <count>
+#   duplicate_full_review
+#                     a WARNING (issue #299): when two OR MORE agent spans with
+#                     harness.lifecycle_step=="review_verdict",
+#                     harness.review_mode=="full", and a string
+#                     harness.reviewed_sha share the SAME (harness.feature_id,
+#                     harness.reviewed_sha) PAIR, flag that pair once. Grouping
+#                     is per (feature_id, reviewed_sha): a different reviewed_sha
+#                     is a legit re-review of a new commit, and a whole-diff
+#                     review under a different (synthetic) feature id at the same
+#                     sha is naturally exempt. Only review_mode=="full" spans
+#                     count. WARN-ONLY — like red_first_ordering_absent it is
+#                     printed but never counted as a violation and never flips
+#                     the exit code; no review-gate wiring here.
+#                         WARNING consistency: duplicate_full_review <feature_id> <reviewed_sha>
+#   review_sha_mismatch
+#                     the review_gate_approve span's harness.review_gate_sha
+#                     must equal the content of the
+#                     issue-scoped review-gate/issue-NN/approved-head marker,
+#                     with the legacy shared marker as a read fallback.
+#                     MARKER-ONLY (plan Open Question 2, resolved): no
+#                     live-HEAD git leg, no gh/network — the checker works
+#                     on a plain directory of artifacts.
+#                         VIOLATION consistency: review_sha_mismatch
+#   pr_mismatch       scan-and-skip (plan Open Question 1, option (a)):
+#                     when progress.md carries a GitHub PR reference
+#                     (…/pull/<N>) AND the trace carries a pr_create span
+#                     with harness.pr_number, the numbers must agree.
+#                         VIOLATION consistency: pr_mismatch
+#   finished_with_inflight_status
+#                     a trace containing a successful finish lifecycle span
+#                     must not have a surviving top-level Status line.
+#                         VIOLATION consistency: finished_with_inflight_status
+#   spine_incomplete  runtime capture is retired (issue #305): "no runtime tool
+#                     spans" is now the NORMAL state, so this rule no longer
+#                     inspects tool spans. On a COMPLETE issue window
+#                     (worktree_create + finish lifecycle spans) it requires the
+#                     SEMANTIC SPINE to be present — at least one current writer
+#                     agent span (feature_start, deviation, or review_verdict).
+#                     An empty spine on a complete
+#                     window is the real gap the retired dark_run guard
+#                     protected. Incomplete windows NOTE-skip; the
+#                     TRACE_ALLOW_DARK_RUN=1 env (name kept for compatibility)
+#                     now governs this spine check and skips the block.
+#                         VIOLATION consistency: spine_incomplete <issue>
+#   aggregate_finding_span
+#                     one review_verdict/fail span must carry ONE finding
+#                     (issue #448). A fail span whose harness.summary declares
+#                     multiple findings — a count >= 2 immediately before
+#                     "critical"/"warning"/"finding" (case-insensitive, count
+#                     not glued to an identifier like CVE-2024/v2/F13) — is
+#                     the aggregate shape (one fingerprint standing for many
+#                     defects) that starves the repair of per-finding context.
+#                     WARN-ONLY: the HARD stop is log-handback.sh's write-time
+#                     rejection (#443 posture); this rule audits historical
+#                     traces and writer bypasses. Era carve-out (#330
+#                     pattern): spans provably before the #448 introduction
+#                     instant (2026-08-08T12:00:00Z) name the legacy variant.
+#                         WARNING consistency: aggregate_finding_span line <N>
+#                         WARNING consistency: legacy_aggregate_finding_span line <N>
+#   repair_items_missing
+#                     WARN-ONLY routing audit (issue #449): when one
+#                     reviewed_sha carries >= 2 distinct post-#448 finding
+#                     fingerprints, each fingerprint must appear on a
+#                     type:repair feature-list item (finding_fingerprint);
+#                     doctrine routes multi-finding rounds through the
+#                     feature list for one-at-a-time repair. Authoring the
+#                     items clears the warning. Pre-#448-era spans are
+#                     silent.
+#                         WARNING consistency: repair_items_missing <fingerprint>
+#
+# Whole-repo rules (issue #460):
+#   merge_provenance_gap
+#                     WARN-ONLY reconciliation of the trace against git main
+#                     history (observe first, harden second — the #448
+#                     posture). Opt-in: when
+#                     <repository root>/config/harness/merge-audit-base holds
+#                     a full main SHA, every first-parent commit after that
+#                     baseline (origin/main preferred, main fallback) must be
+#                     referenced by EITHER a pr_merge pass span's
+#                     harness.merge_sha in ANY issue trace under the
+#                     repository root, OR a deviation span whose
+#                     harness.summary names at least the commit's 12-char SHA
+#                     prefix (the sanctioned emergency-merge record; a
+#                     RETROACTIVE deviation span clears the warning). An
+#                     unreferenced commit is an out-of-band merge the trace
+#                     never saw. Never blocks; no baseline file leaves the
+#                     rule inert.
+#                         WARNING consistency: merge_provenance_gap <sha>
+#   merge_audit_base_invalid
+#                     the baseline file exists but is not a full 40-hex SHA
+#                     resolvable to a commit, or no main ref exists — the
+#                     opt-in is broken and silently skipping would hide it.
+#                         WARNING consistency: merge_audit_base_invalid
+#
+# Missing OPTIONAL artifacts (feature_list.json, the approved-head marker,
+# a PR reference, the relevant spans) skip their rules with a NOTE — never
+# a violation, exit unaffected:
+#     NOTE: <rule> check skipped (<what is absent>)
+# Missing REQUIRED artifacts (the trace, its sibling progress.md) are an
+# environment error: exit 2.
+#
+# Artifact resolution:
+#   ./scripts/check-trace-consistency.sh <issue-number>
+#       trace.jsonl lives at <main root>/.copilot-tracking/issues/issue-NN/
+#       (main root resolved via the shared git common dir); marker at
+#       <main root>/.copilot-tracking/review-gate/issue-NN/approved-head,
+#       falling back to the legacy shared approved-head when absent.
+#       progress.md + feature_list.json resolve from the main-root issue dir
+#       when present, FALLING BACK to the invoking worktree's toplevel
+#       tracking dir otherwise (#103 loop-2 F1) — the real layout, where
+#       log-handback.sh writes progress at the worktree toplevel and the
+#       main root holds only the trace.
+#   ./scripts/check-trace-consistency.sh <path/to/trace.jsonl>
+#       progress.md and feature_list.json are SIBLINGS of the named trace
+#       (hermetic L0 fixtures); when the trace lives at a contract-shaped
+#       path <root>/.copilot-tracking/issues/issue-NN/trace.jsonl the marker
+#       is the matching issue-scoped approved-head with legacy fallback;
+#       otherwise the marker is treated as absent (NOTE skip).
+#
+# Fork budget: a handful of constant-count processes (three jq passes, the
+# lifted awk/sed/comm pipeline, one feature-list jq) — never per-line forks;
+# this gets gate-wired in Phase 4.
+#
+# Exit codes: 0 no violations · 1 ≥1 violation · 2 usage/environment error
+
+set -euo pipefail
+
+red()    { printf '\033[31m%s\033[0m\n' "$*"; }
+green()  { printf '\033[32m%s\033[0m\n' "$*"; }
+yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ ! -r "${SCRIPT_DIR}/lib/issue-lib.sh" ]; then
+  red "error: cannot load scripts/lib/issue-lib.sh" >&2
+  exit 2
+fi
+# shellcheck source=scripts/lib/issue-lib.sh
+if ! source "${SCRIPT_DIR}/lib/issue-lib.sh"; then
+  red "error: cannot load scripts/lib/issue-lib.sh" >&2
+  exit 2
+fi
+if [ ! -r "${SCRIPT_DIR}/lib/trace-lib.sh" ]; then
+  red "error: cannot load scripts/lib/trace-lib.sh" >&2
+  exit 2
+fi
+# shellcheck source=scripts/lib/trace-lib.sh
+if ! source "${SCRIPT_DIR}/lib/trace-lib.sh"; then
+  red "error: cannot load scripts/lib/trace-lib.sh" >&2
+  exit 2
+fi
+
+CONTRACT="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
+
+usage() {
+  {
+    echo "usage: ./scripts/check-trace-consistency.sh <issue-number|trace-path>"
+    echo "  <issue-number>  checks <main root>/.copilot-tracking/issues/issue-NN/ artifacts"
+    echo "  <trace-path>    checks the given trace.jsonl with progress.md (and"
+    echo "                  feature_list.json when present) as sibling files"
+    echo "exit codes: 0 no violations, 1 violations found, 2 usage/environment error"
+  } >&2
+}
+
+# --- Environment preconditions (exit 2: the checker could not run) -----------
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 2
+fi
+ARG="$1"
+
+if ! command -v jq >/dev/null 2>&1; then
+  red "error: jq is required to check trace consistency" >&2
+  exit 2
+fi
+if [ ! -f "$CONTRACT" ]; then
+  red "error: trace schema contract not found: ${CONTRACT}" >&2
+  exit 2
+fi
+if ! declare -F trace_redact >/dev/null 2>&1; then
+  red "error: scripts/lib/trace-lib.sh (trace_redact) is required for the redaction audit" >&2
+  exit 2
+fi
+
+# --- Resolve the artifact set -------------------------------------------------
+TRACE_FILE=""
+MARKER_FILE=""
+LEGACY_MARKER_FILE=""
+PATH_MODE=0
+case "$ARG" in
+  */* | *.jsonl)
+    # Path mode: the argument names a trace file; progress.md and
+    # feature_list.json are siblings in the same directory.
+    TRACE_FILE="$ARG"
+    PATH_MODE=1
+    ;;
+  *)
+    # Issue-number mode: resolve the main-checkout artifact set.
+    if ! ISSUE_NUM="$(issue_parse_number "$ARG" 2>/dev/null)"; then
+      usage
+      exit 2
+    fi
+    if ! MAIN_ROOT="$(issue_main_root 2>/dev/null)"; then
+      red "error: cannot resolve the main checkout root (not inside a git repo?)" >&2
+      exit 2
+    fi
+    ISSUE_PAD="$(printf '%02d' "$ISSUE_NUM")"
+    TRACE_FILE="${MAIN_ROOT}/.copilot-tracking/issues/issue-${ISSUE_PAD}/trace.jsonl"
+    MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/issue-${ISSUE_PAD}/approved-head"
+    LEGACY_MARKER_FILE="${MAIN_ROOT}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
+    ;;
+esac
+
+if [ ! -f "$TRACE_FILE" ]; then
+  red "error: trace file not found: ${TRACE_FILE}" >&2
+  usage
+  exit 2
+fi
+
+ISSUE_DIR="$(cd "$(dirname "$TRACE_FILE")" && pwd)"
+ARTIFACT_DIR="$ISSUE_DIR"
+REPOSITORY_ROOT=""
+if [ -z "$MARKER_FILE" ]; then
+  # Path mode: the marker is resolvable only when the trace sits at a
+  # contract-shaped path; otherwise the rule skips with a NOTE below.
+  if [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-([0-9][0-9]+)$ ]]; then
+    marker_root="${BASH_REMATCH[1]}"
+    marker_issue="${BASH_REMATCH[2]}"
+    MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/issue-${marker_issue}/approved-head"
+    LEGACY_MARKER_FILE="${marker_root}/.copilot-tracking/review-gate/approved-head"
+    if [ ! -f "$MARKER_FILE" ] && [ -f "$LEGACY_MARKER_FILE" ]; then
+      MARKER_FILE="$LEGACY_MARKER_FILE"
+    fi
+    REPOSITORY_ROOT="$(cd "$marker_root" && pwd -P)"
+  fi
+elif [[ "$ISSUE_DIR" =~ ^(.*)/\.copilot-tracking/issues/issue-[0-9][0-9]+$ ]]; then
+  REPOSITORY_ROOT="$(cd "${BASH_REMATCH[1]}" && pwd -P)"
+fi
+
+# Real-layout fallback (#103 loop-2 review F1): on live runs the main root
+# holds only trace.jsonl — log-handback.sh writes progress.md (and the
+# scaffold puts feature_list.json) in the INVOKING worktree's toplevel
+# tracking dir. In issue-number mode, when the main-root progress.md is
+# absent, resolve progress.md AND feature_list.json from the invoking
+# worktree's toplevel (log-handback's resolution pattern); the trace and
+# the review-gate marker stay at the main root.
+if [ -n "${ISSUE_PAD:-}" ] && [ ! -f "${ARTIFACT_DIR}/progress.md" ]; then
+  if WT_TOPLEVEL="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    WT_CANDIDATE="${WT_TOPLEVEL}/.copilot-tracking/issues/issue-${ISSUE_PAD}"
+    if [ -f "${WT_CANDIDATE}/progress.md" ]; then
+      ARTIFACT_DIR="$WT_CANDIDATE"
+    fi
+  fi
+fi
+PROGRESS_FILE="${ARTIFACT_DIR}/progress.md"
+FEATURE_LIST_FILE="${ARTIFACT_DIR}/feature_list.json"
+
+command -v mktemp >/dev/null 2>&1 || {
+  printf 'check-trace-consistency.sh: mktemp is required for secure scratch files\n' >&2
+  exit 2
+}
+TMP_DIR="$(mktemp -d)" || {
+  printf 'check-trace-consistency.sh: mktemp could not create secure scratch space\n' >&2
+  exit 2
+}
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+violations=0
+warnings=0
+
+# --- Single-pass jq program (issue #103, feature validate-trace-single-pass) -----
+# ONE jq invocation classifies every line (invalid_json → schema_violation →
+# type_violation first-failing-rule-wins, plus the independent
+# failure_mode_violation and jq_skipped_pass checks) AND folds in the
+# whole-trace passes (finish detection + finished-run completeness), so the
+# jq process count is constant regardless of trace length.
+#
+# Output protocol (parsed by the bash loop below):
+#   VIOLATION/WARNING finding lines  — passed through verbatim;
+#   ::total <N>                       — line count (spans read);
+#   ::finish true|false               — `finish` lifecycle step present;
+#   ::missing <step>                  — one per missing contract step
+#                                       (emitted only when finish is present).
+# Findings carry line numbers, rule names, and contract step names ONLY —
+# never attribute values or line content.
+SINGLE_PASS_FILTER="${TMP_DIR}/validate-single-pass.jq"
+cat > "$SINGLE_PASS_FILTER" <<'JQ'
+# ============================================================================
+# TRACE SPAN VALIDATION FILTER (self-contained; lifted unchanged from #92 via
+# the #97 per-line validator — the def body below is the original filter text
+# verbatim, byte-equivalent to the block previously shipped as
+# validate-span.jq and diffable against test_trace_schema.sh; only the
+# def wrapper is new, `.` is the decoded span)
+# ============================================================================
+def schema_valid:
+$contract[0] as $c
+| . as $span
+| (($span | type) == "object")
+  and ((($c.required_common // []) - ($span | keys)) | length == 0)
+  and (($c.span_types // []) | index($span.span) != null)
+  and (((($c.required_by_span // {})[$span.span // ""] // []) - ($span | keys)) | length == 0)
+  and (if $span.span == "lifecycle"
+       then (($c.lifecycle_steps // []) | index($span["harness.lifecycle_step"]) != null)
+       else true
+       end);
+
+# Known-key type map (plan D2, additive to the lifted filter so the block
+# above stays diffable against test_trace_schema.sh). Numeric keys must be
+# JSON numbers; every other key must be a JSON string. Body lifted from the
+# #97 validate-types.jq, extended in #103 with the trace-gate count keys
+# (single-sourced by schemas/trace-schema.v1.json .numeric_keys +
+#  .structural_numeric_keys; drift-guarded by
+#  tests/meta/test_trace_schema_single_source.sh).
+def types_valid:
+# >>> trace-schema:numeric_keys
+["harness.exit_status", "harness.duration_ms", "harness.finding_count", "harness.incomplete_count",
+ "harness.issue", "schema_version",
+ "harness.violation_count", "harness.warning_count"] as $numeric_keys
+# <<< trace-schema:numeric_keys
+| to_entries
+| all(.[];
+    .key as $k
+    | (($k | startswith("gen_ai.usage.")) or ($k | startswith("harness.economics.")) or ($numeric_keys | index($k) != null)) as $is_numeric
+    | if $is_numeric
+      then (.value | type) == "number"
+      else (.value | type) == "string"
+      end);
+
+# Failure-mode closed enum (issue #99, feature failure-mode-span-plumbing):
+# when a span carries harness.failure_mode, its value must be in the
+# contract's closed failure_modes enum. Kept OUTSIDE the lifted #92 filter
+# above (that block stays byte-diffable against test_trace_schema.sh) and
+# reported under the distinct rule name failure_mode_violation. Body
+# verbatim from the #97 validate-failure-mode.jq.
+def failure_mode_valid:
+$contract[0] as $c
+| . as $span
+| if (($span | type) == "object") and ($span | has("harness.failure_mode"))
+  then (($c.failure_modes // []) | index($span["harness.failure_mode"]) != null)
+  else true
+  end;
+
+# Sanity flag (plan D8, validator side): a pass-outcome check-feature-list
+# tool span carrying harness.warning=jq_skipped is a pass with no validation
+# behind it — worth a WARNING, never a violation (exit unaffected).
+def jq_skipped_pass:
+  (type == "object")
+  and (.span == "tool")
+  and (.["gen_ai.tool.name"] == "check-feature-list")
+  and (.["harness.outcome"] == "pass")
+  and (.["harness.warning"] == "jq_skipped");
+
+[inputs] as $lines
+| ($lines | length) as $total
+# Per-line findings. One PRIMARY finding per line, first failing rule wins:
+# invalid_json → schema_violation → type_violation; the failure-mode enum
+# check and the jq_skipped sanity flag stay independent (they fire on any
+# parseable line, in addition to a primary finding).
+| [ range(0; $total) as $i
+    | ($i + 1) as $n
+    | $lines[$i] as $line
+    | [ $line | fromjson? ] as $parsed
+    | if ($parsed | length) == 0
+      then "VIOLATION line \($n): invalid_json"
+      else $parsed[0] as $span
+      | ( if ($span | schema_valid | not)
+          then "VIOLATION line \($n): schema_violation"
+          elif ($span | types_valid | not)
+          then "VIOLATION line \($n): type_violation"
+          else empty
+          end ),
+        ( if ($span | failure_mode_valid | not)
+          then "VIOLATION line \($n): failure_mode_violation"
+          else empty
+          end ),
+        ( if ($span | jq_skipped_pass)
+          then "WARNING line \($n): jq_skipped_pass"
+          else empty
+          end )
+      end
+  ] as $findings
+# Whole-trace pass (plan D3), folded in: finish detection + finished-run
+# lifecycle completeness, counting harness.lifecycle_step across ALL span
+# types. Unparseable lines are ignored here (already flagged per line).
+| [ $lines[] | fromjson? | .["harness.lifecycle_step"]? // empty | strings ] as $steps
+| (($steps | index("finish")) != null) as $finished
+| ( if $finished
+    then (["preflight", "worktree_create", "review_gate_approve",
+           "pr_create", "pr_merge", "finish"] - $steps)
+    else []
+    end ) as $missing
+| $findings[],
+  "::total \($total)",
+  "::finish \($finished)",
+  ( $missing[] | "::missing \(.)" )
+JQ
+
+total=0
+violations=0
+warnings=0
+finish_present="false"
+missing_steps=()
+if ! single_pass_out="$(jq -nRr --slurpfile contract "$CONTRACT" \
+    -f "$SINGLE_PASS_FILTER" < "$TRACE_FILE")"; then
+  red "error: the single-pass jq classification failed to run" >&2
+  exit 2
+fi
+while IFS= read -r out_line; do
+  case "$out_line" in
+    '::total '*)   total="${out_line#'::total '}" ;;
+    '::finish '*)  finish_present="${out_line#'::finish '}" ;;
+    '::missing '*) missing_steps+=("${out_line#'::missing '}") ;;
+    'VIOLATION '*)
+      printf '%s\n' "$out_line"
+      violations=$((violations + 1))
+      ;;
+    'WARNING '*)
+      printf '%s\n' "$out_line"
+      warnings=$((warnings + 1))
+      ;;
+  esac
+done <<< "$single_pass_out"
+
+# --- Redaction audit (plan D4, batched in #103) -----------------------------------
+# trace_redact is bash (the library oracle cannot move into jq), so it is
+# batched instead: the WHOLE file round-trips through trace_redact ONCE and
+# the per-line comparison happens in bash — one spawn instead of one per
+# line. Any altered line means a secret-shaped token survived on disk
+# (redaction_leak). Runs on every line regardless of finish state; a leak on
+# a schema-invalid line is still reported. Findings NEVER echo line content.
+#
+# Fail closed, distinctly (issue #103): a trace_redact RUNTIME FAILURE flags
+# every audited line as redaction_audit_error — still a violation (exit 1),
+# but never conflated with redaction_leak ("the auditor broke" is not
+# "a secret survived").
+REDACTED_FILE="${TMP_DIR}/redacted.jsonl"
+if ! trace_redact < "$TRACE_FILE" > "$REDACTED_FILE" 2>/dev/null; then
+  n=1
+  while [ "$n" -le "$total" ]; do
+    printf 'VIOLATION line %d: redaction_audit_error\n' "$n"
+    violations=$((violations + 1))
+    n=$((n + 1))
+  done
+else
+  n=0
+  while IFS= read -r orig_line || [ -n "$orig_line" ]; do
+    n=$((n + 1))
+    redacted_line=""
+    IFS= read -r redacted_line <&4 || true
+    if [ "$redacted_line" != "$orig_line" ]; then
+      printf 'VIOLATION line %d: redaction_leak\n' "$n"
+      violations=$((violations + 1))
+    fi
+  done < "$TRACE_FILE" 4< "$REDACTED_FILE"
+fi
+
+# --- Whole-trace report: finished-run lifecycle completeness (plan D3) ------------
+# Computed inside the single jq pass above; reported here. Only a finished
+# run (a `finish` lifecycle step anywhere in the trace) is held to
+# completeness: every non-deviation contract step must appear at least once.
+# An unfinished trace skips the pass with an informational note (never a
+# violation).
+if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
+  printf 'NOTE: completeness pass skipped (TRACE_ALLOW_DARK_RUN=1 — declared partial trace)\n'
+elif [ "$finish_present" = "true" ]; then
+  for step in ${missing_steps[@]+"${missing_steps[@]}"}; do
+    printf 'VIOLATION completeness: missing lifecycle step %s\n' "$step"
+    violations=$((violations + 1))
+  done
+else
+  printf 'NOTE: unfinished run — completeness pass skipped\n'
+fi
+
+# --- Whole-trace pass: trace-file location sanity (plan D9) -----------------------
+# Path mode only: warn when the trace does not live at the contract location
+# .copilot-tracking/issues/issue-NN/trace.jsonl (issue-number mode constructs
+# that path, so the check is trivially satisfied there). A WARNING, never a
+# violation — the exit code is unaffected.
+if [ "$PATH_MODE" = "1" ]; then
+  ABS_TRACE="$TRACE_FILE"
+  case "$ABS_TRACE" in
+    /*) ;;
+    *)  ABS_TRACE="$(pwd)/$ABS_TRACE" ;;
+  esac
+  if ! [[ "$ABS_TRACE" =~ \.copilot-tracking/issues/issue-[0-9][0-9]+/trace\.jsonl$ ]]; then
+    printf 'WARNING: unexpected trace location\n'
+    warnings=$((warnings + 1))
+  fi
+fi
+
+# Trace-only checks above remain useful even when the cross-artifact half
+# cannot run. Defer its required progress.md precondition until those findings
+# have been emitted so callers can preserve and count them.
+if [ ! -f "$PROGRESS_FILE" ]; then
+  red "error: progress.md not found next to the trace: ${PROGRESS_FILE}" >&2
+  exit 2
+fi
+
+# --- Core: Action Log ↔ agent-span multiset comparison [RETIRED, issue #332] --
+# trace.jsonl is now the canonical record; progress.md Action Log is rendered
+# from spans by render-action-log.sh. The log_without_span / span_without_log
+# multiset detector (lifted from #95 via #103) is removed: all pre-renderer
+# records (spans written alongside bullets by the old dual-write log-handback.sh)
+# are tolerated as-is. No reconciliation violation fires for any mismatch
+# between spans and progress.md bullets.
+
+# --- Single trace pass: role attribution + state-rule span extraction ---------
+# One jq program (single-pass house style, like validate-trace) emits a line
+# protocol parsed below:
+#   ::gap <N>        span=="agent" on line N lacks gen_ai.agent.name or its
+#                    value is outside the closed log-handback role enum
+#   ::verdict <fid>  review_verdict agent span for <fid> (ANY outcome) — the
+#                    set of features that DID receive a review verdict
+#   ::fullreview <fid>\t<sha>
+#                    review_verdict agent span with review_mode=="full" and a
+#                    string reviewed_sha; <fid> and <sha> are TAB-separated so
+#                    the (feature_id, reviewed_sha) grouping key is unambiguous
+#   ::approve <sha>  review_gate_approve span's harness.review_gate_sha
+#   ::pr <num>       pr_create span's harness.pr_number
+# Unparseable lines are skipped (schema conformance is validate-trace's job).
+STATE_FILTER="${TMP_DIR}/consistency-state.jq"
+cat > "$STATE_FILTER" <<'JQ'
+# >>> trace-schema:roles (authority schemas/trace-schema.v1.json .roles; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+["conductor", "planning-subagent", "generator-subagent", "implementation-subagent",
+ "test-subagent", "code-review-subagent"] as $roles
+# <<< trace-schema:roles
+# >>> issue-330: legacy-fail-span era boundary. PR #324 merge instant
+# (verified via `gh pr view 324 --json mergedAt,mergeCommit`), merge commit
+# 05477a1093ecdf59aea5a6ba8da281ce5272af23. Deliberately NOT harness.version:
+# that field is agent/build-managed free text and documented to drift (up to
+# four different strings, including the "0.0.0-dev" placeholder, inside a
+# single trace), so it cannot serve as a monotonic emission-time boundary.
+# The span's own `timestamp` is the one field every span is contractually
+# required to carry and is stamped once, deterministically, by trace-lib.sh's
+# own `date -u +%Y-%m-%dT%H:%M:%SZ` call at write time — reuse it instead.
+# ts_secs mirrors scripts/lib/economics-report-lib.sh's economics_time_summary idiom
+# (fromdateiso8601 with an optional fractional-second suffix) so mixed-
+# precision timestamps still compare correctly; do not invent a new parser.
+# def and the $pr324_merge_epoch binding below are chained with `|` (no
+# closing paren) so both stay in scope for the entire rest of this filter,
+# including the ::failattr signal block further down.
+| def ts_secs:
+    ([capture("^(?<base>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\\.(?<fraction>[0-9]+))?Z$")] | first // null) as $match
+    | if $match == null then
+        null
+      else
+        try (
+          (($match.base + "Z") | fromdateiso8601)
+          + (if ($match.fraction // "") == ""
+             then 0
+             else ("0." + $match.fraction | tonumber)
+             end)
+        ) catch null
+      end;
+  ("2026-07-21T00:31:35Z" | fromdateiso8601) as $pr324_merge_epoch
+# <<< issue-330: legacy-fail-span era boundary
+# >>> issue-448: one-span-per-finding era boundary — the rule's introduction
+# instant; fail-verdict spans provably older downgrade the aggregate-finding
+# violation to a WARNING (same #330 own-timestamp pattern, fail-closed to
+# "current" on unparseable timestamps).
+| ("2026-08-08T12:00:00Z" | fromdateiso8601) as $pr448_intro_epoch
+# <<< issue-448: one-span-per-finding era boundary
+| [inputs] as $lines
+| range(0; $lines | length) as $i
+| ($i + 1) as $n
+| [ $lines[$i] | fromjson? ] as $parsed
+| if ($parsed | length) == 0 or (($parsed[0] | type) != "object")
+  then empty
+  else $parsed[0] as $span
+  | ( if ($span.span == "agent")
+         and (($roles | index($span["gen_ai.agent.name"])) == null)
+      then "::gap \($n)"
+      else empty
+      end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and (($span["harness.feature_id"] | type) == "string")
+      then "::verdict \($span["harness.feature_id"])"
+      else empty
+      end ),
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "full")
+         and (($span["harness.feature_id"] | type) == "string")
+         and (($span["harness.reviewed_sha"] | type) == "string")
+      then "::fullreview \($span["harness.feature_id"])\u0009\($span["harness.reviewed_sha"])"
+      else empty
+      end ),
+    ( if ($span["harness.lifecycle_step"] == "review_gate_approve")
+         and (($span["harness.review_gate_sha"] | type) == "string")
+      then "::approve \($span["harness.review_gate_sha"])"
+      else empty
+      end ),
+    ( if ($span["harness.lifecycle_step"] == "pr_create")
+         and ($span["harness.pr_number"] != null)
+      then "::pr \($span["harness.pr_number"] | tostring)"
+      else empty
+      end ),
+    # Current deviation failures must carry a valid class and a separate route.
+    # Occurrence is computed in trace-file order for the same class; pass
+    # outcomes, historical handback roles, and review verdicts do not
+    # participate.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
+         and ((["fail", "blocked"] | index($span["harness.outcome"])) != null)
+      then
+        (($span["harness.failure_class"] // "")
+         | if type == "string" and . != "" then . else "__EMPTY__" end) as $gfc
+        | (([ $lines[0:$i][]
+             | fromjson? | objects
+             | . as $prior
+             | select(.span == "agent")
+             | select(.["gen_ai.agent.name"] == "conductor")
+             | select(.["harness.lifecycle_step"] == "deviation")
+             | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+             | select(.["harness.failure_class"] == $gfc)
+           ] | length) + 1) as $occurrence
+        | (($span["harness.failure_class_detail"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $detail
+        | (($span["harness.failure_disposition"] // "")
+           | if . == "" then "__EMPTY__" else . end) as $disposition
+        | "::genfail \($n)\t\($gfc)\t\($detail)\t\($disposition)\t\($occurrence)"
+      else empty
+      end ),
+    # Research provenance is a complete route-dependent truth table:
+    # research requires one valid pair; every other disposition requires both
+    # fields to be absent. Direct traces cannot bypass either branch.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
+         and (
+           if $span["harness.failure_disposition"] == "research"
+           then
+             (($span["harness.research_url"] | type) != "string")
+             or (($span["harness.research_url"]
+                  | test("^https?://[^/?#[:space:]]+[^[:space:]]*$")) | not)
+             or (($span["harness.research_summary"] | type) != "string")
+             or (($span["harness.research_summary"] | test("[^[:space:]]")) | not)
+             or ($span["harness.research_summary"] | test("[\r\n]"))
+           else
+             ($span | has("harness.research_url"))
+             or ($span | has("harness.research_summary"))
+           end
+         )
+      then "::research \($n)"
+      else empty
+      end ),
+    # A successful escalated class repair is a passing deviation grounded in
+    # prior same-class failed/blocked deviations. Arbitrary pass spans, point
+    # fixes, exemptions, and blocked research requests are not completion
+    # events.
+    ( if ($span.span == "agent")
+         and ($span["gen_ai.agent.name"] == "conductor")
+         and ($span["harness.lifecycle_step"] == "deviation")
+         and ($span["harness.outcome"] == "pass")
+         and (($span["harness.failure_class"] | type) == "string")
+         and (($span["harness.failure_disposition"] | type) == "string")
+      then
+        $span["harness.failure_class"] as $dfc
+        | $span["harness.failure_disposition"] as $dfd
+        | [ $lines[0:$i][]
+            | fromjson? | objects
+            | . as $prior
+            | select(.span == "agent")
+            | select(.["gen_ai.agent.name"] == "conductor")
+            | select(.["harness.lifecycle_step"] == "deviation")
+            | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
+            | select(.["harness.failure_class"] == $dfc)
+          ] as $prior_failures
+        | (if $dfc == "knowledge-gap" then $dfd == "research"
+           elif $dfc == "complexity" then $dfd == "decompose"
+           elif ($dfc == "known-flaky" or $dfc == "polling")
+             then $dfd == "override"
+           else ($dfd == "class-fix" or $dfd == "override")
+           end) as $repair_route
+        | if (($prior_failures | length) >= 2)
+             and $repair_route
+          then
+            ($span["harness.durable_rule_path"] // null) as $drp
+            | ($span["harness.durable_rule_summary"] // null) as $drs
+            | if ($drp == null and $drs == null)
+              then "::durable \($n)\u0009missing\u0009-"
+              elif (($drp | type) != "string")
+                or (($drs | type) != "string")
+                or (($drs | test("[^[:space:]]")) | not)
+                or ($drs | test("[\r\n]"))
+              then "::durable \($n)\u0009invalid\u0009-"
+              elif ($drp == "AGENTS.md")
+                or ($drp | test("^\\.copilot/instructions/[A-Za-z0-9._-]+\\.instructions\\.md$"))
+              then "::durable \($n)\u0009target\u0009\($drp)"
+              else "::durable \($n)\u0009invalid\u0009-"
+              end
+          else empty
+          end
+      else empty
+      end ),
+    # --- Fail-verdict attribution signals (issue #318) ---
+    # Emit per-line signals for review_verdict/fail spans carrying attribution
+    # and failure_class fields. Validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.failure_class"] // "") | if . == "" then "__EMPTY__" else . end) as $fc
+        | (($span["harness.failure_class_detail"] // "") | if . == "" then "__EMPTY__" else . end) as $fcd
+        | (($span["harness.finding_fingerprint"] // "") | if . == "" then "__EMPTY__" else . end) as $fp
+        | (($span["harness.finding_baseline_state"] // "") | if . == "" then "__EMPTY__" else . end) as $bs
+        | (($span["harness.actionable"] // "") | if . == "" then "__EMPTY__" else . end) as $act
+        | (($span["harness.finding_reproduction"] // "") | if . == "" then "__EMPTY__" else . end) as $repro
+        | (($span["harness.finding_proposed_fix"] // "") | if . == "" then "__EMPTY__" else . end) as $fix
+        | (($span["harness.reviewed_sha"] // "") | if . == "" then "__EMPTY__" else . end) as $reviewed_sha
+        | (($span["harness.repeat_of"] // "") | if . == "" then "__EMPTY__" else . end) as $repeat_of
+        # Provably legacy (issue #330): the span's OWN mandatory timestamp
+        # parses AND is strictly before the PR #324 merge instant. Any
+        # unparseable/absent timestamp or a timestamp at/after the boundary
+        # is fail-closed to "0" (current, still enforced).
+        | (if ($span.timestamp | type) == "string"
+           then ($span.timestamp | ts_secs)
+           else null
+           end) as $fa_ts_secs
+        | (if $fa_ts_secs != null and $fa_ts_secs < $pr324_merge_epoch then "1" else "0" end) as $fa_legacy
+        | "::failattr \($n)\t\($fid)\t\($fc)\t\($fcd)\t\($fp)\t\($bs)\t\($act)\t\($repro)\t\($fix)\t\($reviewed_sha)\t\($repeat_of)\t\($fa_legacy)"
+      else empty
+      end ),
+    # --- Repair-verdict scope signals (issue #318, feature repair-verdict-scope) ---
+    # Emit per-line signals for ALL review_verdict spans (pass or fail) with
+    # harness.review_mode=="repair". The repair_scope and feature_id are
+    # validated in bash below.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.review_mode"] == "repair")
+      then
+        (($span["harness.feature_id"] // "") | if . == "" then "__EMPTY__" else . end) as $fid
+        | (($span["harness.repair_scope"] // "") | if . == "" then "__EMPTY__" else . end) as $rs
+        | "::repairscope \($n)\t\($fid)\t\($rs)"
+      else empty
+      end ),
+    # --- Aggregate-finding signals (issue #448) ---
+    # One review_verdict/fail span carries ONE finding. Emit the span's
+    # summary for the bash-side multi-finding-declaration check; newlines are
+    # flattened and the summary is the LAST field so free-text tabs cannot
+    # shift earlier fields.
+    ( if ($span.span == "agent")
+         and ($span["harness.lifecycle_step"] == "review_verdict")
+         and ($span["harness.outcome"] == "fail")
+      then
+        (if ($span.timestamp | type) == "string"
+         then ($span.timestamp | ts_secs)
+         else null
+         end) as $agg_ts_secs
+        | (if $agg_ts_secs != null and $agg_ts_secs < $pr448_intro_epoch then "1" else "0" end) as $agg_legacy
+        | (($span["harness.finding_fingerprint"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_fp
+        | (($span["harness.reviewed_sha"] // "") | gsub("[\r\n\t]"; " ") | if . == "" then "__EMPTY__" else . end) as $agg_sha
+        | (($span["harness.summary"] // "") | gsub("[\r\n]"; " ")) as $agg_summary
+        | "::aggfinding \($n)\t\($agg_legacy)\t\($agg_fp)\t\($agg_sha)\t\($agg_summary)"
+      else empty
+      end )
+  end
+JQ
+if ! state_out="$(jq -nRr -f "$STATE_FILTER" < "$TRACE_FILE")"; then
+  red "error: the consistency jq pass failed to run" >&2
+  exit 2
+fi
+
+verdict_ids=$'\n'
+fullreview_pairs=$'\n'
+approve_sha=""
+pr_span_number=""
+failattr_lines=$'\n'
+repairscope_lines=$'\n'
+aggfinding_lines=$'\n'
+genfail_lines=$'\n'
+durable_lines=$'\n'
+countable_reject_records=$'\n'
+while IFS= read -r out_line; do
+  case "$out_line" in
+    '::gap '*)
+      printf 'VIOLATION consistency: role_attribution_gap line %s\n' \
+        "${out_line#'::gap '}"
+      violations=$((violations + 1))
+      ;;
+    '::verdict '*) verdict_ids="${verdict_ids}${out_line#'::verdict '}"$'\n' ;;
+    '::fullreview '*) fullreview_pairs="${fullreview_pairs}${out_line#'::fullreview '}"$'\n' ;;
+    '::approve '*) approve_sha="${out_line#'::approve '}" ;;  # last wins
+    '::pr '*)      pr_span_number="${out_line#'::pr '}" ;;    # last wins
+    '::failattr '*)  failattr_lines="${failattr_lines}${out_line#'::failattr '}"$'\n' ;;
+    '::repairscope '*)  repairscope_lines="${repairscope_lines}${out_line#'::repairscope '}"$'\n' ;;
+    '::aggfinding '*)  aggfinding_lines="${aggfinding_lines}${out_line#'::aggfinding '}"$'\n' ;;
+    '::genfail '*)  genfail_lines="${genfail_lines}${out_line#'::genfail '}"$'\n' ;;
+    '::durable '*)  durable_lines="${durable_lines}${out_line#'::durable '}"$'\n' ;;
+    '::research '*)
+      printf 'VIOLATION consistency: generator_research_provenance_invalid line %s\n' \
+        "${out_line#'::research '}"
+      violations=$((violations + 1))
+      ;;
+  esac
+done <<< "$state_out"
+
+# --- State: fail-verdict attribution (issue #318) -----------------------------
+# Closed failure_class enum — mirrored from the contract (single-source). Read
+# from the contract with jq when available; otherwise use the frozen fallback.
+# >>> trace-schema:failure_classes (authority schemas/trace-schema.v1.json .failure_classes; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_CLASSES_ENUM="spec-violation
+validation-bypass
+missing-coverage
+regression
+role-boundary
+knowledge-gap
+complexity
+known-flaky
+polling
+other"
+# <<< trace-schema:failure_classes
+SCHEMA_CONTRACT="${SCRIPT_DIR}/../schemas/trace-schema.v1.json"
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_classes="$(jq -r '(.failure_classes // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_classes" ]; then
+    FAILURE_CLASSES_ENUM="$schema_classes"
+  fi
+fi
+
+failure_class_valid() {
+  local cls="$1"
+  while IFS= read -r fc_entry; do
+    [ "$fc_entry" = "$cls" ] && return 0
+  done <<< "$FAILURE_CLASSES_ENUM"
+  return 1
+}
+
+# Closed route enum, separate from failure class.
+# >>> trace-schema:failure_dispositions (authority schemas/trace-schema.v1.json .failure_dispositions; drift-guarded by tests/meta/test_trace_schema_single_source.sh)
+FAILURE_DISPOSITIONS_ENUM="point-fix
+class-fix
+research
+decompose
+exemption
+override
+research-requested"
+# <<< trace-schema:failure_dispositions
+if [ -f "$SCHEMA_CONTRACT" ] && command -v jq >/dev/null 2>&1; then
+  schema_dispositions="$(jq -r '(.failure_dispositions // [])[]' "$SCHEMA_CONTRACT" 2>/dev/null || true)"
+  if [ -n "$schema_dispositions" ]; then
+    FAILURE_DISPOSITIONS_ENUM="$schema_dispositions"
+  fi
+fi
+
+failure_disposition_valid() {
+  local disposition="$1"
+  while IFS= read -r fd_entry; do
+    [ "$fd_entry" = "$disposition" ] && return 0
+  done <<< "$FAILURE_DISPOSITIONS_ENUM"
+  return 1
+}
+
+# A durable target must be one of the two always-loaded repository surfaces.
+# The closed lexical shape rejects absolute paths and traversal before IO; the
+# component checks reject symlink indirection even when it resolves in-tree.
+durable_rule_target_valid() {
+  local root="$1" path="$2"
+  [ -n "$root" ] || return 1
+  case "$path" in
+    AGENTS.md)
+      [ -f "${root}/AGENTS.md" ] && [ ! -L "${root}/AGENTS.md" ]
+      ;;
+    .copilot/instructions/*.instructions.md)
+      [[ "$path" =~ ^\.copilot/instructions/[A-Za-z0-9._-]+\.instructions\.md$ ]] \
+        && [ ! -L "${root}/.copilot" ] \
+        && [ ! -L "${root}/.copilot/instructions" ] \
+        && [ -f "${root}/${path}" ] \
+        && [ ! -L "${root}/${path}" ]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# Same-class trigger (issue #317, adapted to the current conductor deviation
+# writer). Every eligible failed or blocked deviation must carry a valid closed
+# class. Finding slugs retain their generator_* names for output compatibility.
+# Occurrence 1 may omit disposition or use point-fix. Occurrence 2+ must route
+# by class and can never repeat point-fix.
+if [ "$genfail_lines" != $'\n' ]; then
+  while IFS= read -r gf_line; do
+    [ -n "$gf_line" ] || continue
+    IFS=$'\t' read -r gf_n gf_class gf_detail gf_disposition gf_occurrence <<< "$gf_line"
+    if [ "$gf_class" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if ! failure_class_valid "$gf_class"; then
+      printf 'VIOLATION consistency: generator_failure_class_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    if [ "$gf_class" = "other" ] && [ "$gf_detail" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_class_other_no_detail line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+
+    if [ "$gf_disposition" != "__EMPTY__" ] \
+      && ! failure_disposition_valid "$gf_disposition"; then
+      printf 'VIOLATION consistency: generator_failure_disposition_invalid line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    if [ "$gf_occurrence" -lt 2 ]; then
+      continue
+    fi
+    if [ "$gf_disposition" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: generator_failure_disposition_missing line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    if [ "$gf_disposition" = "point-fix" ]; then
+      printf 'VIOLATION consistency: generator_repeated_point_fix line %s\n' "$gf_n"
+      violations=$((violations + 1))
+      continue
+    fi
+
+    route_valid=0
+    case "$gf_class" in
+      knowledge-gap)
+        case "$gf_disposition" in research|research-requested) route_valid=1 ;; esac
+        ;;
+      complexity)
+        [ "$gf_disposition" = "decompose" ] && route_valid=1
+        ;;
+      known-flaky|polling)
+        case "$gf_disposition" in exemption|override) route_valid=1 ;; esac
+        ;;
+      *)
+        case "$gf_disposition" in class-fix|override) route_valid=1 ;; esac
+        ;;
+    esac
+    if [ "$route_valid" = "0" ]; then
+      printf 'VIOLATION consistency: generator_failure_route_mismatch line %s\n' "$gf_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$genfail_lines" | grep -v '^$')
+fi
+
+if [ "$durable_lines" != $'\n' ]; then
+  while IFS= read -r durable_line; do
+    [ -n "$durable_line" ] || continue
+    IFS=$'\t' read -r durable_n durable_state durable_path <<< "$durable_line"
+    case "$durable_state" in
+      missing)
+        printf 'VIOLATION consistency: generator_durable_rule_missing line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      invalid)
+        printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+        violations=$((violations + 1))
+        ;;
+      target)
+        if ! durable_rule_target_valid "$REPOSITORY_ROOT" "$durable_path"; then
+          printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
+          violations=$((violations + 1))
+        fi
+        ;;
+    esac
+  done < <(printf '%s' "$durable_lines" | grep -v '^$')
+fi
+
+# Process ::failattr signals:
+# <line_num>\t<fid>\t<failure_class>\t<detail>\t<fingerprint>\t<baseline_state>
+# \t<actionable>\t<reproduction>\t<proposed_fix>\t<reviewed_sha>\t<repeat_of>
+# \t<legacy>
+# <legacy> ("1"|"0", issue #330): "1" only when the span's own mandatory
+# timestamp parsed AND is strictly before the PR #324 merge instant
+# (2026-07-21T00:31:35Z) — see the STATE_FILTER era-boundary comment above.
+# Gates ONLY the three named checks below (failure_class_missing,
+# finding_fingerprint_missing, finding_baseline_state_missing) to a WARNING
+# instead of a VIOLATION; every other failattr rule is unaffected.
+if [ "$failattr_lines" != $'\n' ]; then
+  while IFS= read -r fa_line; do
+    [ -n "$fa_line" ] || continue
+    IFS=$'\t' read -r fa_n fa_fid fa_fc fa_fcd fa_fp fa_bs fa_act fa_repro fa_fix \
+      fa_reviewed_sha fa_repeat_of fa_legacy <<< "$fa_line"
+    # review_fail_unattributed: fail verdict must carry non-empty feature_id
+    # (excluding "-" placeholder) or the literal "unmapped"
+    if [ "$fa_fid" = "__EMPTY__" ] || [ "$fa_fid" = "-" ]; then
+      printf 'VIOLATION consistency: review_fail_unattributed line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fid" = "unmapped" ]; then
+      # unmapped_without_fingerprint: unmapped requires a traceability label
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: unmapped_without_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+    # failure_class_missing: fail verdict must carry failure_class.
+    # Legacy carve-out (issue #330): a provably pre-#324 span (fa_legacy=1)
+    # downgrades to a WARNING instead — it predates the field's existence.
+    if [ "$fa_fc" = "__EMPTY__" ]; then
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_failure_class_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
+      else
+        printf 'VIOLATION consistency: failure_class_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    elif ! failure_class_valid "$fa_fc"; then
+      # failure_class_invalid: not in closed enum
+      printf 'VIOLATION consistency: failure_class_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    elif [ "$fa_fc" = "other" ] && [ "$fa_fcd" = "__EMPTY__" ]; then
+      # failure_class_other_no_detail: "other" requires non-empty detail
+      printf 'VIOLATION consistency: failure_class_other_no_detail line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+    # finding_fingerprint / finding_baseline_state validation (issue #318,
+    # feature finding-identity):
+    # Every review_verdict/fail span MUST carry both a non-empty
+    # harness.finding_fingerprint AND a valid harness.finding_baseline_state.
+    # Each field is validated independently so a span missing both produces
+    # two distinct violations.  The unmapped_without_fingerprint rule above
+    # names the degraded-state contract specifically for unmapped findings;
+    # the rules here are universal across all fail verdicts.
+    # Legacy carve-out (issue #330): a provably pre-#324 span (fa_legacy=1)
+    # downgrades finding_fingerprint_missing to a WARNING — it predates the
+    # field's existence. finding_baseline_missing_fingerprint below is a
+    # DIFFERENT, cross-field-coherence rule and stays unconditional.
+    if [ "$fa_fp" = "__EMPTY__" ]; then
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_finding_fingerprint_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
+      else
+        printf 'VIOLATION consistency: finding_fingerprint_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+    # finding_baseline_state_missing legacy carve-out (issue #330): same
+    # provably-pre-#324 downgrade as failure_class_missing above.
+    if [ "${fa_bs:-}" = "__EMPTY__" ] || [ -z "${fa_bs:-}" ]; then
+      if [ "$fa_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_finding_baseline_state_missing line %s\n' "$fa_n"
+        warnings=$((warnings + 1))
+      else
+        printf 'VIOLATION consistency: finding_baseline_state_missing line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    else
+      # finding_baseline_state_invalid: not in closed enum {new,unchanged,updated,resolved}
+      case "$fa_bs" in
+        new|unchanged|updated|resolved) ;;
+        *)
+          printf 'VIOLATION consistency: finding_baseline_state_invalid line %s\n' "$fa_n"
+          violations=$((violations + 1))
+          ;;
+      esac
+      # finding_baseline_missing_fingerprint: baseline_state present but
+      # fingerprint absent (cross-field coherence, kept for clarity)
+      if [ "$fa_fp" = "__EMPTY__" ]; then
+        printf 'VIOLATION consistency: finding_baseline_missing_fingerprint line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      fi
+    fi
+
+    # --- Actionability rules (issue #318, feature actionable-rejects) ---------
+    # Determine whether this fail span counts toward the reject cap.
+    # A fail span is countable for the reject cap when:
+    #   (a) actionable=true AND at least one non-empty evidence field, OR
+    #   (b) actionable is ABSENT (legacy backward compatibility).
+    # Not countable:
+    #   (c) actionable=false (non-actionable finding, WARNING only), OR
+    #   (d) actionable=true but no evidence (actionable_without_evidence VIOLATION).
+    fa_act_val="${fa_act:-__EMPTY__}"
+    fa_repro_val="${fa_repro:-__EMPTY__}"
+    fa_fix_val="${fa_fix:-__EMPTY__}"
+    fa_has_evidence=0
+    if [ "$fa_repro_val" != "__EMPTY__" ] || [ "$fa_fix_val" != "__EMPTY__" ]; then
+      fa_has_evidence=1
+    fi
+
+    if [ "$fa_act_val" = "false" ]; then
+      # Non-actionable finding: WARNING, does not count toward reject cap.
+      printf 'WARNING consistency: non_actionable_finding line %s %s\n' "$fa_n" "$fa_fid"
+      warnings=$((warnings + 1))
+    elif [ "$fa_act_val" = "true" ]; then
+      if [ "$fa_has_evidence" = "0" ]; then
+        # Actionable claimed but no evidence: VIOLATION, does not count.
+        printf 'VIOLATION consistency: actionable_without_evidence line %s\n' "$fa_n"
+        violations=$((violations + 1))
+      else
+        # Actionable with evidence: eligible for reject-cap analysis.
+        countable_reject_records="${countable_reject_records}${fa_fid}"$'\t'"${fa_reviewed_sha}"$'\t'"${fa_fp}"$'\t'"${fa_repeat_of}"$'\n'
+      fi
+    elif [ "$fa_act_val" = "__EMPTY__" ]; then
+      # Historical: no actionable field — backward-compatible, countable.
+      countable_reject_records="${countable_reject_records}${fa_fid}"$'\t'"${fa_reviewed_sha}"$'\t'"${fa_fp}"$'\t'"${fa_repeat_of}"$'\n'
+    else
+      # actionable_invalid: value is not in the closed enum {true, false}
+      # and is not absent (legacy). The emitter prevents new invalid values;
+      # this catches malformed persisted trace data.
+      printf 'VIOLATION consistency: actionable_invalid line %s\n' "$fa_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$failattr_lines" | grep -v '^$')
+fi
+
+# Review/approve phase (issue #303): the review_verdict_missing rule fires only
+# once the single end-of-issue review has started. The phase is active when an
+# approve span is present in the trace (reusing the ::approve token above) OR
+# the activation env var is explicitly set — before that, features legitimately
+# pass with no verdict yet, so the rule stays silent.
+phase_active=0
+if [ -n "$approve_sha" ] || [ "${REVIEW_GATE_APPROVE_PHASE:-}" = "1" ]; then
+  phase_active=1
+fi
+
+# --- State: repair-verdict scope (issue #318, feature repair-verdict-scope) ---
+# Every review_verdict span with harness.review_mode=="repair" MUST carry a
+# non-empty, valid harness.repair_scope. Canonical format: comma-separated list
+# of feature-id tokens matching [A-Za-z0-9._-]+, no whitespace, no empty tokens,
+# no duplicate tokens. The span's harness.feature_id MUST be an exact token
+# member of repair_scope — no substring matching. Full/concise verdicts are
+# exempt (repair-mode-only).
+#
+#   repair_scope_missing — repair verdict missing or empty repair_scope:
+#       VIOLATION consistency: repair_scope_missing line <N>
+#   repair_scope_invalid — repair_scope fails canonical format validation:
+#       VIOLATION consistency: repair_scope_invalid line <N>
+#   repair_scope_mismatch — feature_id is not an exact member of repair_scope:
+#       VIOLATION consistency: repair_scope_mismatch line <N>
+if [ "$repairscope_lines" != $'\n' ]; then
+  while IFS= read -r rs_line; do
+    [ -n "$rs_line" ] || continue
+    IFS=$'\t' read -r rs_n rs_fid rs_scope <<< "$rs_line"
+    # repair_scope_missing: absent or empty
+    if [ "$rs_scope" = "__EMPTY__" ]; then
+      printf 'VIOLATION consistency: repair_scope_missing line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_invalid: canonical format check
+    # Rule 0 (anchored whole-string grammar, checked BEFORE splitting):
+    #   full string must match ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$
+    #   This catches boundary commas (leading "," or trailing ",") that bash's
+    #   IFS=',' read -ra silently discards as empty trailing fields, which
+    #   would otherwise allow "feat-a," to pass the per-token loop.
+    # Rule 1: every token matches [A-Za-z0-9._-]+ (no whitespace, no empty)
+    # Rule 2: no duplicate tokens
+    scope_invalid=0
+    scope_tokens=()
+    if ! [[ "$rs_scope" =~ ^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$ ]]; then
+      scope_invalid=1
+    else
+      IFS=',' read -ra scope_tokens <<< "$rs_scope"
+      seen_tokens=$'\n'
+      for tok in "${scope_tokens[@]}"; do
+        if ! [[ "$tok" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          scope_invalid=1
+          break
+        fi
+        # Check for duplicates via newline-delimited seen list
+        if [[ "$seen_tokens" == *$'\n'"$tok"$'\n'* ]]; then
+          scope_invalid=1
+          break
+        fi
+        seen_tokens="${seen_tokens}${tok}"$'\n'
+      done
+    fi
+    if [ "$scope_invalid" = "1" ]; then
+      printf 'VIOLATION consistency: repair_scope_invalid line %s\n' "$rs_n"
+      violations=$((violations + 1))
+      continue
+    fi
+    # repair_scope_mismatch: feature_id must be an exact token member
+    scope_match=0
+    for tok in "${scope_tokens[@]}"; do
+      if [ "$tok" = "$rs_fid" ]; then
+        scope_match=1
+        break
+      fi
+    done
+    if [ "$scope_match" = "0" ]; then
+      printf 'VIOLATION consistency: repair_scope_mismatch line %s\n' "$rs_n"
+      violations=$((violations + 1))
+    fi
+  done < <(printf '%s' "$repairscope_lines" | grep -v '^$')
+fi
+
+# --- State: aggregate finding spans (issue #448) ------------------------------
+# One review_verdict/fail span = ONE finding. A span whose summary DECLARES
+# multiple findings — a count >= 2 immediately before "critical"/"warning"/
+# "finding" — is the aggregate shape that starves the implementer of
+# per-finding reproduction/fix context and breaks per-fingerprint reject-cap
+# accounting (Unilever issue-9 round 1: "3 critical and 4 warning findings:
+# ..." under one fingerprint; round 3 then surfaced 4 NEW findings).
+# Era carve-out (#330 pattern): spans provably before the #448 introduction
+# instant downgrade to a WARNING; unparseable timestamps stay enforced.
+repair_candidates=""
+if [ "$aggfinding_lines" != $'\n' ]; then
+  while IFS= read -r agg_line; do
+    [ -n "$agg_line" ] || continue
+    IFS=$'\t' read -r agg_n agg_legacy agg_fp agg_sha agg_summary <<< "$agg_line"
+    # Collect post-#448-era finding identities for the #449 routing audit.
+    if [ "$agg_legacy" = "0" ] && [ "$agg_fp" != "__EMPTY__" ] && [ "$agg_sha" != "__EMPTY__" ]; then
+      repair_candidates="${repair_candidates}${agg_sha}"$'\t'"${agg_fp}"$'\n'
+    fi
+    agg_summary_lc="$(printf '%s' "$agg_summary" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$agg_summary_lc" =~ (^|[^-0-9a-z])([2-9]|[1-9][0-9]+)[[:space:]]+(critical|warning|finding) ]]; then
+      # WARN-ONLY by design: the HARD stop lives at write time in
+      # log-handback.sh (#443 posture — impossible to write, not punishable
+      # post-hoc), so this rule only audits historical traces and writer
+      # bypasses. A blocking post-hoc rule here would be unclearable (the
+      # span already exists) — the #441-#443 dead-end.
+      if [ "$agg_legacy" = "1" ]; then
+        printf 'WARNING consistency: legacy_aggregate_finding_span line %s\n' "$agg_n"
+      else
+        printf 'WARNING consistency: aggregate_finding_span line %s\n' "$agg_n"
+      fi
+      warnings=$((warnings + 1))
+    fi
+  done < <(printf '%s' "$aggfinding_lines" | grep -v '^$')
+fi
+
+# --- State: repair-item routing audit (issue #449) ----------------------------
+# Post-#448 a review round records one fail span per finding. When one
+# reviewed_sha carries >= 2 distinct finding fingerprints, doctrine routes the
+# findings through the feature list as type:repair items (one-at-a-time
+# discipline, batch-end repair review). WARN-ONLY audit — the #448 lesson:
+# a post-hoc block on already-written state is unclearable. Each qualifying
+# fingerprint with no matching repair item warns; authoring the items clears
+# it. Pre-#448-era spans are silent (historical multi-round traces, e.g.
+# Unilever issue-9's two rounds at one sha, predate the doctrine).
+if [ -n "$repair_candidates" ] && [ ! -f "$FEATURE_LIST_FILE" ]; then
+  printf 'NOTE: repair_items_missing check skipped (no feature_list.json)\n'
+fi
+if [ -n "$repair_candidates" ] && [ -f "$FEATURE_LIST_FILE" ]; then
+  # NOTE-skip on unreadable JSON must leave the rest of the checker running:
+  # clearing state and falling through would feed grep empty input, whose
+  # rc=1 aborts the whole script under set -euo pipefail (reviewer F3).
+  if ! repair_item_fps="$(jq -r \
+    '.features[]? | select((.type // "feature") == "repair") | .finding_fingerprint // empty | strings' \
+    "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+    printf 'NOTE: repair_items_missing check skipped (feature_list.json is not valid JSON)\n'
+  else
+    qualifying_shas="$(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+      | awk -F'\t' '{count[$1]++} END {for (s in count) if (count[s] >= 2) print s}')"
+    while IFS= read -r q_sha; do
+      [ -n "$q_sha" ] || continue
+      while IFS= read -r q_fp; do
+        [ -n "$q_fp" ] || continue
+        if ! grep -Fxq "$q_fp" <<< "$repair_item_fps"; then
+          printf 'WARNING consistency: repair_items_missing %s\n' "$q_fp"
+          warnings=$((warnings + 1))
+        fi
+      done < <(printf '%s' "$repair_candidates" | grep -v '^$' | sort -u \
+        | awk -F'\t' -v s="$q_sha" '$1==s{print $2}')
+    done <<< "$qualifying_shas"
+  fi
+fi
+
+# --- State: review rejection convergence (issues #300, #318, #388) -----------
+# Three failures hard-stop only when evidence identifies one unrepaired defect:
+# the same reviewed SHA was resubmitted three times, or repeat_of links three
+# findings into one chain. Three or four distinct repaired findings warn. Five
+# total countable failures hard-stop as the moving-goalposts backstop. If any
+# countable record for a feature lacks reviewed_sha, preserve the historical
+# raw three-failure cap because older traces cannot prove repairs occurred.
+if [ "$countable_reject_records" != $'\n' ]; then
+  reject_findings="$(
+    printf '%s' "$countable_reject_records" \
+      | awk -F '\t' '
+          NF >= 4 {
+            fid = $1
+            sha = $2
+            fingerprint = $3
+            repeat_of = $4
+            total[fid]++
+            features[fid] = 1
+
+            if (sha == "__EMPTY__") {
+              legacy[fid] = 1
+            } else {
+              sha_key = fid SUBSEP sha
+              sha_count[sha_key]++
+              sha_owner[sha_key] = fid
+            }
+
+            root = fid "#" NR
+            parent_key = fid SUBSEP repeat_of
+            if (repeat_of != "__EMPTY__" && (parent_key in latest_root)) {
+              root = latest_root[parent_key]
+            }
+            chain_count[root]++
+            chain_owner[root] = fid
+            latest_root[fid SUBSEP fingerprint] = root
+          }
+          END {
+            for (fid in features) {
+              cap = (total[fid] >= 5 || (legacy[fid] && total[fid] >= 3))
+              for (key in sha_count) {
+                if (sha_owner[key] == fid && sha_count[key] >= 3) {
+                  cap = 1
+                }
+              }
+              for (root in chain_count) {
+                if (chain_owner[root] == fid && chain_count[root] >= 3) {
+                  cap = 1
+                }
+              }
+              if (cap) {
+                print "CAP\t" fid "\t" total[fid]
+              } else if (total[fid] >= 3) {
+                print "WARN\t" fid "\t" total[fid]
+              }
+            }
+          }
+        '
+  )"
+  while IFS=$'\t' read -r reject_kind reject_fid reject_count; do
+    [ -n "$reject_kind" ] || continue
+    if [ "$reject_kind" = "CAP" ]; then
+      printf 'VIOLATION consistency: review_reject_cap_exceeded %s\n' "$reject_fid"
+      violations=$((violations + 1))
+    else
+      printf 'WARNING consistency: review_reject_count_warning %s %s\n' \
+        "$reject_fid" "$reject_count"
+      warnings=$((warnings + 1))
+    fi
+  done <<< "$reject_findings"
+fi
+
+# --- State: duplicate_full_review (issue #299, WARN-only) ---------------------
+# When two OR MORE agent spans with harness.lifecycle_step=="review_verdict",
+# harness.review_mode=="full", and a string harness.reviewed_sha share the SAME
+# (harness.feature_id, harness.reviewed_sha) PAIR, warn once for that pair.
+# Grouping is per (feature_id, reviewed_sha): a different reviewed_sha is a
+# legit re-review of a new commit, and a whole-diff review under a different
+# feature id at the same sha is naturally exempt. The per-line ::fullreview
+# "fid<TAB>sha" pairs collected above are grouped here in bash (sort|uniq -c is
+# a constant fork budget — no per-line forks). WARN-ONLY: like
+# red_first_ordering_absent this is printed but never counted as a violation and
+# never flips the exit code.
+if [ "$fullreview_pairs" != $'\n' ]; then
+  while IFS= read -r fullreview_line; do
+    [ -n "$fullreview_line" ] || continue
+    fullreview_count="${fullreview_line%% *}"
+    fullreview_pair="${fullreview_line#* }"
+    if [ "$fullreview_count" -ge 2 ]; then
+      fullreview_fid="${fullreview_pair%%$'\t'*}"
+      fullreview_sha="${fullreview_pair#*$'\t'}"
+      printf 'WARNING consistency: duplicate_full_review %s %s\n' \
+        "$fullreview_fid" "$fullreview_sha"
+      warnings=$((warnings + 1))
+    fi
+  done < <(printf '%s' "$fullreview_pairs" | grep -v '^$' | sort | uniq -c \
+    | sed -E 's/^[[:space:]]*([0-9]+)[[:space:]]+/\1 /')
+fi
+
+# --- Red-first evidence pass RETIRED (issue #334) -----------------------------
+# The per-feature RED-first trace-evidence profile check (issue #144/#264) and
+# teeth_proof gating are removed: measured yield across real runs was zero (all
+# real catches came from the independent review) while the ceremony taxed every
+# green. TDD remains doctrine; the trace no longer has to PROVE redness.
+# Historical traces/feature lists carrying teeth_proof or red-first spans stay
+# valid (legacy tolerance, #330 pattern).
+
+# --- State: review verdict completeness --------------------------------------
+if [ -f "$FEATURE_LIST_FILE" ]; then
+  if passing_ids="$(jq -r '.features[]? | select(.passes == true) | .id | strings' \
+      "$FEATURE_LIST_FILE" 2>/dev/null)"; then
+    while IFS= read -r fid; do
+      [ -n "$fid" ] || continue
+      # review_verdict_missing (issue #303): once the review/approve phase is
+      # active, a passes:true feature with no review_verdict span (any outcome)
+      # is a real gap. Silent while the phase is inactive (normal mid-issue).
+      if [ "$phase_active" = "1" ] \
+          && [[ "$verdict_ids" != *$'\n'"$fid"$'\n'* ]]; then
+        printf 'VIOLATION consistency: review_verdict_missing %s\n' "$fid"
+        violations=$((violations + 1))
+      fi
+    done <<< "$passing_ids"
+  else
+    printf 'NOTE: review_verdict_missing check skipped (feature_list.json is not valid JSON)\n'
+  fi
+else
+  printf 'NOTE: review_verdict_missing check skipped (no feature_list.json)\n'
+fi
+
+# --- State: review_sha_mismatch (marker-only — no git, no network) ------------
+if [ -z "$approve_sha" ]; then
+  printf 'NOTE: review_sha_mismatch check skipped (no review_gate_approve span in trace)\n'
+elif [ -z "$MARKER_FILE" ] || [ ! -f "$MARKER_FILE" ]; then
+  printf 'NOTE: review_sha_mismatch check skipped (no approved-head marker)\n'
+else
+  marker_sha=""
+  IFS= read -r marker_sha < "$MARKER_FILE" || true
+  if [ "$approve_sha" != "$marker_sha" ]; then
+    printf 'VIOLATION consistency: review_sha_mismatch\n'
+    violations=$((violations + 1))
+  fi
+fi
+
+# --- State: pr_mismatch (scan-and-skip) ----------------------------------------
+# The LAST …/pull/<N> reference in progress.md is the claim (#103 loop-2 F5:
+# closeout lines come last; earlier prose may cite other PRs, e.g. "split
+# from …/pull/55"); the pr_create span's harness.pr_number is the evidence.
+# Either side absent → NOTE skip. The greedy `.*` prefix makes POSIX
+# leftmost-longest matching select the last occurrence.
+progress_content="$(cat "$PROGRESS_FILE")"
+if [[ "$progress_content" =~ .*/pull/([0-9]+) ]]; then
+  pr_progress_number="${BASH_REMATCH[1]}"
+  if [ -z "$pr_span_number" ]; then
+    printf 'NOTE: pr_mismatch check skipped (no pr_create span in trace)\n'
+  elif [ "$pr_progress_number" != "$pr_span_number" ]; then
+    printf 'VIOLATION consistency: pr_mismatch\n'
+    violations=$((violations + 1))
+  fi
+else
+  printf 'NOTE: pr_mismatch check skipped (no PR reference in progress.md)\n'
+fi
+
+# --- State: finished_with_inflight_status ------------------------------------
+if jq -e -R '
+    fromjson? | objects
+    | select(.span == "lifecycle"
+             and .["harness.lifecycle_step"] == "finish"
+             and .["harness.outcome"] == "pass")
+  ' "$TRACE_FILE" >/dev/null 2>&1 \
+    && grep -q '^Status:' "$PROGRESS_FILE"; then
+  printf 'VIOLATION consistency: finished_with_inflight_status\n'
+  violations=$((violations + 1))
+fi
+
+# --- State: spine_incomplete (complete window missing the semantic spine) ------
+# Runtime capture is retired (issue #305): "no runtime tool spans" is now the
+# NORMAL state, so this rule no longer inspects tool spans. On a COMPLETE issue
+# window (worktree_create + finish lifecycle spans) it requires the SEMANTIC
+# SPINE to be present — at least one current writer agent span (feature_start,
+# deviation, or review_verdict). Historical handback spans remain schema-valid
+# but no longer satisfy current-run completeness.
+if [ "${TRACE_ALLOW_DARK_RUN:-}" = "1" ]; then
+  printf 'NOTE: spine_incomplete check skipped (TRACE_ALLOW_DARK_RUN=1)\n'
+else
+  spine_facts="$(jq -nRr '
+    reduce inputs as $line
+      ({worktree_create: false, finish: false, spine_spans: 0, issue: ""};
+       [ $line | fromjson? | objects ][0] as $span
+       | if $span == null then .
+         else
+           .worktree_create = (.worktree_create or
+             ($span.span == "lifecycle" and
+              $span["harness.lifecycle_step"] == "worktree_create"))
+           | .finish = (.finish or
+             ($span.span == "lifecycle" and
+              $span["harness.lifecycle_step"] == "finish"))
+           | .spine_spans +=
+             (if $span.span == "agent" and
+                 (["feature_start", "deviation", "review_verdict"]
+                  | index($span["harness.lifecycle_step"])) != null
+              then 1 else 0 end)
+           | .issue =
+             (if .issue == "" and (($span["harness.issue"] | type) == "number")
+              then ($span["harness.issue"] | tostring) else .issue end)
+         end)
+    | [.worktree_create, .finish, .spine_spans, .issue] | @tsv
+  ' < "$TRACE_FILE")"
+  IFS=$'\t' read -r spine_has_worktree_create spine_has_finish \
+    spine_span_count spine_issue <<< "$spine_facts"
+  if [ "$spine_has_worktree_create" != "true" ] || [ "$spine_has_finish" != "true" ]; then
+    printf 'NOTE: spine_incomplete check skipped (issue window not complete — needs worktree_create and finish)\n'
+  elif [ "$spine_span_count" = "0" ]; then
+    printf 'VIOLATION consistency: spine_incomplete %s\n' "${spine_issue:-unknown}"
+    violations=$((violations + 1))
+  fi
+fi
+
+# --- Whole-repo pass: merge-provenance reconciliation (issue #460) ---------------
+# Warn-only by construction: the gap is immutable history, so the only sane
+# posture is surface-and-count (#448 lesson) — the remedy is a retroactive
+# deviation span naming the SHA, never re-work and never a blocked lifecycle.
+if [ -n "$REPOSITORY_ROOT" ]; then
+  MERGE_AUDIT_BASE_FILE="${REPOSITORY_ROOT}/config/harness/merge-audit-base"
+  if [ -f "$MERGE_AUDIT_BASE_FILE" ]; then
+    merge_audit_base="$(tr -d '[:space:]' < "$MERGE_AUDIT_BASE_FILE")"
+    merge_main_ref=""
+    if git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet origin/main >/dev/null 2>&1; then
+      merge_main_ref="origin/main"
+    elif git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet main >/dev/null 2>&1; then
+      merge_main_ref="main"
+    fi
+    if ! [[ "$merge_audit_base" =~ ^[0-9a-f]{40}$ ]] \
+      || [ -z "$merge_main_ref" ] \
+      || ! git -C "$REPOSITORY_ROOT" rev-parse --verify --quiet \
+             "${merge_audit_base}^{commit}" >/dev/null 2>&1; then
+      printf 'WARNING consistency: merge_audit_base_invalid\n'
+      warnings=$((warnings + 1))
+    else
+      merge_known_file="${TMP_DIR}/merge_provenance_known"
+      merge_deviation_file="${TMP_DIR}/merge_provenance_deviations"
+      : > "$merge_known_file"
+      : > "$merge_deviation_file"
+      while IFS= read -r merge_scan_trace; do
+        jq -Rrn '
+          [inputs | fromjson? | select(type == "object")] | .[]
+          | select((.["harness.lifecycle_step"] // "") == "pr_merge")
+          | select((.["harness.outcome"] // "") == "pass")
+          | .["harness.merge_sha"] // empty
+        ' < "$merge_scan_trace" >> "$merge_known_file" 2>/dev/null || true
+        jq -Rrn '
+          [inputs | fromjson? | select(type == "object")] | .[]
+          | select((.["harness.lifecycle_step"] // "") == "deviation")
+          | .["harness.summary"] // empty
+        ' < "$merge_scan_trace" >> "$merge_deviation_file" 2>/dev/null || true
+      done < <(find "${REPOSITORY_ROOT}/.copilot-tracking/issues" \
+                 -mindepth 2 -maxdepth 2 -name trace.jsonl -type f 2>/dev/null | sort)
+      while IFS= read -r merge_main_commit; do
+        [ -n "$merge_main_commit" ] || continue
+        grep -qxF "$merge_main_commit" "$merge_known_file" && continue
+        grep -qF "${merge_main_commit:0:12}" "$merge_deviation_file" && continue
+        printf 'WARNING consistency: merge_provenance_gap %s\n' "$merge_main_commit"
+        warnings=$((warnings + 1))
+      done < <(git -C "$REPOSITORY_ROOT" rev-list --first-parent \
+                 "${merge_audit_base}..${merge_main_ref}" 2>/dev/null)
+    fi
+  fi
+fi
+
+# --- Report tail + exit semantics (house family) --------------------------------
+printf '%d span(s), %d violation(s), %d warning(s)\n' "$total" "$violations" "$warnings"
+if [ "$violations" -gt 0 ]; then
+  red "✗ trace/artifact consistency check failed: ${TRACE_FILE}"
+  exit 1
+fi
+green "✓ trace consistent with progress.md, feature list, and review-gate state: ${TRACE_FILE}"

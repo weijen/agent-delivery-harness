@@ -13,8 +13,9 @@ fail() {
 
 REPO="${TMP_DIR}/repo"
 mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/schemas" "${REPO}/docs" "${REPO}/tests/scripts" "${REPO}/tests/scripts/validation"
+mkdir -p "${REPO}/scripts/trace"
 printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${REPO}/tests/scripts/test_review_syntax.sh"
-for script in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh lib/trace-lib.sh \
+for script in lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh lib/trace-lib.sh \
   lib/issue-lib.sh lib/ci-coverage-lib.sh \
   validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${script}" "${REPO}/scripts/${script}"

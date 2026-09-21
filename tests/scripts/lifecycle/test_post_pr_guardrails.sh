@@ -43,7 +43,7 @@ FIX="${TMP_DIR}/repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/schemas" "${FIX}/docs"
 for s in create-pr.sh lifecycle/create-pr.sh merge-pr.sh lifecycle/merge-pr.sh lib/lifecycle-runtime-lib.sh lib/trace-lib.sh \
          validation/review-gate.sh lib/ci-coverage-lib.sh validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh \
-         validation/affected-sensors.sh validation/verify-sensor-evidence.sh check-trace-consistency.sh \
+         validation/affected-sensors.sh validation/verify-sensor-evidence.sh check-trace-consistency.sh trace/check-trace-consistency.sh \
          lib/issue-lib.sh lib/github-identity-lib.sh; do
   mkdir -p "${FIX}/scripts/$(dirname "$s")"
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
