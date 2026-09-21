@@ -51,9 +51,10 @@ that the current runtime emits every type:
 
 Current harness traces carry lifecycle and semantic agent spans emitted by the
 harness itself. Deep GitHub Copilot tool/model analysis reads native records
-([runtime-adapters/github-copilot.md](github-copilot.md));
-[the optional Claude guide](https://github.com/weijen/agent-delivery-harness/blob/main/optional/runtime-adapters/claude-code.md) remains a
-labeled reference example. Historical traces may retain runtime-derived spans.
+([GitHub Copilot native-record guide](github-copilot.md)).
+GitHub Copilot is the retained runtime integration; Claude adapter support is
+retired. Historical traces may retain runtime-derived spans without implying
+current adapter support.
 
 ## Current operating contract
 
@@ -81,7 +82,7 @@ Historical schema values do not authorize new writes or add completion gates.
 ## The Layered Visibility Boundary
 
 This harness does not talk to a model API directly. It sits **on top of a
-coding agent** (GitHub Copilot, Claude Code), and that agent is itself a
+coding agent** (GitHub Copilot), and that agent is itself a
 harness over the model API. Three layers stack up, and each one up the stack
 loses a degree of visibility into the one below:
 
@@ -89,7 +90,7 @@ loses a degree of visibility into the one below:
 ┌─────────────────────────────────────────────┐
 │  this harness — lifecycle / semantic / gate │  the layer we own
 ├─────────────────────────────────────────────┤
-│  coding agent (Copilot / Claude Code)        │  prompt assembly, RAG,
+│  coding agent (GitHub Copilot)              │  prompt assembly, RAG,
 │    prompt assembly, context management,      │  tool routing, permission
 │    tool execution, permissions, sandbox      │  decisions, retries
 ├─────────────────────────────────────────────┤
@@ -128,8 +129,8 @@ direct-API agent sees everything at the model layer but must implement context
 management, sandboxing, permissions, and retries itself, and its telemetry only
 ever holds the model's point of view. Standing one layer up trades that
 model-level visibility for signals the model layer has no concept of: a
-runtime-portable span vocabulary (the same lifecycle and semantic spans survive
-swapping Copilot for Claude Code without touching an eval), process-layer truth
+runtime-independent span vocabulary (lifecycle and semantic fields do not depend
+on native-record formats; this is not a promise of another runtime adapter), process-layer truth
 (review-gate SHA, attributed review findings, observed sensor results, PR
 merge), and a contract that keeps the low coverage **known and labeled** instead
 of papered over. The harness is not competing with a direct-API agent on

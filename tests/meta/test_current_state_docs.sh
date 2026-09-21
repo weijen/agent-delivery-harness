@@ -133,6 +133,27 @@ require docs/github-copilot.md '](observability-and-trace-schema.md)'
 require docs/observability-and-trace-schema.md '](../schemas/trace-schema.v1.json)'
 require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
 
+# Current support references are distinct from archived prose and retirement
+# inventory. Adapter source deletion is a separate boundary.
+while IFS= read -r guide; do
+  case "$guide" in
+    docs/archive/*|optional/*|CHANGELOG.md|docs/evaluation/README.md) continue ;;
+  esac
+  reject_regex "$guide" '(optional/runtime-adapters|docs/runtime-adapters)/claude'
+done < <(git ls-files '*.md')
+for guide in docs/HARNESS.md docs/observability-and-trace-schema.md; do
+  require "$guide" '](github-copilot.md)'
+  reject_regex "$guide" '(coding agent|swapping Copilot).*Claude Code'
+done
+for asset in claude-code.md claude-code.settings.example.json; do
+  row="$(grep -F "| \`docs/runtime-adapters/${asset}\` |" docs/evaluation/README.md)"
+  [[ "$row" == *'| retired |' ]] || fail "Claude inventory must classify ${asset} as retired history"
+done
+skill_origin="$(jq -r '.optional_fields["harness.skill.name"]' schemas/trace-schema.v1.json)"
+grep -Eqi 'historical.*Claude' <<<"$skill_origin" \
+  || fail "schema must distinguish historical Claude emission from current support"
+reject_regex schemas/trace-schema.v1.json 'Claude Code adapter (mints|backfills)'
+
 layout_guide="$(awk '
   /^### Current script layout/ {capture=1; next}
   capture && /^##/ {exit}
