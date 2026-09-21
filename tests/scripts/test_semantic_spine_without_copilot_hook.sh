@@ -70,9 +70,10 @@ exit 0
 SH
     chmod +x "${SCRATCH}/bin/gh"
 
-    for script in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
-      finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
+    for script in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
+      finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
       check-trace-consistency.sh log-handback.sh; do
+      mkdir -p "${SCRATCH}/repo/scripts/$(dirname "$script")"
       cp "${ROOT}/scripts/${script}" "${SCRATCH}/repo/scripts/${script}"
     done
     cp "${ROOT}/schemas/trace-schema.v1.json" \

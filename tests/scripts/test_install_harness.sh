@@ -118,8 +118,9 @@ if "$INSTALL" "$e" --update >"$OUT" 2>&1; then
 fi
 grep -qF 'conflict scripts/init.sh' "$OUT" || { cat "$OUT"; echo "case-f: conflict was not reported"; exit 1; }
 [ "$(cat "$sentinel")" = "$sentinel_before" ] || { echo "case-f: --update overwrote unknown-base adopter content"; exit 1; }
+# shellcheck disable=SC2016 # Match the literal forwarding command in the rejection diff.
 if ! grep -qF 'PROJECT LOCAL EDIT' "${sentinel}.rej" \
-	|| ! grep -qF 'init.sh — preflight' "${sentinel}.rej"; then
+	|| ! grep -qF '+exec "${SCRIPT_DIR}/lifecycle/init.sh" "$@"' "${sentinel}.rej"; then
 	echo "case-f: rejection patch does not describe the upstream replacement"
 	exit 1
 fi

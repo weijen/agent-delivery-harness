@@ -19,7 +19,7 @@
 # toolchain ordering.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CONTRACT="${ROOT}/docs/harness-contract.yml"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -102,6 +102,8 @@ R1="${TMP_DIR}/r1"
 mkdir -p "${R1}/scripts/lib" "${R1}/scripts/validation"
 cp "${ROOT}/scripts/lib/issue-lib.sh" "${R1}/scripts/lib/"
 cp "${ROOT}/scripts/start-issue.sh" "${R1}/scripts/"
+mkdir -p "${R1}/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/start-issue.sh" "${R1}/scripts/lifecycle/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${R1}/scripts/lib/"
 # A preflight that FAILS — start-issue must honor it and stop.
 cat > "${R1}/scripts/init.sh" <<'SH'
@@ -149,6 +151,8 @@ set +e
 # Bare origin so a push, if it happened, would be observable.
 mkdir -p "${TMP_DIR}/origin-seed/scripts/lib" "${TMP_DIR}/origin-seed/scripts/validation"
 cp "${ROOT}/scripts/create-pr.sh" "${TMP_DIR}/origin-seed/scripts/"
+mkdir -p "${TMP_DIR}/origin-seed/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/create-pr.sh" "${TMP_DIR}/origin-seed/scripts/lifecycle/"
 cp "${ROOT}/scripts/validation/review-gate.sh" "${TMP_DIR}/origin-seed/scripts/validation/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/origin-seed/scripts/lib/"
 cd "${TMP_DIR}/origin-seed"
@@ -164,6 +168,8 @@ git clone -q --bare "${TMP_DIR}/origin-seed" "${TMP_DIR}/origin.git"
 R2="${TMP_DIR}/r2"
 mkdir -p "${R2}/scripts/lib" "${R2}/scripts/validation"
 cp "${ROOT}/scripts/create-pr.sh" "${R2}/scripts/"
+mkdir -p "${R2}/scripts/lifecycle"
+cp "${ROOT}/scripts/lifecycle/create-pr.sh" "${R2}/scripts/lifecycle/"
 cp "${ROOT}/scripts/validation/review-gate.sh" "${R2}/scripts/validation/"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${R2}/scripts/lib/"
 cd "$R2"
@@ -205,7 +211,8 @@ set +e
   set -e
 R3="${TMP_DIR}/r3"
 mkdir -p "${R3}/scripts/lib" "${R3}/scripts/validation"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh; do
+for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh validation/check-feature-list.sh init.sh lifecycle/init.sh; do
+  mkdir -p "${R3}/scripts/$(dirname "$s")"
   cp "${ROOT}/scripts/${s}" "${R3}/scripts/${s}"
 done
 # Pin a PATH that includes jq + a fake gh so the completion check actually runs,

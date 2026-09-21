@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+[ -x "${ROOT}/scripts/lifecycle/init.sh" ] || {
+	echo "canonical lifecycle preflight implementation is missing" >&2
+	exit 1
+}
+inventory="$("${ROOT}/scripts/validation/affected-sensors.sh" --list)"
+if [ "$(printf '%s\n' "$inventory" | grep -Fxc tests/scripts/lifecycle/test_init_gates.sh)" -ne 1 ] \
+	|| printf '%s\n' "$inventory" | grep -Fxq tests/scripts/test_init_gates.sh; then
+	echo "preflight sensor identity must exist exactly once at its canonical path" >&2
+	exit 1
+fi
 TMP_DIR="$(mktemp -d "${ROOT}/.test-init-gates.XXXXXX")"
 OUT="${TMP_DIR}/out"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 cd "$ROOT"
+
+copy_init() {
+	local target="$1"
+	mkdir -p "${target}/scripts/lifecycle"
+	cp "${ROOT}/scripts/init.sh" "${target}/scripts/init.sh"
+	cp "${ROOT}/scripts/lifecycle/init.sh" "${target}/scripts/lifecycle/init.sh"
+}
 
 # The real-root invocation deliberately fails GitHub auth before gate execution.
 # This keeps the smoke check bounded while still exercising init.sh's real
@@ -78,7 +95,7 @@ grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 
 # --- Docs-only path (fixture repo with no language/infra surface) -------------
 mkdir -p "${TMP_DIR}/docsrepo/scripts/lib" "${TMP_DIR}/docsrepo/scripts/validation"
-cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/docsrepo/scripts/init.sh"
+copy_init "${TMP_DIR}/docsrepo"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
 (
 	cd "${TMP_DIR}/docsrepo"
@@ -98,7 +115,7 @@ if grep -q "markdownlint" "$OUT"; then
 fi
 
 mkdir -p "${TMP_DIR}/repo/scripts/lib" "${TMP_DIR}/repo/scripts/validation" "${TMP_DIR}/fakebin"
-cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
+copy_init "${TMP_DIR}/repo"
 cp "${ROOT}/scripts/validation/python-gates.sh" "${TMP_DIR}/repo/scripts/validation/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/repo/profiles"
 cat > "${TMP_DIR}/fakebin/gh" <<'SH'
@@ -170,13 +187,37 @@ grep -qF "uv run pytest -q" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"
 grep -qF "pnpm run test" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"; exit 1; }
 grep -qF "terraform fmt -check -recursive" "${TMP_DIR}/gate.log" || { cat "${TMP_DIR}/gate.log"; exit 1; }
 
+# Both paths must inspect their own checkout, even from an unrelated cwd.
+git config user.name "Harness Test"
+git config user.email "harness-test@example.invalid"
+git add scripts profiles pyproject.toml package.json pnpm-lock.yaml main.tf tests
+git commit -qm 'test: preflight checkout fixture'
+git worktree add -q -b feature/issue-07-preflight "${TMP_DIR}/linked"
+for checkout in "${TMP_DIR}/repo" "${TMP_DIR}/linked"; do
+	for entry in scripts/init.sh scripts/lifecycle/init.sh; do
+		(cd "$TMP_DIR" && REQUIRE_AZ=0 GATE_LOG="${TMP_DIR}/gate.log" \
+			PATH="${TMP_DIR}/fakebin:${PATH}" "${checkout}/${entry}") >"$OUT" 2>&1 \
+			|| { cat "$OUT"; echo "cwd-independent preflight failed: ${entry}"; exit 1; }
+		for surface in Python Node Terraform; do
+			grep -q "${surface} surface detected" "$OUT" \
+				|| { cat "$OUT"; echo "preflight inspected caller cwd instead of ${checkout}"; exit 1; }
+		done
+	done
+done
+mv scripts/lifecycle/init.sh scripts/lifecycle/init.disabled
+if PATH="${TMP_DIR}/fakebin:${PATH}" ./scripts/init.sh >"$OUT" 2>&1; then
+	echo "public preflight must not retain a duplicate implementation or source fallback"
+	exit 1
+fi
+mv scripts/lifecycle/init.disabled scripts/lifecycle/init.sh
+
 # --- Failed-gate reporting ---------------------------------------------------
 # A failing quality gate must be REPORTED and turn the run into a hard failure
 # (exit 1), not be swallowed. Use a Python-only repo with a fake uv whose
 # `ruff format --check` gate fails while `sync` succeeds.
 FAILBIN="${TMP_DIR}/failbin"
 mkdir -p "${TMP_DIR}/failrepo/scripts/lib" "${TMP_DIR}/failrepo/scripts/validation" "$FAILBIN"
-cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/failrepo/scripts/init.sh"
+copy_init "${TMP_DIR}/failrepo"
 cp "${ROOT}/scripts/validation/python-gates.sh" "${TMP_DIR}/failrepo/scripts/validation/python-gates.sh"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/failrepo/profiles"
 cat > "${FAILBIN}/gh" <<'SH'
@@ -258,7 +299,7 @@ chmod +x "${BIN}/az"
 new_repo() {
   local dir="${TMP_DIR}/$1"
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation"
-  cp "${ROOT}/scripts/init.sh" "${dir}/scripts/init.sh"
+  copy_init "$dir"
   cp -R "${ROOT}/profiles" "${dir}/profiles"
   git -C "$dir" init -q -b main
   git -C "$dir" config user.name "Harness Test"
@@ -346,7 +387,7 @@ SH
 # --- Case (a): wiring — init.sh must read the descriptor, not a hard-coded string
 a="${TMP_DIR}/a"
 mkdir -p "$a/scripts/lib" "$a/scripts/validation" "$a/profiles" "$a/bin"
-cp "${ROOT}/scripts/init.sh" "$a/scripts/init.sh"
+copy_init "$a"
 cat > "$a/profiles/python.profile.sh" <<'SH'
 # shellcheck shell=bash
 # shellcheck disable=SC2034
@@ -385,7 +426,7 @@ grep -q "STUB-TEST-OK" "$OUT" || { cat "$OUT"; echo "case-a: gate OK not read fr
 # --- Case (b): Python parity with the REAL descriptor ------------------------
 b="${TMP_DIR}/b"
 mkdir -p "$b/scripts/lib" "$b/scripts/validation" "$b/bin"
-cp "${ROOT}/scripts/init.sh" "$b/scripts/init.sh"
+copy_init "$b"
 cp "${ROOT}/scripts/validation/python-gates.sh" "$b/scripts/validation/python-gates.sh"
 cp -R "${ROOT}/profiles" "$b/profiles"
 make_gh "$b/bin"
@@ -406,7 +447,7 @@ done
 # --- Case (c): a failing gate hard-fails -------------------------------------
 c="${TMP_DIR}/c"
 mkdir -p "$c/scripts/lib" "$c/scripts/validation" "$c/bin"
-cp "${ROOT}/scripts/init.sh" "$c/scripts/init.sh"
+copy_init "$c"
 cp "${ROOT}/scripts/validation/python-gates.sh" "$c/scripts/validation/python-gates.sh"
 cp -R "${ROOT}/profiles" "$c/profiles"
 make_gh "$c/bin"
@@ -429,7 +470,7 @@ grep -qi "Preflight FAILED" "$OUT" || { cat "$OUT"; echo "case-c: no preflight f
 # --- Case (d): docs-only parity ----------------------------------------------
 d="${TMP_DIR}/d"
 mkdir -p "$d/scripts/lib" "$d/scripts/validation" "$d/bin"
-cp "${ROOT}/scripts/init.sh" "$d/scripts/init.sh"
+copy_init "$d"
 cp -R "${ROOT}/profiles" "$d/profiles"
 make_gh "$d/bin"
 ( cd "$d" && git init -q -b main

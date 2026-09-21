@@ -95,7 +95,7 @@ profile_current="$(awk '
   capture {print}
 ' docs/multi-language-profiles.md)"
 for authority in profiles/README.md scripts/scaffold-language.sh docs/harness-contract.yml \
-  tests/scripts/test_harness_contract.sh .copilot-tracking/review-gate/issue-NN/approved-head; do
+  tests/scripts/lifecycle/test_harness_contract.sh .copilot-tracking/review-gate/issue-NN/approved-head; do
   printf '%s\n' "$profile_current" | grep -qF "$authority" \
     || fail "current profile workflow must reference ${authority}"
   case "$authority" in
@@ -111,8 +111,8 @@ if printf '%s\n' "$profile_current" | grep -qiE 'before.*implemented|add a gener
 fi
 require profiles/README.md 'explicit marker'
 reject_regex profiles/README.md 'moves a language.s surface detection|does not hard-code the details'
-require scripts/init.sh 'pyproject.toml'
-require scripts/init.sh 'package.json'
+require scripts/lifecycle/init.sh 'pyproject.toml'
+require scripts/lifecycle/init.sh 'package.json'
 
 for doc in product-quality-rubric failure-mode-taxonomy observability-and-trace-schema github-copilot; do
   [ -f "docs/${doc}.md" ] || fail "current operating guide missing: docs/${doc}.md"
@@ -139,7 +139,8 @@ layout_guide="$(awk '
   capture {print}
 ' docs/getting-started.md)"
 [ -n "$layout_guide" ] || fail "onboarding lacks current script layout guidance"
-for authority in scripts/lib/ scripts/validation/ tests/scripts/validation/ scripts/run-sensors.sh; do
+for authority in scripts/lib/ scripts/validation/ tests/scripts/validation/ scripts/run-sensors.sh \
+  scripts/lifecycle/ tests/scripts/lifecycle/ scripts/init.sh; do
   [ -e "$authority" ] || fail "documented layout authority missing: ${authority}"
   grep -qF "$authority" <<<"$layout_guide" || fail "onboarding omits ${authority}"
 done
@@ -149,32 +150,41 @@ require docs/scripts-language-policy.md "No unified \`harness\` mono-CLI"
 reject_regex docs/scripts-language-policy.md 'directory stays flat|only sanctioned new subdirectory'
 
 layout_moves="$(awk '
+  function emit() {
+    if (old != "") print old "\t" canonical "\t" public
+    old=canonical=public=""
+  }
   /^layout_moves:/ {selected=1; next}
   selected && /^[^ #]/ {exit}
-  selected && /^  - from:/ {old=$3}
-  selected && /^    to:/ {print old "\t" $2}
+  selected && /^  - from:/ {emit(); old=$3}
+  selected && /^    to:/ {canonical=$2}
+  selected && /^    public_entrypoint:/ {public=$2}
+  END {emit()}
 ' docs/harness-contract.yml)"
 [ -n "$layout_moves" ] || fail "maintained layout identity map missing"
 for column in 1 2; do
   [ -z "$(cut -f "$column" <<<"$layout_moves" | sort | uniq -d)" ] \
     || fail "layout identity map contains duplicate column-${column} paths"
 done
-while IFS=$'\t' read -r old canonical; do
+while IFS=$'\t' read -r old canonical public; do
   [ -f "$canonical" ] || fail "layout map points at missing canonical file: ${canonical}"
-  if [ "$old" = scripts/run-sensors.sh ]; then
-    [ -x "$old" ] || fail "documented public runner disappeared"
+  if [ -n "$public" ]; then
+    [ "$public" = "$old" ] && [ -x "$old" ] || fail "documented public entrypoint disappeared"
+    grep -Fq "exec \"\${SCRIPT_DIR}/${canonical#scripts/}\" \"\$@\"" "$old" \
+      || fail "public entrypoint does not exec its canonical implementation: ${old}"
   else
     [ ! -e "$old" ] || fail "layout retains duplicate old implementation: ${old}"
   fi
   grep -qxF "$canonical" scripts/install-harness.assets \
-    || fail "canonical core layout dependency absent from explicit payload: ${canonical}"
+    || grep -qxF "$canonical" tests/harness-dev-sensors.txt \
+    || fail "canonical layout dependency absent from payload and source-only registry: ${canonical}"
 done <<<"$layout_moves"
-for group in lib validation; do
+for group in lib validation lifecycle; do
   grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
     || fail "active structure policy omits shipped category ${group}"
 done
-for group in lifecycle install trace maintenance; do
-  [ ! -d "scripts/${group}" ] || fail "later category unexpectedly migrated in the first layout child: ${group}"
+for group in install trace maintenance; do
+  [ ! -d "scripts/${group}" ] || fail "later category unexpectedly migrated during lifecycle work: ${group}"
 done
 
 printf 'current-state documentation checks passed\n'

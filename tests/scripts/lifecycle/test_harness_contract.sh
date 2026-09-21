@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CONTRACT="${ROOT}/docs/harness-contract.yml"
 
 # shellcheck source=/dev/null
@@ -169,14 +169,19 @@ end_scenario "declared scripts exist, are executable, and parse (bash -n)"
 # --- 2. Required-script backstop (contract must not silently shrink) ---------
 for required in \
   scripts/init.sh \
+  scripts/lifecycle/init.sh \
   scripts/lib/github-identity-lib.sh \
   scripts/lib/issue-lib.sh \
   scripts/start-issue.sh \
+  scripts/lifecycle/start-issue.sh \
   scripts/validation/check-feature-list.sh \
   scripts/validation/review-gate.sh \
   scripts/create-pr.sh \
+  scripts/lifecycle/create-pr.sh \
   scripts/merge-pr.sh \
+  scripts/lifecycle/merge-pr.sh \
   scripts/finish-issue.sh \
+  scripts/lifecycle/finish-issue.sh \
   scripts/lib/trace-lib.sh; do
   case " ${declared_scripts} " in
     *" ${required} "*) : ;;
@@ -206,8 +211,8 @@ for section in "${gate_sections[@]}"; do
     esac
   done <<< "$records"
 done
-require_contract_record gate_sensors id pre-pr-evidence scripts/create-pr.sh
-require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
+require_contract_record gate_sensors id pre-pr-evidence scripts/lifecycle/create-pr.sh
+require_contract_record gate_merge_closeout id ci-green-merge scripts/lifecycle/merge-pr.sh
 if grep -q -- '--last' scripts/run-sensors.sh scripts/validation/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
 fi
@@ -227,10 +232,10 @@ require_contract_record policy id hard-gates-observed-only
 require_contract_record policy id new-rules-warn-first
 require_contract_record sha_bindings id approval-head scripts/validation/review-gate.sh
 require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
-require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
-require_contract_record bypasses id FORCE scripts/finish-issue.sh
+require_contract_record sha_bindings id ci-green-head scripts/lifecycle/merge-pr.sh
+require_contract_record bypasses id FORCE scripts/lifecycle/finish-issue.sh
 require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh
-require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
+require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/lifecycle/create-pr.sh
 while IFS= read -r rec; do
   [ -n "$rec" ] || continue
   provenance="$(field "$rec" provenance)"
@@ -256,12 +261,12 @@ end_scenario "contract declares evidence governance, SHA bindings, and audited b
 # The lifecycle entrypoints emit schema-v1 spans via lifecycle-runtime-lib.sh,
 # while check-feature-list.sh sources trace-lib.sh directly.
 te_required=(
-  scripts/start-issue.sh
+  scripts/lifecycle/start-issue.sh
   scripts/validation/check-feature-list.sh
   scripts/validation/review-gate.sh
-  scripts/create-pr.sh
-  scripts/merge-pr.sh
-  scripts/finish-issue.sh
+  scripts/lifecycle/create-pr.sh
+  scripts/lifecycle/merge-pr.sh
+  scripts/lifecycle/finish-issue.sh
 )
 for owner in "${te_required[@]}"; do
   abs="${ROOT}/${owner}"
@@ -366,7 +371,7 @@ end_scenario "language-neutral scripts contain no language/toolchain tokens"
 # --- 5. No stale IMPLEMENTATION-STATUS references in tracked files -----------
 # The repo-wide status doc is named docs/PROGRESS.md everywhere (issue #84). Any
 # surviving IMPLEMENTATION-STATUS reference reintroduces the naming split.
-stale_status_refs="$(git -C "$ROOT" grep -I -l "IMPLEMENTATION-STATUS" -- . ':!tests/scripts/test_harness_contract.sh' 2>/dev/null || true)"
+stale_status_refs="$(git -C "$ROOT" grep -I -l "IMPLEMENTATION-STATUS" -- . ':!tests/scripts/lifecycle/test_harness_contract.sh' 2>/dev/null || true)"
 if [ -n "$stale_status_refs" ]; then
   while IFS= read -r f; do
     [ -n "$f" ] || continue

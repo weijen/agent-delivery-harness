@@ -15,7 +15,11 @@
 # merge sentinel is absent AND a "checks are not green" refusal is printed.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+[ -x "${ROOT}/scripts/lifecycle/merge-pr.sh" ] || {
+  printf 'canonical lifecycle merge implementation is missing\n' >&2
+  exit 1
+}
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
@@ -91,7 +95,8 @@ run_merge() {
   local sentinel="$1" out rc
   shift
   rm -f "$sentinel"
-  out="$( (cd "${FIXREPO}" && MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" "$@") 2>&1)" && rc=0 || rc=$?
+  mkdir -p "${FIXREPO}/nested/cwd"
+  out="$( (cd "${FIXREPO}/nested/cwd" && MERGE_SENTINEL="$sentinel" PATH="${BIN}:${PATH}" bash "$MERGE_SCRIPT" "$@") 2>&1)" && rc=0 || rc=$?
   printf '%s\n%s' "$rc" "$out"
 }
 
@@ -123,12 +128,22 @@ printf '%s' "$out" | grep -Eiq 'checks are not green' \
   || fail "no-checks refusal must report that CI checks are not green (got: ${out})"
 
 # --- Case 4: checks green -> merge -------------------------------------------
+MERGE_SCRIPT="${ROOT}/scripts/lifecycle/merge-pr.sh"
 SENTINEL="${TMP_DIR}/case4.log"
 res="$(FAKE_CHECKS_RC=0 FAKE_CHECKS_OUT='harness-smoke  pass  1m' run_merge "$SENTINEL")"
 rc="${res%%$'\n'*}"
 [ "$rc" = "0" ] || fail "merge-pr.sh must succeed when CI checks are green (rc=${rc})"
 [ -f "$SENTINEL" ] || fail "merge-pr.sh must call 'gh pr merge' when CI checks are green"
 grep -q 'pr merge' "$SENTINEL" || fail "merge sentinel should record the gh pr merge call"
+
+# A successful merge command is not authoritative merge confirmation.
+SENTINEL="${TMP_DIR}/unconfirmed.log"
+res="$(FAKE_MERGE_STATE=OPEN FAKE_CHECKS_RC=0 FAKE_CHECKS_OUT='harness-smoke  pass  1m' run_merge "$SENTINEL" --squash --delete-branch)"
+rc="${res%%$'\n'*}"; out="${res#*$'\n'}"
+[ "$rc" != "0" ] || fail "canonical merge accepted an unconfirmed merge"
+printf '%s' "$out" | grep -q 'not confirmed MERGED' || fail "unconfirmed merge was not explained"
+git -C "$FIXREPO" show-ref --verify --quiet refs/heads/feature/issue-99-ci-gate-fixture \
+  || fail "unconfirmed merge deleted the branch"
 
 # --- Case 5: stray positional arg (bare PR number) -> refuse, do not merge ---
 # merge-pr.sh resolves the PR from the current worktree branch, so a positional
@@ -235,10 +250,10 @@ assert_help_side_effect_free() {
 }
 
 # --- --help: exit 0, usage printed, zero gh calls, no merged/open line ------
-assert_help_side_effect_free "--help"
-
-# --- -h: same guarantees, short flag -----------------------------------------
-assert_help_side_effect_free "-h"
+for MERGE_SCRIPT in "${ROOT}/scripts/merge-pr.sh" "${ROOT}/scripts/lifecycle/merge-pr.sh"; do
+  assert_help_side_effect_free "--help"
+  assert_help_side_effect_free "-h"
+done
 
 printf 'merge-pr.sh --help/-h is side-effect free\n'
 )
@@ -330,8 +345,9 @@ SENT1="${TMP_DIR}/case1-merge.log"
 : > "$SENT1"
 
 ERR1="${TMP_DIR}/case1.err"
+mkdir -p "${WT1}/nested/cwd"
 rc=0
-out="$( (cd "$WT1" && MERGE_SENTINEL="$SENT1" PATH="${BIN}:${PATH}" \
+out="$( (cd "${WT1}/nested/cwd" && MERGE_SENTINEL="$SENT1" PATH="${BIN}:${PATH}" \
   bash "$MERGE_SCRIPT" --squash --delete-branch) 2>"$ERR1")" || rc=$?
 err="$(cat "$ERR1")"
 
@@ -379,8 +395,10 @@ git -C "$PRIMARY2" remote remove origin
 git -C "$WT2" remote remove origin 2>/dev/null || true
 
 ERR2="${TMP_DIR}/case2.err"
+MERGE_SCRIPT="${ROOT}/scripts/lifecycle/merge-pr.sh"
+mkdir -p "${WT2}/nested/cwd"
 rc2=0
-out2="$( (cd "$WT2" && MERGE_SENTINEL="$SENT2" PATH="${BIN}:${PATH}" \
+out2="$( (cd "${WT2}/nested/cwd" && MERGE_SENTINEL="$SENT2" PATH="${BIN}:${PATH}" \
   bash "$MERGE_SCRIPT" --squash --delete-branch) 2>"$ERR2")" || rc2=$?
 both2="$(printf '%s\n%s' "$out2" "$(cat "$ERR2")")"
 

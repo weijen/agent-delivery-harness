@@ -3,7 +3,11 @@
 # Publication consumes applicable pre-PR evidence; it must never rerun sensors.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+[ -x "${ROOT}/scripts/lifecycle/create-pr.sh" ] || {
+	printf 'canonical lifecycle publication implementation is missing\n' >&2
+	exit 1
+}
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
 fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
@@ -26,7 +30,10 @@ cat >"${BIN}/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
   "pr view") [ -f "${GH_STATE:?}" ] || exit 1; printf '418\n' ;;
-  "pr create") : >"${GH_STATE:?}" ;;
+  "pr create")
+    [ "$#" -eq 6 ] && [ "$3" = --title ] && [ "$4" = 'test title with spaces' ] \
+      && [ "$5" = --body ] && [ "$6" = 'test body with spaces' ] || exit 89
+    : >"${GH_STATE:?}" ;;
   *) printf 'unexpected gh call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
@@ -65,10 +72,12 @@ git -C "$REPO" fetch -q origin main
   || fail "fixture approval failed"
 head="$(git -C "$REPO" rev-parse HEAD)"
 
+publish_entry=scripts/create-pr.sh
 publish() {
   # Three successful publication variants precede the push-error probes.
-  (cd "$REPO" && PATH="${BIN}:${PATH}" POST_PR_ROUND_CAP=4 \
-    ./scripts/create-pr.sh --title test --body test) >"$OUT" 2>&1
+  mkdir -p "${REPO}/nested/cwd"
+  (cd "${REPO}/nested/cwd" && PATH="${BIN}:${PATH}" POST_PR_ROUND_CAP=4 \
+    "${REPO}/${publish_entry}" --title 'test title with spaces' --body 'test body with spaces') >"$OUT" 2>&1
 }
 clear_calls() { : >"$SENSOR_EXECUTIONS"; : >"$WRAPPER_GIT_LOG"; }
 assert_no_execution() {
@@ -144,6 +153,11 @@ git -C "$PEER" push -q origin main
 for mode in first existing no-rewrite; do
   clear_calls
   if [ "$mode" = no-rewrite ]; then
+    linked="${FIXTURE_TMP_DIR}/linked"
+    git -C "$REPO" checkout -q main
+    git -C "$REPO" worktree add -q "$linked" "$BRANCH"
+    REPO="$linked"
+    publish_entry=scripts/lifecycle/create-pr.sh
     CREATE_PR_NO_REWRITE=1 publish || fail "${mode}: verified publication failed"
   else
     publish || fail "${mode}: verified publication failed"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/merge-pr.sh scripts/finish-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -50,10 +50,16 @@ mkdir -p "$legacy_source"
 git -C "$ROOT" archive v0.45.2 scripts profiles tests .copilot docs schemas optional VERSION \
 	.github/harness-identity.env.example | tar -x -C "$legacy_source"
 awk '
+	function emit() {
+		if (old != "") print old "\t" canonical "\t" public
+		old=canonical=public=""
+	}
 	/^layout_moves:/ { selected=1; next }
 	selected && /^[^ #]/ { exit }
-	selected && /^  - from:/ { old=$3 }
-	selected && /^    to:/ { print old "\t" $2 }
+	selected && /^  - from:/ { emit(); old=$3 }
+	selected && /^    to:/ { canonical=$2 }
+	selected && /^    public_entrypoint:/ { public=$2 }
+	END { emit() }
 ' "${ROOT}/docs/harness-contract.yml" >"${TMP_DIR}/layout-moves"
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
 
@@ -104,9 +110,17 @@ for profile in default developer claude; do
 	else
 		[ "$status" -eq 0 ] || fail_layout "${profile} clean upgrade failed"
 	fi
-	while IFS=$'\t' read -r old canonical; do
-		[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
-		[ "$old" != scripts/run-sensors.sh ] || continue
+	while IFS=$'\t' read -r old canonical public; do
+		if grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
+			[ ! -e "${target}/${canonical}" ] || fail_layout "${profile} installed source-only ${canonical}"
+		else
+			[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
+		fi
+		if [ -n "$public" ]; then
+			[ "$public" = "$old" ] && [ -x "${target}/${public}" ] \
+				|| fail_layout "${profile} lost declared public entrypoint ${public}"
+			continue
+		fi
 		if [ "$profile" = default ]; then
 			case "$old" in scripts/trace-lib.sh|scripts/issue-lib.sh|scripts/github-identity-lib.sh) continue ;; esac
 		fi
@@ -133,15 +147,124 @@ for profile in default developer claude; do
 	git -C "$target" config user.name "Harness Test"
 	git -C "$target" config user.email "harness-test@example.invalid"
 	git -C "$target" config commit.gpgsign false
+	mkdir -p "${TMP_DIR}/preflight-bin" "${target}/tests/scripts/lifecycle"
+	cat >"${TMP_DIR}/preflight-bin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+	auth) exit 0 ;;
+	api) printf 'fixture-user\n' ;;
+	issue) printf 'Installed startup fixture\n' ;;
+	pr)
+		case "${2:-}" in
+			view)
+				case "$*" in
+					*state,mergeCommit*) printf 'MERGED\tdeadbeef0001cafe\n' ;;
+					*) printf '81\n' ;;
+				esac ;;
+			checks)
+				if [ "${INSTALLED_CI_GREEN:-0}" = 1 ]; then
+					printf 'harness-smoke\tpass\t1m\n'
+				else
+					printf 'harness-smoke\tpending\t0\n'
+					exit 8
+				fi ;;
+			merge) printf '%s\n' "$*" >>"${INSTALLED_MERGE_LOG:?}" ;;
+			list)
+				printf '[{"headRefName":"feature/issue-%s-installed-start","state":"MERGED","mergedAt":"2026-05-01T12:30:00Z","number":%s}]\n' \
+					"${INSTALLED_FINISH_ISSUE:?}" "$INSTALLED_FINISH_ISSUE" ;;
+			*) exit 1 ;;
+		esac ;;
+	*) exit 1 ;;
+esac
+SH
+	printf '#!/usr/bin/env bash\nexit 1\n' >"${TMP_DIR}/preflight-bin/az"
+	chmod +x "${TMP_DIR}/preflight-bin/gh" "${TMP_DIR}/preflight-bin/az"
+	for entry in scripts/init.sh scripts/lifecycle/init.sh; do
+		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}") \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed preflight ${entry}"
+		grep -q 'docs-only project surface detected' "$layout_log" \
+			|| fail_layout "${profile} preflight used the wrong project surface"
+	done
 	# Runtime evidence is local state, not a source change for the installed probe.
-	printf '/.copilot-tracking/\n' >>"${target}/.git/info/exclude"
+	printf '/.copilot-tracking/\n/.worktrees/\n' >>"${target}/.git/info/exclude"
 	printf '9.8.7-layout\n' >"${target}/VERSION"
-	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/validation/test_installed_probe.sh"
+	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	git -C "$target" add .
 	git -C "$target" commit -qm 'test: upgraded installed layout'
+	for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
+		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}" ISSUE=81 SLUG=installed-start) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed startup ${entry}"
+		[ -f "${target}/.worktrees/issue-81/.copilot-tracking/issues/issue-81/feature_list.json" ] \
+			|| fail_layout "${profile} installed startup omitted its scaffold"
+		if (cd "${target}/unrelated/nested" && \
+			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/.worktrees/issue-81/${entry}" 82 SLUG=refused) \
+			>"$layout_log" 2>&1; then
+			fail_layout "${profile} installed linked-worktree startup was not refused"
+		fi
+		grep -q 'main checkout, not from a worktree' "$layout_log" \
+			|| fail_layout "${profile} installed startup lost its checkout guard"
+		[ ! -e "${target}/.worktrees/issue-82" ] || fail_layout "${profile} refused startup created state"
+	done
+	linked="${target}/.worktrees/issue-81"
+	mkdir -p "${linked}/nested/cwd"
+	for entry in scripts/create-pr.sh scripts/lifecycle/create-pr.sh; do
+		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" --help) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed publication help ${entry}"
+		grep -q -- '--prepare' "$layout_log" || fail_layout "${profile} publication help lost preparation"
+		if (cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" \
+			--title 'Unapproved installed candidate' --body 'Must not publish') >"$layout_log" 2>&1; then
+			fail_layout "${profile} installed publication bypassed review"
+		fi
+		grep -q 'current HEAD has not been approved by the review gate' "$layout_log" \
+			|| fail_layout "${profile} installed publication lost its review guard"
+	done
+	for entry in scripts/merge-pr.sh scripts/lifecycle/merge-pr.sh; do
+		merge_log="${TMP_DIR}/merge-${profile}.log"
+		rm -f "$merge_log"
+		if (cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_MERGE_LOG="$merge_log" "${linked}/${entry}" --squash) >"$layout_log" 2>&1; then
+			fail_layout "${profile} installed merge bypassed pending CI"
+		fi
+		if [ -e "$merge_log" ] || ! grep -q 'checks are not green' "$layout_log"; then
+			fail_layout "${profile} pending CI did not prevent merge"
+		fi
+		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_MERGE_LOG="$merge_log" INSTALLED_CI_GREEN=1 "${linked}/${entry}" --squash) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed merge failed despite green checks"
+		if ! grep -q 'pr merge 81 --squash' "$merge_log" || ! grep -q 'PR #81 merged' "$layout_log"; then
+			fail_layout "${profile} installed merge lost flags or authoritative confirmation"
+		fi
+	done
+	finish_issue=81
+	for entry in scripts/finish-issue.sh scripts/lifecycle/finish-issue.sh; do
+		if [ "$finish_issue" = 82 ]; then
+			(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
+				PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/scripts/start-issue.sh" 82 SLUG=installed-start) \
+				>"$layout_log" 2>&1 || fail_layout "${profile} canonical closeout setup"
+		fi
+		issue_dir=".copilot-tracking/issues/issue-${finish_issue}"
+		worktree="${target}/.worktrees/issue-${finish_issue}"
+		printf '%s\n' '{"features":[{"id":"done","title":"Installed probe","steps":[],"passes":true,"regression_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","e2e_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","verification":"installed probe","blocked_on":null}]}' \
+			>"${worktree}/${issue_dir}/feature_list.json"
+		printf '# Installed issue %s\n\nStatus: implementation complete.\n\n## Action Log\n' "$finish_issue" \
+			>"${worktree}/${issue_dir}/progress.md"
+		printf '{"schema_version":1,"timestamp":"2026-05-01T10:00:00Z","span":"agent","harness.issue":%s,"harness.version":"test","gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"code-review-subagent","harness.lifecycle_step":"review_verdict","harness.feature_id":"done","harness.outcome":"pass"}\n' \
+			"$finish_issue" >>"${target}/${issue_dir}/trace.jsonl"
+		(cd "${target}/unrelated/nested" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
+			INSTALLED_FINISH_ISSUE="$finish_issue" "${target}/${entry}" "ISSUE=${finish_issue}" SLUG=installed-start) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed closeout ${entry}"
+		[ ! -e "$worktree" ] || fail_layout "${profile} closeout left its worktree"
+		grep -q '^Conclusion: merged; review verdict: APPROVED.' "${target}/${issue_dir}/progress.md" \
+			|| fail_layout "${profile} closeout lost its durable conclusion"
+		jq -se '[.[] | select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish" and .["harness.worktree_removed"] == "true")] | length == 1' \
+			"${target}/${issue_dir}/trace.jsonl" >/dev/null || fail_layout "${profile} closeout lost its terminal evidence"
+		finish_issue=82
+	done
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \
-			--declared tests/scripts/validation/test_installed_probe.sh --diff HEAD) \
+			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed ${runner}"
 		grep -q 'scope=scoped ran=1 failed=0$' "$layout_log" \
 			|| fail_layout "${profile} runner did not use installed sensor selection"
@@ -155,12 +278,12 @@ for profile in default developer claude; do
 	jq -se 'length == 1 and .[0]["harness.version"] == "9.8.7-layout"' \
 		"${target}/.copilot-tracking/issues/issue-91/trace.jsonl" >/dev/null \
 		|| fail_layout "${profile} emitter used source identity instead of installed VERSION"
-	printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/validation/test_installed_probe.sh"
+	printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	if (cd "${target}/unrelated/nested" && "${target}/scripts/run-sensors.sh" green \
-		--declared tests/scripts/validation/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
+		--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
 		fail_layout "${profile} ignored the installed nested failure"
 	fi
-	grep -q '^FAIL tests/scripts/validation/test_installed_probe.sh$' "$layout_log" \
+	grep -q '^FAIL tests/scripts/lifecycle/test_installed_probe.sh$' "$layout_log" \
 		|| fail_layout "${profile} failure did not name the installed sensor"
 	grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
 		|| fail_layout "${profile} targeted failure selected unrelated sensors"

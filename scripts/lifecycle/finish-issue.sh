@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# finish-issue.sh — tear down the worktree for an issue after its PR is merged.
+#
+# Usage:
+#   ./scripts/finish-issue.sh 1
+#   ./scripts/finish-issue.sh ISSUE=1
+#   ./scripts/finish-issue.sh ISSUE=1 SLUG=custom-slug   # if the slug can't be derived
+#
+# Finalizes the durable progress record, removes <repo>/.worktrees/issue-NN, and
+# prunes worktree metadata. By default it
+# REFUSES when the worktree has uncommitted changes (override with FORCE=1) and
+# leaves the local branch in place (delete it with DELETE_BRANCH=1).
+#
+# The per-issue .copilot-tracking/issues/issue-NN/ dir is intentionally left
+# alone — it is gitignored local history.
+#
+# Exit codes: 0 cleaned · 1 usage / refused
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/lifecycle-runtime-lib.sh
+source "${SCRIPT_DIR}/lib/lifecycle-runtime-lib.sh"
+# shellcheck source=scripts/lib/issue-lib.sh
+source "${SCRIPT_DIR}/lib/issue-lib.sh"
+
+lifecycle_runtime_trace_init finish-issue
+
+# --- Closeout helpers (issue #215, scripts-portfolio P-4) --------------------
+# The best-effort hygiene helper and the two-phase trace gate
+# live in finish-lib.sh so this script stays a thin teardown orchestrator.
+# Guarded source: a missing finish-lib.sh must never break teardown — fall back
+# to no-op helpers (the optional closeout steps are skipped and the gate lets
+# teardown proceed, exactly as when their underlying tooling is absent).
+if [ -f "${SCRIPT_DIR}/lib/finish-lib.sh" ]; then
+  # shellcheck source=scripts/lib/finish-lib.sh
+  source "${SCRIPT_DIR}/lib/finish-lib.sh"
+fi
+if ! declare -F finish_trace_gate >/dev/null 2>&1; then
+  printf 'finish-issue: warning: scripts/lib/finish-lib.sh not found — closeout helpers disabled\n' >&2
+  finish_trace_gate() { return 0; }
+  finish_closeout_orchestrate() {
+    red "✗ closeout orchestration blocked: scripts/lib/finish-lib.sh is unavailable."
+    echo "  The worktree is left intact."
+    return 1
+  }
+  best_effort_state_hygiene() { return 0; }
+fi
+# Set unconditionally (even when finish-lib.sh sourced successfully) so both
+# the missing/no-op fallback above and every real invocation start from a
+# known false state before best_effort_progress_migrate runs (issue #290,
+# M10) — best_effort_progress_migrate itself also resets it at entry.
+PROGRESS_MIGRATED=false
+
+# Terminal `finish` lifecycle span via the shared EXIT-trap helper (issue #213
+# P-1, trace_lifecycle_init). It fires AFTER `git worktree remove` — the span
+# survives teardown only because trace-lib pins the trace file to the MAIN
+# checkout root (plan D1). TRACE_STAGE names the last stage reached
+# (completion_check|trace_gate|progress_migrate|closeout_cruft_gate|
+# progress_finalize|worktree_remove|state_hygiene|branch_delete|done), surfaced
+# as harness.stage by the attr callback; refusals before arming emit nothing.
+TRACE_STAGE=""
+WORKTREE_REMOVED=false
+BRANCH_DELETED=false
+trace__finish_attrs() {
+  printf 'harness.stage=%s\n' "${TRACE_STAGE}"
+  printf 'harness.branch=%s\n' "${BRANCH:-}"
+  printf 'harness.worktree_removed=%s\n' "${WORKTREE_REMOVED}"
+  printf 'harness.branch_deleted=%s\n' "${BRANCH_DELETED}"
+}
+trace_lifecycle_init finish trace__finish_attrs
+
+# --- Parse args -------------------------------------------------------------
+NUM_ARG="" SLUG_ARG=""
+for arg in "$@"; do
+  case "$arg" in
+    SLUG=*) SLUG_ARG="${arg#SLUG=}" ;;
+    *)      NUM_ARG="$arg" ;;
+  esac
+done
+if [ -z "$NUM_ARG" ]; then
+  red "usage: ./scripts/finish-issue.sh <issue-number> [SLUG=custom-slug] [DELETE_BRANCH=1] [FORCE=1]"
+  exit 1
+fi
+ISSUE_NUM="$(issue_parse_number "$NUM_ARG")"
+
+# Main-checkout closeout needs explicit per-issue trace and approval context.
+export TRACE_ISSUE="$ISSUE_NUM"
+export REVIEW_GATE_ISSUE="$ISSUE_NUM"
+
+# Operate from the main checkout — you cannot remove the worktree you stand in.
+cd "${SCRIPT_DIR}/.."
+if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
+  red "✗ run finish-issue.sh from the main checkout, not from a worktree."
+  exit 1
+fi
+ROOT="$(issue_repo_root)"
+cd "$ROOT"
+if declare -F harness_identity_activate >/dev/null 2>&1; then
+  harness_identity_activate "$ROOT"
+fi
+
+resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
+
+check_feature_completion() {
+  local feature_list="${TRACKING_DIR}/feature_list.json"
+  # Closeout stays tolerant of a missing tracking file (it is gitignored local
+  # state); the standalone check-feature-list.sh enforces presence when invoked
+  # directly. When the file exists, delegate structural + completion validation
+  # to the shared sensor so the two paths cannot drift apart.
+  if [ ! -f "$feature_list" ]; then
+    return 0
+  fi
+  TRACE_COLLAPSE_CHILD_SPANS=1 \
+    "${SCRIPT_DIR}/validation/check-feature-list.sh" "$ISSUE_NUM"
+}
+
+# The worktree's own checked-out branch is the deterministic source of truth —
+# prefer it over a slug recomputed from the (mutable) issue title.
+if [ -e "$WORKTREE_DIR" ]; then
+  wt_branch="$(git -C "$WORKTREE_DIR" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  [ -n "$wt_branch" ] && BRANCH="$wt_branch"
+fi
+
+bold "==> Finishing issue ${ISSUE_NUM}"
+echo "  branch:   ${BRANCH}"
+echo "  worktree: ${WORKTREE_DIR}"
+
+TRACE_STAGE="completion_check"
+trace_lifecycle_arm
+check_feature_completion
+
+# Two-phase trace gate (issue #103) — run BEFORE teardown so that under
+# REQUIRE_TRACE_CONSISTENCY=1 findings refuse the finish while the worktree is
+# still intact. See finish-lib.sh for the full doctrine; it returns 1 to block.
+TRACE_STAGE="trace_gate"
+if ! finish_trace_gate; then
+  exit 1
+fi
+
+# Ordered closeout pipeline: migrate → scrub → conclude.
+# Ordering, failure semantics, and TRACE_STAGE updates live in finish-lib.sh
+# so this script stays a thin teardown orchestrator.
+if ! finish_closeout_orchestrate; then
+  exit 1
+fi
+
+TRACE_STAGE="worktree_remove"
+if [ ! -e "$WORKTREE_DIR" ]; then
+  green "✓ No worktree at ${WORKTREE_DIR} — nothing to remove."
+  git worktree prune
+else
+  remove_args=()
+  [ "${FORCE:-0}" = "1" ] && remove_args+=(--force)
+  if ! wt_remove_err="$(git worktree remove ${remove_args[@]+"${remove_args[@]}"} "$WORKTREE_DIR" 2>&1)"; then
+    red "✗ Could not remove the worktree at ${WORKTREE_DIR}:"
+    printf '%s\n' "$wt_remove_err" | sed 's/^/    /'
+    echo "  Commit/stash your work, or re-run with FORCE=1 to discard it:"
+    echo "    FORCE=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
+    exit 1
+  fi
+  WORKTREE_REMOVED=true
+  green "✓ Removed worktree ${WORKTREE_DIR}"
+fi
+
+git worktree prune
+
+# --- Best-effort closeout state hygiene (issue #175) -------------------------
+TRACE_STAGE="state_hygiene"
+best_effort_state_hygiene
+
+green "✓ Pruned stale worktree metadata"
+
+# --- Guardrail state retirement (issue #450) --------------------------------
+# The issue is closing: retire the post-PR guardrail files so a stale freeze
+# marker or red-history row can never block a future PR of a reopened issue
+# on dead evidence (a manual GitHub-UI merge bypasses merge-pr's own clear).
+# The trace and the rest of the tracking dir stay untouched (gitignored
+# local history — see the header note).
+_guardrail_pad="$(printf '%02d' "$((10#$ISSUE_NUM))")"
+rm -f "${ROOT}/.copilot-tracking/issues/issue-${_guardrail_pad}/green-freeze" 2>/dev/null || true
+rm -f "${ROOT}/.copilot-tracking/issues/issue-${_guardrail_pad}/ci-red-history.tsv" 2>/dev/null || true
+
+# --- Optional branch deletion ----------------------------------------------
+TRACE_STAGE="branch_delete"
+if [ "${DELETE_BRANCH:-0}" = "1" ]; then
+  if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+    if git branch -d "$BRANCH" 2>/dev/null; then
+      BRANCH_DELETED=true
+      green "✓ Deleted local branch ${BRANCH}"
+    else
+      red "✗ Branch ${BRANCH} is not fully merged — not deleting."
+      echo "  Force with: git branch -D ${BRANCH}"
+      exit 1
+    fi
+  else
+    green "✓ Local branch ${BRANCH} already gone."
+  fi
+else
+  echo
+  echo "Local branch ${BRANCH} kept. Delete it with:"
+  echo "  DELETE_BRANCH=1 ./scripts/finish-issue.sh ${ISSUE_NUM}"
+fi
+TRACE_STAGE="done"

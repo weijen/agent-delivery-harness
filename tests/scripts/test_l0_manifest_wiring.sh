@@ -7,9 +7,9 @@ trap 'rm -rf "$TMP"' EXIT
 fail() { printf 'l0-manifest-wiring: %s\n' "$*" >&2; exit 1; }
 cat >"$TMP/expected" <<'CASES'
 l0-feature-list tests/scripts/validation/test_feature_list_check.sh
-l0-harness-contract tests/scripts/test_harness_contract.sh
-l0-issue-scaffold tests/scripts/test_issue_scaffold.sh
-l0-lifecycle-order tests/scripts/test_lifecycle_order.sh
+l0-harness-contract tests/scripts/lifecycle/test_harness_contract.sh
+l0-issue-scaffold tests/scripts/lifecycle/test_issue_scaffold.sh
+l0-lifecycle-order tests/scripts/lifecycle/test_lifecycle_order.sh
 l0-review-gate tests/scripts/validation/test_review_gate.sh
 CASES
 
@@ -82,7 +82,7 @@ cp "$manifest" "$TMP/saved.json"
 for mutation in missing-command wrong-command missing-script omitted-case; do
   case "$mutation" in
     missing-command) jq '.grader.command = "bash tests/scripts/missing.sh"' "$TMP/saved.json" >"$manifest" ;;
-    wrong-command) jq '.grader.command = "bash tests/scripts/test_harness_contract.sh"' "$TMP/saved.json" >"$manifest" ;;
+    wrong-command) jq '.grader.command = "bash tests/scripts/lifecycle/test_harness_contract.sh"' "$TMP/saved.json" >"$manifest" ;;
     missing-script) mv "$FIX/tests/scripts/validation/test_feature_list_check.sh" "$TMP/saved.sh" ;;
     omitted-case) rm "$manifest" ;;
   esac

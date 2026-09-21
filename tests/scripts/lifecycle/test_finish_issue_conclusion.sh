@@ -3,7 +3,11 @@
 # #175, #290, #316, #320, #323, and #329.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+[ -x "${ROOT}/scripts/lifecycle/finish-issue.sh" ] || {
+  printf 'canonical lifecycle closeout implementation is missing\n' >&2
+  exit 1
+}
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
@@ -78,9 +82,10 @@ TRACE
 run_finish() {
   local main="$1" issue="$2" output="$3"
   shift 3
+  mkdir -p "${TMP_DIR}/unrelated/nested"
   (
-    cd "$main"
-    PATH="${FINISH_PATH:-$BIN}" "$@" ./scripts/finish-issue.sh "$issue" SLUG=fixture
+    cd "${TMP_DIR}/unrelated/nested"
+    PATH="${FINISH_PATH:-$BIN}" "$@" "${main}/${FINISH_ENTRY:-scripts/finish-issue.sh}" "$issue" SLUG=fixture
   ) >"$output" 2>&1
 }
 
@@ -109,7 +114,7 @@ printf 'orphan\n' >"${MAIN}/.copilot-tracking/issues/issue-${PAD}/.hook-state/se
 printf '{"summary_schema_version":1,"finished":false}\n' \
   >"${MAIN}/.copilot-tracking/issues/issue-${PAD}/trace-summary.json"
 FAKE_GH_PR_JSON='[{"headRefName":"feature/issue-41-fixture","state":"MERGED","mergedAt":"2026-05-01T12:30:00Z","number":441}]' \
-  run_finish "$MAIN" 41 "${TMP_DIR}/happy.out" env FORCE=1 \
+  FINISH_ENTRY=scripts/lifecycle/finish-issue.sh run_finish "$MAIN" 41 "${TMP_DIR}/happy.out" env FORCE=1 \
   || { cat "${TMP_DIR}/happy.out"; fail "happy: finish unexpectedly failed"; }
 [ ! -e "${MAIN}/.worktrees/issue-${PAD}" ] || fail "happy: worktree must be removed"
 PROGRESS="${MAIN}/.copilot-tracking/issues/issue-${PAD}/progress.md"
@@ -143,6 +148,16 @@ fi
 # conclusion mutation.
 new_fixture no-pr 42
 MAIN="$NEW_MAIN"
+for entry in scripts/finish-issue.sh scripts/lifecycle/finish-issue.sh; do
+  if (cd "${TMP_DIR}/unrelated/nested" && PATH="$BIN" \
+    "${MAIN}/.worktrees/issue-42/${entry}" 42 SLUG=fixture) >"${TMP_DIR}/linked-refusal.out" 2>&1; then
+    fail "linked checkout must not close itself"
+  fi
+  assert_contains "${TMP_DIR}/linked-refusal.out" 'main checkout, not from a worktree'
+  [ -d "${MAIN}/.worktrees/issue-42" ] || fail "linked refusal removed the worktree"
+  [ ! -e "${MAIN}/.copilot-tracking/issues/issue-42/progress.md" ] \
+    || fail "linked refusal migrated progress before its checkout guard"
+done
 if FAKE_GH_PR_JSON='[]' run_finish "$MAIN" 42 "${TMP_DIR}/no-pr.out" env; then
   fail "no-pr: finish must reject absent merged-PR evidence"
 fi

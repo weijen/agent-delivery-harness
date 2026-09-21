@@ -16,7 +16,7 @@ grep -qF 'TD-001' <<<"$resolved" || fail "obsolete hook finding must be resolved
 if grep -qF 'TD-001' <<<"$active"; then
   fail "removed hook must not remain active debt"
 fi
-if grep -qiE 'hook[-_]liveness' "${ROOT}/scripts/start-issue.sh"; then
+if grep -qiE 'hook[-_]liveness' "${ROOT}/scripts/lifecycle/start-issue.sh"; then
   fail "TD-001 cannot be resolved while its hook-liveness mechanism remains"
 fi
 grep -qF 'create on first use' "$policy" || fail "on-demand debt policy missing"

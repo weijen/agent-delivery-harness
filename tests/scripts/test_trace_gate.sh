@@ -97,8 +97,8 @@ command -v jq >/dev/null 2>&1 \
   || hard_fail "jq is required (the gate and this sensor are jq-driven)"
 [ -f "$SCHEMA" ] || hard_fail "trace schema contract not found (${SCHEMA})"
 [ -f "$CONTRACT_YML" ] || hard_fail "harness contract not found (${CONTRACT_YML})"
-for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh check-trace-consistency.sh \
-         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh validation/check-feature-list.sh \
+for s in lib/lifecycle-runtime-lib.sh validation/review-gate.sh finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh check-trace-consistency.sh \
+         lib/trace-lib.sh lib/issue-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh \
          lib/ci-coverage-lib.sh \
          validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
   [ -f "${ROOT}/scripts/${s}" ] \
@@ -139,10 +139,11 @@ make_gate_fixture() {
   mkdir -p "${dir}/scripts/lib" "${dir}/scripts/validation" "${dir}/schemas" "${dir}/docs" "${dir}/tests/scripts" "${dir}/tests/scripts/validation"
   printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${dir}/tests/scripts/test_review_syntax.sh"
   local s
-  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh validation/check-feature-list.sh \
+  for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh finish-issue.sh lifecycle/finish-issue.sh lib/finish-lib.sh lib/economics-report-lib.sh validation/check-feature-list.sh \
            validation/review-gate.sh lib/trace-lib.sh check-trace-consistency.sh \
            lib/ci-coverage-lib.sh \
            validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
+    mkdir -p "${dir}/scripts/$(dirname "$s")"
     cp "${ROOT}/scripts/${s}" "${dir}/scripts/${s}"
   done
   cp "$SCHEMA" "${dir}/schemas/trace-schema.v1.json"

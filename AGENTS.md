@@ -163,7 +163,7 @@ REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / F
 | Harness layers (Core / Language Profiles / Framework Templates) | [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers |
 | Language profile contract + per-language gate lists | [profiles/README.md](profiles/README.md) |
 | Multi-language profile design (Python, Go, Node.js, Java, Ruby) | [docs/multi-language-profiles.md](docs/multi-language-profiles.md) |
-| Frozen lifecycle / non-regression contract | [docs/harness-contract.yml](docs/harness-contract.yml) + `tests/scripts/test_harness_contract.sh` |
+| Frozen lifecycle / non-regression contract | [docs/harness-contract.yml](docs/harness-contract.yml) + `tests/scripts/lifecycle/test_harness_contract.sh` |
 | Adding or updating a language profile (generator) | `./scripts/scaffold-language.sh <profile>` (see [docs/HARNESS.md](docs/HARNESS.md) § Adding or updating a language profile) |
 | Python conventions (added when code lands) | [.copilot/instructions/python.instructions.md](.copilot/instructions/python.instructions.md) |
 | Go / Node / Java / Ruby conventions | `.copilot/instructions/<language>.instructions.md` — scaffolded by `scripts/scaffold-language.sh`; load the file matching the files you change |

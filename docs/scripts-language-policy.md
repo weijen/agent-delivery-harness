@@ -81,8 +81,12 @@ gate on its own trigger, not inherit the reverted pilot's verdict.
   commands in `scripts/validation/`, with matching validation sensors under
   `tests/scripts/validation/`. Libraries are sourced dependencies, not ordinary
   commands, and have no duplicate flat wrappers. `scripts/run-sensors.sh` is
-  the intentional public compatibility entrypoint; other validation tools use
-  their canonical paths. Remaining command categories migrate in the serial
+  an intentional public compatibility entrypoint; other validation tools use
+  their canonical paths. Preflight, startup, PR publication, merge and closeout live in `scripts/lifecycle/`
+  behind public `scripts/init.sh`, `scripts/start-issue.sh`, `scripts/create-pr.sh`
+  `scripts/merge-pr.sh` and `scripts/finish-issue.sh` entrypoints,
+  with their sensors in `tests/scripts/lifecycle/`.
+  Installation, trace and maintenance categories migrate in the serial
   child issues, not all at once. `layout_moves` in `docs/harness-contract.yml`
   records exact old-to-new identities as each stage lands.
 - **Preserve contracts during relocation.** Keep only intentional documented
