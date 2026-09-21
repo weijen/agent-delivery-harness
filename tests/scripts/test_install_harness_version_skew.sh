@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# harness-sensor-trigger: upgrade
+# harness-sensor-depends: scripts/install-harness* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # End-to-end upgrade rehearsal (#432): a v0.36.0 install with the five
 # issue-49-shaped local divergences reconciles safely against current HEAD.
 set -euo pipefail

@@ -119,6 +119,7 @@ stage header still excludes whole-suite wrappers from feature greens.
 | Economics spans | Incorrect closeout aggregates or fabricated usage | Relevant; finish/report/trace helpers, schema and active contracts |
 | Release workflow and lock synchronization | Unsafe release wiring or stale release lock | Upgrade; release/toolchain inputs, release contract, or explicit release |
 | Tombstone history | Missing or malformed historical retirement ledger | Upgrade; installer/retirement inputs, layout contract, or explicit release |
+| Historical v0.36.0 and v0.45.2 upgrades | Lost adopter ownership, unsafe migration or broken installed runtime after upgrade | Upgrade; installer manifests, reconciliation/identity/runtime dependencies, layout contract, or explicit release |
 | Other lifecycle, schema, redaction, evidence and installed integration checks | Their retained runtime contracts | Routine final validation; affected/declared feature selection |
 | Bounded evaluation-driver contracts | Incorrect manifest, blocking result or scorecard behavior | Routine; real whole L0 evaluation remains explicitly invoked through its existing driver |
 
