@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 WORKFLOW="${ROOT}/.github/workflows/harness-smoke.yml"
 
 fail() {
@@ -15,7 +15,7 @@ grep -Eq '^[[:space:]]+fetch-depth:[[:space:]]+0([[:space:]]|$)' <<<"$checkout_b
 
 grep -Fq './scripts/run-sensors.sh --gate ci' "$WORKFLOW" \
   || fail "harness-smoke must execute applicable history acceptance"
-SENSOR=tests/scripts/test_install_harness_tombstone_history.sh
+SENSOR=tests/scripts/maintenance/test_install_harness_tombstone_history.sh
 for mode in relevant release; do
   args=(--gate release)
   [ "$mode" != relevant ] || args=(--gate pre-pr scripts/install-harness.tombstones)
@@ -28,7 +28,7 @@ grep -Fq '"$CHECKER" "$ROOT"' "$ROOT/$SENSOR" \
 release_checkout="$(grep -A4 'uses: actions/checkout@' "$ROOT/.github/workflows/release.yml")"
 grep -Eq '^[[:space:]]+fetch-depth:[[:space:]]+0([[:space:]]|$)' <<<"$release_checkout" \
   || fail "release acceptance must retain full history"
-if grep -Fq 'run: ./scripts/check-install-harness-tombstones.sh' "$WORKFLOW"; then
+if grep -Eq 'run: ./scripts/(maintenance/)?check-install-harness-tombstones.sh' "$WORKFLOW"; then
   fail "CI duplicated history validation outside applicable selection"
 fi
 

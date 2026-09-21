@@ -10,7 +10,7 @@ SMOKE="$ROOT/.github/workflows/harness-smoke.yml"
 RELEASE="$ROOT/.github/workflows/release.yml"
 grep -Fq './scripts/run-sensors.sh --gate ci' "$SMOKE" \
 	|| fail "source CI does not execute the applicable runner"
-if grep -Eq -- 'affected-sensors.sh --list|run: ./scripts/check-install-harness-tombstones.sh' "$SMOKE"; then
+if grep -Eq -- 'affected-sensors.sh --list|run: ./scripts/(maintenance/)?check-install-harness-tombstones.sh' "$SMOKE"; then
 	fail "source CI still executes excluded work unconditionally"
 fi
 for id in python_surface python_sync python_gates core_sensors; do

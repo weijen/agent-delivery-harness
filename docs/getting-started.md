@@ -185,8 +185,10 @@ Both run from their own installed source without a source-checkout fallback.
 Exact manifests and the tombstone ledger retain their `scripts/install-harness.*`
 data paths. The source-only audit command lives at `scripts/maintenance/audit-sweep.sh`,
 with its sensor under `tests/scripts/maintenance/`; it is excluded from both adopter
-profiles and has no flat compatibility wrapper. Tombstone history and version-sync
-commands remain at their flat paths until their own serial moves.
+profiles and has no flat compatibility wrapper. The source-only tombstone checker
+also lives in `scripts/maintenance/`, with its history/exclusion/workflow sensors
+under `tests/scripts/maintenance/` and no flat wrapper. Version synchronization
+remains at its flat path until its own serial move.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).
 

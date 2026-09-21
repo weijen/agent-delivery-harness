@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/check-install-harness-tombstones.sh scripts/install-harness* scripts/lib/reconcile-lib.sh optional/* docs/harness-contract.yml tests/scripts/install/test_install_harness_three_way.sh
+# harness-sensor-depends: scripts/maintenance/check-install-harness-tombstones.sh scripts/install-harness* scripts/lib/reconcile-lib.sh optional/* docs/harness-contract.yml tests/scripts/install/test_install_harness_three_way.sh tests/harness-dev-sensors.txt
 # harness-sensor-deletes: scripts/* profiles/* tests/* .copilot/* .github/workflows/harness-smoke.yml docs/HARNESS.md docs/getting-started.md docs/multi-language-profiles.md docs/harness-contract.yml docs/RELEASING.md docs/evaluation/* docs/runtime-adapters/* optional/* VERSION
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-install-harness-tombstones.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/maintenance/check-install-harness-tombstones.sh"
 THREE_WAY="${ROOT}/tests/scripts/install/test_install_harness_three_way.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -23,6 +23,33 @@ fi
 
 "$CHECKER" "$ROOT" >/dev/null \
   || fail "checker must validate the repository with full history"
+
+mkdir -p "${TMP_DIR}/unrelated cwd"
+(cd "${TMP_DIR}/unrelated cwd" && "$CHECKER") >"${TMP_DIR}/default.out" \
+  || fail "default checker root must remain its own checkout"
+grep -Fxq 'install-harness tombstone manifest sensor passed' "${TMP_DIR}/default.out" \
+  || fail "checker success output changed"
+if "$CHECKER" "$ROOT" extra >"${TMP_DIR}/usage.out" 2>&1; then
+  fail "checker accepted extra arguments"
+fi
+grep -q 'usage:' "${TMP_DIR}/usage.out" || fail "bad arguments must explain usage"
+
+for identity in scripts/maintenance/check-install-harness-tombstones.sh \
+  tests/scripts/maintenance/test_install_harness_tombstone_history.sh \
+  tests/scripts/maintenance/test_install_harness_tombstone_exclusion.sh \
+  tests/scripts/maintenance/test_tombstone_workflow_history.sh; do
+  old="${identity/maintenance\//}"
+  [ ! -e "${ROOT}/${old}" ] || fail "flat duplicate remains: ${old}"
+  if grep -Fxq "$identity" "${ROOT}/scripts/install-harness.assets" "${ROOT}/scripts/install-harness.dev.assets"; then
+    fail "source-only asset selected for installation: ${identity}"
+  fi
+done
+discovered="$("${ROOT}/scripts/validation/affected-sensors.sh" --list)"
+for sensor in test_install_harness_tombstone_history.sh test_install_harness_tombstone_exclusion.sh test_tombstone_workflow_history.sh; do
+  [ "$(grep -Fxc "tests/scripts/maintenance/${sensor}" <<<"$discovered")" -eq 1 ] \
+    || fail "history sensor discovery is not unique: ${sensor}"
+done
+if grep -E '/(lib|helpers|fixtures)/' <<<"$discovered"; then fail "discovery included helper"; fi
 
 if grep -q 'tombstone ledger missing managed deletion history' "$THREE_WAY"; then
   fail "three-way installer sensor still embeds the extracted history check"
@@ -54,6 +81,8 @@ grep -qi 'shallow checkout' "${TMP_DIR}/shallow.out" \
 
 "$CHECKER" "$FORMAT_REPO" >/dev/null \
   || fail "checker rejected a well-formed, non-empty ledger baseline"
+(cd "${TMP_DIR}/unrelated cwd" && "$CHECKER" ../format-repo) >/dev/null \
+  || fail "explicit repository argument must remain caller-relative"
 
 cp "$ledger" "${TMP_DIR}/ledger.baseline"
 printf 'not-a-hex-digest\tscripts/unused-marker\n' >>"$ledger"

@@ -93,7 +93,7 @@ scoped=(
 	tests/meta/test_archived_reports.sh
 	tests/scripts/test_release_workflow.sh
 	tests/scripts/test_release_lock_sync.sh
-	tests/scripts/test_install_harness_tombstone_history.sh
+	tests/scripts/maintenance/test_install_harness_tombstone_history.sh
 )
 for sensor in "${scoped[@]}"; do
 	if grep -Fxq "$sensor" "$TMP/source"; then fail "$sensor still runs for unrelated final gates"; fi
@@ -114,25 +114,26 @@ for sensor in tests/scripts/maintenance/test_audit_sweep.sh tests/scripts/test_c
 	grep -Fxq "$sensor" "$TMP/source" || fail "explicit maintenance omitted $sensor"
 done
 source_resolve --gate release
-for sensor in tests/scripts/test_release_workflow.sh tests/scripts/test_release_lock_sync.sh tests/scripts/test_install_harness_tombstone_history.sh; do
+for sensor in tests/scripts/test_release_workflow.sh tests/scripts/test_release_lock_sync.sh tests/scripts/maintenance/test_install_harness_tombstone_history.sh; do
 	grep -Fxq "$sensor" "$TMP/source" || fail "release omitted $sensor"
 done
 grep -Fxq 'tests/meta/test_*.sh' "$ROOT/tests/harness-dev-sensors.txt" \
 	|| fail "source policy assertions must not ship as adopter sensors"
 source_resolve --gate pre-pr scripts/lib/reconcile-lib.sh
-grep -Fxq tests/scripts/test_install_harness_tombstone_history.sh "$TMP/source" \
+grep -Fxq tests/scripts/maintenance/test_install_harness_tombstone_history.sh "$TMP/source" \
 	|| fail "retirement acceptance omitted the actual reconciliation dependency"
 
 # Real deletion history, policy metadata and runner; no source-suite replay.
 HISTORY="$TMP/history"
-mkdir -p "$HISTORY/scripts/validation" "$HISTORY/scripts/lib" "$HISTORY/tests/scripts"
-cp "$ROOT/scripts/run-sensors.sh" "$ROOT/scripts/check-install-harness-tombstones.sh" "$HISTORY/scripts/"
+mkdir -p "$HISTORY/scripts/validation" "$HISTORY/scripts/lib" "$HISTORY/scripts/maintenance" "$HISTORY/tests/scripts"
+cp "$ROOT/scripts/run-sensors.sh" "$HISTORY/scripts/"
+cp "$ROOT/scripts/maintenance/check-install-harness-tombstones.sh" "$HISTORY/scripts/maintenance/"
 cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors}.sh "$HISTORY/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$HISTORY/scripts/lib/"
 {
 	printf '#!/usr/bin/env bash\n'
-	grep '^# harness-sensor-' "$ROOT/tests/scripts/test_install_harness_tombstone_history.sh"
-	printf 'bash scripts/check-install-harness-tombstones.sh .\n'
+	grep '^# harness-sensor-' "$ROOT/tests/scripts/maintenance/test_install_harness_tombstone_history.sh"
+	printf 'bash scripts/maintenance/check-install-harness-tombstones.sh .\n'
 } >"$HISTORY/tests/scripts/test_history.sh"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$HISTORY/tests/scripts/test_routine.sh"
 printf '#!/usr/bin/env bash\n' >"$HISTORY/scripts/install-harness.sh"

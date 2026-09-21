@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CHECKER="${ROOT}/scripts/check-install-harness-tombstones.sh"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CHECKER="${ROOT}/scripts/maintenance/check-install-harness-tombstones.sh"
 TMP_DIR="$(mktemp -d)"
 REPO="${TMP_DIR}/repo"
 trap 'rm -rf "$TMP_DIR"' EXIT

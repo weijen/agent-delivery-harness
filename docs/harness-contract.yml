@@ -25,6 +25,18 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/check-install-harness-tombstones.sh
+    to: scripts/maintenance/check-install-harness-tombstones.sh
+    audience: source-only
+  - from: tests/scripts/test_install_harness_tombstone_history.sh
+    to: tests/scripts/maintenance/test_install_harness_tombstone_history.sh
+    audience: source-only
+  - from: tests/scripts/test_install_harness_tombstone_exclusion.sh
+    to: tests/scripts/maintenance/test_install_harness_tombstone_exclusion.sh
+    audience: source-only
+  - from: tests/scripts/test_tombstone_workflow_history.sh
+    to: tests/scripts/maintenance/test_tombstone_workflow_history.sh
+    audience: source-only
   - from: scripts/audit-sweep.sh
     to: scripts/maintenance/audit-sweep.sh
     audience: source-only
