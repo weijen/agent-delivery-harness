@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # harness-sensor-trigger: upgrade
-# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
+# harness-sensor-depends: scripts/install-harness* scripts/init.sh scripts/start-issue.sh scripts/create-pr.sh scripts/lifecycle/* scripts/lib/reconcile-lib.sh scripts/lib/github-identity-lib.sh scripts/lib/trace-lib.sh scripts/lib/issue-lib.sh scripts/run-sensors.sh scripts/validation/run-sensors.sh scripts/validation/affected-sensors.sh profiles/adopter-smoke.yml tests/harness-dev-sensors.txt docs/harness-contract.yml optional/runtime-adapters/* VERSION
 # Genuine v0.45.2 installed-layout acceptance, separated from profile selection.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -186,6 +186,19 @@ SH
 		grep -q 'main checkout, not from a worktree' "$layout_log" \
 			|| fail_layout "${profile} installed startup lost its checkout guard"
 		[ ! -e "${target}/.worktrees/issue-82" ] || fail_layout "${profile} refused startup created state"
+	done
+	linked="${target}/.worktrees/issue-81"
+	mkdir -p "${linked}/nested/cwd"
+	for entry in scripts/create-pr.sh scripts/lifecycle/create-pr.sh; do
+		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" --help) \
+			>"$layout_log" 2>&1 || fail_layout "${profile} installed publication help ${entry}"
+		grep -q -- '--prepare' "$layout_log" || fail_layout "${profile} publication help lost preparation"
+		if (cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" \
+			--title 'Unapproved installed candidate' --body 'Must not publish') >"$layout_log" 2>&1; then
+			fail_layout "${profile} installed publication bypassed review"
+		fi
+		grep -q 'current HEAD has not been approved by the review gate' "$layout_log" \
+			|| fail_layout "${profile} installed publication lost its review guard"
 	done
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \

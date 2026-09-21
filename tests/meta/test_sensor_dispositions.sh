@@ -103,7 +103,7 @@ for sensor in "${scoped[@]}"; do
 	grep -Fxq "$sensor" "$TMP/source" || fail "$sensor omitted its own change"
 done
 source_resolve scripts/lib/lifecycle-runtime-lib.sh
-grep -Fxq tests/scripts/test_create_pr_sensor_gate.sh "$TMP/source" \
+grep -Fxq tests/scripts/lifecycle/test_create_pr_sensor_gate.sh "$TMP/source" \
 	|| fail "implicit fixture dependency omitted the publication consumer"
 source_resolve --gate pre-pr scripts/lib/trace-lib.sh
 for sensor in tests/scripts/test_economics_span.sh tests/scripts/test_trace_lib_redaction.sh; do

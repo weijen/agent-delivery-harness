@@ -177,6 +177,7 @@ for required in \
   scripts/validation/check-feature-list.sh \
   scripts/validation/review-gate.sh \
   scripts/create-pr.sh \
+  scripts/lifecycle/create-pr.sh \
   scripts/merge-pr.sh \
   scripts/finish-issue.sh \
   scripts/lib/trace-lib.sh; do
@@ -208,7 +209,7 @@ for section in "${gate_sections[@]}"; do
     esac
   done <<< "$records"
 done
-require_contract_record gate_sensors id pre-pr-evidence scripts/create-pr.sh
+require_contract_record gate_sensors id pre-pr-evidence scripts/lifecycle/create-pr.sh
 require_contract_record gate_merge_closeout id ci-green-merge scripts/merge-pr.sh
 if grep -q -- '--last' scripts/run-sensors.sh scripts/validation/run-sensors.sh; then
   fail "run-sensors.sh must not retain the retired unconsumed --last interface"
@@ -232,7 +233,7 @@ require_contract_record sha_bindings id review-verdict scripts/log-handback.sh
 require_contract_record sha_bindings id ci-green-head scripts/merge-pr.sh
 require_contract_record bypasses id FORCE scripts/finish-issue.sh
 require_contract_record bypasses id SKIP_CI_GATE scripts/validation/review-gate.sh
-require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/create-pr.sh
+require_contract_record bypasses id CREATE_PR_NO_REWRITE scripts/lifecycle/create-pr.sh
 while IFS= read -r rec; do
   [ -n "$rec" ] || continue
   provenance="$(field "$rec" provenance)"
@@ -261,7 +262,7 @@ te_required=(
   scripts/lifecycle/start-issue.sh
   scripts/validation/check-feature-list.sh
   scripts/validation/review-gate.sh
-  scripts/create-pr.sh
+  scripts/lifecycle/create-pr.sh
   scripts/merge-pr.sh
   scripts/finish-issue.sh
 )

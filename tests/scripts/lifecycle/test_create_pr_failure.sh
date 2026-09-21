@@ -3,13 +3,13 @@
 # Automatic post-validation reset/rebase recovery is retired by #482.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=tests/scripts/lib/fixture.sh
 source "${ROOT}/tests/scripts/lib/fixture.sh"
 export REAL_GIT
 REAL_GIT="$(command -v git)"
 fail() { cat "$OUT" >&2; printf 'create-pr failure: %s\n' "$*" >&2; exit 1; }
-if grep -Eq -- '(^|[^-])--force([^-]|$)' "${ROOT}/scripts/create-pr.sh"; then
+if grep -Eq -- '(^|[^-])--force([^-]|$)' "${ROOT}/scripts/lifecycle/create-pr.sh"; then
   printf 'create-pr must never use a bare force push\n' >&2
   exit 1
 fi
@@ -126,16 +126,23 @@ SH
   esac
 
   if [ "$scenario" = success ]; then
-    for flag in --help -h; do
-      : >"$CALL_LOG"
-      (
-        cd "$REPO"
-        PATH="${BIN}:${PATH}" ./scripts/create-pr.sh "$flag"
-      ) >"$OUT" 2>&1 || fail "help failed"
-      [ ! -s "$CALL_LOG" ] || fail "help invoked git or gh"
-      grep -q 'Usage:.*create-pr.sh' "$OUT" || fail "help lacks usage"
-      grep -q -- '--prepare' "$OUT" || fail "help omits preparation"
+    for entry in scripts/create-pr.sh scripts/lifecycle/create-pr.sh; do
+      for flag in --help -h; do
+        : >"$CALL_LOG"
+        (
+          cd "$REPO"
+          PATH="${BIN}:${PATH}" "./${entry}" "$flag"
+        ) >"$OUT" 2>&1 || fail "help failed"
+        [ ! -s "$CALL_LOG" ] || fail "help invoked git or gh"
+        grep -q 'Usage:.*create-pr.sh' "$OUT" || fail "help lacks usage"
+        grep -q -- '--prepare' "$OUT" || fail "help omits preparation"
+      done
     done
+    mv "${REPO}/scripts/lifecycle/create-pr.sh" "${FIXTURE_TMP_DIR}/missing-create-pr"
+    if (cd "$REPO" && ./scripts/create-pr.sh --help) >"$OUT" 2>&1; then
+      fail "public entrypoint masked a missing canonical implementation"
+    fi
+    grep -q 'lifecycle/create-pr.sh' "$OUT" || fail "missing implementation was not diagnosed"
   fi
 done
 printf 'PR failures stay loud and never discard the verified candidate\n'

@@ -5,6 +5,7 @@ scripts/validation/check-feature-list.sh
 scripts/check-trace-consistency.sh
 scripts/lib/ci-coverage-lib.sh
 scripts/create-pr.sh
+scripts/lifecycle/create-pr.sh
 scripts/lib/economics-report-lib.sh
 scripts/finish-issue.sh
 scripts/lib/finish-lib.sh
@@ -88,9 +89,9 @@ tests/scripts/test_actionability_gate.sh
 tests/scripts/validation/test_affected_sensors.sh
 tests/scripts/test_aggregate_finding_span.sh
 tests/scripts/test_copilot_log_review_recipes.sh
-tests/scripts/test_create_pr_failure.sh
-tests/scripts/test_create_pr_sensor_gate.sh
-tests/scripts/test_prepare_pr.sh
+tests/scripts/lifecycle/test_create_pr_failure.sh
+tests/scripts/lifecycle/test_create_pr_sensor_gate.sh
+tests/scripts/lifecycle/test_prepare_pr.sh
 tests/scripts/test_economics_span.sh
 tests/scripts/validation/test_feature_list_check.sh
 tests/scripts/test_feature_start_pr_gate.sh

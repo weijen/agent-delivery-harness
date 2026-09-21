@@ -25,6 +25,15 @@ review_by: 2027-01-23
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
+  - from: scripts/create-pr.sh
+    to: scripts/lifecycle/create-pr.sh
+    public_entrypoint: scripts/create-pr.sh
+  - from: tests/scripts/test_create_pr_failure.sh
+    to: tests/scripts/lifecycle/test_create_pr_failure.sh
+  - from: tests/scripts/test_create_pr_sensor_gate.sh
+    to: tests/scripts/lifecycle/test_create_pr_sensor_gate.sh
+  - from: tests/scripts/test_prepare_pr.sh
+    to: tests/scripts/lifecycle/test_prepare_pr.sh
   - from: scripts/start-issue.sh
     to: scripts/lifecycle/start-issue.sh
     public_entrypoint: scripts/start-issue.sh
@@ -157,6 +166,9 @@ scripts:
     role: HEAD-bound local review approval marker.
   - id: create-pr
     path: scripts/create-pr.sh
+    role: Stable public PR preparation and publication entrypoint.
+  - id: create-pr-implementation
+    path: scripts/lifecycle/create-pr.sh
     role: Sync onto main, enforce review gate, push, and open the PR.
   - id: merge-pr
     path: scripts/merge-pr.sh
@@ -211,7 +223,7 @@ gate_sensors:
     consumes: verified applicable nonempty pre-pr evidence for the reviewed candidate HEAD; historical full rows remain readable
     produces: fail-closed process result before PR branch push
     mode: hard
-    owner: scripts/create-pr.sh
+    owner: scripts/lifecycle/create-pr.sh
     present: validation/verify-sensor-evidence.sh
   - id: evidence-recording
     trigger: any green (failed=0) sensor run in an issue context
@@ -241,7 +253,7 @@ gate_review:
     consumes: HEAD-bound approved-head marker and final applicable pre-pr evidence
     produces: exact verified candidate pushed and open PR without synchronization or sensors
     mode: hard
-    owner: scripts/create-pr.sh
+    owner: scripts/lifecycle/create-pr.sh
     present: gh pr create
 
 gate_merge_closeout:
@@ -303,7 +315,7 @@ bypasses:
     present: SKIP_CI_GATE
   - id: CREATE_PR_NO_REWRITE
     audit: preserve and report the explicit non-rewriting PR path
-    owner: scripts/create-pr.sh
+    owner: scripts/lifecycle/create-pr.sh
     present: CREATE_PR_NO_REWRITE
 
 # ---------------------------------------------------------------------------
@@ -338,7 +350,7 @@ env_flags:
     owner: scripts/validation/review-gate.sh
     present: SKIP_CI_GATE
   - name: CREATE_PR_NO_REWRITE
-    owner: scripts/create-pr.sh
+    owner: scripts/lifecycle/create-pr.sh
     present: CREATE_PR_NO_REWRITE
 
 
@@ -356,7 +368,7 @@ language_neutral:
     - scripts/lifecycle/start-issue.sh
     - scripts/validation/check-feature-list.sh
     - scripts/validation/review-gate.sh
-    - scripts/create-pr.sh
+    - scripts/lifecycle/create-pr.sh
     - scripts/merge-pr.sh
     - scripts/finish-issue.sh
   tokens:

@@ -19,7 +19,7 @@ separate from replaceable language support and project-specific conventions:
   `tests/scripts/test_harness_contract.sh`. The owner scripts
   (`scripts/lib/issue-lib.sh`, `scripts/lib/trace-lib.sh`,
   `scripts/lifecycle/start-issue.sh`, `scripts/validation/check-feature-list.sh`,
-  `scripts/validation/review-gate.sh`, `scripts/create-pr.sh`,
+  `scripts/validation/review-gate.sh`, `scripts/lifecycle/create-pr.sh`,
   `scripts/merge-pr.sh`, `scripts/finish-issue.sh`) must stay
   language-neutral. The `scripts/` language & structure policy — what stays
   bash, what may become Python (trigger-based), and the split thresholds — is
@@ -66,6 +66,10 @@ directory, including linked worktrees. Its matching sensor lives under
 Likewise, `scripts/start-issue.sh` forwards to `scripts/lifecycle/start-issue.sh`.
 Startup anchors to the invoked checkout and rejects a linked checkout before
 switching to the main root or creating issue state.
+`scripts/create-pr.sh` forwards to `scripts/lifecycle/create-pr.sh`, preserving
+the caller's Git checkout and relative arguments, including nested directories
+in linked worktrees. Publication still consumes existing approval and sensor
+evidence without rerunning tests or rewriting the candidate.
 
 The frozen lifecycle in [docs/harness-contract.yml](harness-contract.yml) is the
 single source of truth for Core Harness behavior. Before changing any lifecycle
