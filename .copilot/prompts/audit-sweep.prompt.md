@@ -12,7 +12,7 @@ Scope (optional subset of audit skills, space-separated; empty = all six):
 
 Steps:
 
-1. Run the driver from the repo root: `./scripts/audit-sweep.sh ${input:scope}`.
+1. Run the driver from the repo root: `./scripts/maintenance/audit-sweep.sh ${input:scope}`.
    It launches each audit skill in its own fresh, report-only `copilot -p`
    session and writes one report per skill under `logs/audit/<UTC-timestamp>/`.
    Do not run the audits yourself in this session — the script owns that so each

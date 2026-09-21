@@ -183,7 +183,10 @@ The installer and language scaffolder now live in `scripts/install/`, with their
 `scripts/scaffold-language.sh` entrypoints.
 Both run from their own installed source without a source-checkout fallback.
 Exact manifests and the tombstone ledger retain their `scripts/install-harness.*`
-data paths. Maintenance commands still use their flat paths pending their later stage.
+data paths. The source-only audit command lives at `scripts/maintenance/audit-sweep.sh`,
+with its sensor under `tests/scripts/maintenance/`; it is excluded from both adopter
+profiles and has no flat compatibility wrapper. Tombstone history and version-sync
+commands remain at their flat paths until their own serial moves.
 See the [upstream script structure policy](https://github.com/weijen/agent-delivery-harness/blob/main/docs/scripts-language-policy.md) and the exact
 `layout_moves` identities in [the harness contract](harness-contract.yml).
 
