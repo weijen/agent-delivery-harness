@@ -100,14 +100,25 @@ for rel in "${REQUIRED_FILES[@]}"; do
 done
 
 # --- Case (e): no-clobber of a differing harness file without --update --------
-e="${TMP_DIR}/e"; mkdir -p "$e/scripts/lib" "$e/scripts/validation" "$e/src"
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+conflict_source="${TMP_DIR}/conflict-source"
+installer_fixture_source "$conflict_source"
+mkdir -p "${conflict_source}/profiles"
+for rel in scripts/init.sh profiles/python.profile.sh; do
+	cp "${ROOT}/${rel}" "${conflict_source}/${rel}"
+done
+printf 'scripts/init.sh\nprofiles/python.profile.sh\n' >"${conflict_source}/scripts/install-harness.assets"
+[ "$(awk '!/^[[:space:]]*(#|$)/ {n++} END {print n}' "${conflict_source}/scripts/install-harness.assets")" -eq 2 ] \
+	|| { echo "case-e: conflict fixture must select only two subject assets"; exit 1; }
+e="${TMP_DIR}/e"; mkdir -p "$e/scripts" "$e/src"
 printf 'PROJECT LOCAL EDIT — do not overwrite\n' >"$e/scripts/init.sh"
 sentinel="$e/scripts/init.sh"
 sentinel_before="$(cat "$sentinel")"
 # A non-harness project file that must never be touched.
 printf 'print("hello")\n' >"$e/src/app.py"
 app_before="$(cat "$e/src/app.py")"
-if "$INSTALL" "$e" --write >"$OUT" 2>&1; then
+if "${conflict_source}/scripts/install-harness.sh" "$e" --write >"$OUT" 2>&1; then
 	cat "$OUT"; echo "case-e: --write over a differing harness file must exit non-zero"; exit 1
 fi
 [ "$(cat "$sentinel")" = "$sentinel_before" ] || { echo "case-e: differing harness file was clobbered by --write"; exit 1; }
@@ -117,9 +128,14 @@ grep -qE '^@@|^\+\+\+ |^--- ' "$OUT" || { cat "$OUT"; echo "case-e: did not prin
 [ "$(cat "$e/src/app.py")" = "$app_before" ] || { echo "case-e: a non-harness project file was modified"; exit 1; }
 # New harness files are still installed alongside the refused one.
 [ -f "$e/profiles/python.profile.sh" ] || { echo "case-e: new assets were not installed when one file was refused"; exit 1; }
+cmp -s "${ROOT}/profiles/python.profile.sh" "$e/profiles/python.profile.sh" \
+	|| { echo "case-e: new profile differs from the current source"; exit 1; }
 
 # --- Case (f): no known base means --update preserves + emits a rejection -----
-if "$INSTALL" "$e" --update >"$OUT" 2>&1; then
+if grep -qF $'\tscripts/init.sh' "$e/.harness-lock"; then
+	echo "case-f: refused init must still have no known installed base"; exit 1
+fi
+if "${conflict_source}/scripts/install-harness.sh" "$e" --update >"$OUT" 2>&1; then
 	cat "$OUT"; echo "case-f: unknown-base conflict must exit non-zero"; exit 1
 fi
 grep -qF 'conflict scripts/init.sh' "$OUT" || { cat "$OUT"; echo "case-f: conflict was not reported"; exit 1; }
