@@ -9,6 +9,11 @@ TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "$TMP_DIR"; rm -f "$OUT"' EXIT
 
+fail() {
+  printf 'FAIL: %s\n' "$*" >&2
+  exit 1
+}
+
 if awk '/^HARNESS_ASSETS=\(/ { selected=1; next } selected && /^\)/ { exit } selected { print }' \
 	"$INSTALL" | grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
 	echo "project-owned environment example must not be an installer asset"
@@ -24,6 +29,41 @@ grep -qF -- "--with-dev-sensors" "$OUT" || {
 
 default_target="${TMP_DIR}/default"
 "$INSTALL" "$default_target" --write >"$OUT" 2>&1
+
+# Check the unbound identity contract before this default fixture is mutated.
+TEMPLATE="${default_target}/.github/harness-identity.env.example"
+[ -f "$TEMPLATE" ] || fail "installer must ship harness-identity.env.example"
+[ ! -e "${default_target}/.github/harness-identity.env" ] \
+  || fail "installer must not propagate the source repository binding"
+[ -f "${default_target}/scripts/lib/github-identity-lib.sh" ] \
+  || fail "installer must ship the shared identity helper"
+grep -Fq 'HARNESS_GH_ACCOUNT=your-github-account' "$TEMPLATE" \
+  || fail "template must show a placeholder account"
+if grep -Eq 'weijen|11629' "$TEMPLATE"; then
+  fail "template must not contain this repository's account identity"
+fi
+
+grep -Fq '.github/harness-identity.env' "${ROOT}/docs/getting-started.md" \
+  || fail "getting-started must document repository identity binding"
+grep -Fq "never runs \`gh auth switch\`" "${ROOT}/docs/getting-started.md" \
+  || fail "documentation must state the non-mutating global-account contract"
+if git -C "$ROOT" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
+	fail "the source repository must not track a machine-local identity binding"
+fi
+
+identity_guide="$(awk '
+	/^### Bind the repository/ { capture = 1; next }
+	capture && /^## / { exit }
+	capture { print }
+' "${default_target}/docs/getting-started.md" | tr '\n' ' ')"
+for identity_rule in 'machine-local' 'untracked' 'gitignored'; do
+	printf '%s\n' "$identity_guide" | grep -qiF "$identity_rule" \
+		|| fail "installed identity guide must describe the binding as ${identity_rule}"
+done
+if printf '%s\n' "$identity_guide" | grep -qiE 'may be tracked|binding is repository configuration'; then
+	fail "installed guide must not authorize committing a machine-local identity"
+fi
+
 [ ! -e "${default_target}/.env.example" ] || {
 	echo "default install shipped project-owned environment configuration"
 	exit 1
@@ -240,52 +280,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
-
-fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  exit 1
-}
-
-TARGET="${TMP_DIR}/target"
-mkdir -p "$TARGET"
-"$INSTALL" "$TARGET" --write >"${TMP_DIR}/install.out" 2>&1 \
-  || {
-    cat "${TMP_DIR}/install.out" >&2
-    fail "installer must write the adopter identity template"
-  }
-
-TEMPLATE="${TARGET}/.github/harness-identity.env.example"
-[ -f "$TEMPLATE" ] || fail "installer must ship harness-identity.env.example"
-[ ! -e "${TARGET}/.github/harness-identity.env" ] \
-  || fail "installer must not propagate the source repository binding"
-[ -f "${TARGET}/scripts/lib/github-identity-lib.sh" ] \
-  || fail "installer must ship the shared identity helper"
-grep -Fq 'HARNESS_GH_ACCOUNT=your-github-account' "$TEMPLATE" \
-  || fail "template must show a placeholder account"
-if grep -Eq 'weijen|11629' "$TEMPLATE"; then
-  fail "template must not contain this repository's account identity"
-fi
-
-grep -Fq '.github/harness-identity.env' "${ROOT}/docs/getting-started.md" \
-  || fail "getting-started must document repository identity binding"
-grep -Fq "never runs \`gh auth switch\`" "${ROOT}/docs/getting-started.md" \
-  || fail "documentation must state the non-mutating global-account contract"
-if git -C "$ROOT" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
-	fail "the source repository must not track a machine-local identity binding"
-fi
-
-identity_guide="$(awk '
-	/^### Bind the repository/ { capture = 1; next }
-	capture && /^## / { exit }
-	capture { print }
-' "${TARGET}/docs/getting-started.md" | tr '\n' ' ')"
-for identity_rule in 'machine-local' 'untracked' 'gitignored'; do
-	printf '%s\n' "$identity_guide" | grep -qiF "$identity_rule" \
-		|| fail "installed identity guide must describe the binding as ${identity_rule}"
-done
-if printf '%s\n' "$identity_guide" | grep -qiE 'may be tracked|binding is repository configuration'; then
-	fail "installed guide must not authorize committing a machine-local identity"
-fi
 
 BOUND_TARGET="${TMP_DIR}/bound-target"
 mkdir -p "${BOUND_TARGET}/.github"
