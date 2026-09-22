@@ -190,25 +190,43 @@ grep -qF 'adopter asset missing from source: scripts/init.sh' "$OUT" || {
 mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
 
 # An old lock cannot make project-owned configuration eligible for deletion.
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+config_source="${TMP_DIR}/config-source"
+config_target="${TMP_DIR}/config-target"
+installer_fixture_source "$config_source"
+[ "$(awk '!/^[[:space:]]*(#|$)/ {n++} END {print n}' "${config_source}/scripts/install-harness.assets")" -eq 1 ] \
+	|| fail "configuration protection fixture must select one ordinary asset"
+mkdir -p "${config_target}/scripts"
+cp "${config_source}/scripts/init.sh" "${config_target}/scripts/init.sh"
+digest="$(shasum -a 256 "${config_target}/scripts/init.sh" | awk '{print $1}')"
+printf '# harness-lock-v1\tsha256\tpath\n%s\tscripts/init.sh\n' "$digest" >"${config_target}/.harness-lock"
 printf 'adopter-owned configuration fixture\n' >"${TMP_DIR}/owned-config"
 cp "${TMP_DIR}/owned-config" "${TMP_DIR}/owned-config.before"
-ln -s "${TMP_DIR}/owned-config" "${default_target}/.env.example"
-printf '%064d\t.env.example\n' 0 >>"${default_target}/.harness-lock"
+ln -s "${TMP_DIR}/owned-config" "${config_target}/.env.example"
+printf '%064d\t.env.example\n' 0 >>"${config_target}/.harness-lock"
+cp "${config_target}/.harness-lock" "${TMP_DIR}/config-lock.before"
 for mode in dry write update; do
-	args=("$default_target")
+	args=("$config_target")
 	[ "$mode" = dry ] || args+=("--${mode}")
-	"$INSTALL" "${args[@]}" >"$OUT" 2>&1 || {
+	"${config_source}/scripts/install-harness.sh" "${args[@]}" >"$OUT" 2>&1 || {
 		cat "$OUT"
 		echo "project-owned environment configuration blocked ${mode}"
 		exit 1
 	}
-	if [ ! -L "${default_target}/.env.example" ] || \
+	grep -qF 'up to date scripts/init.sh' "$OUT" \
+		|| fail "configuration protection must exercise an already-installed asset"
+	if [ "$mode" = dry ]; then
+		cmp -s "${TMP_DIR}/config-lock.before" "${config_target}/.harness-lock" \
+			|| fail "dry configuration protection changed the ownership lock"
+	fi
+	if [ ! -L "${config_target}/.env.example" ] || \
 		! cmp -s "${TMP_DIR}/owned-config.before" "${TMP_DIR}/owned-config"; then
 		echo "installer changed existing project-owned environment configuration"
 		exit 1
 	fi
 done
-if grep -qF $'\t.env.example' "${default_target}/.harness-lock"; then
+if grep -qF $'\t.env.example' "${config_target}/.harness-lock"; then
 	echo "installer retained ownership of project-owned environment configuration"
 	exit 1
 fi
