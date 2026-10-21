@@ -46,6 +46,7 @@ mkdir -p "$FIX/scripts/validation" "$FIX/scripts/lib" "$FIX/profiles" "$FIX/test
 cp "$ROOT/scripts/run-sensors.sh" "$FIX/scripts/"
 cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors,python-gates}.sh "$FIX/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$FIX/scripts/lib/"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$FIX/scripts/lib/"
 cp "$ROOT/profiles/python.profile.sh" "$FIX/profiles/"
 export CI_WORKLOADS="$TMP/workloads" UV_LOG="$TMP/uv" GITHUB_OUTPUT="$TMP/output"
 for kind in routine upgrade maintenance; do

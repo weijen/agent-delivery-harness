@@ -27,6 +27,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/test-budget-lib.sh
+source "${SCRIPT_DIR}/lib/test-budget-lib.sh"
+if [ -z "${HARNESS_TEST_SESSION:-}" ]; then
+  budget_session bash "${BASH_SOURCE[0]}" "$@"
+  exit $?
+fi
+budget_valid || exit 1
 
 # Guarded source: evidence recording (issue #441) reuses the trace-lib issue
 # and main-root resolution; a missing trace-lib.sh only disables recording.
@@ -193,6 +200,7 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   local -a pipeline_status
   diagnostics_init "$scope" "$label"
   for t in "$@"; do
+    budget_phase "$t"
     ran=$((ran + 1))
     log=""
     [ -z "$DIAGNOSTICS_DIR" ] || log="${DIAGNOSTICS_DIR}/${ran}.log"
@@ -233,7 +241,6 @@ run_list() { # run_list <scope-label> <mode-label> <sensor-path>...
   done
   summary="SENSORS ${label} head=${HEAD_SHA} scope=${scope} ran=${ran} failed=${failed}"
   printf '%s\n' "$summary"
-  record_evidence "$label" "$scope" "$ran" "$failed"
   [ "$failed" -eq 0 ]
 }
 
@@ -313,8 +320,9 @@ if [ "$MODE" = "gate" ]; then
     exit 1
   fi
   mapfile -t ALL <<<"$selected"
-  run_list applicable "$GATE" "${ALL[@]}"
-  exit $?
+  budget_run "sensors:${GATE}" run_list applicable "$GATE" "${ALL[@]}"
+  record_evidence "$GATE" applicable "${#ALL[@]}" 0
+  exit 0
 fi
 
 # green mode: resolver decides; the agent does not.
@@ -341,4 +349,5 @@ if [ -z "$RESOLVED" ]; then
 fi
 
 mapfile -t SCOPED <<< "$RESOLVED"
-run_list scoped green "${SCOPED[@]}"
+budget_run sensors:green run_list scoped green "${SCOPED[@]}"
+record_evidence green scoped "${#SCOPED[@]}" 0

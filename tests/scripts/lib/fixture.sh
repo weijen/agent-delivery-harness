@@ -92,6 +92,7 @@ fixture_repo() {
 
   if [ -n "$scripts_csv" ]; then
     IFS=',' read -r -a scripts <<< "$scripts_csv"
+    scripts+=("lib/test-budget-lib.sh")
     case ",${scripts_csv}," in
       *,log-handback.sh,*) scripts+=("trace/log-handback.sh") ;;
     esac

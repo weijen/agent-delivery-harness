@@ -114,7 +114,8 @@ for profile in default developer; do
 	printf 'fresh %s payload and no-source-fallback boundary passed\n' "$profile"
 done
 
-for profile in default developer claude; do
+run_upgrade() (
+	local profile="$1"
 	layout_install_calls=0
 	options=()
 	case "$profile" in
@@ -197,6 +198,8 @@ for profile in default developer claude; do
 			[ ! -e "${target}/${canonical}" ] || fail_layout "${profile} installed source-only ${canonical}"
 		else
 			[ -f "${target}/${canonical}" ] || fail_layout "${profile} missing canonical ${canonical}"
+			cmp -s "${ROOT}/${canonical}" "${target}/${canonical}" \
+				|| fail_layout "${profile} changed canonical implementation ${canonical}"
 		fi
 		if [ -n "$public" ]; then
 			[ "$public" = "$old" ] && [ -x "${target}/${public}" ] \
@@ -297,6 +300,9 @@ SH
 	printf '#!/usr/bin/env bash\nexit 0\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
 	git -C "$target" add .
 	git -C "$target" commit -qm 'test: upgraded installed layout'
+	# All profiles prove exact canonical payloads and real runtime below.
+	# Exercise shared lifecycle failure scenarios once, not a profile cross-product.
+	if [ "$profile" = default ]; then
 	for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
 		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
 			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}" ISSUE=81 SLUG=installed-start) \
@@ -417,6 +423,7 @@ SH
 			"${target}/${issue_dir}/trace.jsonl" >/dev/null || fail_layout "${profile} closeout lost its terminal evidence"
 		finish_issue=82
 	done
+	fi
 	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \
 			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) \
@@ -442,7 +449,22 @@ SH
 		|| fail_layout "${profile} failure did not name the installed sensor"
 	grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
 		|| fail_layout "${profile} targeted failure selected unrelated sensors"
+)
+# Independent targets, logs, binaries and worktrees share only immutable inputs.
+upgrade_pids=()
+for profile in default developer claude; do
+	profile_dir="${TMP_DIR}/upgrade-${profile}"
+	mkdir -p "$profile_dir"
+	cp "${TMP_DIR}/layout-moves" "${profile_dir}/layout-moves"
+	layout_log="${profile_dir}/layout-upgrade.log" TMP_DIR="$profile_dir" run_upgrade "$profile" &
+	upgrade_pids+=("$!")
 done
+upgrade_status=0
+for pid in "${upgrade_pids[@]}"; do
+	wait "$pid" || upgrade_status=1
+done
+[ "$upgrade_status" -eq 0 ] || fail_layout "historical profile acceptance failed"
+target="${TMP_DIR}/upgrade-claude/layout-claude"
 # A modified installed contract must not turn migration candidates into paths
 # outside the target, even before ownership checks run.
 sed 's|from: scripts/affected-sensors.sh|from: scripts/../../outside|' \

@@ -172,6 +172,7 @@ grep -Fxq tests/scripts/maintenance/test_install_harness_tombstone_history.sh "$
 HISTORY="$TMP/history"
 mkdir -p "$HISTORY/scripts/validation" "$HISTORY/scripts/lib" "$HISTORY/scripts/maintenance" "$HISTORY/tests/scripts"
 cp "$ROOT/scripts/run-sensors.sh" "$HISTORY/scripts/"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$HISTORY/scripts/lib/"
 cp "$ROOT/scripts/maintenance/check-install-harness-tombstones.sh" "$HISTORY/scripts/maintenance/"
 cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors}.sh "$HISTORY/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$HISTORY/scripts/lib/"

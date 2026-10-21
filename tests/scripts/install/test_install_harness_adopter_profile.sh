@@ -133,6 +133,10 @@ for directory in ("docs", ".copilot", "profiles"):
                 raise SystemExit(f"installed guidance link is broken: {path.relative_to(root)} -> {target}")
 PY
 
+# Reuse the already-proven pristine payload as setup, not another fresh-install case.
+upgrade_target="${TMP_DIR}/upgrade"
+cp -R "$default_target" "$upgrade_target"
+
 # Newly colocated source assets must not enter an explicit default selection.
 mkdir -p "${default_target}/docs/evaluation" "${default_target}/tests/fixtures/unclassified"
 printf '#!/usr/bin/env bash\nexit 0\n' >"${default_target}/scripts/unclassified-maintenance.sh"
@@ -231,8 +235,6 @@ if grep -qF $'\t.env.example' "${config_target}/.harness-lock"; then
 	exit 1
 fi
 
-upgrade_target="${TMP_DIR}/upgrade"
-"$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1
 # Model the preceding broad payload; portable developer mode no longer ships it.
 for legacy in tests/scripts/test_release_workflow.sh \
 	tests/scripts/install/test_install_harness_symlinked_parent.sh \
@@ -295,7 +297,7 @@ printf 'install-harness adopter profile sensor passed\n'
 (
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-INSTALL="${ROOT}/scripts/install-harness.sh"
+INSTALL="${config_source}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 

@@ -19,7 +19,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
-for s in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
+for s in lib/test-budget-lib.sh validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
   cp "${ROOT}/scripts/${s}" "${FIX}/scripts/${s}"
 done
 printf '#!/usr/bin/env bash\nexit 0\n' > "${FIX}/tests/scripts/test_green.sh"

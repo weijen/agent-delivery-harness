@@ -21,6 +21,7 @@ scripts/install-harness.assets
 scripts/install-harness.tombstones
 scripts/lib/issue-lib.sh
 scripts/lib/lifecycle-runtime-lib.sh
+scripts/lib/test-budget-lib.sh
 scripts/log-handback.sh
 scripts/trace/log-handback.sh
 scripts/merge-pr.sh
@@ -138,6 +139,7 @@ tests/scripts/validation/test_same_class_escalation.sh
 tests/scripts/install/test_scaffold_language.sh
 tests/scripts/test_semantic_spine_without_copilot_hook.sh
 tests/scripts/validation/test_sensor_evidence_recording.sh
+tests/scripts/validation/test_test_budget.sh
 tests/scripts/validation/test_sensor_diagnostics.sh
 tests/scripts/validation/test_sensor_failure_excerpt.sh
 tests/scripts/validation/test_sensor_evidence_verify.sh

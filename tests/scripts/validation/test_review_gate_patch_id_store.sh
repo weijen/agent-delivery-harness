@@ -146,7 +146,7 @@ mutant_rg="${TMP_DIR}/validation/review-gate-mutant.sh"
 mkdir -p "${TMP_DIR}/lib" "${TMP_DIR}/validation"
 cp "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" "${TMP_DIR}/lib/"
 # The fixture runs explicit computational gates alongside the mutated review script.
-for dep in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
+for dep in lib/test-budget-lib.sh validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
   validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
   cp "${ROOT}/scripts/${dep}" "${TMP_DIR}/${dep}"
 done

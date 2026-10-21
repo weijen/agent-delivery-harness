@@ -31,6 +31,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${FIX}/scripts/lib/"
 cp "${ROOT}/scripts/validation/run-sensors.sh" \
    "${ROOT}/scripts/validation/affected-sensors.sh" \
    "${ROOT}/scripts/validation/verify-sensor-evidence.sh" "${FIX}/scripts/validation/"

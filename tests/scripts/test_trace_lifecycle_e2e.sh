@@ -150,7 +150,7 @@ export COPILOT_CLI_STATE_ROOT="${TMP_DIR}/native-empty"
 R="${TMP_DIR}/repo"
 mkdir -p "${R}/scripts/lib" "${R}/scripts/validation" "${R}/schemas" "${R}/docs" "${R}/tests/scripts" "${R}/tests/scripts/validation"
 printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${R}/tests/scripts/test_review_syntax.sh"
-for s in lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
+for s in lib/test-budget-lib.sh lib/issue-lib.sh lib/lifecycle-runtime-lib.sh start-issue.sh lifecycle/start-issue.sh validation/check-feature-list.sh validation/review-gate.sh \
          create-pr.sh lifecycle/create-pr.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh merge-pr.sh lifecycle/merge-pr.sh finish-issue.sh lifecycle/finish-issue.sh \
          lib/finish-lib.sh lib/economics-report-lib.sh lib/trace-lib.sh \
          lib/ci-coverage-lib.sh \

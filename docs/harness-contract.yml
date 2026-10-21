@@ -215,6 +215,9 @@ layout_moves:
 # `role` is documentation; `path` is the test authority.
 # ---------------------------------------------------------------------------
 scripts:
+  - id: test-budget-lib
+    path: scripts/lib/test-budget-lib.sh
+    role: Shared fixed test deadline, union accounting and bounded process cleanup.
   - id: scaffold-language
     path: scripts/scaffold-language.sh
     role: Stable public language profile generation entrypoint.
