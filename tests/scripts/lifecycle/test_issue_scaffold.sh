@@ -62,6 +62,7 @@ cp "${ROOT}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/repo/scripts/v
 cp "${ROOT}/scripts/init.sh" "${TMP_DIR}/repo/scripts/init.sh"
 mkdir -p "${TMP_DIR}/repo/scripts/lifecycle"
 cp "${ROOT}/scripts/lifecycle/init.sh" "${TMP_DIR}/repo/scripts/lifecycle/init.sh"
+cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${TMP_DIR}/repo/scripts/lib/"
 
 cd "${TMP_DIR}/repo"
 git init -q -b main

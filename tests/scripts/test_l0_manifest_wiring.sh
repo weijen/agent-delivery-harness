@@ -47,6 +47,7 @@ cp "$ROOT/tests/evals/bin/run-l0-suite.sh" "$ROOT/tests/evals/bin/run-evals.sh" 
 cp "$ROOT/tests/evals/manifests/scripts/"l0-*.json "$FIX/tests/evals/manifests/scripts/"
 cp "$ROOT/scripts/validation/affected-sensors.sh" "$FIX/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$FIX/scripts/lib/"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$FIX/scripts/lib/"
 export L0_WIRING_CALLS
 L0_WIRING_CALLS="$TMP/calls"
 while read -r id sensor; do

@@ -180,6 +180,26 @@ Workflow per issue:
    canonical full inventory. Explicit release and maintenance boundaries retain
    their groups through `--gate release` and `--gate maintenance`.
 
+### Shared test execution budget
+
+One required validation run shares a hard 600-second cumulative test wall-time
+budget across profiles, sensors and nested runners. Parallel work counts elapsed
+union. Compose existing budget-aware commands with
+`./scripts/validation/validate.sh bash -euc '<commands>'`; for final local
+validation compose `./scripts/init.sh` and `./scripts/run-sensors.sh --gate pre-pr`
+inside that one session. CI similarly shares profile tests and sensors; release,
+maintenance and explicit evaluation boundaries retain the same budget.
+Separate TDD iterations and local/remote runs are separate sessions, not a
+lifetime issue budget.
+
+Independent dependency installation, build, format, lint and typecheck phases
+are excluded. Preparation performed inside a test command counts. Exhaustion
+stops the active test group with bounded cleanup, exits nonzero with elapsed,
+budget and phase diagnostics, forbids later tests and successful gate evidence.
+Do not extend/reset/disable the limit, split one required run into fresh budgets,
+or narrow coverage to fit. Escalate real coverage/budget conflicts for a human
+scope/design ruling. See [the runtime contract](../../docs/HARNESS.md#shared-test-execution-budget).
+
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
 complete, verify the claim against an actual tool result (test output, gh state query, file
 content) — never from memory of intending to run it. A status line that names a check must be

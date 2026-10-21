@@ -110,23 +110,55 @@ budget_run() (
 	HARNESS_TEST_ACTIVE="$(mktemp "$HARNESS_TEST_SESSION/active.XXXXXX")" || exit 1
 	export HARNESS_TEST_ACTIVE
 	budget_phase "$label"
+	mkfifo "$HARNESS_TEST_ACTIVE.done" || exit 1
 	local child watcher rc=0 update_rc=0
 	# A private job group contains this test and its pipelines, never the caller.
 	set -m
 	("$@") &
 	child=$!
 	set +m
-	trap 'kill -TERM -- "-$child" 2>/dev/null || true; sleep 1; kill -KILL -- "-$child" 2>/dev/null || true; kill "$watcher" 2>/dev/null || true' INT TERM
+	# Open after spawning the test so its file descriptors are unchanged.
+	exec 9<>"$HARNESS_TEST_ACTIVE.done"
 	(
-		while [ ! -f "$HARNESS_TEST_ACTIVE.done" ]; do
+		while :; do
 			watch_rc=0
-			budget_update tick || watch_rc=$?
+			if ! read -r spent last active <"$HARNESS_TEST_SESSION/state" \
+				|| ! [[ "$spent $last $active" =~ ^[0-9]+\ [0-9]+\ [0-9]+$ ]] \
+				|| ! now="$(budget_now_ms)"; then
+				watch_rc=1
+			else
+				remaining=$((600000 - spent - now + last))
+				if [ "$remaining" -gt 0 ]; then
+					printf -v duration '%d.%03d' "$((remaining / 1000))" "$((remaining % 1000))"
+					(
+						sleeper="" cancelled=0
+						trap 'cancelled=1; [ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null || true' TERM
+						sleep "$duration" &
+						sleeper=$!
+						[ "$cancelled" -eq 0 ] || kill "$sleeper" 2>/dev/null || true
+						if wait "$sleeper"; then printf 'deadline\n' >&9; fi
+					) &
+					timer=$!
+					message=error
+					IFS= read -r message <&9 || message=error
+					kill -TERM "$timer" 2>/dev/null || true
+					wait "$timer" || true
+					case "$message" in
+						done) exit 0 ;;
+						cancel) exit 1 ;;
+						deadline) ;;
+						*) watch_rc=1 ;;
+					esac
+				fi
+				if [ "$watch_rc" -eq 0 ]; then budget_update tick || watch_rc=$?; fi
+			fi
 			if [ "$watch_rc" -ne 0 ]; then
 				if [ "$watch_rc" -ne 124 ]; then
 					printf 'test-budget: accounting failure; stopping active tests\n' >&2
 					printf 'accounting failure\n' >"$HARNESS_TEST_SESSION/timeout"
 				fi
-				read -r elapsed _ _ <"$HARNESS_TEST_SESSION/state"
+				elapsed=unknown
+				read -r elapsed _ _ <"$HARNESS_TEST_SESSION/state" || true
 				phase="$(cat "$HARNESS_TEST_ACTIVE")"
 				printf 'TIMEOUT elapsed_ms=%s budget=600 phase=%s\n' "$elapsed" "$phase" >&2
 				kill -TERM -- "-$child" 2>/dev/null || true
@@ -134,14 +166,15 @@ budget_run() (
 				kill -KILL -- "-$child" 2>/dev/null || true
 				exit 0
 			fi
-			sleep 0.1
 		done
 	) &
 	watcher=$!
+	trap 'printf "cancel\n" >&9; kill -TERM -- "-$child" 2>/dev/null || true; sleep 1; kill -KILL -- "-$child" 2>/dev/null || true' INT TERM
 	wait "$child" || rc=$?
 	budget_update stop || update_rc=$?
-	: >"$HARNESS_TEST_ACTIVE.done"
+	printf 'done\n' >&9
 	wait "$watcher" || true
+	exec 9>&-
 	rm -f "$HARNESS_TEST_ACTIVE" "$HARNESS_TEST_ACTIVE.done"
 	if [ "$update_rc" -ne 0 ]; then
 		[ "$update_rc" -ne 124 ] || printf 'TIMEOUT elapsed_ms=%s budget=600 phase=%s\n' \

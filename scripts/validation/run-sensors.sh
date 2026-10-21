@@ -34,6 +34,7 @@ if [ -z "${HARNESS_TEST_SESSION:-}" ]; then
   exit $?
 fi
 budget_valid || exit 1
+[ ! -f "$HARNESS_TEST_SESSION/timeout" ] || exit 124
 
 # Guarded source: evidence recording (issue #441) reuses the trace-lib issue
 # and main-root resolution; a missing trace-lib.sh only disables recording.

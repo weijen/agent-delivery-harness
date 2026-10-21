@@ -20,6 +20,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${SCRIPT_DIR}/.."
+# shellcheck source=scripts/lib/test-budget-lib.sh
+source "${SCRIPT_DIR}/lib/test-budget-lib.sh"
+if [ -z "${HARNESS_TEST_SESSION:-}" ]; then
+  budget_session bash "${BASH_SOURCE[0]}" "$@"
+  exit $?
+fi
 
 # Pin VIRTUAL_ENV to this repo's venv when one exists. Without this, a VIRTUAL_ENV
 # inherited from a sibling checkout makes every `uv run` print a yellow warning.
@@ -56,6 +62,14 @@ note_ok() {
 # (an optional tool/script is absent) → warn, not hard-fail; any other nonzero is
 # a real failure that fails preflight. Python gates only return 0/1, so the SKIP
 # branch is dormant for Python and its hard-fail contract is preserved.
+quiet_gate() { "profile_gate_$1" >/dev/null 2>&1; }
+run_profile_gate() {
+  if [ "$1" = test ]; then
+    budget_run "${PROFILE_ID}:test" quiet_gate "$1"
+  else
+    quiet_gate "$1"
+  fi
+}
 run_gate_loop() {
   local g ok_var fail_var fix_var skip_var rc skip_msg
   for g in "${PROFILE_GATES[@]}"; do
@@ -63,10 +77,14 @@ run_gate_loop() {
     fail_var="PROFILE_GATE_${g}_FAIL"
     fix_var="PROFILE_GATE_${g}_FIX"
     skip_var="PROFILE_GATE_${g}_SKIP"
-    if "profile_gate_${g}" >/dev/null 2>&1; then
+    if run_profile_gate "$g"; then
       note_ok "${!ok_var}"
     else
       rc=$?
+      if [ "$rc" -eq 124 ]; then
+        note_fail "shared 600-second test budget exhausted"
+        return 124
+      fi
       if [ "$rc" -eq 2 ]; then
         skip_msg="${!skip_var:-}"
         [ -n "$skip_msg" ] || skip_msg="${g} skipped"

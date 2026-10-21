@@ -124,7 +124,8 @@ for profile in source adopter; do
 		|| fail "${profile} lint must cover each intended identity exactly once"
 done
 
-assert_owner "Python profile gates" './scripts/validation/python-gates.sh' "$SMOKE"
+assert_owner "Python static gates" './scripts/validation/python-gates.sh static' "$SMOKE"
+assert_owner "Python tests" './scripts/validation/python-gates.sh test' "$SMOKE"
 assert_owner "Python dependency sync" 'uv sync --all-groups' "$SMOKE"
 assert_owner "Python lock integrity" 'uv lock --check' "$PYTHON"
 assert_owner "applicable sensor execution" './scripts/run-sensors.sh --gate ci' "$SMOKE"

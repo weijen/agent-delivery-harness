@@ -118,6 +118,21 @@ grep -Fq 'eval runner not found or not executable' "$OUT" || fail "missing runne
 mv "${TMP_DIR}/runtime-runner.saved" "${TARGET}/tests/evals/bin/run-evals.sh"
 
 # Unknown colocated assets cannot leak into either install mode.
+# Full payload bytes/runtime were checked above; selection needs representative
+# real self-hosted assets, not another complete installation cross-product.
+cat >"${TARGET}/scripts/install-harness.assets" <<'ASSETS'
+VERSION
+docs/harness-contract.yml
+scripts/install-harness.sh
+scripts/install/install-harness.sh
+scripts/lib/reconcile-lib.sh
+scripts/lib/github-identity-lib.sh
+scripts/install-harness.assets
+scripts/install-harness.tombstones
+tests/harness-dev-sensors.txt
+ASSETS
+printf 'scripts/install-harness.dev.assets\ntests/evals/bin/run-evals.sh\n' \
+	>"${TARGET}/scripts/install-harness.dev.assets"
 printf '#!/usr/bin/env bash\nexit 0\n' >"${TARGET}/tests/evals/bin/unclassified.sh"
 "${TARGET}/scripts/install-harness.sh" "${TMP_DIR}/second" --write --with-dev-sensors >"$OUT" 2>&1 \
 	|| { cat "$OUT" >&2; fail "installed developer installer cannot create another target"; }
@@ -140,7 +155,7 @@ grep -Fq 'tests/evals/bin/run-evals.sh' "$OUT" || fail "missing dependency diagn
 [ ! -e "${TMP_DIR}/missing" ] || fail "missing developer dependency partially installed"
 mv "${TMP_DIR}/runner.saved" "${TARGET}/tests/evals/bin/run-evals.sh"
 
-"${ROOT}/scripts/install-harness.sh" "${TMP_DIR}/second" --update >"$OUT" 2>&1 \
+"${TARGET}/scripts/install-harness.sh" "${TMP_DIR}/second" --update >"$OUT" 2>&1 \
 	|| { cat "$OUT" >&2; fail "developer-to-default migration failed"; }
 [ ! -e "${TMP_DIR}/second/tests/evals/bin/run-evals.sh" ] || fail "default downgrade kept clean developer tools"
 [ ! -e "${TMP_DIR}/second/scripts/install-harness.dev.assets" ] || fail "default downgrade kept developer manifest"

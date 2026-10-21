@@ -437,8 +437,7 @@ printf 'harness-dev sensor manifest passed\n'
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 INSTALL="${ROOT}/scripts/install-harness.sh"
 TMP_DIR="$(mktemp -d)"
-TARGET="${TMP_DIR}/installed"
-INSTALL_OUT="${TMP_DIR}/install.out"
+TARGET="$default_target"
 HELP_OUT="${TMP_DIR}/install-help.out"
 GETTING_STARTED="${ROOT}/docs/getting-started.md"
 trap 'rm -rf "${TMP_DIR}"' EXIT
@@ -480,12 +479,6 @@ assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"runtime-adapter guidance/templates" "optional/runtime-adapters/" "guide" "template"
 assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
-
-mkdir -p "$TARGET"
-if ! "$INSTALL" "$TARGET" --write >"$INSTALL_OUT" 2>&1; then
-	cat "$INSTALL_OUT" >&2
-	fail "installer --write failed"
-fi
 
 for rel in VERSION schemas/trace-schema.v1.json docs/harness-contract.yml; do
 	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \

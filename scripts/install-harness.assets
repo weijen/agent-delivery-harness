@@ -34,6 +34,7 @@ scripts/trace/render-action-log.sh
 scripts/validation/review-gate.sh
 scripts/run-sensors.sh
 scripts/validation/run-sensors.sh
+scripts/validation/validate.sh
 scripts/scaffold-language.sh
 scripts/install/scaffold-language.sh
 scripts/start-issue.sh

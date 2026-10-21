@@ -60,7 +60,7 @@ jobs:
         if: steps.release_plan.outputs.released == 'true'
         shell: bash
         run: |
-          ./scripts/run-sensors.sh --gate release
+          ./scripts/validation/validate.sh ./scripts/run-sensors.sh --gate release
 
       - name: Semantic version release
         id: release

@@ -1,5 +1,14 @@
 # Harness language profiles
 
+Profile test slots join the core's shared 600-second test budget. `init.sh`
+wraps the `test` slot, and shipped/generated direct test commands also enforce
+it. Compose profiles and sensors with `scripts/validation/validate.sh` for one
+required run; independently executed sync/build/static phases are excluded,
+while preparation inside a test command counts (including Go/Maven compilation).
+Python `python-gates.sh static` runs only format/lint/typecheck; `all` retains
+those checks plus tests. Source CI runs tests once in the shared sensor session.
+See [the runtime contract](../docs/HARNESS.md#shared-test-execution-budget).
+
 This directory holds the harness's **language profile descriptors** and is the
 current descriptor-interface authority. `scripts/init.sh` uses the Python
 descriptor's applicability function and explicit marker checks for the other

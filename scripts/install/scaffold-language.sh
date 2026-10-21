@@ -173,9 +173,20 @@ PROFILE_GATES=(${META_GATES})
 EOF
 	for slot in ${META_GATES}; do
 		IFS='|' read -r cmd ok fail fix <<<"$(gate_spec "$id" "$slot")"
+		if [ "$slot" = test ]; then
+			cat <<EOF
+
+profile_gate_test() (
+	# shellcheck source=scripts/lib/test-budget-lib.sh
+	source "\$(cd "\$(dirname "\${BASH_SOURCE[0]}")/../scripts/lib" && pwd)/test-budget-lib.sh"
+	budget_run "${id}:test" ${cmd}
+)
+EOF
+		else
+			printf '\nprofile_gate_%s() { %s; }\n' "$slot" "$cmd"
+		fi
 		cat <<EOF
 
-profile_gate_${slot}() { ${cmd}; }  # TODO(${id} profile issue): confirm command
 PROFILE_GATE_${slot}_OK="${ok}"
 PROFILE_GATE_${slot}_FAIL="${fail}"
 PROFILE_GATE_${slot}_FIX="${fix}"

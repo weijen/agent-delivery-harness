@@ -22,6 +22,15 @@
 version: 2
 review_by: 2027-01-23
 
+test_execution_budget:
+  seconds: 600
+  accounting: cumulative-test-wall-time-union
+  excluded: independently-executed-setup-build-format-lint-typecheck
+  included: preparation-inside-test-command
+  timeout_exit: 124
+  cleanup_grace_seconds: 1
+  successful_timeout_evidence: forbidden
+
 # Canonical layout migration identities. Old paths retire unless an explicit
 # public_entrypoint retains a thin exec wrapper; libraries are sourced directly.
 layout_moves:
@@ -215,6 +224,9 @@ layout_moves:
 # `role` is documentation; `path` is the test authority.
 # ---------------------------------------------------------------------------
 scripts:
+  - id: validation_session
+    path: scripts/validation/validate.sh
+    mode: hard
   - id: test-budget-lib
     path: scripts/lib/test-budget-lib.sh
     role: Shared fixed test deadline, union accounting and bounded process cleanup.

@@ -104,22 +104,14 @@ set -e
 chmod +w "${FIX}/.copilot-tracking/issues/issue-77"
 [ "$rc" = "0" ] || fail "green run must still exit 0 when evidence recording fails (got ${rc}: $out)"
 
-# Timeout uses a fixture-only clock, not a production budget override.
-export FIXTURE_CLOCK="${TMP_DIR}/clock"
-cat >>"$FIX/scripts/lib/test-budget-lib.sh" <<'SH'
-budget_now_ms() {
-  local now=0
-  [ ! -f "$FIXTURE_CLOCK" ] || read -r now <"$FIXTURE_CLOCK"
-  now=$((now + 200000))
-  printf '%s\n' "$now" >"$FIXTURE_CLOCK"
-  printf '%s\n' "$now"
-}
-SH
+# Near-exhausted fixture state, never a production budget override.
+mkdir "$TMP_DIR/deadline"
+printf '599000 0 0\n' >"$TMP_DIR/deadline/state"
 printf '#!/usr/bin/env bash\nsleep 30\n' >"$FIX/tests/scripts/test_timeout.sh"
 printf '#!/usr/bin/env bash\ntouch later-started\n' >"$FIX/tests/scripts/test_z_later.sh"
 rows="$(wc -l <"$EVIDENCE")"
 rc=0
-out="$(cd "$FIX" && env -u HARNESS_TEST_SESSION -u HARNESS_TEST_ACTIVE \
+out="$(cd "$FIX" && env -u HARNESS_TEST_ACTIVE HARNESS_TEST_SESSION="$TMP_DIR/deadline" \
   ./scripts/run-sensors.sh green --declared 'tests/scripts/test_timeout.sh,tests/scripts/test_z_later.sh' --diff HEAD 2>&1)" || rc=$?
 [ "$rc" = 124 ] || fail "timeout must retain a nonzero timeout exit (got $rc: $out)"
 grep -q 'TIMEOUT.*phase=tests/scripts/test_timeout.sh' <<<"$out" || fail "timeout lacks active sensor"

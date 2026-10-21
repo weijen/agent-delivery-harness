@@ -166,6 +166,47 @@ stage header still excludes whole-suite wrappers from feature greens.
 | Other lifecycle, schema, redaction, evidence and installed integration checks | Their retained runtime contracts | Routine final validation; affected/declared feature selection |
 | Bounded evaluation-driver contracts | Incorrect manifest, blocking result or scorecard behavior | Routine; real whole L0 evaluation remains explicitly invoked through its existing driver |
 
+### Shared test execution budget
+
+One required validation run has a fixed **600-second cumulative test wall-time
+budget**. Sequential profiles and sensors share the remaining time; nested
+execution joins the active phase and parallel work counts elapsed union, not
+summed worker/CPU time. Local and CI runs have independent sessions, as do
+separate TDD iterations. Release, maintenance and explicit evaluation runs obey
+the same limit. Selection and assertions are not reduced to fit the deadline.
+
+Use the single-purpose session entrypoint to compose existing budget-aware gates:
+
+```sh
+./scripts/validation/validate.sh bash -euc '
+  ./scripts/init.sh
+  ./scripts/validation/check-shell.sh syntax
+  ./scripts/validation/check-shell.sh lint
+  ./scripts/run-sensors.sh --gate pre-pr
+'
+```
+
+Run this final validation only after independent review approval. The session
+wrapper creates/inherits context; it is not a generic timeout for arbitrary
+commands. Standard profile test slots, Python gates, sensor runners and evaluation
+drivers enter the shared budget themselves. New test commands must use
+`budget_run <phase> <command> [args...]` from `scripts/lib/test-budget-lib.sh`
+inside the same session. Do not compose a required run from independently
+restarted sessions.
+
+Dependency setup and independently executed build/format/lint/typecheck phases
+are excluded. Preparation inside an executing test command counts, including
+compilation, fixture installation, or nested static work performed by a test.
+The core uses a monotonic clock (`/proc/uptime` on Linux, Perl's core
+`Time::HiRes` on macOS), not adjustable wall-clock timestamps.
+
+Exhaustion is latched: stop the active test process group, allow one second of
+bounded termination grace, then force termination. Emit elapsed milliseconds,
+the 600-second budget and active phase; exit 124, start no later tests, and
+record no successful gate evidence. Accounting errors also fail closed.
+There is no supported limit extension/reset/disable option. Coverage/budget
+conflicts require an explicit scope/design ruling, never automatic test deletion.
+
 ### Sensor diagnostics
 
 Each nonempty local runner invocation prints a `DIAGNOSTICS <index>` location
@@ -174,7 +215,8 @@ attempt. Existing `PASS`/`FAIL` and final `SENSORS` lines retain their meaning.
 The index is tab-separated: sensor, elapsed_ms, actual exit_status, log.
 Adjacent `run.tsv` records HEAD, mode and scope; a unique run directory prevents
 repeated attempts from overwriting each other. Elapsed wall time includes
-output capture/redaction, not just CPU execution; it is never a pass threshold.
+output capture/redaction, not just CPU execution. Individual diagnostic timings
+are not per-sensor pass thresholds; the separate aggregate test budget is hard.
 
 Logs are sanitized before writing and retained beneath the main checkout's
 ignored `.copilot-tracking/issues/issue-NN/sensor-runs/` directory, surviving
@@ -192,7 +234,8 @@ Storage/redaction failures print explicit warnings and `log=unavailable`.
 The runner drains discarded output without rerunning the sensor or substituting
 a capture exit code for the sensor's exit. The gate still reflects sensor results;
 a failing sensor never creates green evidence. Diagnostic indexes are not gate
-evidence and cannot authorize publication. Existing CI execution loops are unchanged.
+evidence and cannot authorize publication. CI retains its selected coverage within
+the shared test session.
 
 On failure, the runner prints the first and last ten sanitized lines (at most
 200 bytes per displayed line), with an omission marker when necessary. This

@@ -26,8 +26,8 @@ done
 
 TARGET="${TMP_DIR}/adopter"
 mkdir -p "${TARGET}/scripts/validation" "${TARGET}/tests/scripts/validation" \
-	"${TARGET}/tests/evals/bin" "${TARGET}/.copilot/skills/fixture"
-for script in validation/affected-sensors.sh validation/check-shell.sh; do
+	"${TARGET}/tests/evals/bin" "${TARGET}/.copilot/skills/fixture" "${TARGET}/scripts/lib"
+for script in validation/affected-sensors.sh validation/check-shell.sh validation/validate.sh lib/test-budget-lib.sh; do
 	cp "${ROOT}/scripts/${script}" "${TARGET}/scripts/${script}"
 done
 printf '#!/usr/bin/env bash\nprintf "success\\n" >>recorded\n' \
