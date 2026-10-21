@@ -133,11 +133,21 @@ for directory in ("docs", ".copilot", "profiles"):
                 raise SystemExit(f"installed guidance link is broken: {path.relative_to(root)} -> {target}")
 PY
 
-# Reuse the already-proven pristine payload as setup, not another fresh-install case.
-upgrade_target="${TMP_DIR}/upgrade"
-cp -R "$default_target" "$upgrade_target"
-
 # Newly colocated source assets must not enter an explicit default selection.
+# Full payload and self-hosting are proven above; selection needs representative assets.
+cp "${default_target}/scripts/install-harness.assets" "${TMP_DIR}/manifest.full"
+cat >"${default_target}/scripts/install-harness.assets" <<'ASSETS'
+VERSION
+docs/harness-contract.yml
+scripts/install-harness.sh
+scripts/install/install-harness.sh
+scripts/lib/reconcile-lib.sh
+scripts/lib/github-identity-lib.sh
+scripts/install-harness.assets
+scripts/install-harness.tombstones
+scripts/init.sh
+tests/harness-dev-sensors.txt
+ASSETS
 mkdir -p "${default_target}/docs/evaluation" "${default_target}/tests/fixtures/unclassified"
 printf '#!/usr/bin/env bash\nexit 0\n' >"${default_target}/scripts/unclassified-maintenance.sh"
 printf 'unclassified research\n' >"${default_target}/docs/evaluation/unclassified.md"
@@ -192,6 +202,7 @@ grep -qF 'adopter asset missing from source: scripts/init.sh' "$OUT" || {
 	exit 1
 }
 mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
+cp "${TMP_DIR}/manifest.full" "${default_target}/scripts/install-harness.assets"
 
 # An old lock cannot make project-owned configuration eligible for deletion.
 # shellcheck source=tests/scripts/lib/installer-fixture.sh
@@ -199,6 +210,7 @@ source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 config_source="${TMP_DIR}/config-source"
 config_target="${TMP_DIR}/config-target"
 installer_fixture_source "$config_source"
+cp "${ROOT}/tests/harness-dev-sensors.txt" "${config_source}/tests/harness-dev-sensors.txt"
 [ "$(awk '!/^[[:space:]]*(#|$)/ {n++} END {print n}' "${config_source}/scripts/install-harness.assets")" -eq 1 ] \
 	|| fail "configuration protection fixture must select one ordinary asset"
 mkdir -p "${config_target}/scripts"
@@ -236,6 +248,8 @@ if grep -qF $'\t.env.example' "${config_target}/.harness-lock"; then
 fi
 
 # Model the preceding broad payload; portable developer mode no longer ships it.
+upgrade_target="${TMP_DIR}/upgrade"
+"${config_source}/scripts/install-harness.sh" "$upgrade_target" --write >"$OUT" 2>&1
 for legacy in tests/scripts/test_release_workflow.sh \
 	tests/scripts/install/test_install_harness_symlinked_parent.sh \
 	tests/scripts/lifecycle/test_init_gates.sh tests/meta/test_agent_model_pins.sh; do
@@ -249,7 +263,7 @@ for legacy in tests/scripts/test_release_workflow.sh \
 	printf '%s\t%s\n' "$digest" "$legacy" >>"${upgrade_target}/.harness-lock"
 done
 printf '\n# adopter customization\n' >>"${upgrade_target}/tests/scripts/lifecycle/test_init_gates.sh"
-if "$INSTALL" "$upgrade_target" --write >"$OUT" 2>&1; then
+if "${config_source}/scripts/install-harness.sh" "$upgrade_target" --write >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "default upgrade must report a modified excluded sensor"
 	exit 1
@@ -273,7 +287,7 @@ grep -qF "preserving modified harness-dev sensor tests/scripts/lifecycle/test_in
 }
 
 # --update must preserve a modified excluded sensor as a three-way conflict.
-if "$INSTALL" "$upgrade_target" --update >"$OUT" 2>&1; then
+if "${config_source}/scripts/install-harness.sh" "$upgrade_target" --update >"$OUT" 2>&1; then
 	cat "$OUT"
 	echo "--update on a modified excluded sensor must fail visibly"
 	exit 1

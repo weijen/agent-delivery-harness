@@ -26,13 +26,20 @@ for requirement in 'clearing condition' "human's agreement" 'Minor / Low'; do
 done
 
 target="${TMP_DIR}/adopter"
-bash "${ROOT}/scripts/install-harness.sh" "$target" --write >"${TMP_DIR}/install.log" 2>&1 \
+# Keep the real unselected tracker beside the bounded installer payload.
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+installer_fixture_source "${TMP_DIR}/source"
+cp "$tracker" "${TMP_DIR}/source/docs/tech-debt-tracker.md"
+installer="${TMP_DIR}/source/scripts/install-harness.sh"
+bash "$installer" "$target" --write >"${TMP_DIR}/install.log" 2>&1 \
   || { cat "${TMP_DIR}/install.log" >&2; fail "fresh install failed"; }
 [ ! -e "${target}/docs/tech-debt-tracker.md" ] \
   || fail "fresh adopter must not inherit this repository's debt"
+mkdir -p "${target}/docs"
 printf '# Adopter-owned debt\n\nKeep this finding.\n' >"${TMP_DIR}/expected"
 cp "${TMP_DIR}/expected" "${target}/docs/tech-debt-tracker.md"
-bash "${ROOT}/scripts/install-harness.sh" "$target" --update >"${TMP_DIR}/update.log" 2>&1 \
+bash "$installer" "$target" --update >"${TMP_DIR}/update.log" 2>&1 \
   || { cat "${TMP_DIR}/update.log" >&2; fail "update failed"; }
 cmp -s "${TMP_DIR}/expected" "${target}/docs/tech-debt-tracker.md" \
   || fail "update must preserve adopter-owned debt"
