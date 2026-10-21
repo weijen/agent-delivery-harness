@@ -55,7 +55,9 @@ jobs:
         name: Run installed harness sensors
         shell: bash
         run: |
-          set -uo pipefail
+          ./scripts/validation/validate.sh bash -euo pipefail <<'SH'
+          source scripts/lib/test-budget-lib.sh
+          run_installed() {
           discovered="$(./scripts/validation/affected-sensors.sh --list)" || exit 1
           if [ -z "$discovered" ]; then
             echo "No harness sensor scripts found." >&2
@@ -64,6 +66,7 @@ jobs:
           mapfile -t tests <<< "$discovered"
           rc=0
           for test in "${tests[@]}"; do
+            budget_phase "$test"
             echo "::group::${test}"
             if bash "$test"; then
               echo "PASS ${test}"
@@ -73,4 +76,7 @@ jobs:
             fi
             echo "::endgroup::"
           done
-          exit "$rc"
+          return "$rc"
+          }
+          budget_run 'installed harness sensors' run_installed
+          SH

@@ -119,6 +119,7 @@ touch product.py
 
 MYPY_RC=2 assert_rc 1 "$GATES" typecheck
 PYTEST_RC=5 assert_rc 2 "$GATES" test
+PYTEST_RC=2 assert_rc 1 "$GATES" test
 PYTEST_RC=4 assert_rc 4 "$GATES" test
 
 : >"$UV_LOG"

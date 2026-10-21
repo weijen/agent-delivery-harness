@@ -166,6 +166,47 @@ stage header still excludes whole-suite wrappers from feature greens.
 | Other lifecycle, schema, redaction, evidence and installed integration checks | Their retained runtime contracts | Routine final validation; affected/declared feature selection |
 | Bounded evaluation-driver contracts | Incorrect manifest, blocking result or scorecard behavior | Routine; real whole L0 evaluation remains explicitly invoked through its existing driver |
 
+### Shared test execution budget
+
+One required validation run has a fixed **600-second cumulative test wall-time
+budget**. Sequential profiles and sensors share the remaining time; nested
+execution joins the active phase and parallel work counts elapsed union, not
+summed worker/CPU time. Local and CI runs have independent sessions, as do
+separate TDD iterations. Release, maintenance and explicit evaluation runs obey
+the same limit. Selection and assertions are not reduced to fit the deadline.
+
+Use the single-purpose session entrypoint to compose existing budget-aware gates:
+
+```sh
+./scripts/validation/validate.sh bash -euc '
+  ./scripts/init.sh
+  ./scripts/validation/check-shell.sh syntax
+  ./scripts/validation/check-shell.sh lint
+  ./scripts/run-sensors.sh --gate pre-pr
+'
+```
+
+Run this final validation only after independent review approval. The session
+wrapper creates/inherits context; it is not a generic timeout for arbitrary
+commands. Standard profile test slots, Python gates, sensor runners and evaluation
+drivers enter the shared budget themselves. New test commands must use
+`budget_run <phase> <command> [args...]` from `scripts/lib/test-budget-lib.sh`
+inside the same session. Do not compose a required run from independently
+restarted sessions.
+
+Dependency setup and independently executed build/format/lint/typecheck phases
+are excluded. Preparation inside an executing test command counts, including
+compilation, fixture installation, or nested static work performed by a test.
+The core uses a monotonic clock (`/proc/uptime` on Linux, Perl's core
+`Time::HiRes` on macOS), not adjustable wall-clock timestamps.
+
+Exhaustion is latched: stop the active test process group, allow one second of
+bounded termination grace, then force termination. Emit elapsed milliseconds,
+the 600-second budget and active phase; exit 124, start no later tests, and
+record no successful gate evidence. Accounting errors also fail closed.
+There is no supported limit extension/reset/disable option. Coverage/budget
+conflicts require an explicit scope/design ruling, never automatic test deletion.
+
 ### Sensor diagnostics
 
 Each nonempty local runner invocation prints a `DIAGNOSTICS <index>` location
@@ -174,7 +215,8 @@ attempt. Existing `PASS`/`FAIL` and final `SENSORS` lines retain their meaning.
 The index is tab-separated: sensor, elapsed_ms, actual exit_status, log.
 Adjacent `run.tsv` records HEAD, mode and scope; a unique run directory prevents
 repeated attempts from overwriting each other. Elapsed wall time includes
-output capture/redaction, not just CPU execution; it is never a pass threshold.
+output capture/redaction, not just CPU execution. Individual diagnostic timings
+are not per-sensor pass thresholds; the separate aggregate test budget is hard.
 
 Logs are sanitized before writing and retained beneath the main checkout's
 ignored `.copilot-tracking/issues/issue-NN/sensor-runs/` directory, surviving
@@ -192,7 +234,8 @@ Storage/redaction failures print explicit warnings and `log=unavailable`.
 The runner drains discarded output without rerunning the sensor or substituting
 a capture exit code for the sensor's exit. The gate still reflects sensor results;
 a failing sensor never creates green evidence. Diagnostic indexes are not gate
-evidence and cannot authorize publication. Existing CI execution loops are unchanged.
+evidence and cannot authorize publication. CI retains its selected coverage within
+the shared test session.
 
 On failure, the runner prints the first and last ten sanitized lines (at most
 200 bytes per displayed line), with an omission marker when necessary. This
@@ -262,8 +305,9 @@ The normal path is:
    `code-review-subagent` on the completed diff using recorded scoped feature evidence.
    Do not run a full suite before review. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
-  adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
-  smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
+  adversarial test-quality pass before closeout. It reuses sufficient evidence and
+  adds a test only for an uncovered required or credible in-scope failure. Once
+  adequate evidence exists, it stops; production remains read-only.
 9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
 10. Run `./scripts/run-sensors.sh --gate pre-pr`, then open the PR with
     `./scripts/create-pr.sh --title "..." --body-file body.md` without further tests or synchronization.
@@ -299,12 +343,13 @@ committed (#352: one agent owns plan, breakdown, and delivery).
 When authoring the breakdown in step 3, granularity is fixed by one rule (the
 authority is the *What counts as one feature* subsection in
 [.copilot/instructions/harness.instructions.md](../.copilot/instructions/harness.instructions.md)):
-a feature is one externally observable acceptance criterion provable by **exactly one**
-`regression_sensor` (plus an `e2e_sensor` when it crosses a real runtime boundary). **Split** a
-candidate when it needs more than one independent sensor or mixes more than one concern; **merge**
-two candidates when they share a single sensor and cannot be verified independently. The sensor is
-the unit — every `feature_list` item names exactly one `regression_sensor`, and no two items share
-one.
+a feature is one externally observable acceptance criterion mapped to concrete
+executed assertions. Split unrelated concerns, not test files or commands.
+Criteria may share existing sensors. One behavioral test may provide regression
+and E2E evidence when it actually crosses the required runtime boundary; mocked
+unit-only coverage cannot. Retain one independent case per required behavior/failure
+scenario, preserving distinct necessary scenarios and identifying retained protection
+before retiring a case. Repeated local/TDD/CI execution is not duplicate definition.
 
 ## Agent Topology (#352: one agent + one reviewer)
 

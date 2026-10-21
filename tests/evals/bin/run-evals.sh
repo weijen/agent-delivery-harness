@@ -32,6 +32,14 @@ VALIDATOR="${SCRIPT_DIR}/validate-manifest.sh"
 
 # Repo root (tests/evals/bin -> ../../..); used to reach the shared redactor.
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+inherited_test_phase="${HARNESS_TEST_ACTIVE:-}"
+# shellcheck source=scripts/lib/test-budget-lib.sh
+source "${ROOT_DIR}/scripts/lib/test-budget-lib.sh"
+if [ -z "$inherited_test_phase" ]; then
+  budget_run eval-grader bash "${BASH_SOURCE[0]}" "$@"
+  exit $?
+fi
+budget_run eval-grader true
 TRACE_LIB="${ROOT_DIR}/scripts/lib/trace-lib.sh"
 
 # Fail-closed redaction gate (feature f3): the grader's captured evidence is

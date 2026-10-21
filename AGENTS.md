@@ -52,18 +52,19 @@ sanitized, commit-safe fixture or specification.
 8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
    its regression sensor, and any feature with a real runtime boundary (e.g. an external service
    call, agent run, report generation, deployed endpoint) should name its e2e sensor. **What counts
-   as one feature** — its granularity — is the single rule in
+   as one feature** — its granularity — is defined in
    [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md): one
-   externally observable acceptance criterion provable by exactly one `regression_sensor` (plus an
-   `e2e_sensor` when it crosses a real runtime boundary); split when a unit needs more than one
-   independent sensor or mixes more than one concern, merge when two share one.
+   externally observable acceptance criterion mapped to concrete executed assertions.
+   Existing sensors may be shared across criteria; a real runtime boundary still needs
+   runtime evidence, which the same behavioral test may provide.
 9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
    coding-agent habits and personal workflow shortcuts.
 10. **Keep the trace current** — the Action Log in `.copilot-tracking/issues/issue-NN/progress.md` is rendered
    from spans (#332): record `deviation` and review verdicts as they happen.
 11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
-12. **Doctrine sensors reject contradictions** — positive contract assertions must pair with explicit checks for
-    prohibited legacy or additive requirements.
+12. **Keep verification proportionate** — retain one independent case per required behavior/failure
+    scenario, not duplicate assurance. Preserve necessary negative, safety and runtime protection;
+    review prose meaning rather than growing a natural-language parser.
 
 → The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
 session rituals and garbage-collection cadence are in
@@ -125,6 +126,11 @@ not a second full L0 invocation. A green run is a hard precondition for merge (e
 `./scripts/merge-pr.sh`). It is still not CI/CD delivery, not a deploy pipeline,
 and not GitHub auto-merge; a repo admin may additionally enable a
 branch-protection required check on `main`.
+
+Required validation runs share one hard 600-second test budget. Compose profile
+gates and sensors with `scripts/validation/validate.sh`; independent setup/static
+phases are excluded, but preparation inside tests counts. Do not reset the budget
+or remove coverage to fit it; see [the runtime contract](docs/HARNESS.md#shared-test-execution-budget).
 
 **Starting a new issue?** Use the worktree harness — it runs preflight, then creates
 an isolated branch + worktree so issues never collide in one checkout:

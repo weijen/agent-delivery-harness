@@ -8,6 +8,7 @@ trap 'rm -rf "$TMP"' EXIT
 fail() { printf 'ci-sensor-policy: %s\n' "$*" >&2; exit 1; }
 SMOKE="$ROOT/.github/workflows/harness-smoke.yml"
 RELEASE="$ROOT/.github/workflows/release.yml"
+[ -x "$ROOT/scripts/validation/validate.sh" ] || fail "validation-session entrypoint missing"
 grep -Fq './scripts/run-sensors.sh --gate ci' "$SMOKE" \
 	|| fail "source CI does not execute the applicable runner"
 if grep -Eq -- 'affected-sensors.sh --list|run: ./scripts/(maintenance/)?check-install-harness-tombstones.sh' "$SMOKE"; then
@@ -44,16 +45,18 @@ order="$(awk '/^        id: (release_plan|upgrade_acceptance|release)$/ { print 
 FIX="$TMP/repo"
 mkdir -p "$FIX/scripts/validation" "$FIX/scripts/lib" "$FIX/profiles" "$FIX/tests/scripts" "$TMP/bin"
 cp "$ROOT/scripts/run-sensors.sh" "$FIX/scripts/"
-cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors,python-gates}.sh "$FIX/scripts/validation/"
+cp "$ROOT/scripts/validation/"{run-sensors,affected-sensors,python-gates,validate}.sh "$FIX/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$FIX/scripts/lib/"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$FIX/scripts/lib/"
 cp "$ROOT/profiles/python.profile.sh" "$FIX/profiles/"
-export CI_WORKLOADS="$TMP/workloads" UV_LOG="$TMP/uv" GITHUB_OUTPUT="$TMP/output"
+export CI_WORKLOADS="$TMP/workloads" UV_LOG="$TMP/uv" GITHUB_OUTPUT="$TMP/output" CONTEXT_LOG="$TMP/contexts"
 for kind in routine upgrade maintenance; do
 	cat >"$FIX/tests/scripts/test_${kind}.sh" <<SH
 #!/usr/bin/env bash
 # harness-sensor-trigger: $kind
 # harness-sensor-depends: scripts/${kind}.sh scripts/lib/shared.sh
 printf '%s\n' '$kind' >>"\${CI_WORKLOADS:?}"
+printf '%s:%s\n' '$kind' "\${HARNESS_TEST_SESSION:?}" >>"\${CONTEXT_LOG:?}"
 [ "\${CI_FAIL:-}" != '$kind' ]
 SH
 done
@@ -104,6 +107,9 @@ cat >"$TMP/bin/uv" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$UV_LOG"
 if [ "$1 ${2:-}" = 'run python' ]; then shift 2; exec python3 "$@"; fi
+if [ "$*" = 'run pytest -q' ]; then
+	printf 'python:%s\n' "${HARNESS_TEST_SESSION:?}" >>"${CONTEXT_LOG:?}"
+fi
 SH
 chmod +x "$TMP/bin/uv"
 python_steps() {
@@ -112,6 +118,7 @@ python_steps() {
 	if grep -Fxq applicable=true "$GITHUB_OUTPUT"; then
 		PATH="$TMP/bin:$PATH" run_step python_sync || fail "Python sync step failed"
 		PATH="$TMP/bin:$PATH" run_step python_gates || fail "Python gates step failed"
+		PATH="$TMP/bin:$PATH" run_step core_sensors || fail "shared test session failed"
 	else
 		grep -Fxq applicable=false "$GITHUB_OUTPUT" || fail "invalid applicability output"
 	fi
@@ -124,4 +131,14 @@ python_steps
 printf '%s\n' 'sync --all-groups' 'run ruff format --check .' 'run ruff check' \
 	'run python -' 'run mypy --strict .' 'run pytest -q' >"$TMP/expected-uv"
 cmp -s "$TMP/expected-uv" "$UV_LOG" || fail "new Python source did not activate actual CI commands"
+# Run the real composition without the outer sensor's context to prove propagation.
+: >"$CONTEXT_LOG"
+(
+	unset HARNESS_TEST_SESSION HARNESS_TEST_ACTIVE
+	PATH="$TMP/bin:$PATH" run_step core_sensors
+) || fail "standalone composed CI session failed"
+python_context="$(grep '^python:' "$CONTEXT_LOG" | tail -1 | cut -d: -f2-)"
+sensor_context="$(grep '^routine:' "$CONTEXT_LOG" | tail -1 | cut -d: -f2-)"
+[ -n "$python_context" ] && [ "$python_context" = "$sensor_context" ] \
+	|| fail "profile tests and sensors did not share one deadline"
 printf 'actual CI, pre-release and explicit maintenance boundaries honored\n'

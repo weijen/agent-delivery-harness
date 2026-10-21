@@ -11,10 +11,10 @@ mkdir -p "$FIX/tests/evals/manifests/scripts" "$FIX/docs"
 files=(
   scripts/run-sensors.sh scripts/validation/run-sensors.sh
   scripts/validation/affected-sensors.sh scripts/lib/trace-lib.sh
+  scripts/lib/test-budget-lib.sh
+  scripts/validation/validate.sh scripts/validation/python-gates.sh profiles/python.profile.sh
   tests/evals/bin/run-l0-suite.sh tests/evals/bin/run-evals.sh
   tests/evals/bin/validate-manifest.sh tests/scripts/lib/tap.sh
-  tests/meta/test_l0_ci_gate.sh tests/scripts/test_l0_suite_contract.sh
-  tests/scripts/test_l0_manifest_wiring.sh
 )
 for path in "${files[@]}"; do
   mkdir -p "$FIX/$(dirname "$path")"

@@ -112,7 +112,12 @@ PROFILE_GATE_typecheck_FAIL="node typecheck failed"
 PROFILE_GATE_typecheck_FIX="${PROFILE_PM} run typecheck  (or: tsc --noEmit)"
 PROFILE_GATE_typecheck_SKIP="node typecheck skipped (no typecheck script or tsc)"
 
-profile_gate_test() {
+profile_gate_test() (
+	# shellcheck source=scripts/lib/test-budget-lib.sh
+	source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts/lib" && pwd)/test-budget-lib.sh"
+	budget_run node:test node_test_command
+)
+node_test_command() {
 	if node_has_script test; then
 		command -v "$PROFILE_PM" >/dev/null 2>&1 || return 2
 		"$PROFILE_PM" run test

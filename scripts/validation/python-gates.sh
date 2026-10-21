@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=scripts/lib/test-budget-lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/test-budget-lib.sh"
+if [ -z "${HARNESS_TEST_SESSION:-}" ]; then
+	budget_session bash "${BASH_SOURCE[0]}" "$@"
+	exit $?
+fi
 
 usage() {
-	echo "Usage: $0 [all|format_check|lint|typecheck|test]" >&2
+	echo "Usage: $0 [all|static|format_check|lint|typecheck|test]" >&2
 }
 
 mypy_target_mode() {
@@ -81,10 +87,11 @@ run_gate() {
 		;;
 	test)
 		set +e
-		uv run pytest -q
+		budget_run python:test uv run pytest -q
 		status=$?
 		set -e
 		[ "$status" -eq 5 ] && return 2
+		[ "$status" -ne 2 ] || return 1
 		return "$status"
 		;;
 	*)
@@ -100,7 +107,7 @@ gate="${1:-all}"
 	exit 2
 }
 case "$gate" in
-	all|format_check|lint|typecheck|test) ;;
+	all|static|format_check|lint|typecheck|test) ;;
 	*) usage; exit 2 ;;
 esac
 
@@ -112,12 +119,14 @@ else
 	status=$?
 	[ "$status" -eq 1 ] || exit "$status"
 	printf 'Python gates skipped: no applicable Python source or product configuration\n'
-	[ "$gate" = all ] && exit 0
+	{ [ "$gate" = all ] || [ "$gate" = static ]; } && exit 0
 	exit 2
 fi
 
-if [ "$gate" = "all" ]; then
-	for gate in format_check lint typecheck test; do
+if [ "$gate" = all ] || [ "$gate" = static ]; then
+	gates=(format_check lint typecheck)
+	[ "$gate" != all ] || gates+=(test)
+	for gate in "${gates[@]}"; do
 		if run_gate "$gate"; then
 			continue
 		else

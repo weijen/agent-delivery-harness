@@ -20,6 +20,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+inherited_test_phase="${HARNESS_TEST_ACTIVE:-}"
+# shellcheck source=scripts/lib/test-budget-lib.sh
+source "${SCRIPT_DIR}/../../../scripts/lib/test-budget-lib.sh"
+if [ -z "$inherited_test_phase" ]; then
+	budget_run l0-suite bash "${BASH_SOURCE[0]}" "$@"
+	exit $?
+fi
+budget_run l0-suite true
 RUNNER="${SCRIPT_DIR}/run-evals.sh"
 # Resolve the default L0 manifest dir to its absolute path, or leave it empty
 # when the directory does not exist. Explicit if/then/else avoids the

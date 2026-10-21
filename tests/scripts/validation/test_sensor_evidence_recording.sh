@@ -34,6 +34,7 @@ command -v jq >/dev/null 2>&1 || fail "jq is required for this sensor"
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${FIX}/scripts/lib/"
 cp "${ROOT}/scripts/validation/run-sensors.sh" \
   "${ROOT}/scripts/validation/affected-sensors.sh" "${FIX}/scripts/validation/"
 [ -f "${ROOT}/scripts/lib/trace-lib.sh" ] && cp "${ROOT}/scripts/lib/trace-lib.sh" "${FIX}/scripts/lib/"
@@ -102,5 +103,19 @@ rc=$?
 set -e
 chmod +w "${FIX}/.copilot-tracking/issues/issue-77"
 [ "$rc" = "0" ] || fail "green run must still exit 0 when evidence recording fails (got ${rc}: $out)"
+
+# Near-exhausted fixture state, never a production budget override.
+mkdir "$TMP_DIR/deadline"
+printf '599000 0 0\n' >"$TMP_DIR/deadline/state"
+printf '#!/usr/bin/env bash\nsleep 30\n' >"$FIX/tests/scripts/test_timeout.sh"
+printf '#!/usr/bin/env bash\ntouch later-started\n' >"$FIX/tests/scripts/test_z_later.sh"
+rows="$(wc -l <"$EVIDENCE")"
+rc=0
+out="$(cd "$FIX" && env -u HARNESS_TEST_ACTIVE HARNESS_TEST_SESSION="$TMP_DIR/deadline" \
+  ./scripts/run-sensors.sh green --declared 'tests/scripts/test_timeout.sh,tests/scripts/test_z_later.sh' --diff HEAD 2>&1)" || rc=$?
+[ "$rc" = 124 ] || fail "timeout must retain a nonzero timeout exit (got $rc: $out)"
+grep -q 'TIMEOUT.*phase=tests/scripts/test_timeout.sh' <<<"$out" || fail "timeout lacks active sensor"
+[ ! -f "$FIX/later-started" ] || fail "timeout started remaining sensor"
+[ "$(wc -l <"$EVIDENCE")" = "$rows" ] || fail "timeout appended successful gate evidence"
 
 printf 'PASS: run-sensors.sh records script-written green evidence rows\n'

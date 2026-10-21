@@ -48,7 +48,27 @@ check_refusal() {
 check_refusal "$ROOT"
 [ ! -e "${ROOT}/scripts/install-harness.claude.assets" ] || fail "retired selection manifest remains"
 
-for profile in default developer; do
+# Full payload/profile bytes and runtime are covered by layout-upgrade acceptance.
+# This fixture retains real self-hosting, refusal and project-setting protection.
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "$ROOT/tests/scripts/lib/installer-fixture.sh"
+fixture_source="${TMP_DIR}/source"
+installer_fixture_source "$fixture_source"
+cat >>"${fixture_source}/scripts/install-harness.assets" <<'ASSETS'
+scripts/install-harness.sh
+scripts/install/install-harness.sh
+scripts/lib/reconcile-lib.sh
+scripts/lib/github-identity-lib.sh
+scripts/install-harness.assets
+scripts/install-harness.dev.assets
+scripts/install-harness.tombstones
+tests/harness-dev-sensors.txt
+docs/harness-contract.yml
+ASSETS
+printf 'developer fixture\n' >"${fixture_source}/docs/developer.txt"
+printf 'docs/developer.txt\n' >"${fixture_source}/scripts/install-harness.dev.assets"
+run_profile() (
+	local profile="$1"
 	target="${TMP_DIR}/${profile} with spaces"
 	mkdir -p "${target}/.claude"
 	printf '{"permissions":{"deny":["Read(secret/**)"]},"hooks":{"Stop":[]}}\n' >"${target}/.claude/settings.json"
@@ -57,15 +77,15 @@ for profile in default developer; do
 	cp "${target}/.claude/settings.local.json" "${TMP_DIR}/local.before"
 	args=("$target" --write)
 	[ "$profile" != developer ] || args+=(--with-dev-sensors)
-	"${ROOT}/scripts/install-harness.sh" "${args[@]}" >"$OUT" 2>&1 || fail "${profile} fresh install"
+	"${fixture_source}/scripts/install-harness.sh" "${args[@]}" >"$OUT" 2>&1 || fail "${profile} fresh install"
 	for path in scripts/install-harness.claude.assets optional/runtime-adapters tests/scripts/test_claude_adapter.sh; do
 		[ ! -e "${target}/${path}" ] || fail "${profile} shipped retired bundle ${path}"
 	done
 	if grep -Ei 'claude' "${target}/.harness-lock"; then fail "${profile} owns retired bundle"; fi
 	if [ "$profile" = developer ]; then
-		[ -x "${target}/tests/evals/bin/run-l0-suite.sh" ] || fail "developer runtime was lost"
+		[ -f "${target}/docs/developer.txt" ] || fail "developer selection was lost"
 	else
-		[ ! -e "${target}/tests/evals/bin/run-l0-suite.sh" ] || fail "default leaked developer runtime"
+		[ ! -e "${target}/docs/developer.txt" ] || fail "default leaked developer selection"
 	fi
 	for mode in dry --update; do
 		args=("$target")
@@ -83,5 +103,17 @@ for profile in default developer; do
 	"${target}/scripts/install-harness.sh" "${args[@]}" >"$OUT" 2>&1 || fail "${profile} installed-source fresh install"
 	[ ! -e "${fresh}/.claude" ] || fail "fresh install enabled Claude settings"
 	[ ! -e "${fresh}/optional/runtime-adapters" ] || fail "installed source emitted retired bundle"
+)
+profile_pids=()
+for profile in default developer; do
+	profile_dir="${TMP_DIR}/${profile}"
+	mkdir -p "$profile_dir"
+	OUT="${profile_dir}/install.out" TMP_DIR="$profile_dir" run_profile "$profile" &
+	profile_pids+=("$!")
 done
+profile_status=0
+for pid in "${profile_pids[@]}"; do
+	wait "$pid" || profile_status=1
+done
+[ "$profile_status" -eq 0 ] || fail "installed profile acceptance failed"
 printf 'retired Claude selection is refused; default/developer sources remain self-contained\n'

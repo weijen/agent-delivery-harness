@@ -118,7 +118,7 @@ Workflow per issue:
 1. **Start (gate 1):** `./scripts/start-issue.sh <N>` from the main checkout — preflight,
    identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
    (description AND comments), then break it into a `feature_list.json` of criterion-sized
-   features (2–5 typical; each provable by one `regression_sensor`, plus an `e2e_sensor` when it
+   features (2–5 typical; each mapped to executed regression assertions, plus runtime evidence when it
    crosses a real runtime boundary). If the derived list exceeds 5 features, **STOP before
    implementation** and propose splitting it into 2–3+ issues for the human to decide; include
    footprint analysis to distinguish serial execution from genuinely parallel-safe work, and
@@ -179,6 +179,26 @@ Workflow per issue:
    `scope=applicable` describes the executed set honestly; it is not the old
    canonical full inventory. Explicit release and maintenance boundaries retain
    their groups through `--gate release` and `--gate maintenance`.
+
+### Shared test execution budget
+
+One required validation run shares a hard 600-second cumulative test wall-time
+budget across profiles, sensors and nested runners. Parallel work counts elapsed
+union. Compose existing budget-aware commands with
+`./scripts/validation/validate.sh bash -euc '<commands>'`; for final local
+validation compose `./scripts/init.sh` and `./scripts/run-sensors.sh --gate pre-pr`
+inside that one session. CI similarly shares profile tests and sensors; release,
+maintenance and explicit evaluation boundaries retain the same budget.
+Separate TDD iterations and local/remote runs are separate sessions, not a
+lifetime issue budget.
+
+Independent dependency installation, build, format, lint and typecheck phases
+are excluded. Preparation performed inside a test command counts. Exhaustion
+stops the active test group with bounded cleanup, exits nonzero with elapsed,
+budget and phase diagnostics, forbids later tests and successful gate evidence.
+Do not extend/reset/disable the limit, split one required run into fresh budgets,
+or narrow coverage to fit. Escalate real coverage/budget conflicts for a human
+scope/design ruling. See [the runtime contract](../../docs/HARNESS.md#shared-test-execution-budget).
 
 **Claims are audited against tool output.** Before reporting any step, feature, or issue as
 complete, verify the claim against an actual tool result (test output, gh state query, file
@@ -304,9 +324,41 @@ runnable through the real boundary.
 - **Write sensors into `feature_list.json`.** Prefer simple per-feature string fields:
   `regression_sensor` for the deterministic check and `e2e_sensor` for the runtime smoke
   (use `null` when no runtime boundary exists yet).
+- **Reuse sufficient evidence.** One executed behavioral test may satisfy both regression
+  and E2E obligations if it genuinely exercises the required real runtime boundary.
+  Mocked unit-only coverage cannot replace that boundary. Different criteria may
+  name the same existing sensor and identify their relevant assertions.
 - **Issue landmarks.** Issues that mechanise project milestones inherit the relevant exit
   criteria from the GitHub issue and project docs. The project validation plan is the
   authoritative source for what "runnable" means at each phase.
+
+### What counts as one feature
+
+A feature is one externally observable acceptance criterion, not a unique test file
+or command. Split unrelated concerns, not shared test machinery. Each criterion
+must map to concrete executed evidence; shared sensors do not force criteria to
+merge or require duplicate cases.
+
+### Minimum sufficient verification
+
+Behavior changes still require RED, minimal implementation to GREEN and safe
+refactoring; existing tests may provide RED. No-new-test outcomes do not waive TDD,
+and non-behavioral edits do not require invented tests. Keep exactly one independent
+case per required observable behavior in the same failure scenario within a suite.
+Distinct necessary scenarios remain distinct, and repeated TDD/local/CI execution
+is not another case definition. Before consolidation or retirement, identify the
+retained assertion detecting the required behavior/failure; runtime savings alone
+are not justification.
+
+The existing independent review assesses missing and redundant coverage together.
+Require new tests only for an explicit criterion or a credible in-scope failure
+that existing assertions cannot detect. Stop when adequate evidence proves those
+obligations: speculative cases, exhaustive combinations and stronger rubric scores
+are not default merge requirements. Preserve necessary negative, security/data-loss
+and real-runtime evidence. Resolve genuine coverage/budget conflicts with a human
+scope/design ruling, never automatic deletion, weaker assertions or narrower selection.
+This replaces contradictory verification demands; it adds no review stage, case
+quota or per-green proof bookkeeping.
 
 ## 5. End-of-session ritual (leave a clean state)
 

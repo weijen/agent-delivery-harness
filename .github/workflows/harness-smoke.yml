@@ -64,7 +64,7 @@ jobs:
         id: python_gates
         if: steps.python_surface.outputs.applicable == 'true'
         run: |
-          ./scripts/validation/python-gates.sh
+          ./scripts/validation/python-gates.sh static
 
       - name: Check shell syntax
         run: ./scripts/validation/check-shell.sh syntax
@@ -81,4 +81,12 @@ jobs:
         env:
           SENSOR_DIFF_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
+          ./scripts/validation/validate.sh bash -euo pipefail <<'SH'
+          if ./scripts/validation/python-gates.sh test; then
+            :
+          else
+            status=$?
+            [ "$status" -eq 2 ] || exit "$status"
+          fi
           ./scripts/run-sensors.sh --gate ci --diff "${SENSOR_DIFF_BASE:?pull request base is required}"
+          SH

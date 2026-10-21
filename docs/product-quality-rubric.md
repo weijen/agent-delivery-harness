@@ -36,7 +36,10 @@ Every implemented feature must clear all four blocking gates before scoring. If 
 
 Before the final gate result, `code-review-subagent` performs an independent adversarial test-quality pass. It maps
 criteria to sensors, checks assertion strength, boundaries, negative or mutation cases, and implementation-fitting
-tests, then adds and executes the smallest independent test, fixture, smoke, or validation asset when needed.
+tests against explicit criteria and credible in-scope failures. Reuse adequate
+assertions; add and execute the smallest test only for an identified required gap,
+and stop when sufficient evidence exists. Also assess redundant cases and
+disproportionate runtime/maintenance cost within this same review, not a new stage.
 Production remains read-only: the reviewer must not edit production, and ambiguous paths or required production hooks
 route through the conductor. The review records changed tests, commands, and observed pass/fail evidence.
 
@@ -122,19 +125,24 @@ Sum the six dimension scores to produce a total score from 0 to 12, then map to 
 | Total Score | Verdict | Meaning |
 | --- | --- | --- |
 | 0–5 | **FAIL** | Critical quality gaps; implementation needs major revision. |
-| 6–8 | **NEEDS_REVISION** | Adequate for basic functionality but has notable weaknesses; should be revised before merging. |
+| 6–8 | **PASS** | Adequate in-scope implementation; stronger scores are not required for merge. |
 | 9–10 | **PASS** | Good quality; minor improvements possible but not blocking. |
 | 11–12 | **STRONG_PASS** | Excellent quality; exemplar implementation. |
 
 **Thresholds**:
 - **FAIL** blocks merge and requires handback with detailed findings.
-- **NEEDS_REVISION** may proceed to next feature or be revised at conductor discretion; should not merge as-is.
+- **NEEDS_REVISION** requires an identified unmet criterion or material in-scope failure, not merely an opportunity for a stronger score.
 - **PASS** is merge-eligible after test verification.
 - **STRONG_PASS** is merge-eligible and may serve as a reference example.
 
 ## Handback Routing
 
-When a dimension scores 0 or 1, include specific findings in the handback. Route based on the root cause:
+Report a finding when a score reflects an unmet requirement or credible material
+in-scope failure, not merely because a dimension scores 1 (Adequate). Strong or
+exemplar quality and exhaustive argument combinations are not default merge
+requirements. Required negative, safety and runtime coverage remain mandatory.
+Before consolidating a redundant case, name the retained assertion that detects
+its required failure; cost alone never justifies deletion. Route real gaps by cause:
 
 A failing reviewer-authored adversarial sensor produces `NEEDS_REVISION`. When it exposes a production defect, route
 the failure back to the delivering agent; the reviewer never repairs production. After the repair,
@@ -151,7 +159,7 @@ the failure back to the delivering agent; the reviewer never repairs production.
 
 - Insufficient verification coverage (dimension 6)
 - Missing regression or e2e sensors for new behavior
-- Verification that exists but doesn't exercise edge cases (dimension 2)
+- Verification missing a required or credible in-scope failure scenario (dimension 2)
 
 ### To conductor / human gate
 
@@ -313,7 +321,7 @@ The three-point scale for each scorecard dimension is designed to make boundary 
 **1 vs 2 (Adequate vs Strong)**:
 - If the implementation handles the main case correctly but misses an uncommon edge case → likely **1**.
 - If the implementation handles the main case AND anticipated edge cases with clear design → **2**.
-- Example: A script that validates required arguments but doesn't check for conflicting flags → **1** (adequate). A script that validates all argument combinations and provides actionable errors → **2** (strong).
+- Example: A script that validates required arguments and necessary rejection cases is adequate. Additional justified diagnostics may be strong; exhaustive argument combinations are not required.
 
 **0 vs 1 (Weak vs Adequate)**:
 - If the gap **blocks the primary use case** or introduces a **high-impact failure mode** → **0**.

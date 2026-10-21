@@ -52,7 +52,7 @@ inst="$b/.copilot/instructions/node.instructions.md"
 [ -f "$desc" ] || { echo "case-b: descriptor not created"; exit 1; }
 [ -f "$inst" ] || { echo "case-b: instruction file not created"; exit 1; }
 bash -n "$desc" || { echo "case-b: descriptor bash -n failed"; exit 1; }
-shellcheck "$desc" || { echo "case-b: descriptor not shellcheck-clean"; exit 1; }
+shellcheck -x -P "$b" "$desc" || { echo "case-b: descriptor not shellcheck-clean"; exit 1; }
 grep -qF "# shellcheck disable=SC2034" "$desc" || { echo "case-b: descriptor missing SC2034 disable"; exit 1; }
 ( set -e; cd "$b"
   # shellcheck disable=SC1091  # descriptor is generated at runtime by the generator under test
@@ -92,6 +92,22 @@ grep -qF "Gates this profile adds to init.sh: format_check lint typecheck test" 
 grep -qF "Gates this profile adds to init.sh: format_check lint test" "$OUT" \
   || { cat "$OUT"; echo "case-e: wrong go gate report"; exit 1; }
 grep -q "typecheck" "$OUT" && { cat "$OUT"; echo "case-e: go must not declare a typecheck gate"; exit 1; }
+(
+  cd "$e"
+  ./scripts/scaffold-language.sh go --write >/dev/null
+  mkdir deadline
+  printf '600000 0 0\n' >deadline/state
+  : >deadline/timeout
+  unset HARNESS_TEST_ACTIVE
+  export HARNESS_TEST_SESSION="$e/deadline"
+  # shellcheck source=/dev/null
+  source profiles/go.profile.sh
+  # shellcheck disable=SC2329 # Invoked indirectly by the generated test slot.
+  go() { touch "$e/test-started"; }
+  rc=0
+  profile_gate_test || rc=$?
+  [ "$rc" -eq 124 ] && [ ! -e "$e/test-started" ]
+) || { echo "case-e: generated test slot bypassed the exhausted shared budget"; exit 1; }
 
 # --- Case (f): generated Python slots delegate to the executable authority ---
 pf="${TMP_DIR}/python-fresh"; seed_repo "$pf"

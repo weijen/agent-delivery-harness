@@ -18,6 +18,7 @@ make_fixture() {
   cp "${ROOT}/scripts/init.sh" "${dir}/scripts/init.sh"
   mkdir -p "${dir}/scripts/lifecycle"
   cp "${ROOT}/scripts/lifecycle/init.sh" "${dir}/scripts/lifecycle/init.sh"
+  cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${dir}/scripts/lib/"
   cp "${ROOT}/profiles/python.profile.sh" "${ROOT}/profiles/node.profile.sh" "${dir}/profiles/"
   cp "${ROOT}/.github/workflows/harness-smoke.yml" "${dir}/.github/workflows/"
 

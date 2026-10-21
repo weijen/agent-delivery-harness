@@ -21,6 +21,8 @@ cd "$ROOT"
 copy_init() {
 	local target="$1"
 	mkdir -p "${target}/scripts/lifecycle"
+	mkdir -p "${target}/scripts/lib"
+	cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${target}/scripts/lib/"
 	cp "${ROOT}/scripts/init.sh" "${target}/scripts/init.sh"
 	cp "${ROOT}/scripts/lifecycle/init.sh" "${target}/scripts/lifecycle/init.sh"
 }
@@ -267,7 +269,7 @@ fail() {
 # --- Restricted bin: real coreutils + git, plus controllable fake gh / az -----
 BIN="${TMP_DIR}/bin"
 mkdir -p "$BIN"
-for tool in bash sh env git basename dirname find grep sed tr cut head cat rm mkdir ls uname awk sleep printf; do
+for tool in bash sh env git basename dirname find grep sed tr cut head cat rm mkdir ls uname awk sleep printf mktemp perl rmdir mv mkfifo; do
   p="$(command -v "$tool" || true)"
   [ -n "$p" ] && ln -sf "$p" "${BIN}/${tool}"
 done

@@ -20,8 +20,7 @@ run_step() {
 TARGET="${TMP_DIR}/installed"
 "${ROOT}/scripts/install-harness.sh" "$TARGET" --write >"${TMP_DIR}/install.out" 2>&1 \
 	|| { cat "${TMP_DIR}/install.out" >&2; fail "real adopter installation failed"; }
-"${TARGET}/scripts/install-harness.sh" "$TARGET" --update >"${TMP_DIR}/install.out" 2>&1 \
-	|| { cat "${TMP_DIR}/install.out" >&2; fail "installed package is not self-contained"; }
+# Installer self-hosting/update is covered by the profile/upgrade sensors.
 installed_sensor_count="$("${TARGET}/scripts/validation/affected-sensors.sh" --list | wc -l | tr -d ' ')"
 printf 'Installed package contains %s sensors; runtime smoke declares one.\n' "$installed_sensor_count"
 printf '9.8.7-installed\n' >"${TARGET}/VERSION"

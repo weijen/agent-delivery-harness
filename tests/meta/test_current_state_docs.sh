@@ -218,8 +218,11 @@ for group in lib validation lifecycle install trace maintenance; do
   grep -qF "scripts/${group}/" docs/scripts-language-policy.md \
     || fail "active structure policy omits shipped category ${group}"
   for canonical in "scripts/${group}/"*.sh; do
-    [ "$(cut -f2 <<<"$layout_moves" | grep -Fxc "$canonical")" -eq 1 ] \
-      || fail "canonical implementation lacks one exact migration identity: ${canonical}"
+    if ! grep -Fxq "$canonical" <(cut -f2 <<<"$layout_moves"); then
+      # New commands have no retired identity; their current contract declares them.
+      [ "$(grep -Fxc "    path: $canonical" docs/harness-contract.yml)" -eq 1 ] \
+        || fail "canonical implementation lacks a migration identity or current contract: ${canonical}"
+    fi
   done
 done
 

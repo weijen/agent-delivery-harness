@@ -81,8 +81,10 @@ harness contract and the AGENTS.md conventions.
   discovery tool on their isolated PATH; an empty suite is not successful evidence.
 - Assert **behavior**, not byte-for-byte snapshots. Prove an ordering or
   contract by observing side effects (a worktree that does/doesn't exist, a
-  branch that was/wasn't pushed), and **mutation-test** each guard: confirm the
-  test fails when the guarded behavior is removed.
+  branch that was/wasn't pushed). Preserve required rejection/cleanup coverage.
+  Use mutation testing when the risk warrants it, especially destructive operations,
+  authorization and gate bypass; ordinary guards need discriminating behavioral
+  coverage, not mandatory guard-removal proof.
 - When committing inside a temp repo without a working `git commit`, use the
   `git write-tree` + `git commit-tree` + `git update-ref` pattern.
 

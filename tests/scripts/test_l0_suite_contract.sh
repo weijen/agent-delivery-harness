@@ -92,8 +92,10 @@ jq -se '.[0].results[0].status == "invalid_manifest" and
   || fail "invalid manifest evidence missing"
 
 # Substitute only the runner response at the driver's process boundary.
-cp "$DRIVER" "$TMP/broken/run-l0-suite.sh"
-cat >"$TMP/broken/run-evals.sh" <<'SH'
+mkdir -p "$TMP/broken/tests/evals/bin" "$TMP/broken/scripts/lib"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$TMP/broken/scripts/lib/"
+cp "$DRIVER" "$TMP/broken/tests/evals/bin/run-l0-suite.sh"
+cat >"$TMP/broken/tests/evals/bin/run-evals.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$1" >>"$EVAL_CALLS"
 if [[ "$1" == */l0-a.json ]]; then
@@ -102,8 +104,8 @@ else
   jq '.results[0].case_id = "l0-b"' "$EVAL_VALID_CARD"
 fi
 SH
-chmod +x "$TMP/broken/run-evals.sh"
-DRIVER="$TMP/broken/run-l0-suite.sh"
+chmod +x "$TMP/broken/tests/evals/bin/run-evals.sh"
+DRIVER="$TMP/broken/tests/evals/bin/run-l0-suite.sh"
 manifest l0-a true true
 cp "$EVAL_CARD" "$TMP/valid.json"
 for mutation in empty malformed empty-object empty-results wrong-case bad-decision missing-case duplicate-cards; do
@@ -124,7 +126,7 @@ for mutation in empty malformed empty-object empty-results wrong-case bad-decisi
   grep -qi 'scorecard' "$TMP/err" || fail "$mutation needs a scorecard diagnostic"
 done
 cp "$TMP/valid.json" "$EVAL_CARD"
-printf '\nexit 1\n' >>"$TMP/broken/run-evals.sh"
+printf '\nexit 1\n' >>"$TMP/broken/tests/evals/bin/run-evals.sh"
 run "$TMP/manifests"
 [ "$RC" = 1 ] || fail "runner failure with a pass-shaped scorecard must not pass"
 

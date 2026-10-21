@@ -60,8 +60,12 @@ done
 FIX="${TMP_DIR}/fixture-repo"
 mkdir -p "${FIX}/scripts/lib" "${FIX}/scripts/validation" "${FIX}/tests/scripts" "${FIX}/tests/scripts/validation" "${FIX}/tests/meta"
 cp "${ROOT}/scripts/run-sensors.sh" "${FIX}/scripts/"
+cp "${ROOT}/scripts/lib/test-budget-lib.sh" "${FIX}/scripts/lib/"
 cp "${ROOT}/scripts/validation/run-sensors.sh" \
   "${ROOT}/scripts/validation/affected-sensors.sh" "${FIX}/scripts/validation/"
+cp "${ROOT}/scripts/validation/"{validate,python-gates}.sh "${FIX}/scripts/validation/"
+mkdir -p "${FIX}/profiles"
+cp "${ROOT}/profiles/python.profile.sh" "${FIX}/profiles/"
 printf '#!/usr/bin/env bash\necho widget\n' > "${FIX}/scripts/widget.sh"
 cat > "${FIX}/tests/scripts/test_widget.sh" <<'SH'
 #!/usr/bin/env bash
@@ -300,6 +304,7 @@ grep -q 'scope=scoped ran=0 failed=0$' <<<"$out" || fail "empty scoped summary i
 FIX="${TMP_DIR}/policy-repo"
 mkdir -p "$FIX/scripts/validation" "$FIX/scripts/lib" "$FIX/tests/scripts"
 cp "$ROOT/scripts/run-sensors.sh" "$FIX/scripts/"
+cp "$ROOT/scripts/lib/test-budget-lib.sh" "$FIX/scripts/lib/"
 cp "$ROOT/scripts/validation/run-sensors.sh" "$ROOT/scripts/validation/affected-sensors.sh" \
   "$ROOT/scripts/validation/verify-sensor-evidence.sh" "$FIX/scripts/validation/"
 cp "$ROOT/scripts/lib/trace-lib.sh" "$FIX/scripts/lib/"
