@@ -36,7 +36,7 @@ maintainability, and report actionable findings tied to specific lines.
 | Readability     | Unclear names, long functions, missing docs, inconsistent formatting    |
 | DRY             | Copy-pasted blocks, duplicated logic that should be extracted           |
 | Error handling  | Swallowed exceptions, missing retries, unclear error messages           |
-| Testing         | Missing tests for new logic, broken existing tests, untested edge cases |
+| Testing         | Missing required coverage, broken tests, redundant cases without distinct regression value |
 
 ## Report
 
@@ -50,8 +50,11 @@ Classify each finding **Critical / Warning / Info** and close with a one-line co
 - **Limit scope per round** — prioritize the top 5–7 most impactful findings; overwhelming the author reduces the
   chance anything gets fixed.
 - **Acknowledge good patterns** — call out a clean abstraction or a well-handled edge case.
-- **Check tests alongside code** — flag missing tests; verify existing tests exercise the changed behavior, not just
-  the happy path.
+- **Check tests alongside code** — tie missing-test findings to explicit requirements
+  or credible in-scope failures and identify the gap in existing assertions. An
+  imaginable untested edge case is not automatically a defect or blocking request.
+  Reuse or strengthen sufficient coverage rather than adding duplicate assurance.
+  Stop when required behavior and necessary failure modes are adequately proven.
 
 ## Edge Cases
 

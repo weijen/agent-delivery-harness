@@ -1,190 +1,22 @@
 #!/usr/bin/env bash
-# Contract-v2 regression sensor for the live doctrine consumers.
-
+# Structural references used by the review evidence contract, not English semantics.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REVIEWER="${REVIEWER_OVERRIDE:-${ROOT}/.copilot/agents/code-review-subagent.agent.md}"
-AGENTS="${ROOT}/AGENTS.md"
-WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
-EVALUATION="${ROOT}/docs/evaluation/README.md"
-RUBRIC="${ROOT}/docs/product-quality-rubric.md"
-GETTING_STARTED="${ROOT}/docs/getting-started.md"
+REVIEWER="${ROOT}/.copilot/agents/code-review-subagent.agent.md"
+fail() { printf 'doctrine-consumers: %s\n' "$*" >&2; exit 1; }
 
-fail=0
-note() {
-  printf 'FAIL: %s\n' "$*" >&2
-  fail=$((fail + 1))
-}
-
-for file in "${REVIEWER}" "${AGENTS}" "${WORKFLOW}" "${EVALUATION}"; do
-  for gate in gate_start gate_sensors gate_review gate_merge_closeout; do
-    grep -qF "${gate}" "${file}" || note "${file} lacks ${gate}"
-  done
+trace_section="$(sed -n '/^## Trace \/ Process Evidence$/,/^## What You Do NOT Check$/p' "$REVIEWER")"
+[ -n "$trace_section" ] || fail "review evidence section missing"
+for reference in scripts/check-trace-consistency.sh scripts/validation/verify-sensor-evidence.sh; do
+	grep -Fq "$reference" <<<"$trace_section" || fail "missing evidence-tool reference: $reference"
+	[ -x "$ROOT/$reference" ] || fail "broken evidence-tool reference: $reference"
 done
-
-reviewer_trace() {
-  sed -n '/^## Trace \/ Process Evidence/,/^## /p' "$1" | tr '\n' ' '
-}
-trace_flat="$(reviewer_trace "${REVIEWER}")"
-for historical_name in red_handback impl_handback green_handback; do
-  grep -qF "${historical_name}" <<<"${trace_flat}" \
-    || note "reviewer trace guidance lacks historical compatibility for ${historical_name}"
+for token in gate_start gate_sensors gate_review gate_merge_closeout sensor-evidence.jsonl; do
+	grep -Fq "$token" <<<"$trace_section" || fail "missing evidence vocabulary: $token"
 done
-grep -qiE 'reader.{0,80}historical|historical.{0,80}reader' <<<"${trace_flat}" \
-  || note "reviewer trace guidance does not scope historical names to reader compatibility"
-grep -qiE '(do not|must not|never).{0,80}require.{0,80}retired choreography' <<<"${trace_flat}" \
-  || note "reviewer trace guidance does not forbid retired choreography as current evidence"
-grep -qiE '(this review|review handback).{0,120}(supplies|produces|records).{0,80}review_verdict|review_verdict.{0,120}(this review|review handback)' <<<"${trace_flat}" \
-  || note "reviewer trace guidance does not identify the current handback as gate_review verdict evidence"
-grep -qiE '(approval|approved-head).{0,120}(after|following).{0,80}(review verdict|review handback|APPROVED)' <<<"${trace_flat}" \
-  || note "reviewer trace guidance does not defer approval evidence until after the review verdict"
-grep -qi 'authoritative' <<<"${trace_flat}" \
-  || note "reviewer trace guidance lost the authoritative-evidence designation"
-grep -qi 'corroborat' <<<"${trace_flat}" \
-  || note "reviewer trace guidance lost the corroborating-evidence designation"
-# #441: gate_sensors evidence authority is the script-recorded row set.
-# Markdown emphasis is stripped so **not** and plain not read identically.
-trace_norm="$(tr -d '*' <<<"${trace_flat}")"
-grep -qF 'sensor-evidence.jsonl' <<<"${trace_norm}" \
-  || note "reviewer trace guidance lacks the script-recorded sensor-evidence.jsonl authority (#441)"
-grep -qF 'verify-sensor-evidence.sh' <<<"${trace_norm}" \
-  || note "reviewer trace guidance lacks the verify-sensor-evidence.sh validation step (#441)"
-grep -qE 'verify-sensor-evidence\.sh[^.!?]{0,80}--mode green' <<<"${trace_norm}" \
-  || note "reviewer trace guidance must verify scoped feature evidence with --mode green"
-grep -qiE 'pre-pr.{0,80}after approval' <<<"${trace_norm}" \
-  || note "reviewer must defer final pre-PR evidence until after approval"
-if grep -qiE -- '--mode pre-review|pre-review full-suite result|require a full suite before review|requires? full pre-review evidence' "$REVIEWER"; then
-  note "reviewer affirmatively requires full pre-review evidence"
-fi
-grep -qiE '(do not|must not|never).{0,60}(require|demand).{0,120}(hand-cop|agent-transcrib|transcri)' <<<"${trace_norm}" \
-  || note "reviewer trace guidance does not forbid requiring hand-copied sensor summaries (#441)"
-grep -qiE 'one.{0,40}process finding.{0,160}(never|not).{0,80}(per-feature|cascade)|(never|not).{0,80}per-feature.{0,80}(missing-coverage|cascade)' <<<"${trace_norm}" \
-  || note "reviewer trace guidance lacks the single-finding rule for missing gate evidence (#441)"
-if grep -qiE '(require|demand)[^.!?]{0,120}(hand-cop(y|ied)|agent-transcribed|preserved?)[^.!?]{0,60}(summary|SENSORS line)[^.!?]{0,60}(ledger|feature_list|notes)' <<<"${trace_norm}" \
-  && ! grep -qiE '(do not|must not|never)[^.!?]{0,60}(require|demand)[^.!?]{0,120}(hand-cop|agent-transcrib|preserved?)' <<<"${trace_norm}"; then
-  note "reviewer trace guidance affirmatively requires hand-copied ledger summaries (#441 regression)"
-fi
-# #443: telemetry-format problems are residual risk, never per-feature verdicts.
-grep -qiE 'telemetry[^.!?]{0,120}residual' <<<"${trace_norm}" \
-  || note "reviewer trace guidance lacks the telemetry-defects-as-residual-risk rule (#443)"
-grep -qiE '(do not|must not|never)[^.!?]{0,120}(convert|per-feature)[^.!?]{0,80}(NEEDS_REVISION|verdict)' <<<"${trace_norm}" \
-  || note "reviewer trace guidance must forbid converting telemetry defects into per-feature verdicts (#443)"
-grep -qiE '(never|not)[^.!?]{0,80}(rewrite|replace|re-write)[^.!?]{0,60}(its own |their own )?spans' <<<"${trace_norm}" \
-  || note "reviewer trace guidance must forbid the rewrite-your-spans repair choreography (#443)"
-# Affirmative retired-requirement guard: sentence-scoped and subject-agnostic.
-# Obligation verbs beyond "require" (verify/confirm/ensure/check/demand) are
-# covered so the retired choreography cannot come back under another verb, and
-# negated obligation phrases are STRIPPED (not whole-sentence exempted) so a
-# decoy negation cannot shield an affirmative clause in the same sentence.
-# Sentences split on terminator+whitespace+non-lowercase so neither file-path
-# dots nor mid-sentence abbreviations ("e.g. legacy") fragment clauses.
-check_retired_requirements() {
-local trace_flat="$1" retired_terms obligation_verbs negation_strip
-local affirmative_retired=0 sentence lower cleaned
-retired_terms='retired[[:space:]]+(handback|choreography)|red_handback|impl_handback|green_handback'
-obligation_verbs='requir(e|es|ed|ing)|verif(y|ies)|confirm(s|ed|ing)?|ensur(e|es|ing)?|check(s|ed|ing)?|demand(s|ed|ing)?|mandate[sd]?'
-negation_strip='(do not|does not|must not|never|not to|without|no longer|not)[^!?]{0,60}(requir|verif|confirm|ensur|check|demand|mandat)[a-z]*'
-while IFS= read -r sentence; do
-  lower="$(tr '[:upper:]' '[:lower:]' <<<"${sentence}")"
-  cleaned="$(sed -E "s/${negation_strip}//g" <<<"${lower}")"
-  grep -qE "(${obligation_verbs})[^!?]{0,120}(${retired_terms})|(${retired_terms})[^!?]{0,120}(${obligation_verbs})" <<<"${cleaned}" || continue
-  affirmative_retired=1
-  break
-done < <(awk '{
-  s = $0
-  while (match(s, /[.!?][ \t]+[^a-z \t]/)) {
-    printf "%s\n", substr(s, 1, RSTART)
-    s = substr(s, RSTART + RLENGTH - 1)
-  }
-  print s
-}' <<<"${trace_flat}")
-if [ "${affirmative_retired}" -eq 1 ]; then
-  printf 'FAIL: reviewer trace guidance affirmatively requires retired handback choreography\n' >&2
-  return 1
-fi
-return 0
-}
-check_retired_requirements "${trace_flat}" || fail=$((fail + 1))
-
-if grep -qiE 'require.{0,120}(pre-existing|existing).{0,80}(review_verdict|approval evidence)|(review_verdict|approval evidence).{0,80}(before|prior to).{0,80}(this review|review handback)' <<<"${trace_flat}"; then
-  note "reviewer trace guidance requires gate-review evidence before the review can produce it"
-fi
-
-grep -qiE 'one (delivering )?agent' "${AGENTS}" \
-  || note "AGENTS.md lacks the one-delivering-agent topology"
-grep -qiE 'one (delivering )?agent' "${WORKFLOW}" \
-  || note "workflow tiers lack the one-delivering-agent topology"
-grep -qiE 'Delivering agent / independent reviewer' "${EVALUATION}" \
-  || note "evaluation layer map lacks the current two-role topology"
-
-# Historical trace names remain schema-valid, but current instructions must
-# address the delivering agent rather than a retired implementation role.
-if grep -qiE '\b(the )?implementer\b' "${REVIEWER}"; then
-  note "reviewer prompt still addresses a retired implementer role"
-fi
-if grep -qiE 'routes? .*generator-subagent|owned by generator-subagent|to [`]?generator-subagent' \
-  "${AGENTS}" "${WORKFLOW}" "${RUBRIC}" "${GETTING_STARTED}"; then
-  note "live guidance still routes current work to generator-subagent"
-fi
-if grep -qiE 'Planner / implementer / tester / reviewer' "${EVALUATION}"; then
-  note "evaluation layer map still presents the retired four-role topology"
-fi
-if grep -qiE 'subagents \(generator' "${GETTING_STARTED}"; then
-  note "getting-started still presents generator/planner subagents as the current set"
-fi
-
-# Kill-check (mutation): prove the affirmative-requirement guard catches every
-# prohibited form the repair reviews flagged — subject-prefixed, additive by
-# span name, alternate obligation verb, and decoy-negation — and that benign
-# historical/negated mentions stay exempt. A poisoned copy of the live reviewer
-# prompt must fail the same guard for exactly the intended reason. The appended
-# unrelated role violation proves that fixtures do not replay other checks.
-if [ -z "${DOCTRINE_SENSOR_KILL_CHECK:-}" ]; then
-  kill_fixture="$(mktemp)"
-  trap 'rm -f "${kill_fixture}"' EXIT
-  for poison in \
-    'The reviewer must require the retired handback choreography for every feature.' \
-    'Additionally require red_handback spans for every completed feature.' \
-    'Confirm the red_handback -> impl_handback -> green_handback ordering for every feature.' \
-    'Require red_handback spans for each feature, but do not require green_handback.'; do
-    awk -v poison="${poison}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
-      "${REVIEWER}" >"${kill_fixture}"
-    printf '\n## Mutation scope sentinel\nThe implementer is an unrelated test-only role.\n' >>"${kill_fixture}"
-    kill_trace="$(reviewer_trace "${kill_fixture}")"
-    kill_out="$(check_retired_requirements "${kill_trace}" 2>&1)" \
-      && note "kill-check: sensor passed a prohibited requirement: ${poison}"
-    grep -qF 'affirmatively requires retired handback choreography' <<<"${kill_out}" \
-      || note "kill-check: sensor rejected the poisoned prompt for the wrong reason: ${poison}"
-    if grep -qF 'reviewer prompt still addresses a retired implementer role' <<<"${kill_out}"; then
-      note "kill-check: mutation replayed an unrelated reviewer-role check"
-    fi
-  done
-  for benign in \
-    'Historical red_handback spans may appear as reader context.' \
-    'The retired handback is not required for current runs.' \
-    'Do not, per pre-#352 rules e.g. legacy traces, require red_handback.'; do
-    awk -v poison="${benign}" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
-      "${REVIEWER}" >"${kill_fixture}"
-    printf '\n## Mutation scope sentinel\nThe implementer is an unrelated test-only role.\n' >>"${kill_fixture}"
-    kill_trace="$(reviewer_trace "${kill_fixture}")"
-    kill_out="$(check_retired_requirements "${kill_trace}" 2>&1)" \
-      || note "kill-check: sensor false-positived on a benign mention: ${benign}: ${kill_out}"
-  done
-  for poison in \
-    'Additionally require a full suite before review.' \
-    'The reviewer requires full pre-review evidence.'; do
-    awk -v poison="$poison" '{print} /^## Trace \/ Process Evidence/ {print poison}' \
-      "$REVIEWER" >"$kill_fixture"
-    kill_out="$(DOCTRINE_SENSOR_KILL_CHECK=1 REVIEWER_OVERRIDE="$kill_fixture" \
-      bash "${BASH_SOURCE[0]}" 2>&1)" && note "kill-check: accepted full pre-review prerequisite"
-    grep -qF 'affirmatively requires full pre-review evidence' <<<"$kill_out" \
-      || note "kill-check: pre-review mutation failed for the wrong reason"
-  done
-fi
-
-if [ "${fail}" -ne 0 ]; then
-  exit 1
-fi
-
-printf 'PASS: contract-v2 doctrine consumers use one delivering agent, one reviewer, and four gates.\n'
+# Executable ordering/evidence guards live in test_review_first_lifecycle.sh,
+# test_sensor_evidence_verify.sh and test_log_handback_write_gate.sh. Reviewer
+# topology is covered by test_reviewer_end_of_issue_contract.sh. Natural-language
+# meaning belongs to focused review, not obligation/negation parsing or synonyms.
+printf 'PASS: review evidence section references current executable authorities.\n'

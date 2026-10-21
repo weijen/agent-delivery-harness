@@ -11,7 +11,9 @@ applyTo: '**/*.py'
 2. **Green** — write the minimal production code to make the test pass. Nothing more.
 3. **Refactor** — clean up code and tests with the suite green. Re-run after each change.
 
-Never write production code without a failing test that requires it.
+For behavior changes, first demonstrate RED using an existing, new, or appropriately
+updated test, then implement the minimum needed for GREEN. Reusing a test does not
+waive RED/GREEN. Non-behavioral edits do not need manufactured tests.
 
 For **prompt assets, analyzer schemas, and other non-code artifacts**, the TDD equivalent is:
 1. Define the expected JSON output as a fixture (the assertion).
@@ -43,6 +45,8 @@ This is the "snapshot test" pattern — the fixture IS the test.
 - Assert on observable behavior and public API, not private internals.
 
 ## What to test
+- Select cases by explicit requirements and credible in-scope risks. The examples
+  below are prompts, not an exhaustive matrix or minimum case quota.
 - Happy path, edge cases, and error/exception paths.
 - Boundary conditions (empty, one, many; min/max).
 - Regression: when a bug is found, first write a failing test that reproduces it.
@@ -51,3 +55,7 @@ This is the "snapshot test" pattern — the fixture IS the test.
 - Keep tests fast. Mark slow/integration tests (`@pytest.mark.slow`) and keep the default
   run quick.
 - A failing test blocks "done". Fix the cause, don't delete or skip the test.
+- Keep one independent case for each required behavior/failure scenario within a
+  suite. Before consolidating or retiring a case, identify the retained assertion
+  that still detects its required failure. Distinct necessary scenarios stay distinct;
+  repeating one case during TDD, local validation and CI is not duplicate definition.

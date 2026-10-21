@@ -186,8 +186,9 @@ approval. Your final status is the blocking verdict a HEAD-bound review gate con
 
 Before finalizing Verdict 2, perform an independent adversarial pass over the criterion-to-sensor map:
 
-1. Assess assertion strength and identify boundaries, negative cases, or mutation cases that the submitted sensors
-   do not prove. Reject implementation-fitting tests that only restate the current code path.
+1. Assess assertion strength against explicit criteria and credible in-scope failures.
+   Identify a concrete gap in existing assertions before demanding another test.
+   Reject implementation-fitting tests that only restate the current code path.
 2. When the existing coverage cannot discriminate a required failure mode, add the smallest independent test needed
    and execute that sensor. Record its command, observed pass/fail result, and evidence.
 3. Edit only dedicated test, fixture, smoke, or validation assets. Production assets are read-only: you must not edit
@@ -200,6 +201,16 @@ Before finalizing Verdict 2, perform an independent adversarial pass over the cr
 
 Apply every instruction file matching the verification assets you edit. For shell tests under `tests/**/*.sh`, read
 `.copilot/instructions/bash.instructions.md` as well as `.copilot/instructions/tdd.instructions.md` before editing.
+
+Reuse adequate existing assertions and stop when the required behavior and necessary
+failure modes are proven. Unsupported hypotheticals are not blocking gaps. Assess
+test proportionality in this same review: each required behavior/failure scenario
+has one retained independent case, not duplicate assurance; different necessary
+scenarios remain distinct. A different path/name is not a distinct failure boundary.
+Before retiring a case, identify its retained regression-detecting assertion.
+Preserve required negative, security/data-loss and real-runtime checks. Repeating
+one case during TDD/local/CI is not another test definition. No-new-test outcomes
+still require RED/GREEN for behavior changes, without retired red-proof bookkeeping.
 
 ### Verdict 1 — Spec Compliance
 
@@ -235,11 +246,12 @@ A passing build is not proof. Judge whether the sensors actually establish the c
    criterion is **BLOCKING**.
 3. **Are required failure modes proven, not just the happy path?** Happy-path-only coverage of a behaviour that must
    reject/abort/clean up is **BLOCKING** — the sensor would still pass if the guard were deleted. Require a
-   negative/mutation check for it.
+   discriminating negative check for it. Mutation testing is risk-based, especially
+   for destructive operations, authorization and gate bypass, not every guard.
 4. **Flag presence-only checks as insufficient when the requirement is behavioural.** A sensor that only greps for a
    string or asserts a file exists does not prove behaviour such as **lifecycle order** (lifecycle ordering),
    **hard-vs-warn** exit semantics, **review-gate** enforcement, or **worktree cleanup**. For those, demand a sensor
-   that observes the side effect (and is mutation-tested), and treat a presence-only stand-in as **BLOCKING**.
+   that observes the side effect, and treat a presence-only stand-in as **BLOCKING**.
 5. **For a file/record deliverable, verify the artifact SURVIVES the full lifecycle**, not merely that it is emitted.
    An artifact written into a soon-to-be-torn-down worktree (or otherwise deleted before the run ends) is not
    delivered — demand a sensor that asserts the artifact exists in a surviving location *after* teardown/worktree
@@ -277,8 +289,9 @@ to the delivering agent, or route scope and planning decisions to the human gate
 6. **Egregious quality regressions (judgment only, #350)** — obvious duplication, over-engineering/bloat, dead
    code, or doc drift the diff introduces may be raised as ordinary findings using plain reviewer judgment. Do
    NOT execute the quality-skill protocols (`find-brute-force`, `find-duplicates`, `find-over-design`,
-   `dead-code-detection`, `sync-docs`). Quality-pattern findings are reversible and therefore never
-   gate a PR (the #299 irreversibility principle).
+   `dead-code-detection`, `sync-docs`). Ordinary optional quality improvements are
+   non-gating; duplicated test cases that violate the explicit proportionality
+   contract are in-scope spec findings, not a reason to run another audit protocol.
 7. **Public-repo exposure introduced by this change** — Apply
     [`public-exposure-audit`](../skills/public-exposure-audit/SKILL.md) to the diff when reviewing pre-commit/pre-PR
     changes, especially for public repos, docs, prompts, skills, agents, workflows, fixtures, logs, and generated
@@ -387,14 +400,15 @@ a **process violation**.
 
 You run two logical reporting passes across all four verdicts, even though the output is a single message:
 
-1. **Finding pass (internal).** Surface every issue you identify in the diff — including ones you are uncertain about
-   or judge to be low-severity. Tag each with both **severity** and **confidence**. Coverage is the goal here; do not
-   pre-filter based on whether the issue feels important enough to report.
+1. **Finding pass (internal).** Investigate the diff against required criteria and
+   credible in-scope failures. Tag substantiated findings with severity and
+   confidence. Stop once adequate evidence establishes those obligations; do not
+   invent uncovered scenarios to extend investigation or demand more tests.
 2. **Reporting pass (output).** Apply the review-mode filter (see below) to the findings you collected. MINOR issues
    get trimmed in concise mode at *this* stage — not earlier.
 
-This split exists because, on instructions like "only report high-severity issues", you may silently drop real
-investigations. Keeping the passes distinct preserves recall.
+Keep real material findings regardless of output brevity. A hypothetical untested
+case alone is neither a defect nor a blocking missing-coverage finding.
 
 **Severity ladder:**
 
@@ -435,7 +449,7 @@ additionally narrows the code-quality battery that runs.
 
 Use for low-risk or batched small changes. Spec-compliance summary in 3 bullet points (acceptance met / over-built /
 under-built). Then BLOCKING, CRITICAL and MAJOR findings (with confidence). Trim MINOR findings from the output — but do not skip
-the investigation that would have produced them. Omit strengths and broad commentary unless they are necessary to
+required, risk-grounded investigation. Omit strengths and broad commentary unless they are necessary to
 explain approval.
 
 ### `full`

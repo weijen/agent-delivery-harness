@@ -262,8 +262,9 @@ The normal path is:
    `code-review-subagent` on the completed diff using recorded scoped feature evidence.
    Do not run a full suite before review. The reviewer applies the product-quality scorecard during review before closeout, following
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
-  adversarial test-quality pass before closeout. It may add and execute the smallest independent test, fixture,
-  smoke, or validation asset needed, but production remains read-only and the reviewer must not edit it.
+  adversarial test-quality pass before closeout. It reuses sufficient evidence and
+  adds a test only for an uncovered required or credible in-scope failure. Once
+  adequate evidence exists, it stops; production remains read-only.
 9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
 10. Run `./scripts/run-sensors.sh --gate pre-pr`, then open the PR with
     `./scripts/create-pr.sh --title "..." --body-file body.md` without further tests or synchronization.
@@ -299,12 +300,13 @@ committed (#352: one agent owns plan, breakdown, and delivery).
 When authoring the breakdown in step 3, granularity is fixed by one rule (the
 authority is the *What counts as one feature* subsection in
 [.copilot/instructions/harness.instructions.md](../.copilot/instructions/harness.instructions.md)):
-a feature is one externally observable acceptance criterion provable by **exactly one**
-`regression_sensor` (plus an `e2e_sensor` when it crosses a real runtime boundary). **Split** a
-candidate when it needs more than one independent sensor or mixes more than one concern; **merge**
-two candidates when they share a single sensor and cannot be verified independently. The sensor is
-the unit — every `feature_list` item names exactly one `regression_sensor`, and no two items share
-one.
+a feature is one externally observable acceptance criterion mapped to concrete
+executed assertions. Split unrelated concerns, not test files or commands.
+Criteria may share existing sensors. One behavioral test may provide regression
+and E2E evidence when it actually crosses the required runtime boundary; mocked
+unit-only coverage cannot. Retain one independent case per required behavior/failure
+scenario, preserving distinct necessary scenarios and identifying retained protection
+before retiring a case. Repeated local/TDD/CI execution is not duplicate definition.
 
 ## Agent Topology (#352: one agent + one reviewer)
 
