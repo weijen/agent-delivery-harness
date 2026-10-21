@@ -2,6 +2,140 @@
 
 <!-- version list -->
 
+## v0.49.0 (2026-10-21)
+
+### Bug Fixes
+
+- **#539**: Require proportionate verification
+  ([#540](https://github.com/weijen/agent-delivery-harness/pull/540),
+  [`4bab2d1`](https://github.com/weijen/agent-delivery-harness/commit/4bab2d142a690dd2745355b5688dd19614c1bc8d))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.48.2
+  ([`542703b`](https://github.com/weijen/agent-delivery-harness/commit/542703bec762aa75a8ca0fda13af63c57afbdbcd))
+
+### Documentation
+
+- **#516**: Retire residual active Claude support claims
+  ([#524](https://github.com/weijen/agent-delivery-harness/pull/524),
+  [`e6b837d`](https://github.com/weijen/agent-delivery-harness/commit/e6b837db356c44515e0dc24e8094e896e22308cf))
+
+### Features
+
+- **#539**: Bound shared test runtime and require proportionate verification
+  ([#540](https://github.com/weijen/agent-delivery-harness/pull/540),
+  [`4bab2d1`](https://github.com/weijen/agent-delivery-harness/commit/4bab2d142a690dd2745355b5688dd19614c1bc8d))
+
+- **#539**: Enforce a shared hard test execution budget
+  ([#540](https://github.com/weijen/agent-delivery-harness/pull/540),
+  [`4bab2d1`](https://github.com/weijen/agent-delivery-harness/commit/4bab2d142a690dd2745355b5688dd19614c1bc8d))
+
+- **#539**: Share validation budget across local and CI test phases
+  ([#540](https://github.com/weijen/agent-delivery-harness/pull/540),
+  [`4bab2d1`](https://github.com/weijen/agent-delivery-harness/commit/4bab2d142a690dd2745355b5688dd19614c1bc8d))
+
+### Refactoring
+
+- **#514**: Record retired flat sensor deletions
+  ([#522](https://github.com/weijen/agent-delivery-harness/pull/522),
+  [`5068feb`](https://github.com/weijen/agent-delivery-harness/commit/5068febf228f58d6ba290f626acf64ab2e86e0c2))
+
+- **#514**: Relocate trace consistency boundary
+  ([#522](https://github.com/weijen/agent-delivery-harness/pull/522),
+  [`5068feb`](https://github.com/weijen/agent-delivery-harness/commit/5068febf228f58d6ba290f626acf64ab2e86e0c2))
+
+- **#514**: Relocate trace consistency validation
+  ([#522](https://github.com/weijen/agent-delivery-harness/pull/522),
+  [`5068feb`](https://github.com/weijen/agent-delivery-harness/commit/5068febf228f58d6ba290f626acf64ab2e86e0c2))
+
+- **#515**: Relocate semantic writer and Action Log renderer
+  ([#523](https://github.com/weijen/agent-delivery-harness/pull/523),
+  [`4b88b37`](https://github.com/weijen/agent-delivery-harness/commit/4b88b37246643e2b0eb35bdb5d884cf7e6806abd))
+
+- **#515**: Relocate trace recording and Action Log rendering
+  ([#523](https://github.com/weijen/agent-delivery-harness/pull/523),
+  [`4b88b37`](https://github.com/weijen/agent-delivery-harness/commit/4b88b37246643e2b0eb35bdb5d884cf7e6806abd))
+
+- **#517**: Delete retired Claude adapter source and sensors
+  ([#525](https://github.com/weijen/agent-delivery-harness/pull/525),
+  [`46fe640`](https://github.com/weijen/agent-delivery-harness/commit/46fe640033fcafc0e180c47d8511947c496f6cef))
+
+- **#518**: Relocate source-only audit sweep to maintenance
+  ([#526](https://github.com/weijen/agent-delivery-harness/pull/526),
+  [`2c7e5d3`](https://github.com/weijen/agent-delivery-harness/commit/2c7e5d3f0aff69bd64e9868f0fc9b9381132a256))
+
+- **#519**: Relocate source-only tombstone history checker
+  ([#527](https://github.com/weijen/agent-delivery-harness/pull/527),
+  [`f72e968`](https://github.com/weijen/agent-delivery-harness/commit/f72e968f50229e60a3d99591d0a5d0c0616743f9))
+
+- **#520**: Relocate source-only release synchronization
+  ([#528](https://github.com/weijen/agent-delivery-harness/pull/528),
+  [`b399114`](https://github.com/weijen/agent-delivery-harness/commit/b399114202f4a9cc2cb455d5234dbea771814638))
+
+### Testing
+
+- **#489**: Rehearse legacy bundle ownership states
+  ([#521](https://github.com/weijen/agent-delivery-harness/pull/521),
+  [`9c12066`](https://github.com/weijen/agent-delivery-harness/commit/9c120662a618fa5a69dcef35f30ecab6cbd5c699))
+
+- **#489**: Reject omitted sensor migration identities
+  ([#521](https://github.com/weijen/agent-delivery-harness/pull/521),
+  [`9c12066`](https://github.com/weijen/agent-delivery-harness/commit/9c120662a618fa5a69dcef35f30ecab6cbd5c699))
+
+- **#489**: Verify exact lifecycle install identities
+  ([#521](https://github.com/weijen/agent-delivery-harness/pull/521),
+  [`9c12066`](https://github.com/weijen/agent-delivery-harness/commit/9c120662a618fa5a69dcef35f30ecab6cbd5c699))
+
+- **#489**: Verify lifecycle and install upgrade acceptance
+  ([#521](https://github.com/weijen/agent-delivery-harness/pull/521),
+  [`9c12066`](https://github.com/weijen/agent-delivery-harness/commit/9c120662a618fa5a69dcef35f30ecab6cbd5c699))
+
+- **#494**: Reject same-line compatibility wrapper behavior
+  ([#529](https://github.com/weijen/agent-delivery-harness/pull/529),
+  [`233e0c8`](https://github.com/weijen/agent-delivery-harness/commit/233e0c8d24f81d24938965a9bb8419597d0d18ae))
+
+- **#494**: Verify canonical layout root closure
+  ([#529](https://github.com/weijen/agent-delivery-harness/pull/529),
+  [`233e0c8`](https://github.com/weijen/agent-delivery-harness/commit/233e0c8d24f81d24938965a9bb8419597d0d18ae))
+
+- **#494**: Verify categorized layout aggregate acceptance
+  ([#529](https://github.com/weijen/agent-delivery-harness/pull/529),
+  [`233e0c8`](https://github.com/weijen/agent-delivery-harness/commit/233e0c8d24f81d24938965a9bb8419597d0d18ae))
+
+- **#494**: Verify fresh and historical layout topologies
+  ([#529](https://github.com/weijen/agent-delivery-harness/pull/529),
+  [`233e0c8`](https://github.com/weijen/agent-delivery-harness/commit/233e0c8d24f81d24938965a9bb8419597d0d18ae))
+
+- **#494**: Verify pre-layout sensor identity parity
+  ([#529](https://github.com/weijen/agent-delivery-harness/pull/529),
+  [`233e0c8`](https://github.com/weijen/agent-delivery-harness/commit/233e0c8d24f81d24938965a9bb8419597d0d18ae))
+
+- **#514**: Exercise upgraded installed trace checker
+  ([#522](https://github.com/weijen/agent-delivery-harness/pull/522),
+  [`5068feb`](https://github.com/weijen/agent-delivery-harness/commit/5068febf228f58d6ba290f626acf64ab2e86e0c2))
+
+- **#515**: Exercise upgraded installed writer and renderer
+  ([#523](https://github.com/weijen/agent-delivery-harness/pull/523),
+  [`4b88b37`](https://github.com/weijen/agent-delivery-harness/commit/4b88b37246643e2b0eb35bdb5d884cf7e6806abd))
+
+- **#533**: Reuse pristine identity installation
+  ([#536](https://github.com/weijen/agent-delivery-harness/pull/536),
+  [`9810c74`](https://github.com/weijen/agent-delivery-harness/commit/9810c74117e8c1363af91ea3dfd89ae6d5ac51ad))
+
+- **#534**: Shrink configuration protection fixture
+  ([#537](https://github.com/weijen/agent-delivery-harness/pull/537),
+  [`063df29`](https://github.com/weijen/agent-delivery-harness/commit/063df29f317a797c1ede79d8fc26403f4457dc53))
+
+- **#535**: Shrink installer conflict fixtures
+  ([#538](https://github.com/weijen/agent-delivery-harness/pull/538),
+  [`3496be8`](https://github.com/weijen/agent-delivery-harness/commit/3496be84a99b7c4cd77dcaa03f13590a4f94d795))
+
+- **#539**: Avoid repeated full setup in focused fixtures
+  ([#540](https://github.com/weijen/agent-delivery-harness/pull/540),
+  [`4bab2d1`](https://github.com/weijen/agent-delivery-harness/commit/4bab2d142a690dd2745355b5688dd19614c1bc8d))
+
+
 ## v0.48.2 (2026-09-21)
 
 ### Bug Fixes
