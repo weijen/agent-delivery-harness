@@ -22,6 +22,11 @@
 version: 2
 review_by: 2027-01-23
 
+repair_policy:
+  repeated_failure: reassess-approach-before-hardening
+  approach_change_disposition: decompose
+  durable_lesson: optional-validated-pair
+
 test_execution_budget:
   seconds: 600
   accounting: cumulative-test-wall-time-union

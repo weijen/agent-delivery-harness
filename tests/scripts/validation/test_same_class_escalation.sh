@@ -148,13 +148,14 @@ add_span repeated-point-fix conductor deviation fail regression point-fix
 add_span repeated-point-fix conductor deviation blocked regression point-fix
 expect_violation repeated-point-fix "generator_repeated_point_fix line 2"
 
-# Occurrence two must use the class-specific route.
+# Reconsidering the approach is valid for any failure class.
 for route in \
   "knowledge-gap research-requested" \
   "complexity decompose" \
   "known-flaky exemption" \
   "polling override" \
-  "regression class-fix"; do
+  "regression class-fix" \
+  "regression decompose"; do
   cls="${route%% *}"
   disposition="${route#* }"
   name="route-${cls}-${disposition}"
@@ -198,12 +199,12 @@ add_span research-stray conductor deviation blocked complexity point-fix "" \
   '{"harness.research_url":"https://example.invalid/source","harness.research_summary":"Stray."}'
 expect_violation research-stray "generator_research_provenance_invalid line 1"
 
-# A successful escalated repair after two failures must persist a durable rule.
+# Regression protection does not require a new permanent instruction.
 make_case durable-missing
 add_span durable-missing conductor deviation fail regression point-fix
 add_span durable-missing conductor deviation blocked regression class-fix
 add_span durable-missing conductor deviation pass regression class-fix
-expect_violation durable-missing "generator_durable_rule_missing line 3"
+expect_clean durable-missing
 
 make_case durable-valid
 add_span durable-valid conductor deviation fail regression point-fix
@@ -211,5 +212,12 @@ add_span durable-valid conductor deviation blocked regression class-fix
 add_span durable-valid conductor deviation pass regression class-fix "" \
   '{"harness.durable_rule_path":"AGENTS.md","harness.durable_rule_summary":"Keep one durable class rule."}'
 expect_clean durable-valid
+
+make_case durable-invalid
+add_span durable-invalid conductor deviation fail regression point-fix
+add_span durable-invalid conductor deviation blocked regression class-fix
+add_span durable-invalid conductor deviation pass regression class-fix "" \
+  '{"harness.durable_rule_path":"AGENTS.md"}'
+expect_violation durable-invalid "generator_durable_rule_invalid line 3"
 
 printf 'current same-class escalation contract honored\n'

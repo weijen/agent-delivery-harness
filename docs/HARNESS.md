@@ -474,9 +474,13 @@ anything from the feature list.
 
 ### Durable class lessons
 
-A successful escalated class repair (see the Same-Class Escalation doctrine) appends a one- or
-two-line durable lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md` file; the
-trace carries only the path and one-line summary of that lesson, never its body.
+Repeated failures first prompt reassessment of the approach, not automatic
+class-wide hardening. The existing `decompose` disposition permits simplifying or
+replacing the approach for any failure class without requiring more machinery.
+Prefer regression protection over permanent instructions. Add a one- or two-line
+lesson only for recurring, generalizable knowledge code/tools cannot adequately
+express; replace obsolete rules rather than accumulating exceptions.
+The optional trace path/summary pair remains validated when supplied.
 
 ## Gates And Sensors
 

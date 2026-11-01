@@ -163,7 +163,7 @@ Workflow per issue:
    runs sensors. The retained `rebind-evidence.sh` compatibility helper only
    verifies existing rows; it cannot refresh missing, stale or invalid evidence.
    Same-class escalation (#317/#327) applies to your own repairs: on the second
-   same-class failure stop point-fixing and fix the class.
+   same-class failure reassess the approach before expanding the repair.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
@@ -270,10 +270,13 @@ you write your own spans. The trace spine narrows to lifecycle spans emitted by 
 fails or blocks (historically the `red_handback` / `impl_handback` / `green_handback` steps;
 now any failed feature step), select one `harness.failure_class` from the trace schema's closed
 enum (`other` requires `failure_class_detail`), and a separate `harness.failure_disposition`.
-On occurrence one, `point-fix` is allowed. On the SECOND same-class failure, never point-fix
-again: `knowledge-gap` routes to `research` or `research-requested`; `complexity` routes to
-`decompose`; `known-flaky` and `polling` use `exemption` or an explicit `override`; other
-classes use `class-fix` or an explicit `override`. Record via `TRACE_FAILURE_CLASS` /
+On occurrence one, `point-fix` is allowed. On the SECOND same-class failure, reassess
+whether the chosen approach introduced the problem before expanding its defenses.
+Use `decompose` for any class when simplifying or replacing that approach; it does
+not require more issues, layers or subagents. Otherwise `knowledge-gap` routes to
+`research` or `research-requested`; `complexity` to `decompose`; `known-flaky` and
+`polling` to `exemption` or an explicit `override`; other classes to `class-fix`
+or an explicit `override`. Do not keep repeating the same point fix. Record via `TRACE_FAILURE_CLASS` /
 `TRACE_FAILURE_CLASS_DETAIL` / `TRACE_FAILURE_DISPOSITION` on the deviation span.
 
 Bounded research (knowledge-gap route only): local sources first; then at most ONE external
@@ -286,12 +289,12 @@ structured payload line, recorded via `TRACE_RESEARCH_URL` / `TRACE_RESEARCH_SUM
 
 ## Durable Class Lessons
 
-A successful escalated class repair persists a durable repository rule so the class cannot
-silently recur: append the lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md`
-file (the only allowed durable targets — existing, non-symlinked, inside the repository), and
-record it via `TRACE_DURABLE_RULE_PATH` / `TRACE_DURABLE_RULE_SUMMARY` on the successful green
-span — the trace carries only the path and one-line summary, never the lesson body. Instruction-budget rule (#352): a durable lesson is one or two lines, and adding one is
-the moment to check whether an older rule it supersedes can be deleted.
+Prefer a regression test for a repaired defect. A permanent instruction is optional,
+only for recurring, generalizable knowledge not adequately expressed by code or tools.
+Do not turn each local exception into a rule for every future task. If needed, replace
+superseded guidance with one or two lines in `AGENTS.md` or an existing, non-symlinked
+`.copilot/instructions/*.instructions.md` file. Optional `TRACE_DURABLE_RULE_PATH` /
+`TRACE_DURABLE_RULE_SUMMARY` remain a validated pair; omit both when no lesson is needed.
 
 ## 4. Sensors — run to self-correct (quality-left)
 
