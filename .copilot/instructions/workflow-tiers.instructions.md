@@ -120,6 +120,9 @@ commit or publication authority is genuinely unresolved.
 Write the plan yourself in host tracking (default `.copilot-tracking/plans/`).
 Include the acceptance criteria, approach, consequential decisions and verification.
 Do not copy the conversation or add detail without a delivery purpose.
+In an issue harness, choose the approach before decomposing features, following
+[the breakdown flow](../../docs/HARNESS.md#the-breakdown-flow-plan--clarify--feature_list).
+Its reasoning questions do not require extra headings, alternatives, or approval.
 
 ### 3. Resolve open decisions
 
