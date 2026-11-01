@@ -66,13 +66,13 @@ finish_trace_gate() {
 }
 
 # --- Closeout scaffold cleanup (issue #320, strip-closeout-cruft) -----------
-# Remove only the two exact snippets emitted by start-issue. The rewrite lands
+# Remove only the placeholder and recognized exact scaffold paragraphs. The rewrite lands
 # through a same-directory atomic rename; any inability to prove or complete
 # that rewrite blocks destructive closeout.
 finish__strip_scaffold_cruft() {
   local progress_file="$1" progress_dir="" tmp_file="" bullet="" guidance=""
   local line="" buffered="" expected_line="" matched=false i=0
-  local -a expected=() consumed=()
+  local -a current=() historical=() expected=() consumed=()
 
   [ -f "$progress_file" ] && [ ! -L "$progress_file" ] || return 1
   [ -r "$progress_file" ] && [ -w "$progress_file" ] || return 1
@@ -80,10 +80,15 @@ finish__strip_scaffold_cruft() {
   [ -w "$progress_dir" ] || return 1
   declare -F progress_scaffold_placeholder_bullet >/dev/null 2>&1 || return 1
   declare -F progress_scaffold_guidance >/dev/null 2>&1 || return 1
+  declare -F progress_scaffold_legacy_guidance >/dev/null 2>&1 || return 1
   bullet="$(progress_scaffold_placeholder_bullet)"
   guidance="$(progress_scaffold_guidance)"
   while IFS= read -r expected_line || [ -n "$expected_line" ]; do
-    expected+=("$expected_line")
+    current+=("$expected_line")
+  done <<< "$guidance"
+  guidance="$(progress_scaffold_legacy_guidance)"
+  while IFS= read -r expected_line || [ -n "$expected_line" ]; do
+    historical+=("$expected_line")
   done <<< "$guidance"
 
   command -v mktemp >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 \
@@ -95,27 +100,31 @@ finish__strip_scaffold_cruft() {
     if [ "$line" = "$bullet" ]; then
       continue
     fi
-    if [ "${#expected[@]}" -gt 0 ] && [ "$line" = "${expected[0]}" ]; then
-      consumed=("$line")
-      matched=true
-      for ((i = 1; i < ${#expected[@]}; i++)); do
-        if IFS= read -r buffered; then
-          consumed+=("$buffered")
-          if [ "$buffered" != "${expected[$i]}" ]; then
-            matched=false
-          fi
-        else
-          matched=false
-          break
-        fi
-      done
-      if [ "$matched" = "true" ] && [ "${#consumed[@]}" -eq "${#expected[@]}" ]; then
-        continue
-      fi
-      printf '%s\n' "${consumed[@]}"
+    if [ "$line" = "${current[0]}" ]; then
+      expected=("${current[@]}")
+    elif [ "$line" = "${historical[0]}" ]; then
+      expected=("${historical[@]}")
+    else
+      printf '%s\n' "$line"
       continue
     fi
-    printf '%s\n' "$line"
+    consumed=("$line")
+    matched=true
+    for ((i = 1; i < ${#expected[@]}; i++)); do
+      if IFS= read -r buffered; then
+        consumed+=("$buffered")
+        if [ "$buffered" != "${expected[$i]}" ]; then
+          matched=false
+        fi
+      else
+        matched=false
+        break
+      fi
+    done
+    if [ "$matched" = "true" ] && [ "${#consumed[@]}" -eq "${#expected[@]}" ]; then
+      continue
+    fi
+    printf '%s\n' "${consumed[@]}"
   done < "$progress_file" > "$tmp_file" 2>/dev/null || {
     rm -f -- "$tmp_file" 2>/dev/null || true
     return 1

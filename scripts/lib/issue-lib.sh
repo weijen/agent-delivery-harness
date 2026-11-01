@@ -32,6 +32,11 @@ progress_scaffold_placeholder_bullet() {
 }
 
 progress_scaffold_guidance() {
+  progress_scaffold_legacy_guidance
+}
+
+# Retained only for exact cleanup of progress created before the planning update.
+progress_scaffold_legacy_guidance() {
   cat <<'GUIDANCE'
 The **conductor authors** `feature_list.json` — but only *after* the
 `planning-subagent` plan is approved and the human-input gate has resolved
