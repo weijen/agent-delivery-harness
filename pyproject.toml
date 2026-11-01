@@ -1,15 +1,13 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
 version = "0.49.0"
-description = "Dormant Python toolchain and release metadata; product gates activate when Python source or product configuration is added."
+description = "Harness evaluation tooling and release metadata; Python gates cover the source-only evaluation assets."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
-# Issue #272 removed the only Python package (scripts/trace_tools, the cloud
-# export leg). No Python source ships today; the uv/ruff/mypy/pytest toolchain
-# is kept dormant. Tell uv not to build/install this project as a wheel — the
-# release/lock tooling remains independent of Python product-gate applicability.
+# Source-only evaluation assets use the Python toolchain; there is no installable
+# Python package. Release metadata alone still does not activate product gates.
 [tool.uv]
 package = false
 

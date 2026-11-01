@@ -82,23 +82,28 @@ if [ -e "${TMP_DIR}/real-root-gate-ran" ]; then
 	exit 1
 fi
 
-if grep -q "Python surface detected" "$OUT"; then
-	echo "dormant release tooling must not activate Python product gates"
-	cat "$OUT"
-	exit 1
-fi
 grep -q "skipping gates until earlier preflight failures are fixed" "$OUT" || { cat "$OUT"; exit 1; }
 if grep -q "Terraform surface detected" "$OUT"; then
 	echo "init.sh must not report Terraform after the repository stack is removed"
 	cat "$OUT"
 	exit 1
 fi
-grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
 
-# --- Docs-only path (fixture repo with no language/infra surface) -------------
+# --- Docs-only path: release metadata alone is not a Python product ----------
 mkdir -p "${TMP_DIR}/docsrepo/scripts/lib" "${TMP_DIR}/docsrepo/scripts/validation"
 copy_init "${TMP_DIR}/docsrepo"
 cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
+cat > "${TMP_DIR}/docsrepo/pyproject.toml" <<'TOML'
+[project]
+name = "release-only-fixture"
+version = "0.1.0"
+[tool.uv]
+package = false
+[dependency-groups]
+dev = ["ruff", "mypy", "pytest"]
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+TOML
 (
 	cd "${TMP_DIR}/docsrepo"
 	git init -q -b main
@@ -108,6 +113,11 @@ cp -R "${ROOT}/profiles" "${TMP_DIR}/docsrepo/profiles"
 		PATH="${DOCSBIN}:${PATH}" ./scripts/init.sh >"$OUT"
 )
 grep -q "docs-only project" "$OUT" || { cat "$OUT"; exit 1; }
+if grep -q "Python surface detected" "$OUT"; then
+	echo "dormant release tooling must not activate Python product gates"
+	cat "$OUT"
+	exit 1
+fi
 grep -q "shellcheck" "$OUT" || { cat "$OUT"; exit 1; }
 # markdownlint must NOT be presented as a required local gate in the docs-only flow.
 if grep -q "markdownlint" "$OUT"; then
