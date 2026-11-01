@@ -111,7 +111,7 @@ finish__strip_scaffold_cruft() {
     consumed=("$line")
     matched=true
     for ((i = 1; i < ${#expected[@]}; i++)); do
-      if IFS= read -r buffered; then
+      if IFS= read -r buffered || [ -n "$buffered" ]; then
         consumed+=("$buffered")
         if [ "$buffered" != "${expected[$i]}" ]; then
           matched=false

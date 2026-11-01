@@ -122,6 +122,10 @@ new_fixture scaffold-versions 54
   assert_contains "$progress" '- Authored closeout note must survive.'
   assert_contains "$progress" 'Current fixture guidance.'
   assert_contains "$progress" 'User changed this line.'
+
+  printf '%s\n%s' 'Current fixture guidance.' 'Authored final line without newline.' >"$progress"
+  finish__strip_scaffold_cruft "$progress" || fail "authored EOF cleanup failed"
+  assert_contains "$progress" 'Authored final line without newline.'
 )
 
 # Happy path: authoritative merge evidence produces one durable conclusion,
