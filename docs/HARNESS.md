@@ -264,7 +264,7 @@ they do not count or attribute its individual assertions.
 flowchart TD
   A[GitHub issue] --> B[./scripts/start-issue.sh N]
   B --> C[Issue worktree]
-  C --> HG[Plan + Open Questions: advisory human pause]
+  C --> HG[Choose path and clarify material decisions]
   HG --> D[Author feature_list.json]
   D --> E[Select one passes:false feature]
   E --> F[TDD: RED then implementation then GREEN, scoped sensors]
@@ -324,8 +324,17 @@ The delivering agent derives `feature_list.json` from the issue and chosen appro
 Planning depth follows behavioral risk; no separate plan file is required for a
 contained low-risk change. Do not proceed while a necessary human decision is unresolved:
 
-1. **Plan and surface decisions.** Research enough to choose the minimum working path.
-   Keep a short approach in progress/chat for low-risk work; write
+1. **Choose the approach before decomposing work.** Start from the observable
+   result and how to verify it, not an assumed implementation. Inspect existing
+   project capabilities; distinguish confirmed requirements and constraints from
+   assumptions about the method. Choose the smallest real input-to-result path
+   that can prove the outcome, including necessary correctness, authorization,
+   secret protection and data-integrity safeguards from the start. Investigate
+   an unknown when it could change that choice, not to exhaust every possibility.
+   These are reasoning questions, not required headings or a checklist artifact.
+   A clear small task may need only a few sentences; do not manufacture
+   alternatives when one approach is sufficient. Keep that short approach in
+   progress/chat for low-risk work; write
    `.copilot-tracking/issues/issue-NN/plan.md` when complexity or uncertainty warrants it.
 2. **Resolve necessary human decisions.** Ask about unresolved requirements,
    authorization or consequential tradeoffs. Do not manufacture an approval pause

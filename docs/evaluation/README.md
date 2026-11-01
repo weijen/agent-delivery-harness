@@ -37,6 +37,9 @@ separate because it is less settled than L0.
 The dated [minimum-path guidance experiment](../archive/evaluation/minimum-path-541.md)
 retains six old/new coding-engine outcomes and a source-only opt-in reproduction
 command. It is exploratory evidence, not an additional lifecycle gate.
+The [planning-path comparison](../archive/evaluation/planning-path-543.md)
+adds necessary-pagination and small-boundary controls: all 18 trials passed,
+without demonstrating a design advantage or consistent cost improvement.
 
 ## Source and installed execution
 

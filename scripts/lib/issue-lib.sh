@@ -33,6 +33,17 @@ progress_scaffold_placeholder_bullet() {
 
 progress_scaffold_guidance() {
   cat <<'GUIDANCE'
+Choose the minimum correct approach before authoring `feature_list.json`;
+follow the breakdown flow in docs/HARNESS.md. Clarify unresolved material
+decisions, not every implementation detail. Each feature names its
+`regression_sensor` and applicable `e2e_sensor`; deliver one `passes:false`
+item at a time through the existing harness lifecycle.
+GUIDANCE
+}
+
+# Retained only for exact cleanup of progress created before the planning update.
+progress_scaffold_legacy_guidance() {
+  cat <<'GUIDANCE'
 The **conductor authors** `feature_list.json` — but only *after* the
 `planning-subagent` plan is approved and the human-input gate has resolved
 every Open Question. The planning-subagent never writes this breakdown. Once it

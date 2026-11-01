@@ -103,6 +103,31 @@ assert_absent() {
   fi
 }
 
+# A renderer update must not strand historical scaffold text at closeout.
+new_fixture scaffold-versions 54
+(
+  # shellcheck source=/dev/null
+  source "${ROOT}/scripts/lib/issue-lib.sh"
+  # shellcheck source=/dev/null
+  source "${ROOT}/scripts/lib/finish-lib.sh"
+  progress_scaffold_guidance() {
+    printf '%s\n' 'Current fixture guidance.' 'Next fixture step.'
+  }
+  progress="${NEW_MAIN}/.worktrees/issue-54/.copilot-tracking/issues/issue-54/progress.md"
+  progress_scaffold_guidance >>"$progress"
+  printf '%s\n' 'Current fixture guidance.' 'User changed this line.' >>"$progress"
+  finish__strip_scaffold_cruft "$progress" || fail "versioned scaffold cleanup failed"
+  assert_absent "$progress" 'The **conductor authors**'
+  assert_absent "$progress" 'Next fixture step.'
+  assert_contains "$progress" '- Authored closeout note must survive.'
+  assert_contains "$progress" 'Current fixture guidance.'
+  assert_contains "$progress" 'User changed this line.'
+
+  printf '%s\n%s' 'Current fixture guidance.' 'Authored final line without newline.' >"$progress"
+  finish__strip_scaffold_cruft "$progress" || fail "authored EOF cleanup failed"
+  assert_contains "$progress" 'Authored final line without newline.'
+)
+
 # Happy path: authoritative merge evidence produces one durable conclusion,
 # migrates and sanitizes progress, clears issue state, and tears down the
 # worktree with a terminal lifecycle span.

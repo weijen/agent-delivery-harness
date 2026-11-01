@@ -207,4 +207,4 @@ echo
 bold "Ready. Start working in the worktree:"
 echo "  cd ${WORKTREE_DIR}"
 echo "  gh issue view ${ISSUE_NUM} --comments   # single source of truth"
-echo "  # plan first; after the plan + human-input gate, the conductor authors ${TRACKING_DIR#"$WORKTREE_DIR"/}/feature_list.json, then pick one passes:false feature"
+echo "  # choose the approach using docs/HARNESS.md; clarify material decisions, then author ${TRACKING_DIR#"$WORKTREE_DIR"/}/feature_list.json and pick one passes:false feature"

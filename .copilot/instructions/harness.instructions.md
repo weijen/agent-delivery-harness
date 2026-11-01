@@ -118,7 +118,9 @@ Workflow per issue:
 
 1. **Start (gate 1):** `./scripts/start-issue.sh <N>` from the main checkout — preflight,
    identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
-   (description AND comments), then break it into a `feature_list.json` of criterion-sized
+   (description AND comments), then choose the minimum correct approach using
+   [the breakdown flow](../../docs/HARNESS.md#the-breakdown-flow-plan--clarify--feature_list)
+   before authoring a `feature_list.json` of criterion-sized
    features (one is sufficient for one genuine criterion; each mapped to executed regression assertions, plus runtime evidence when it
    crosses a real runtime boundary). If the derived list exceeds 5 features, **STOP before
    implementation** and propose splitting it into 2–3+ issues for the human to decide; include
