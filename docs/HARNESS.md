@@ -292,8 +292,9 @@ The normal path is:
    Keeping worktrees under the repository trust boundary avoids sibling-path
    sandbox denials. During migration, lifecycle scripts still resolve an
    already-existing sibling `<repo>-worktrees/issue-NN` worktree.
-4. Plan the issue in `.copilot-tracking/issues/issue-NN/plan.md`, surface Open Questions for the
-   **advisory human pause**, then author `feature_list.json` from the confirmed plan (each feature
+4. Choose an approach proportionate to the change; use `plan.md` for non-trivial work
+   and a short inline approach for contained low-risk work. Resolve genuine open decisions,
+   then author `feature_list.json` (each feature
    carrying its `regression_sensor` / `e2e_sensor`). See
    [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
 5. Pick one `passes:false` feature.
@@ -319,24 +320,30 @@ root-level copies are stale by definition and should be removed instead of docum
 
 ### The breakdown flow (plan → clarify → feature_list)
 
-Who turns the issue into `feature_list.json`, and when, is fixed — the breakdown
-is never authored before a plan exists, and never while a human still owes a
-decision:
+The delivering agent derives `feature_list.json` from the issue and chosen approach.
+Planning depth follows behavioral risk; no separate plan file is required for a
+contained low-risk change. Do not proceed while a necessary human decision is unresolved:
 
-1. **Plan and surface decisions.** Research the issue, write the plan in
-   `.copilot-tracking/issues/issue-NN/plan.md`, and list an explicit **Open Questions /
-   Needs-Human-Input** section.
-2. **Pause for human input (advisory).** Relay open questions to the human and pause while any
-   is unresolved. This pause is doctrine, not a mechanical gate — the contract's `gate_start`
-   does not enforce it (#424 aligned prose with the contract).
-3. **Author the breakdown.** Once the human resolves the questions, author `feature_list.json`
-   from the confirmed plan, each feature carrying its `regression_sensor` / `e2e_sensor`. The
-   2–5-feature sizing cap (STOP and propose a split above 5) is single-sourced in
+1. **Plan and surface decisions.** Research enough to choose the minimum working path.
+   Keep a short approach in progress/chat for low-risk work; write
+   `.copilot-tracking/issues/issue-NN/plan.md` when complexity or uncertainty warrants it.
+2. **Resolve necessary human decisions.** Ask about unresolved requirements,
+   authorization or consequential tradeoffs. Do not manufacture an approval pause
+   when the issue already provides the needed decisions.
+3. **Author the breakdown.** Record each genuine criterion in `feature_list.json`,
+   carrying its `regression_sensor` / `e2e_sensor`. One criterion is enough;
+   the upper sizing boundary (STOP and propose a split above 5) is single-sourced in
    `harness.instructions.md` §3 step 1.
 4. **The GitHub issue stays the contract; `feature_list.json` is the derived breakdown.**
 
 This keeps decisions that need a human in front of the human *before* any breakdown is
 committed (#352: one agent owns plan, breakdown, and delivery).
+
+Contained low-risk work uses `concise` independent review over the whole diff;
+higher-risk work uses `full`. Both retain the same finding pass, evidence,
+current-HEAD approval, final applicable validation and green-CI merge requirements.
+See **Risk-proportionate delivery** in `harness.instructions.md`; there is no
+alternate tier gate or bypass flag.
 
 #### What counts as one feature
 

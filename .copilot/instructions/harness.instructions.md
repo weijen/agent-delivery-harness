@@ -9,7 +9,8 @@ This file is the **full lifecycle** behind the golden rules in
 [the upstream map](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md). The human-readable lifecycle overview and diagram live in
 [docs/HARNESS.md](../../docs/HARNESS.md). In harness-enabled projects, strict harness adherence is mandatory:
 these instructions override personal workflow tiers and override generic coding-agent behavior whenever they differ.
-Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model is borrowed from three sources:
+Keep the same lifecycle gates while scaling planning and review output to actual risk
+(see **Risk-proportionate delivery** below). The model is borrowed from three sources:
 
 - **Anthropic** — long-running agents: initializer vs coding agent, a feature list, incremental
   progress, getting-up-to-speed rituals, leave a clean state.
@@ -118,7 +119,7 @@ Workflow per issue:
 1. **Start (gate 1):** `./scripts/start-issue.sh <N>` from the main checkout — preflight,
    identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
    (description AND comments), then break it into a `feature_list.json` of criterion-sized
-   features (2–5 typical; each mapped to executed regression assertions, plus runtime evidence when it
+   features (one is sufficient for one genuine criterion; each mapped to executed regression assertions, plus runtime evidence when it
    crosses a real runtime boundary). If the derived list exceeds 5 features, **STOP before
    implementation** and propose splitting it into 2–3+ issues for the human to decide; include
    footprint analysis to distinguish serial execution from genuinely parallel-safe work, and
@@ -129,7 +130,7 @@ Workflow per issue:
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>`.
-   Before the feature's first edit, capture `git rev-parse HEAD` in its local plan;
+   Before the feature's first edit, capture `git rev-parse HEAD` in its local tracking;
    keep that base fixed across partial commits and repair greens. Do not replace
    it with a moving HEAD or keep inheriting completed features through origin/main.
    Never run the full suite mid-loop, including as recovery for shared changes or
@@ -152,7 +153,8 @@ Workflow per issue:
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** first run
    `./scripts/create-pr.sh --prepare` to synchronize before final verification,
-   then invoke the `code-review-subagent` in `full` mode over the whole branch diff
+   then invoke the `code-review-subagent` in `concise` mode for contained low-risk work,
+   or `full` mode for higher-risk work, over the whole branch diff
    with scoped feature evidence and appropriate cheap syntax/format/lint checks.
    Do not require or run a full suite before review. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
@@ -212,8 +214,28 @@ N test files passed requires the matching HEAD-bound
 the durable record of that output is the runner's own `sensor-evidence.jsonl` row (#441),
 not an agent transcription.
 
+### Risk-proportionate delivery
+
+For a contained, reversible change with understood behavior and no new material
+trust, data-loss or external-side-effect risk, use a short approach in the existing
+issue progress or conversation instead of a separate `plan.md`. Keep the fixed
+feature base and criterion/sensor record in local tracking. One real criterion
+needs one feature, not an artificial breakdown. Use `concise` independent review:
+it reduces report size, not the finding pass or required verdicts.
+
+Use a fuller plan and `full` review when uncertainty, cross-component contracts,
+irreversible effects or material security exposure warrant them. File count or
+words such as "deployment" alone do not decide risk. Ask for human decisions
+when requirements, authorization or consequential tradeoffs remain unresolved,
+not at routine milestones with no decision to make.
+
+Both paths retain issue authority, isolated worktree/preflight, TDD, scoped
+feature evidence, independent whole-diff review, current-HEAD approval, final
+applicable validation, PR/green CI and authorized merge/closeout. Neither path
+uses bypass flags, fake evidence, additional tier files or an alternate gate engine.
+
 **Review profile at issue completion.** At issue completion (all features `passes:true`), the single end-of-issue review
-runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
+runs in **`concise` or `full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
 sweep (check #7, `public-exposure-audit`); the five quality skills are not part of the review
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
 runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.

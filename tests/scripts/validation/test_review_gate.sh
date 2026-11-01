@@ -463,6 +463,13 @@ C3="${TMP_DIR}/c42"; make_repo "$C3" 42
 ID3="${C3}/.copilot-tracking/issues/issue-42"
 add_green "$ID3" 42 feat-a
 add_verdict "$ID3" 42 feat-a
+jq -c --arg head "$(git -C "$C3" rev-parse HEAD)" '
+  if .["harness.lifecycle_step"] == "review_verdict" then
+    . + {"harness.review_mode":"concise", "harness.reviewed_sha":$head,
+         "harness.review_event_id":"contained-review"}
+  else . end' "${ID3}/trace.jsonl" > "${ID3}/trace.next"
+mv "${ID3}/trace.next" "${ID3}/trace.jsonl"
+[ ! -e "${ID3}/plan.md" ] || hard_fail "contained fixture unexpectedly has a separate plan"
 rc="$(run_in "$C3" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] \
   || fail "no_block_with_verdict: with a review_verdict span present the verdict leg must NOT block approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
@@ -475,6 +482,9 @@ fi
 if grep -Eiq 'review_verdict_missing|missing.{0,20}verdict|verdict.{0,20}missing' "$OUT"; then
   fail "no_block_with_verdict: the verdict-missing refusal message must be ABSENT when the verdict is present (output: $(tr '\n' '|' < "$OUT"))"
 fi
+rc="$(run_in "$C3" "$OUT" -- ./scripts/validation/review-gate.sh check)"
+[ "$rc" = "0" ] \
+  || fail "single-criterion concise review without plan must remain approved (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
 # Case 4: graceful_skip_no_trace (issue 43)
