@@ -2,6 +2,78 @@
 
 <!-- version list -->
 
+## v0.49.1 (2026-11-01)
+
+### Bug Fixes
+
+- **planning**: Choose the minimum correct path before decomposition
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+- **scripts**: Emit current planning guidance
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+- **scripts**: Preserve authored text at scaffold EOF
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+- **scripts**: Preserve historical scaffold cleanup
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.49.0
+  ([`7009f80`](https://github.com/weijen/agent-delivery-harness/commit/7009f8048b938a4b14f72fdc3c045a62a15844a8))
+
+### Documentation
+
+- **#541**: Describe the active evaluation Python surface
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **#541**: Prioritize the minimum real user path
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **docs**: Report the controlled planning comparison
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+### Refactoring
+
+- **#541**: Prioritize minimum paths and risk-proportionate delivery
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **#541**: Reassess repairs before adding durable rules
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **#541**: Review sufficient quality without numeric score pressure
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **#541**: Scale delivery ceremony to behavioral risk
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **instructions**: Plan from outcomes first
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+### Testing
+
+- **#541**: Compare frozen old and new guidance on real agent runs
+  ([#542](https://github.com/weijen/agent-delivery-harness/pull/542),
+  [`768404b`](https://github.com/weijen/agent-delivery-harness/commit/768404b7ead82dbdf3f4488ad8aa388d62bc5cb2))
+
+- **scripts**: Compare planning with fixed tasks
+  ([#544](https://github.com/weijen/agent-delivery-harness/pull/544),
+  [`cc66a34`](https://github.com/weijen/agent-delivery-harness/commit/cc66a349adb7c0531ddfb3f5bfd44437950079d1))
+
+
 ## v0.49.0 (2026-10-21)
 
 ### Bug Fixes
