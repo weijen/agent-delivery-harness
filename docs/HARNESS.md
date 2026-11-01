@@ -303,7 +303,7 @@ The normal path is:
 7. Repeat until all features pass.
 8. Run `./scripts/create-pr.sh --prepare`, then
    `code-review-subagent` on the completed diff using recorded scoped feature evidence.
-   Do not run a full suite before review. The reviewer applies the product-quality scorecard during review before closeout, following
+   Do not run a full suite before review. The reviewer applies the sufficient-quality rubric during review before closeout, following
   [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
   adversarial test-quality pass before closeout. It reuses sufficient evidence and
   adds a test only for an uncovered required or credible in-scope failure. Once
