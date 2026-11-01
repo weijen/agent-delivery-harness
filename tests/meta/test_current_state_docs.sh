@@ -43,10 +43,6 @@ reject .copilot/instructions/harness.instructions.md "Docs-only era:"
 reject .copilot/instructions/harness.instructions.md "Code era:"
 reject .copilot/instructions/harness.instructions.md "docs-era equivalent"
 
-for path in README.md docs/getting-started.md .copilot/instructions/harness.instructions.md; do
-  grep -qiF "dormant" "$path" || fail "${path} does not describe the dormant Python surface"
-done
-
 for path in README.md docs/getting-started.md docs/multi-language-profiles.md docs/HARNESS.md; do
   for language in Go Java Ruby; do
     grep -Ei "${language}.*scaffold" "$path" >/dev/null \

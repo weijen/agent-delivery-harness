@@ -1,13 +1,20 @@
 ---
-description: 'Personal workflow doctrine — Workflow Tiers and the slim two-subagent Tier 3 pipeline. Cross-project; applies everywhere.'
+description: 'Risk-proportionate workflow defaults; host issue-lifecycle gates take precedence.'
 applyTo: "**"
 ---
 
 # Personal Workflow Doctrine
 
 You are the single delivering agent (#352 retired the conductor/subagent choreography; the word survives only as the log-handback role label). This file is your operating doctrine across **every** project — repo conventions still
-override it. When the host repo has its own harness instructions, follow the stricter local rule. This is the default
+override it. When the host repo has its own harness instructions, follow its lifecycle and proportionality rules. This is the default
 workflow when the host project doesn't specify one.
+
+In this issue harness, tiers vary ceremony, not gate eligibility: every coding issue
+retains preflight/worktree, genuine criterion records, applicable evidence,
+independent review, current-HEAD approval, PR/CI and authorized closeout.
+Contained low-risk work needs no separate plan file and uses `concise` review.
+Use the lifecycle in `harness.instructions.md`, not the generic commit/approval
+defaults below. File counts and keywords alone never force escalation.
 
 ## Workflow Tiers
 
@@ -16,9 +23,9 @@ Every coding task is classified into one of four tiers before work begins.
 | Tier | When to use | Subagents | Plan file | Tests | Commit-strategy ask |
 | ---- | ----------- | --------- | --------- | ----- | ------------------- |
 | 0    | Questions, explanations, shell-only / read-only ops | None | No | None | No |
-| 1    | 1–3 file low-risk edits, no API/infra/security impact | Main-agent self-check; no subagent unless user asks or risk surfaces | No | Targeted only | No (commit on request) |
-| 2    | Multi-file change with behavior change needing tests; contained scope | Optional single `code-review-subagent` pass when risk warrants it or the user asks | Only if user asks or work spans sessions | Targeted first; full suite at end / when risk justifies | No (commit on request) |
-| 3    | Auth, security, infra, teardown, cross-module refactor (5+ files), or user requests phased/planned work | Full pipeline: plan in `.copilot-tracking/plans/` → single-agent implementation (#352) → `code-review-subagent` | Yes, in `.copilot-tracking/plans/` (host repo should gitignore this) | Full suite at milestones and completion | Yes, ask at the start |
+| 1    | Contained, reversible edits with understood behavior and no new material risk | Main-agent self-check; host harness still requires independent review | No | Applicable targeted checks | No (commit on request) |
+| 2    | Contained behavior change with some uncertainty | Single concise review when host rules, risk or user require it | When useful for continuity or decisions | Targeted first; applicable completion gates | No (commit on request) |
+| 3    | Material trust/data-loss risk, irreversible effects, uncertain cross-component contracts | Direct planning and implementation, then independent review | Fuller plan in host tracking | Risk-relevant checks and applicable completion gates | Follow existing authorization; ask only if unresolved |
 
 ### Tier 0 — Direct answers
 
@@ -27,8 +34,8 @@ planning, no plan files, no commit-strategy questions.
 
 ### Tier 1 — Fast path
 
-All of: 1–3 files, no public-API/architecture/auth/security/infra/destructive scope, no cross-module contract change,
-user didn't ask for formal review.
+Contained and reversible, with understood acceptance and no new material trust,
+data-loss or external-side-effect risk. Consider behavior, not the number or names of files.
 
 State a brief approach, edit, run targeted tests (`<project test command> path::test_name`), self-check the diff. No
 plan file, no review subagent unless risk surfaces or the user asks. Commit only on request.
@@ -39,13 +46,14 @@ Multiple related files, behavior change needing tests, some uncertainty but no b
 
 Inline short plan (in chat, not a file). Targeted TDD for behavior changes. **Optional** one review pass after
 implementation when risk warrants or the user asks — use `code-review-subagent` in `concise` mode. Targeted tests
-first; full suite at end. No plan file unless user asks or work spans sessions. Commit only on request.
+first; applicable completion gates at the end. No separate plan file unless useful
+or requested. Commit according to host rules or user authorization.
 
 ### Tier 3 — Full orchestrated workflow
 
-Any of: auth, security, telemetry, infra, deployment, teardown; cross-module architecture changes; new tools/plugins
-with code + config; large refactors (5+ files, behavior across modules); user explicitly asks for plan / phased work /
-strict TDD / subagent review; work spans multiple phases or sessions.
+Material security or data-loss exposure, irreversible external effects, uncertain
+cross-component behavior, or a user request for deeper planning. Merely touching a
+deployment document or several files does not create that risk.
 
 Uses `code-review-subagent` for the independent review (#352 retired the planning/generator
 subagents — plan directly in `.copilot-tracking/plans/`); otherwise the main
@@ -59,7 +67,9 @@ approval pauses below.
 - **TDD** — Write tests first. Run them to verify they fail for the right reason. Then write the minimal code to make
   them pass.
 - **DRY** — But not at the cost of tight coupling. Three similar lines beat a premature abstraction.
-- **Bite-sized phases** — One concern per phase. If a phase feels too big, split it.
+- **Minimum working path** — First prove the smallest real input-to-result slice.
+  Split independent criteria, not arbitrary file groups. Stop when acceptance and
+  necessary failure protection are demonstrated.
 - **Project conventions first** — Follow the host repo's formatting, naming, and test patterns. Verify with the
   project's lint/format commands for any code change.
 
@@ -102,18 +112,19 @@ Personal subagent locations:
 
 ### 1. Start
 
-Acknowledge the task. Ask commit preference:
-"Should I auto-commit after the implementation passes review, or commit manually? (auto/manual)"
+Use the host's commit convention and existing user authorization. Ask only when
+commit or publication authority is genuinely unresolved.
 
 ### 2. Plan
 
-Write the plan yourself in `.copilot-tracking/plans/` (deep detail). Include the user's request, conversation context,
-and any relevant host-repo conventions you've already gathered.
+Write the plan yourself in host tracking (default `.copilot-tracking/plans/`).
+Include the acceptance criteria, approach, consequential decisions and verification.
+Do not copy the conversation or add detail without a delivery purpose.
 
-### 3. Plan approval — MANDATORY PAUSE
+### 3. Resolve open decisions
 
-Summarise the plan (approaches considered, number of phases, key decisions, open questions). **Wait for user
-approval.** Do not proceed until approved.
+Ask about unresolved requirements, consequential tradeoffs or authorization.
+Otherwise proceed within the approved task; no routine pause is needed.
 
 ### 4. Implement (phase by phase)
 
@@ -124,7 +135,7 @@ a. **Implement** — follow the host repo's implementation path (#352: single ag
   (teeth-proof retired, #334); otherwise implement directly.
    - For behavior changes, follow strict TDD: failing test → verify right failure → minimal implementation → passing test.
    - Apply style fixes scoped to touched files using the project's lint/format commands.
-   - Run targeted tests during the phase; run the full suite at milestones and at the end.
+   - Run targeted tests during the phase and applicable completion gates at the end.
 
 b. **Verify** — run the selected feature's declared sensors and mark `passes:true` only after checks and
   product-quality blocking gates pass.
@@ -136,7 +147,7 @@ d. **Commit** — if user chose auto-commit, write a conventional-commit message
    body bullets, no internal-workflow references). **Use the user's existing signing setup** — never disable signing
    to avoid a passphrase prompt. If manual, stage the changes and present the commit message; let the user commit.
 
-### 5. Review — MANDATORY PAUSE before close
+### 5. Review before close
 
 After all phases are implemented, invoke `code-review-subagent` in `full` mode. Pass:
 
@@ -158,7 +169,7 @@ asks for one.
 
 ### Mid-pipeline rules
 
-- Every 3 phases, or at the end: pause, summarise progress, wait for user confirmation before continuing.
+- Surface material changes in scope or risk; do not add count-based approval pauses.
 
 For blocker, retry, and review-feedback handling, see **When to Stop and Ask** and **Important Rules** below — those
 rules are stated once there.
@@ -174,15 +185,15 @@ any `task …` invocation as illustrative, not a command to hunt for.
 
 Stop and ask the user when:
 
-- A subagent hits a blocker (missing dep, unclear instruction, repeated test failure).
+- A blocker requires human authorization, missing requirements or an unavailable dependency.
 - The plan has critical gaps that prevent starting a phase.
 - A subagent returns an unclear or unexpected result.
-- Verification fails repeatedly (same test failing after 2 fix attempts).
+- Reassessment of repeated failures reveals an unresolved scope or design decision.
 - You're unsure which phase to execute next.
 
 Do **not**:
 
-- Retry the same failing operation more than twice.
+- Repeat a failing approach without reassessing it.
 - Skip a phase because it seems blocked.
 - Make assumptions about user intent when the plan is ambiguous.
 - Force through a blocker that a subagent raised.
@@ -203,6 +214,5 @@ Do not reference plan phases or internal workflow in commit messages.
 - For Tier 3 work, you implement directly; the one other model invocation is the single independent review at issue completion (#352).
 - For Tier 1 and Tier 2 work, you may implement directly with at most one optional review pass at the end.
 - Never force-push or amend commits that have already been pushed.
-- Never proceed past a mandatory pause (plan approval, final review, every-3-phase milestone) without user
-  confirmation.
+- Never proceed through an unresolved authorization or consequential human decision.
 - When relaying review feedback to revision, include the full feedback — don't summarise or soften it.

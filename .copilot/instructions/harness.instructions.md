@@ -9,7 +9,8 @@ This file is the **full lifecycle** behind the golden rules in
 [the upstream map](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md). The human-readable lifecycle overview and diagram live in
 [docs/HARNESS.md](../../docs/HARNESS.md). In harness-enabled projects, strict harness adherence is mandatory:
 these instructions override personal workflow tiers and override generic coding-agent behavior whenever they differ.
-Do not downgrade the lifecycle to a generic Tier 1 / Tier 2 fast path. The model is borrowed from three sources:
+Keep the same lifecycle gates while scaling planning and review output to actual risk
+(see **Risk-proportionate delivery** below). The model is borrowed from three sources:
 
 - **Anthropic** — long-running agents: initializer vs coding agent, a feature list, incremental
   progress, getting-up-to-speed rituals, leave a clean state.
@@ -118,16 +119,18 @@ Workflow per issue:
 1. **Start (gate 1):** `./scripts/start-issue.sh <N>` from the main checkout — preflight,
    identity binding, branch + isolated worktree, tracking scaffold. Read the GitHub issue
    (description AND comments), then break it into a `feature_list.json` of criterion-sized
-   features (2–5 typical; each mapped to executed regression assertions, plus runtime evidence when it
+   features (one is sufficient for one genuine criterion; each mapped to executed regression assertions, plus runtime evidence when it
    crosses a real runtime boundary). If the derived list exceeds 5 features, **STOP before
    implementation** and propose splitting it into 2–3+ issues for the human to decide; include
    footprint analysis to distinguish serial execution from genuinely parallel-safe work, and
    never silently accept or silently self-split an oversized issue.
-2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
+2. **Deliver features with TDD, one at a time.** Start with the smallest real path
+   from input to the user's observable result, not complete defensive layers around
+   each component. Write the failing test first; never weaken or
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>`.
-   Before the feature's first edit, capture `git rev-parse HEAD` in its local plan;
+   Before the feature's first edit, capture `git rev-parse HEAD` in its local tracking;
    keep that base fixed across partial commits and repair greens. Do not replace
    it with a moving HEAD or keep inheriting completed features through origin/main.
    Never run the full suite mid-loop, including as recovery for shared changes or
@@ -150,7 +153,8 @@ Workflow per issue:
    executes only the first match. Commit and push after each completed feature.
 3. **Independent review (gate 3), once, pre-PR:** first run
    `./scripts/create-pr.sh --prepare` to synchronize before final verification,
-   then invoke the `code-review-subagent` in `full` mode over the whole branch diff
+   then invoke the `code-review-subagent` in `concise` mode for contained low-risk work,
+   or `full` mode for higher-risk work, over the whole branch diff
    with scoped feature evidence and appropriate cheap syntax/format/lint checks.
    Do not require or run a full suite before review. It issues
    per-feature verdicts (recorded as `review_verdict` spans with the #318 attribution contract).
@@ -161,7 +165,7 @@ Workflow per issue:
    runs sensors. The retained `rebind-evidence.sh` compatibility helper only
    verifies existing rows; it cannot refresh missing, stale or invalid evidence.
    Same-class escalation (#317/#327) applies to your own repairs: on the second
-   same-class failure stop point-fixing and fix the class.
+   same-class failure reassess the approach before expanding the repair.
 4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
@@ -210,8 +214,28 @@ N test files passed requires the matching HEAD-bound
 the durable record of that output is the runner's own `sensor-evidence.jsonl` row (#441),
 not an agent transcription.
 
+### Risk-proportionate delivery
+
+For a contained, reversible change with understood behavior and no new material
+trust, data-loss or external-side-effect risk, use a short approach in the existing
+issue progress or conversation instead of a separate `plan.md`. Keep the fixed
+feature base and criterion/sensor record in local tracking. One real criterion
+needs one feature, not an artificial breakdown. Use `concise` independent review:
+it reduces report size, not the finding pass or required verdicts.
+
+Use a fuller plan and `full` review when uncertainty, cross-component contracts,
+irreversible effects or material security exposure warrant them. File count or
+words such as "deployment" alone do not decide risk. Ask for human decisions
+when requirements, authorization or consequential tradeoffs remain unresolved,
+not at routine milestones with no decision to make.
+
+Both paths retain issue authority, isolated worktree/preflight, TDD, scoped
+feature evidence, independent whole-diff review, current-HEAD approval, final
+applicable validation, PR/green CI and authorized merge/closeout. Neither path
+uses bypass flags, fake evidence, additional tier files or an alternate gate engine.
+
 **Review profile at issue completion.** At issue completion (all features `passes:true`), the single end-of-issue review
-runs in **`full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
+runs in **`concise` or `full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
 sweep (check #7, `public-exposure-audit`); the five quality skills are not part of the review
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
 runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.
@@ -268,10 +292,13 @@ you write your own spans. The trace spine narrows to lifecycle spans emitted by 
 fails or blocks (historically the `red_handback` / `impl_handback` / `green_handback` steps;
 now any failed feature step), select one `harness.failure_class` from the trace schema's closed
 enum (`other` requires `failure_class_detail`), and a separate `harness.failure_disposition`.
-On occurrence one, `point-fix` is allowed. On the SECOND same-class failure, never point-fix
-again: `knowledge-gap` routes to `research` or `research-requested`; `complexity` routes to
-`decompose`; `known-flaky` and `polling` use `exemption` or an explicit `override`; other
-classes use `class-fix` or an explicit `override`. Record via `TRACE_FAILURE_CLASS` /
+On occurrence one, `point-fix` is allowed. On the SECOND same-class failure, reassess
+whether the chosen approach introduced the problem before expanding its defenses.
+Use `decompose` for any class when simplifying or replacing that approach; it does
+not require more issues, layers or subagents. Otherwise `knowledge-gap` routes to
+`research` or `research-requested`; `complexity` to `decompose`; `known-flaky` and
+`polling` to `exemption` or an explicit `override`; other classes to `class-fix`
+or an explicit `override`. Do not keep repeating the same point fix. Record via `TRACE_FAILURE_CLASS` /
 `TRACE_FAILURE_CLASS_DETAIL` / `TRACE_FAILURE_DISPOSITION` on the deviation span.
 
 Bounded research (knowledge-gap route only): local sources first; then at most ONE external
@@ -284,12 +311,12 @@ structured payload line, recorded via `TRACE_RESEARCH_URL` / `TRACE_RESEARCH_SUM
 
 ## Durable Class Lessons
 
-A successful escalated class repair persists a durable repository rule so the class cannot
-silently recur: append the lesson to `AGENTS.md` or a `.copilot/instructions/*.instructions.md`
-file (the only allowed durable targets — existing, non-symlinked, inside the repository), and
-record it via `TRACE_DURABLE_RULE_PATH` / `TRACE_DURABLE_RULE_SUMMARY` on the successful green
-span — the trace carries only the path and one-line summary, never the lesson body. Instruction-budget rule (#352): a durable lesson is one or two lines, and adding one is
-the moment to check whether an older rule it supersedes can be deleted.
+Prefer a regression test for a repaired defect. A permanent instruction is optional,
+only for recurring, generalizable knowledge not adequately expressed by code or tools.
+Do not turn each local exception into a rule for every future task. If needed, replace
+superseded guidance with one or two lines in `AGENTS.md` or an existing, non-symlinked
+`.copilot/instructions/*.instructions.md` file. Optional `TRACE_DURABLE_RULE_PATH` /
+`TRACE_DURABLE_RULE_SUMMARY` remain a validated pair; omit both when no lesson is needed.
 
 ## 4. Sensors — run to self-correct (quality-left)
 
@@ -339,6 +366,24 @@ or command. Split unrelated concerns, not shared test machinery. Each criterion
 must map to concrete executed evidence; shared sensors do not force criteria to
 merge or require duplicate cases.
 
+### Minimum working path
+
+Work backward from the user's acceptance result. Identify the necessary inputs,
+transformations and output, and prove one real path through them before expanding
+the implementation. For existing code, first check that the intended path actually
+uses the completed components; merged components alone do not prove integration.
+Use TDD for this vertical slice, then add the next required behavior.
+
+At an unexpected failure, distinguish a necessary product constraint from a problem
+introduced by the chosen approach. Consider eliminating the unnecessary step before
+adding retries, pagination, configuration, recovery or another abstraction around it.
+Do not anticipate future tests or defend impossible internal states.
+
+Keep authorization, secret protection, irreversible-data-loss prevention and required
+runtime evidence from the start. A working slice is not permission for unsafe
+publication. Stop when the requested result and necessary failure protection are
+proven; stronger robustness, generic flexibility and more tests are not goals.
+
 ### Minimum sufficient verification
 
 Behavior changes still require RED, minimal implementation to GREEN and safe
@@ -370,9 +415,10 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-1. Ensure the detected computational gates are green. The dormant root Python
-   surface runs sync/ruff while mypy and pytest skip until `.py` source exists;
-   harness shell changes require shellcheck.
+1. Ensure the detected computational gates are green. Python source activates
+   sync, ruff and mypy; pytest reports a skip when no Python tests are collected.
+   Harness shell changes require shellcheck. Evaluation oracles with shell
+   entrypoints remain covered by their declared shell sensors.
 2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
 3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
   commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write

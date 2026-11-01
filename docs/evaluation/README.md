@@ -34,6 +34,10 @@ Tier B runtime split) that later layers reuse. The skills layer builds on that
 framework in [l1-solution/README.md](l1-solution/README.md), which is kept
 separate because it is less settled than L0.
 
+The dated [minimum-path guidance experiment](../archive/evaluation/minimum-path-541.md)
+retains six old/new coding-engine outcomes and a source-only opt-in reproduction
+command. It is exploratory evidence, not an additional lifecycle gate.
+
 ## Source and installed execution
 
 Source discovery owns functional assertions. The miniature adopter workflow

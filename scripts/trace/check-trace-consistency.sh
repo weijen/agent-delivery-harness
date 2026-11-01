@@ -707,42 +707,17 @@ cat > "$STATE_FILTER" <<'JQ'
       then "::research \($n)"
       else empty
       end ),
-    # A successful escalated class repair is a passing deviation grounded in
-    # prior same-class failed/blocked deviations. Arbitrary pass spans, point
-    # fixes, exemptions, and blocked research requests are not completion
-    # events.
+    # Durable lessons are optional; supplied pairs must still be valid.
     ( if ($span.span == "agent")
          and ($span["gen_ai.agent.name"] == "conductor")
          and ($span["harness.lifecycle_step"] == "deviation")
          and ($span["harness.outcome"] == "pass")
-         and (($span["harness.failure_class"] | type) == "string")
-         and (($span["harness.failure_disposition"] | type) == "string")
+         and (($span | has("harness.durable_rule_path"))
+              or ($span | has("harness.durable_rule_summary")))
       then
-        $span["harness.failure_class"] as $dfc
-        | $span["harness.failure_disposition"] as $dfd
-        | [ $lines[0:$i][]
-            | fromjson? | objects
-            | . as $prior
-            | select(.span == "agent")
-            | select(.["gen_ai.agent.name"] == "conductor")
-            | select(.["harness.lifecycle_step"] == "deviation")
-            | select((["fail", "blocked"] | index($prior["harness.outcome"])) != null)
-            | select(.["harness.failure_class"] == $dfc)
-          ] as $prior_failures
-        | (if $dfc == "knowledge-gap" then $dfd == "research"
-           elif $dfc == "complexity" then $dfd == "decompose"
-           elif ($dfc == "known-flaky" or $dfc == "polling")
-             then $dfd == "override"
-           else ($dfd == "class-fix" or $dfd == "override")
-           end) as $repair_route
-        | if (($prior_failures | length) >= 2)
-             and $repair_route
-          then
             ($span["harness.durable_rule_path"] // null) as $drp
             | ($span["harness.durable_rule_summary"] // null) as $drs
-            | if ($drp == null and $drs == null)
-              then "::durable \($n)\u0009missing\u0009-"
-              elif (($drp | type) != "string")
+            | if (($drp | type) != "string")
                 or (($drs | type) != "string")
                 or (($drs | test("[^[:space:]]")) | not)
                 or ($drs | test("[\r\n]"))
@@ -752,8 +727,6 @@ cat > "$STATE_FILTER" <<'JQ'
               then "::durable \($n)\u0009target\u0009\($drp)"
               else "::durable \($n)\u0009invalid\u0009-"
               end
-          else empty
-          end
       else empty
       end ),
     # --- Fail-verdict attribution signals (issue #318) ---
@@ -983,6 +956,9 @@ if [ "$genfail_lines" != $'\n' ]; then
     fi
 
     route_valid=0
+    if [ "$gf_disposition" = "decompose" ]; then
+      route_valid=1
+    fi
     case "$gf_class" in
       knowledge-gap)
         case "$gf_disposition" in research|research-requested) route_valid=1 ;; esac
@@ -1009,10 +985,6 @@ if [ "$durable_lines" != $'\n' ]; then
     [ -n "$durable_line" ] || continue
     IFS=$'\t' read -r durable_n durable_state durable_path <<< "$durable_line"
     case "$durable_state" in
-      missing)
-        printf 'VIOLATION consistency: generator_durable_rule_missing line %s\n' "$durable_n"
-        violations=$((violations + 1))
-        ;;
       invalid)
         printf 'VIOLATION consistency: generator_durable_rule_invalid line %s\n' "$durable_n"
         violations=$((violations + 1))

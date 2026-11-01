@@ -160,8 +160,8 @@ review every file the diff touches. Do not invent a scope wider than the diff.
 
 This subagent applies the **product-quality rubric** defined in `docs/product-quality-rubric.md`. The rubric
 structures Verdict 2 (test/sensor adequacy) around **four blocking gates** and Verdict 3 (code quality/maintainability)
-around a **six-dimension scorecard**. Failed blocking gates override scorecard scoring. The rubric distinguishes
-runnable-but-shallow work from production-ready changes and routes production or verification repair to
+around relevant quality questions, not numeric scores. Adequate in-scope work passes;
+optional robustness is not an independent blocker. The rubric routes production or verification repair to
 the delivering agent. Scope and planning decisions remain with the **human gate**.
 
 **Applicable instruction files are part of the review contract (profile-aware routing).** Treat the `<language>.instructions.md` file(s) matching each changed file — selected from the language-file table in `AGENTS.md` § "Where to find things", always with `.copilot/instructions/tdd.instructions.md` — as binding review criteria alongside the acceptance criteria; a diff that violates them (e.g. ignores pathlib, weakens or skips a sensor, abandons RED→GREEN) is a finding. You run in a fresh context, so read the applicable files from the repo when they are not in your prompt.
@@ -262,20 +262,20 @@ A passing build is not proof. Judge whether the sensors actually establish the c
 Per the product-quality rubric (`docs/product-quality-rubric.md`), a `passes:true` claim must clear **four
 blocking gates** — Spec fidelity, Executable verification, Main workflow works, and No known critical breakage. Read
 the rubric for each gate's definition rather than restating it here. Failure at any gate is
-**BLOCKING** — it overrides a clean code-quality scorecard. When a gate fails, route production or verification
+**BLOCKING** — strengths elsewhere cannot compensate for it. When a gate fails, route production or verification
 repair to the delivering agent, or scope and planning gaps to the human gate.
 
-### Verdict 3 — Code Quality Scorecard
+### Verdict 3 — Code Quality
 
-#### Six-Dimension Scorecard (Product-Quality Rubric)
+#### Sufficient Quality (Product-Quality Rubric)
 
-Per the product-quality rubric, Verdict 3 uses a **six-dimension scorecard** — Workflow completeness,
-Failure and edge handling, State and data coherence, Integration depth, Recoverability and operability, and
-Verification adequacy — scored **0/1/2** per dimension, **after** the four blocking gates pass. Sum the scores and
-interpret the total against the rubric's score bands (`docs/product-quality-rubric.md`); do not restate the
-bands here. **Failed blocking gates override the scorecard** — a failed blocking gate forces a `FAIL` verdict
-regardless of the dimension scores. Route production or verification scorecard findings to the delivering agent
-to the delivering agent, or route scope and planning decisions to the human gate.
+Use `docs/product-quality-rubric.md` to judge the affected behavior and failure
+boundaries. Do not assign or sum scores. Blocking findings identify an unmet
+criterion or concrete material in-scope failure, not missing optional logging,
+speculative exception handling, generic flexibility or reviewer-preferred architecture.
+Check unnecessary complexity in this same review; do not add an audit stage.
+Route genuine production or verification defects to the delivering agent and
+unresolved scope decisions to the owner. Stop when sufficient evidence exists.
 
 #### General Quality Checks
 

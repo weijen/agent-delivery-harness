@@ -31,7 +31,7 @@ sanitized, commit-safe fixture or specification.
 
 ## Golden rules (non-negotiable)
 
-1. **Work one `feature_list` item at a time. Never one-shot a feature or a whole issue.**
+1. **Work one `feature_list` item at a time. Prove the smallest real user path first, then expand.**
 2. **TDD stays the default discipline** (once code exists): write a failing test first, then
    minimal code, and never edit or delete a test just to make it pass. Trace-level proof of
    redness is retired (#334): test quality is judged by the independent end-of-issue review,

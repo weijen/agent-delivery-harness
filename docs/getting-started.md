@@ -252,8 +252,9 @@ for **Python and Node.js**; **Go, Java, and Ruby** are generator-supported
 
 Terraform surfaces (`*.tf`) additionally run `terraform fmt`/`validate`. A
 project can carry more than one surface — `init.sh` detects each and runs the
-matching gates. This repository's root Python surface is intentionally dormant:
-sync and ruff run, while mypy and pytest skip until `.py` source exists.
+matching gates. This repository's Python evaluation source activates sync, ruff
+and mypy. Pytest reports a skip when no Python tests are collected; the
+evaluation oracle is exercised by its shell sensor.
 Harness shell changes still require `shellcheck`.
 
 See [profiles/README.md](../profiles/README.md) for the descriptor contract and
