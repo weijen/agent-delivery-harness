@@ -54,8 +54,7 @@ them — they are not required by the harness itself.
 - [Azure CLI](https://learn.microsoft.com/cli/azure/) — `az login`. Required
   once Foundry / Terraform work starts (`REQUIRE_AZ=1 ./scripts/init.sh`).
 - [uv ≥ 0.11.9](https://docs.astral.sh/uv/getting-started/installation/) —
-  required by this repository's root `pyproject.toml`. That Python surface is
-  intentionally dormant: it currently contains no `.py` source.
+  required by this repository's Python evaluation tooling and root `pyproject.toml`.
 
 ## First-time setup
 
@@ -75,8 +74,10 @@ no-source results are reported as explicit skips.
 
 `./scripts/init.sh` runs the gates for whatever language surfaces it detects,
 driven by the profile descriptors — there is no single "primary" language.
-This repository has an intentionally dormant Python surface (sync and ruff run;
-mypy and pytest skip while no `.py` source exists) plus Terraform and shell gates.
+This repository's Python evaluation source activates sync, ruff and mypy.
+Pytest reports a skip when no Python tests are collected; the evaluation oracle
+is exercised by its shell sensor. Shell gates remain required, and Terraform
+gates apply only when a project has a Terraform surface.
 
 ```sh
 shellcheck scripts/*.sh               # the harness scripts themselves (required)
