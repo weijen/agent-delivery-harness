@@ -123,7 +123,9 @@ Workflow per issue:
    implementation** and propose splitting it into 2–3+ issues for the human to decide; include
    footprint analysis to distinguish serial execution from genuinely parallel-safe work, and
    never silently accept or silently self-split an oversized issue.
-2. **Deliver features with TDD, one at a time.** Write the failing test first; never weaken or
+2. **Deliver features with TDD, one at a time.** Start with the smallest real path
+   from input to the user's observable result, not complete defensive layers around
+   each component. Write the failing test first; never weaken or
    delete a test to make it pass. Record any deviation as a `deviation` span at
    the moment it happens. Verify each feature with
    **scoped sensors** (gate 2): `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>`.
@@ -338,6 +340,24 @@ A feature is one externally observable acceptance criterion, not a unique test f
 or command. Split unrelated concerns, not shared test machinery. Each criterion
 must map to concrete executed evidence; shared sensors do not force criteria to
 merge or require duplicate cases.
+
+### Minimum working path
+
+Work backward from the user's acceptance result. Identify the necessary inputs,
+transformations and output, and prove one real path through them before expanding
+the implementation. For existing code, first check that the intended path actually
+uses the completed components; merged components alone do not prove integration.
+Use TDD for this vertical slice, then add the next required behavior.
+
+At an unexpected failure, distinguish a necessary product constraint from a problem
+introduced by the chosen approach. Consider eliminating the unnecessary step before
+adding retries, pagination, configuration, recovery or another abstraction around it.
+Do not anticipate future tests or defend impossible internal states.
+
+Keep authorization, secret protection, irreversible-data-loss prevention and required
+runtime evidence from the start. A working slice is not permission for unsafe
+publication. Stop when the requested result and necessary failure protection are
+proven; stronger robustness, generic flexibility and more tests are not goals.
 
 ### Minimum sufficient verification
 
