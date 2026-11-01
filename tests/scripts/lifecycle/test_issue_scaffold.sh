@@ -78,6 +78,14 @@ make_commit "initial"
 WORKTREE="${TMP_DIR}/repo/.worktrees/issue-123"
 FEATURE_LIST="${WORKTREE}/.copilot-tracking/issues/issue-123/feature_list.json"
 
+for guidance in "${WORKTREE}/.copilot-tracking/issues/issue-123/progress.md" "${TMP_DIR}/start-issue.out"; do
+  if grep -Eq 'planning-subagent|human-input gate|conductor authors' "$guidance"; then
+    fail "new startup guidance still requires retired planning choreography"
+  fi
+  grep -Fq 'docs/HARNESS.md' "$guidance" || fail "startup guidance lost its lifecycle reference"
+  grep -Fq 'feature_list.json' "$guidance" || fail "startup guidance lost the feature breakdown"
+done
+
 for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
   if (cd "$TMP_DIR" && SKIP_INIT=1 "${WORKTREE}/${entry}" 126 SLUG=forbidden) \
       >"${TMP_DIR}/linked-refusal.out" 2>&1; then
