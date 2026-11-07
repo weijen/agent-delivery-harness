@@ -128,7 +128,9 @@ descriptor. There are two common ways to start:
   The former `--with-claude` option is retired and rejected explicitly. Neither
   default nor developer installs include the Claude bundle. Before upgrading an
   old Claude-enabled installation, remove its hook entries from your settings
-  manually. Upgrades prune unchanged bundle assets only with matching installed
+  manually. The retirement path inventory comes from
+  `scripts/install-harness.tombstones`, including when the source bundle is absent.
+  Upgrades prune unchanged bundle assets only with matching installed
   lock ownership; customized, protected and unknown-owner copies are preserved.
   The installer never creates, merges or overwrites `.claude/settings.json` or
   `.claude/settings.local.json`.
