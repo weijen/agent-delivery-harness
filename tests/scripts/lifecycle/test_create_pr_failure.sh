@@ -14,7 +14,10 @@ if grep -Eq -- '(^|[^-])--force([^-]|$)' "${ROOT}/scripts/lifecycle/create-pr.sh
   exit 1
 fi
 
-for scenario in create-fail blank-number success no-rewrite policy-gh006 policy-gh013 mixed-policy auth-failure; do
+preparation_runs=0
+prepare_fixture() {
+  local no_rewrite="$1"
+  preparation_runs=$((preparation_runs + 1))
   fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,lib/trace-lib.sh
   REPO="$FIXTURE_REPO"
   OUT="${FIXTURE_TMP_DIR}/out"
@@ -71,14 +74,42 @@ SH
   git -C "$PEER" commit -qm 'test: upstream advanced'
   git -C "$PEER" push -q origin main
 
-  no_rewrite=0
-  [ "$scenario" != no-rewrite ] || no_rewrite=1
   (
     cd "$REPO"
     CREATE_PR_NO_REWRITE="$no_rewrite" ./scripts/create-pr.sh --prepare
     ./scripts/validation/review-gate.sh approve
     ./scripts/run-sensors.sh --gate pre-pr
-  ) >"$OUT" 2>&1 || fail "${scenario}: real preparation/validation failed"
+  ) >"$OUT" 2>&1 || fail "mode ${no_rewrite}: real preparation/validation failed"
+}
+
+fixture_snapshot() {
+  (cd "$1" && find repo origin.git bin -type f -exec shasum -a 256 {} + | LC_ALL=C sort)
+}
+
+# Publication faults do not affect preparation. Keep both real preparation
+# modes, then give every scenario independent repositories, remotes and state.
+prepared_fixtures=()
+for no_rewrite in 0 1; do
+  prepare_fixture "$no_rewrite"
+  prepared_fixtures+=("$FIXTURE_TMP_DIR")
+  fixture_snapshot "$FIXTURE_TMP_DIR" >"${FIXTURE_TMP_DIR}/prepared.snapshot"
+done
+for scenario in create-fail blank-number success no-rewrite policy-gh006 policy-gh013 mixed-policy auth-failure; do
+  no_rewrite=0
+  [ "$scenario" != no-rewrite ] || no_rewrite=1
+  prepared="${prepared_fixtures[$no_rewrite]}"
+  # These children are covered by the seed fixture's existing cleanup trap.
+  FIXTURE_TMP_DIR="${prepared}/case-${scenario}"
+  mkdir -p "$FIXTURE_TMP_DIR"
+  cp -R "${prepared}/repo" "${prepared}/origin.git" "${prepared}/bin" "$FIXTURE_TMP_DIR/"
+  REPO="${FIXTURE_TMP_DIR}/repo"
+  ORIGIN="${FIXTURE_TMP_DIR}/origin.git"
+  BIN="${FIXTURE_TMP_DIR}/bin"
+  OUT="${FIXTURE_TMP_DIR}/out"
+  export GH_STATE="${FIXTURE_TMP_DIR}/gh-state"
+  export CALL_LOG="${FIXTURE_TMP_DIR}/calls"
+  git -C "$REPO" remote set-url origin "$ORIGIN"
+  git --git-dir="$ORIGIN" config remote.origin.url "$REPO"
   head="$(git -C "$REPO" rev-parse HEAD)"
   remote_before="$(git --git-dir="$ORIGIN" rev-parse refs/heads/feature/issue-90-fixture)"
   # Git-owned recovery metadata must never become a publication restore point.
@@ -144,5 +175,11 @@ SH
     fi
     grep -q 'lifecycle/create-pr.sh' "$OUT" || fail "missing implementation was not diagnosed"
   fi
+done
+[ "$preparation_runs" -eq 2 ] || fail "publication scenarios repeated preparation"
+for prepared in "${prepared_fixtures[@]}"; do
+  fixture_snapshot "$prepared" >"${prepared}/after.snapshot"
+  cmp -s "${prepared}/prepared.snapshot" "${prepared}/after.snapshot" \
+    || fail "publication scenario mutated its shared preparation fixture"
 done
 printf 'PR failures stay loud and never discard the verified candidate\n'
