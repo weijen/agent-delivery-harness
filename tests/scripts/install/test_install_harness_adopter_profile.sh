@@ -14,10 +14,16 @@ fail() {
   exit 1
 }
 
-if awk '/^HARNESS_ASSETS=\(/ { selected=1; next } selected && /^\)/ { exit } selected { print }' \
-	"$INSTALL" | grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
-	echo "project-owned environment example must not be an installer asset"
-	exit 1
+managed_cleanup_paths="$(awk '
+	/^MANAGED_CLEANUP_PATHS=\(/ { selected=1; next }
+	selected && /^\)/ { exit }
+	selected && !/^[[:space:]]*(#|$)/ { print }
+' "${ROOT}/scripts/install/install-harness.sh")"
+[ -n "$managed_cleanup_paths" ] \
+	|| fail "cannot read managed cleanup paths from the canonical installer"
+if printf '%s\n' "$managed_cleanup_paths" \
+	| grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
+	fail "project-owned environment example must not be a managed cleanup path"
 fi
 
 "$INSTALL" --help >"$OUT"
@@ -29,6 +35,9 @@ grep -qF -- "--with-dev-sensors" "$OUT" || {
 
 default_target="${TMP_DIR}/default"
 "$INSTALL" "$default_target" --write >"$OUT" 2>&1
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+installer_assert_fresh_layout "$default_target" default
 
 # Check the unbound identity contract before this default fixture is mutated.
 TEMPLATE="${default_target}/.github/harness-identity.env.example"
@@ -205,8 +214,6 @@ mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
 cp "${TMP_DIR}/manifest.full" "${default_target}/scripts/install-harness.assets"
 
 # An old lock cannot make project-owned configuration eligible for deletion.
-# shellcheck source=tests/scripts/lib/installer-fixture.sh
-source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 config_source="${TMP_DIR}/config-source"
 config_target="${TMP_DIR}/config-target"
 installer_fixture_source "$config_source"

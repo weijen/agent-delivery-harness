@@ -44,6 +44,9 @@ done
 "${TARGET}/scripts/install-harness.sh" "$TARGET" --update --with-dev-sensors >"$OUT" 2>&1 \
 	|| { cat "$OUT" >&2; fail "installed developer reinstallation is not self-contained"; }
 grep -Eq '^  conflicts:[[:space:]]+0$' "$OUT" || fail "repeat install is not idempotent"
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+installer_assert_fresh_layout "$TARGET" developer
 git -C "$TARGET" init -q -b main
 git -C "$TARGET" config user.name "Harness Test"
 git -C "$TARGET" config user.email "harness-test@example.invalid"

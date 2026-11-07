@@ -64,55 +64,9 @@ awk '
 ' "${ROOT}/docs/harness-contract.yml" >"${TMP_DIR}/layout-moves"
 [ -s "${TMP_DIR}/layout-moves" ] || fail_layout "canonical path map is empty"
 
-# Fresh payloads and historical upgrades are distinct installation boundaries.
-for profile in default developer; do
-	layout_install_calls=0
-	options=()
-	[ "$profile" != developer ] || options=(--with-dev-sensors)
-	fresh="${TMP_DIR}/fresh ${profile}"
-	install_layout "$INSTALL" "$fresh" --write "${options[@]}" \
-		|| fail_layout "fresh ${profile} installation"
-	[ "$layout_install_calls" -eq 1 ] || fail_layout "fresh boundary repeated installation"
-	manifests=("${ROOT}/scripts/install-harness.assets")
-	[ "$profile" != developer ] || manifests+=("${ROOT}/scripts/install-harness.dev.assets")
-	for manifest in "${manifests[@]}"; do
-		while IFS= read -r asset; do
-			case "$asset" in ""|\#*) continue ;; esac
-			[ -f "${fresh}/${asset}" ] && [ ! -L "${fresh}/${asset}" ] \
-				|| fail_layout "fresh ${profile} missing regular dependency ${asset}"
-			expected_source="${ROOT}/${asset}"
-			if [ "$asset" = .github/workflows/harness-smoke.yml ]; then
-				expected_source="${ROOT}/profiles/adopter-smoke.yml"
-			fi
-			cmp -s "$expected_source" "${fresh}/${asset}" \
-				|| fail_layout "fresh ${profile} changed dependency ${asset}"
-		done <"$manifest"
-	done
-	while IFS=$'\t' read -r old canonical audience public; do
-		if [ "$audience" = source-only ] || grep -Fxq "$canonical" "${ROOT}/tests/harness-dev-sensors.txt"; then
-			[ ! -e "${fresh}/${canonical}" ] || fail_layout "fresh ${profile} installed source-only ${canonical}"
-		fi
-		if [ -z "$public" ]; then
-			[ ! -e "${fresh}/${old}" ] || fail_layout "fresh ${profile} restored flat ${old}"
-		fi
-	done <"${TMP_DIR}/layout-moves"
-	[ ! -e "${fresh}/optional/runtime-adapters" ] || fail_layout "fresh ${profile} restored Claude payload"
-	mkdir -p "${fresh}/unrelated cwd"
-	(cd "${fresh}/unrelated cwd" && "${fresh}/scripts/install-harness.sh" --help) >"$layout_log" 2>&1 \
-		|| fail_layout "fresh ${profile} installer failed from unrelated cwd"
-	(cd "${fresh}/unrelated cwd" && "${fresh}/scripts/scaffold-language.sh" go --write) >"$layout_log" 2>&1 \
-		|| fail_layout "fresh ${profile} scaffolder failed from unrelated cwd"
-	[ -f "${fresh}/profiles/go.profile.sh" ] && [ ! -e "${fresh}/unrelated cwd/profiles" ] \
-		|| fail_layout "fresh ${profile} scaffolder lost installed root"
-	mv "${fresh}/scripts/lib/reconcile-lib.sh" "${TMP_DIR}/reconcile.saved"
-	if (cd "${fresh}/unrelated cwd" && "${fresh}/scripts/install-harness.sh" --help) >"$layout_log" 2>&1; then
-		fail_layout "fresh ${profile} hid a missing installed dependency with source fallback"
-	fi
-	grep -Fq 'reconcile-lib.sh' "$layout_log" \
-		|| fail_layout "fresh ${profile} missing-dependency diagnostic lost"
-	mv "${TMP_DIR}/reconcile.saved" "${fresh}/scripts/lib/reconcile-lib.sh"
-	printf 'fresh %s payload and no-source-fallback boundary passed\n' "$profile"
-done
+# Fresh layout assertions reuse the adopter/developer profile installations.
+# Public entrypoints below execute real canonical implementations; the small
+# test_lifecycle_install_layout.sh fixture separately checks both dispatch paths.
 
 run_upgrade() (
 	local profile="$1"
@@ -243,13 +197,12 @@ run_upgrade() (
 	done
 
 	mkdir -p "${target}/unrelated/nested"
-	for entry in scripts/scaffold-language.sh scripts/install/scaffold-language.sh; do
+	entry=scripts/scaffold-language.sh
 		(cd "${target}/unrelated/nested" && "${target}/${entry}" go --write) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed scaffolder ${entry}"
 		[ -f "${target}/profiles/go.profile.sh" ] && [ -f "${target}/.copilot/instructions/go.instructions.md" ] \
 			|| fail_layout "${profile} installed scaffolder wrote outside its source"
 		bash -n "${target}/profiles/go.profile.sh" || fail_layout "${profile} generated invalid profile"
-	done
 	rm "${target}/profiles/go.profile.sh" "${target}/.copilot/instructions/go.instructions.md"
 	git -C "$target" init -q -b main
 	git -C "$target" config user.name "Harness Test"
@@ -287,13 +240,12 @@ esac
 SH
 	printf '#!/usr/bin/env bash\nexit 1\n' >"${TMP_DIR}/preflight-bin/az"
 	chmod +x "${TMP_DIR}/preflight-bin/gh" "${TMP_DIR}/preflight-bin/az"
-	for entry in scripts/init.sh scripts/lifecycle/init.sh; do
+	entry=scripts/init.sh
 		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
 			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}") \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed preflight ${entry}"
 		grep -q 'docs-only project surface detected' "$layout_log" \
 			|| fail_layout "${profile} preflight used the wrong project surface"
-	done
 	# Runtime evidence is local state, not a source change for the installed probe.
 	printf '/.copilot-tracking/\n/.worktrees/\n' >>"${target}/.git/info/exclude"
 	printf '9.8.7-layout\n' >"${target}/VERSION"
@@ -303,7 +255,7 @@ SH
 	# All profiles prove exact canonical payloads and real runtime below.
 	# Exercise shared lifecycle failure scenarios once, not a profile cross-product.
 	if [ "$profile" = default ]; then
-	for entry in scripts/start-issue.sh scripts/lifecycle/start-issue.sh; do
+	entry=scripts/start-issue.sh
 		(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
 			PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/${entry}" ISSUE=81 SLUG=installed-start) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed startup ${entry}"
@@ -317,13 +269,12 @@ SH
 		grep -q 'main checkout, not from a worktree' "$layout_log" \
 			|| fail_layout "${profile} installed startup lost its checkout guard"
 		[ ! -e "${target}/.worktrees/issue-82" ] || fail_layout "${profile} refused startup created state"
-	done
 	linked="${target}/.worktrees/issue-81"
 	mkdir -p "${linked}/nested/cwd"
 	checker_fixture="${linked}/.copilot-tracking/trace-fixture"
 	mkdir -p "$checker_fixture"
 	cp "${linked}/.copilot-tracking/issues/issue-81/progress.md" "${checker_fixture}/progress.md"
-	for entry in scripts/check-trace-consistency.sh scripts/trace/check-trace-consistency.sh; do
+	entry=scripts/check-trace-consistency.sh
 		(cd "${linked}/nested/cwd" && "${linked}/${entry}" 81) >"$layout_log" 2>&1 \
 			|| fail_layout "${profile} installed linked checker ${entry}"
 		grep -Fq '0 violation(s)' "$layout_log" || fail_layout "${profile} checker omitted validation"
@@ -337,10 +288,9 @@ SH
 		if [ "$checker_rc" -ne 1 ] || ! grep -Fq 'invalid_json' "$layout_log"; then
 			fail_layout "${profile} installed checker lost schema finding/status ${entry}"
 		fi
-	done
 	trace="${target}/.copilot-tracking/issues/issue-81/trace.jsonl"
 	progress="${linked}/.copilot-tracking/issues/issue-81/progress.md"
-	for prefix in scripts scripts/trace; do
+	prefix=scripts
 		(cd "${linked}/nested/cwd" && TRACE_REVIEW_MODE=full TRACE_REVIEW_EVENT_ID=installed-review \
 			"${linked}/${prefix}/log-handback.sh" conductor review_verdict installed-probe pass \
 			"installed review from ${prefix}") >"$layout_log" 2>&1 \
@@ -369,8 +319,7 @@ SH
 			|| fail_layout "${profile} installed explicit-path renderer"
 		grep -Fq "installed review from ${prefix}" "${checker_fixture}/progress.md" \
 			|| fail_layout "${profile} installed explicit renderer did not materialize spans"
-	done
-	for entry in scripts/create-pr.sh scripts/lifecycle/create-pr.sh; do
+	entry=scripts/create-pr.sh
 		(cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" "${linked}/${entry}" --help) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed publication help ${entry}"
 		grep -q -- '--prepare' "$layout_log" || fail_layout "${profile} publication help lost preparation"
@@ -380,8 +329,7 @@ SH
 		fi
 		grep -q 'current HEAD has not been approved by the review gate' "$layout_log" \
 			|| fail_layout "${profile} installed publication lost its review guard"
-	done
-	for entry in scripts/merge-pr.sh scripts/lifecycle/merge-pr.sh; do
+	entry=scripts/merge-pr.sh
 		merge_log="${TMP_DIR}/merge-${profile}.log"
 		rm -f "$merge_log"
 		if (cd "${linked}/nested/cwd" && PATH="${TMP_DIR}/preflight-bin:${PATH}" \
@@ -397,14 +345,8 @@ SH
 		if ! grep -q 'pr merge 81 --squash' "$merge_log" || ! grep -q 'PR #81 merged' "$layout_log"; then
 			fail_layout "${profile} installed merge lost flags or authoritative confirmation"
 		fi
-	done
 	finish_issue=81
-	for entry in scripts/finish-issue.sh scripts/lifecycle/finish-issue.sh; do
-		if [ "$finish_issue" = 82 ]; then
-			(cd "${target}/unrelated/nested" && REQUIRE_AZ=0 \
-				PATH="${TMP_DIR}/preflight-bin:${PATH}" "${target}/scripts/start-issue.sh" 82 SLUG=installed-start) \
-				>"$layout_log" 2>&1 || fail_layout "${profile} canonical closeout setup"
-		fi
+	entry=scripts/finish-issue.sh
 		issue_dir=".copilot-tracking/issues/issue-${finish_issue}"
 		worktree="${target}/.worktrees/issue-${finish_issue}"
 		printf '%s\n' '{"features":[{"id":"done","title":"Installed probe","steps":[],"passes":true,"regression_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","e2e_sensor":"tests/scripts/lifecycle/test_installed_probe.sh","verification":"installed probe","blocked_on":null}]}' \
@@ -421,16 +363,13 @@ SH
 			|| fail_layout "${profile} closeout lost its durable conclusion"
 		jq -se '[.[] | select(.span == "lifecycle" and .["harness.lifecycle_step"] == "finish" and .["harness.worktree_removed"] == "true")] | length == 1' \
 			"${target}/${issue_dir}/trace.jsonl" >/dev/null || fail_layout "${profile} closeout lost its terminal evidence"
-		finish_issue=82
-	done
 	fi
-	for runner in scripts/run-sensors.sh scripts/validation/run-sensors.sh; do
+	runner=scripts/run-sensors.sh
 		(cd "${target}/unrelated/nested" && "${target}/${runner}" green \
 			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) \
 			>"$layout_log" 2>&1 || fail_layout "${profile} installed ${runner}"
 		grep -q 'scope=scoped ran=1 failed=0$' "$layout_log" \
 			|| fail_layout "${profile} runner did not use installed sensor selection"
-	done
 	(
 		cd "${target}/unrelated/nested"
 		# shellcheck source=/dev/null
