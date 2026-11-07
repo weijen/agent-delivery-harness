@@ -29,6 +29,9 @@ grep -qF -- "--with-dev-sensors" "$OUT" || {
 
 default_target="${TMP_DIR}/default"
 "$INSTALL" "$default_target" --write >"$OUT" 2>&1
+# shellcheck source=/dev/null
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+installer_assert_fresh_layout "$default_target" default
 
 # Check the unbound identity contract before this default fixture is mutated.
 TEMPLATE="${default_target}/.github/harness-identity.env.example"
@@ -205,8 +208,6 @@ mv "${TMP_DIR}/init.saved" "${default_target}/scripts/init.sh"
 cp "${TMP_DIR}/manifest.full" "${default_target}/scripts/install-harness.assets"
 
 # An old lock cannot make project-owned configuration eligible for deletion.
-# shellcheck source=tests/scripts/lib/installer-fixture.sh
-source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 config_source="${TMP_DIR}/config-source"
 config_target="${TMP_DIR}/config-target"
 installer_fixture_source "$config_source"
