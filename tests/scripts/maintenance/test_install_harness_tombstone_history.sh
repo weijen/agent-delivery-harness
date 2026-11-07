@@ -21,10 +21,9 @@ if grep -Eq 'git[^\n]*log[^\n]*\|[[:space:]]*(head|grep[[:space:]]+-m)' "$CHECKE
   fail "checker must not feed unbounded git history into an early-exit pipe"
 fi
 
-"$CHECKER" "$ROOT" >/dev/null \
-  || fail "checker must validate the repository with full history"
-
 mkdir -p "${TMP_DIR}/unrelated cwd"
+# Validate real full history and default-root cwd independence in one scan.
+# Explicit and caller-relative roots are exercised by the hermetic repo below.
 (cd "${TMP_DIR}/unrelated cwd" && "$CHECKER") >"${TMP_DIR}/default.out" \
   || fail "default checker root must remain its own checkout"
 grep -Fxq 'install-harness tombstone manifest sensor passed' "${TMP_DIR}/default.out" \
