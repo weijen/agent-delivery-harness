@@ -32,6 +32,9 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # portable developer/eval tools and sensors
   ```
 
+  For the code walkthrough, update decision charts, and safety limits, see the
+  [installer reference](HARNESS.md#installer-reference).
+
   It defaults to a dry run and leaves your project's own code in place. Each
   successful install writes a trackable `.harness-lock` containing the upstream
   SHA-256 installed for every managed path. On `--update`, that base classifies
