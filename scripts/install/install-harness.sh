@@ -29,7 +29,7 @@ ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.assets"
 DEV_ASSET_MANIFEST="${SCRIPT_DIR}/install-harness.dev.assets"
 
 # Managed namespaces, used only to reconcile assets no longer selected.
-HARNESS_ASSETS=(
+MANAGED_CLEANUP_PATHS=(
 	scripts
 	profiles
 	tests/scripts
@@ -427,7 +427,7 @@ retirement_requires_lock() {
 
 list_excluded_files() {
 	local asset="" files="" candidates="" digest="" rel="" extra="" managed=0
-	for asset in "${HARNESS_ASSETS[@]}"; do
+	for asset in "${MANAGED_CLEANUP_PATHS[@]}"; do
 		[ -e "${REPO_ROOT}/${asset}" ] || continue
 		files="$(list_files "$asset")" || return 1
 		candidates+="${files}"$'\n'
@@ -467,7 +467,7 @@ list_excluded_files() {
 			continue
 		fi
 		managed=0
-		for asset in "${HARNESS_ASSETS[@]}"; do
+		for asset in "${MANAGED_CLEANUP_PATHS[@]}"; do
 			case "$rel" in "$asset" | "$asset"/*) managed=1; break ;; esac
 		done
 		[ "$managed" -eq 0 ] || printf '%s\n' "$rel"

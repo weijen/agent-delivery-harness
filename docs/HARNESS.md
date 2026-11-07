@@ -98,6 +98,8 @@ upstream then recognizes the retained file as an adopter customization.
 ### Retirement and safety limits
 
 Excluded assets are files no longer selected for the current installation.
+The `MANAGED_CLEANUP_PATHS` array bounds excluded-asset discovery; it does not
+select the installation payload.
 Their removal requires a matching installed lock base. Retired assets are
 explicit upstream deletions recorded in
 [install-harness.tombstones](../scripts/install-harness.tombstones); matching
