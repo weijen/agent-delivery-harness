@@ -120,7 +120,6 @@ tests/scripts/test_log_completeness_gate.sh
 tests/scripts/trace/test_log_handback_deviation_gate.sh
 tests/scripts/trace/test_log_handback_write_gate.sh
 tests/scripts/trace/test_log_handback.sh
-tests/scripts/test_loop2_single_review_doctrine.sh
 tests/scripts/lifecycle/test_merge_pr_ci_gate.sh
 tests/scripts/trace/test_merge_provenance_gap.sh
 tests/scripts/lifecycle/test_post_pr_guardrails.sh
@@ -129,7 +128,6 @@ tests/scripts/validation/test_rebind_carry.sh
 tests/scripts/validation/test_rebind_evidence.sh
 tests/scripts/validation/test_rebind_repair_loop.sh
 tests/scripts/validation/test_repair_feature_items.sh
-tests/scripts/validation/test_repair_review_mode.sh
 tests/scripts/validation/test_review_first_lifecycle.sh
 tests/scripts/validation/test_review_gate_ci_coverage.sh
 tests/scripts/validation/test_review_gate_patch_id_store.sh

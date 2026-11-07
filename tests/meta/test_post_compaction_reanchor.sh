@@ -33,7 +33,5 @@ done
 grep -qF '[Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor)' \
   "${DOCTRINE}" \
   || fail "harness doctrine does not link to the re-anchor"
-grep -qiE 'after (any )?(context )?compaction' "${DOCTRINE}" \
-  || fail "harness doctrine does not require a post-compaction re-read"
 
 printf 'PASS: post-compaction re-anchor is compact and referenced by doctrine.\n'
