@@ -31,7 +31,7 @@ validation_commands=(
 )
 validation_sensors=(
   affected_sensors feature_list_check python_gates rebind_carry rebind_evidence
-  rebind_repair_loop repair_feature_items repair_review_mode review_gate
+  rebind_repair_loop repair_feature_items review_gate
   review_gate_ci_coverage review_gate_patch_id_store run_sensors_tiers
   same_class_escalation sensor_evidence_recording sensor_evidence_verify
   shellcheck_version_parity shellcheck_version_pin verdict_currency_gate
