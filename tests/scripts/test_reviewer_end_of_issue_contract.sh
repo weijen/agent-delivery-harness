@@ -31,7 +31,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 AGENT="${ROOT}/.copilot/agents/code-review-subagent.agent.md"
 AGENTS_MD="${ROOT}/AGENTS.md"
 WORKFLOW="${ROOT}/.copilot/instructions/workflow-tiers.instructions.md"
-EVALUATION="${ROOT}/docs/evaluation/README.md"
+CONTRACT="${ROOT}/docs/harness-contract.yml"
 
 fails=0
 fail() {
@@ -129,7 +129,7 @@ fi
 
 # 7. All current topology consumers use contract-v2 gates and the one-agent
 # delivery topology rather than planner/generator role choreography.
-for file in "${AGENTS_MD}" "${WORKFLOW}" "${EVALUATION}"; do
+for file in "${AGENTS_MD}" "${WORKFLOW}" "${CONTRACT}"; do
   [ -f "${file}" ] || {
     fail "doctrine consumer not found (${file})"
     continue
@@ -144,17 +144,12 @@ grep -qiE 'one (delivering )?agent' "${AGENTS_MD}" \
   || fail "AGENTS.md must describe the one-delivering-agent topology"
 grep -qiE 'one (delivering )?agent' "${WORKFLOW}" \
   || fail "workflow tiers must describe the one-delivering-agent topology"
-grep -qiE 'delivering agent.*reviewer|reviewer.*delivering agent' "${EVALUATION}" \
-  || fail "evaluation README must describe delivering-agent and reviewer evaluation"
 
 if grep -qiE 'Planner and generator carry|generator-subagent for repair' "${AGENTS_MD}"; then
   fail "AGENTS.md must not teach planner/generator roles as current"
 fi
 if grep -qiE 'planner returns|require the generator|generator to run' "${WORKFLOW}"; then
   fail "workflow tiers must not teach planner/generator roles as current"
-fi
-if grep -qiE 'Planner / implementer / tester / reviewer' "${EVALUATION}"; then
-  fail "evaluation README must not teach four separated subagent roles as current"
 fi
 
 for skill in find-brute-force find-duplicates find-over-design dead-code-detection sync-docs; do

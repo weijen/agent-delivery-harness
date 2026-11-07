@@ -2,8 +2,7 @@
 # test_run_evals_scorecard.sh — regression sensor for feature f1-runner-scorecard
 # (issue #62): the eval runner `tests/evals/bin/run-evals.sh <manifest.json>`
 # reads a selected manifest, runs its grader, and emits a schema-valid,
-# case-level scorecard per docs/evaluation/l0-solution/spec.md § "Scorecard
-# Schema".
+# case-level scorecard per docs/eval-tooling.md, "Scorecard contract".
 #
 # ---------------------------------------------------------------------------
 # Runner invocation contract PINNED by this sensor
@@ -381,13 +380,9 @@ assert_jq "$SCORECARD" \
 
 # --- Assertion 4: a blocking not_run case is NOT a Tier A block ------------------
 # The manifest carries blocking:true, but a not_run/environment_missing outcome
-# is explicitly "not a Tier A failure" (docs/evaluation/l0-solution/spec.md
-# § "Runtime Profiles": "Missing Azure configuration yields not_run with
-# failure_type: environment_missing, not a Tier A failure"). An environment
-# problem must therefore NOT escalate to blocking_decision "block"; the correct
-# non-blocking decision is "warn". The current runner maps any blocking:true row
-# that is not "pass" to "block", so it emits "block" here — FAILS RED with the
-# exact got-vs-expected mismatch below.
+# uses blocking_decision "warn" for environment_missing, as documented in
+# docs/eval-tooling.md, "Scorecard contract". An environment problem must not
+# be misclassified as a blocking target failure.
 assert_jq "$SCORECARD" \
   '.results[0].blocking_decision == "warn"' \
   "missing-grader: blocking not_run row uses blocking_decision == warn, not Tier A block (expected warn; actual='${actual_blocking_decision}')"

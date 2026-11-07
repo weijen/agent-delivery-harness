@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # validate-manifest.sh — validate one eval-case manifest against the Manifest
-# Schema contract in docs/evaluation/l0-solution/spec.md § "Manifest Schema".
+# Contract in docs/eval-tooling.md, "Manifest contract".
 #
 # On any violation, prints the status token `invalid_manifest` plus a specific
 # reason naming the offending field/rule to stderr and exits non-zero. A fully

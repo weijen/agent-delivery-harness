@@ -4,7 +4,7 @@
 #
 # trace_redact runs over the fully-serialized span line immediately before
 # append (plan D3), so no field can bypass it. Per the redaction authorities
-# (docs/evaluation/security-evals.md, docs/evaluation/dataset-governance.md)
+# (docs/archive/evaluation/security-evals.md, docs/archive/evaluation/dataset-governance.md)
 # every planted secret below is SYNTHETIC — shaped like a credential, never a
 # real one. This sensor builds a throwaway git repo fixture (same pattern as
 # test_trace_lib.sh), emits spans whose values carry the planted secret

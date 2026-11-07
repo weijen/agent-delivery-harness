@@ -29,9 +29,7 @@ reject_regex() {
 }
 
 reject README.md "required only once Python code is added"
-for path in docs/scripts-language-policy.md docs/evaluation/cost-efficiency-evals.md; do
-  reject "$path" 'trace-report.sh'
-done
+reject docs/scripts-language-policy.md 'trace-report.sh'
 reject README.md "docs-only repo (like this spec pack today)"
 reject README.md "suite (with coverage)"
 reject docs/getting-started.md "A docs-only repo (like this one today)"
@@ -133,7 +131,7 @@ require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
 # inventory. Adapter source deletion is a separate boundary.
 while IFS= read -r guide; do
   case "$guide" in
-    docs/archive/*|optional/*|CHANGELOG.md|docs/evaluation/README.md) continue ;;
+    docs/archive/*|optional/*|CHANGELOG.md) continue ;;
   esac
   reject_regex "$guide" '(optional/runtime-adapters|docs/runtime-adapters)/claude'
 done < <(git ls-files '*.md')
@@ -142,8 +140,10 @@ for guide in docs/HARNESS.md docs/observability-and-trace-schema.md; do
   reject_regex "$guide" '(coding agent|swapping Copilot).*Claude Code'
 done
 for asset in claude-code.md claude-code.settings.example.json; do
-  row="$(grep -F "| \`docs/runtime-adapters/${asset}\` |" docs/evaluation/README.md)"
-  [[ "$row" == *'| retired |' ]] || fail "Claude inventory must classify ${asset} as retired history"
+  [ ! -e "optional/runtime-adapters/${asset}" ] \
+    || fail "retired Claude asset still exists: ${asset}"
+  grep -qF "$(printf '\toptional/runtime-adapters/%s' "$asset")" scripts/install-harness.tombstones \
+    || fail "retired Claude asset lacks removal metadata: ${asset}"
 done
 skill_origin="$(jq -r '.optional_fields["harness.skill.name"]' schemas/trace-schema.v1.json)"
 grep -Eqi 'historical.*Claude' <<<"$skill_origin" \

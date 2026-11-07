@@ -3,7 +3,7 @@
 #
 # Reads one eval-case manifest, validates it against the #61 Manifest Schema,
 # runs its grader command, and emits a schema-valid, case-level scorecard to
-# STDOUT per docs/evaluation/l0-solution/spec.md § "Scorecard Schema".
+# STDOUT per docs/eval-tooling.md, "Scorecard contract".
 #
 # Grader mapping:
 #   * manifest invalid           -> row status "invalid_manifest"

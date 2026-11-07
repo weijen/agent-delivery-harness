@@ -402,4 +402,4 @@ above, not a standing blanket rule.
 - The project's own `AGENTS.md` — its map for agents and contributors; the installer does not overwrite it.
 - [docs/HARNESS.md](HARNESS.md) — the full issue lifecycle and CI boundary.
 - [profiles/README.md](../profiles/README.md) — the profile descriptor contract.
-- [Upstream evaluation index](https://github.com/weijen/agent-delivery-harness/blob/main/docs/evaluation/README.md) — maintainer research, not a default install dependency.
+- [Upstream evaluation tooling](https://github.com/weijen/agent-delivery-harness/blob/main/docs/eval-tooling.md) — implemented maintainer commands and contracts, not a default install dependency.
