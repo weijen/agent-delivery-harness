@@ -7,6 +7,121 @@ agent steering loop grounded in local sensors.
 For harness-enabled projects, the harness lifecycle is mandatory and stricter than generic Copilot or personal
 workflow rules. If another instruction conflicts with this lifecycle, use the harness rule.
 
+## Installer reference
+
+### What this file does
+
+[scripts/install/install-harness.sh](../scripts/install/install-harness.sh)
+installs and upgrades harness assets inside another project while preserving
+adopter customizations. The public
+[scripts/install-harness.sh](../scripts/install-harness.sh) entrypoint forwards
+its arguments to that implementation.
+
+The installer copies explicitly selected files, tracks upstream SHA-256 hashes,
+classifies local versus upstream changes, and removes obsolete assets only with
+the required hash or ownership proof. It does not install application
+dependencies, run quality gates, or commit changes.
+
+The core payload comes from
+[install-harness.assets](../scripts/install-harness.assets).
+`--with-dev-sensors` adds
+[install-harness.dev.assets](https://github.com/weijen/agent-delivery-harness/blob/main/scripts/install-harness.dev.assets).
+Most assets retain their source paths; the installed harness smoke workflow
+comes from [profiles/adopter-smoke.yml](../profiles/adopter-smoke.yml).
+
+### Modes and execution flow
+
+| Mode | Behavior |
+| --- | --- |
+| No flag | Preview changes without modifying the target; the target must already exist. |
+| `--write` | Create missing files, leave matching files alone, and refuse differing files. |
+| `--update` | Apply upstream-only changes, preserve adopter-only changes, and report conflicts. |
+| `--with-dev-sensors` | Add optional developer assets to either write mode or a dry run. |
+
+Both write modes also prune eligible obsolete assets. Repeat the developer flag
+on upgrades to retain that profile; omitting it makes previously installed
+developer assets candidates for ownership-safe removal.
+
+Most of the implementation defines helper functions. Execution starts with
+argument parsing near the bottom:
+
+```mermaid
+flowchart TD
+    A["Parse target and options"] --> B["Select core and optional developer assets"]
+    B --> C["Prepare target and validate existing lock"]
+    C --> D["Discover excluded and retired assets"]
+    D --> E["Print classification in update mode"]
+    E --> F["Reconcile selected files"]
+    F --> G["Prune eligible excluded and retired assets"]
+    G --> H["Write new lock unless dry run"]
+    H --> I["Configure existing identity binding when applicable"]
+    I --> J{"Any unresolved failures?"}
+    J -->|No| K["Exit 0"]
+    J -->|Yes| L["Exit 1; already-applied safe changes remain"]
+```
+
+### How updates decide what to change
+
+`reconcile()` compares current upstream content, the adopter's target file, and
+the previously recorded upstream hash (the base). The shared
+[reconcile library](../scripts/lib/reconcile-lib.sh) handles basic
+missing, matching, dry-run, and write-mode cases.
+
+```mermaid
+flowchart TD
+    A["One selected file in update mode"] --> B{"Protected by keep pattern?"}
+    B -->|Yes| K["Keep target untouched"]
+    B -->|No| C{"Target missing?"}
+    C -->|Yes| N["Create from upstream"]
+    C -->|No| D{"Target equals upstream?"}
+    D -->|Yes| U["Already up to date"]
+    D -->|No| E{"Target hash equals recorded base?"}
+    E -->|Yes| R["Replace: only upstream changed"]
+    E -->|No| F{"Upstream hash equals recorded base?"}
+    F -->|Yes| P["Preserve: only adopter changed"]
+    F -->|No| Q["Keep target; emit adjacent .rej; report conflict"]
+```
+
+This is hash-based classification, not an automatic text merge. Differing files
+without a recorded base are conflicts, even if their edits could be merged.
+
+| Bookkeeping file | Purpose |
+| --- | --- |
+| `.harness-lock` | Record upstream hashes and relative paths, not old file contents. |
+| `.harness-keep` | Reserve adopter-owned paths using shell-style glob patterns. |
+| `<path>.rej` | Show an unapplied upstream change or deletion as a unified diff. |
+
+After successfully emitting a rejection, the lock records the current upstream
+hash, or `deleted` for a rejected deletion. An unchanged repeat against the same
+upstream then recognizes the retained file as an adopter customization.
+
+### Retirement and safety limits
+
+Excluded assets are files no longer selected for the current installation.
+The `MANAGED_CLEANUP_PATHS` array bounds excluded-asset discovery; it does not
+select the installation payload.
+Their removal requires a matching installed lock base. Retired assets are
+explicit upstream deletions recorded in
+[install-harness.tombstones](../scripts/install-harness.tombstones); matching
+tombstone content proves an unmodified copy, while update mode can also use a
+matching lock base.
+
+Claude integration is retired, but its ledger entries remain migration
+metadata. Those paths are discovered even when the source bundle is absent.
+Claude retirement always requires installed lock ownership, not merely matching
+tombstone bytes. Modified, protected, and unknown-owner copies are preserved.
+The installer rejects `--with-claude` and never rewrites adopter hook settings.
+
+Path validation and symlink checks protect write destinations. Each replacement
+uses a staged temporary file and rename, but the installation as a whole is not
+transactional: a conflict does not roll back safe changes already applied.
+Dry runs use temporary bookkeeping outside the target without modifying it.
+
+There is one project-configuration exception to asset copying: when the target
+is a Git repository with an existing GitHub identity binding, the installer can
+configure Git and append an identity-file ignore entry to an existing
+`.gitignore`.
+
 ## Harness Layers
 
 The harness is organized in three layers so that stable lifecycle behavior stays

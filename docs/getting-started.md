@@ -32,6 +32,9 @@ descriptor. There are two common ways to start:
   ./scripts/install-harness.sh /path/to/project --write --with-dev-sensors  # portable developer/eval tools and sensors
   ```
 
+  For the code walkthrough, update decision charts, and safety limits, see the
+  [installer reference](HARNESS.md#installer-reference).
+
   It defaults to a dry run and leaves your project's own code in place. Each
   successful install writes a trackable `.harness-lock` containing the upstream
   SHA-256 installed for every managed path. On `--update`, that base classifies
@@ -128,7 +131,9 @@ descriptor. There are two common ways to start:
   The former `--with-claude` option is retired and rejected explicitly. Neither
   default nor developer installs include the Claude bundle. Before upgrading an
   old Claude-enabled installation, remove its hook entries from your settings
-  manually. Upgrades prune unchanged bundle assets only with matching installed
+  manually. The retirement path inventory comes from
+  `scripts/install-harness.tombstones`, including when the source bundle is absent.
+  Upgrades prune unchanged bundle assets only with matching installed
   lock ownership; customized, protected and unknown-owner copies are preserved.
   The installer never creates, merges or overwrites `.claude/settings.json` or
   `.claude/settings.local.json`.

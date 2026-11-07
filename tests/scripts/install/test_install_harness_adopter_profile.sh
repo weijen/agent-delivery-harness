@@ -14,10 +14,16 @@ fail() {
   exit 1
 }
 
-if awk '/^HARNESS_ASSETS=\(/ { selected=1; next } selected && /^\)/ { exit } selected { print }' \
-	"$INSTALL" | grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
-	echo "project-owned environment example must not be an installer asset"
-	exit 1
+managed_cleanup_paths="$(awk '
+	/^MANAGED_CLEANUP_PATHS=\(/ { selected=1; next }
+	selected && /^\)/ { exit }
+	selected && !/^[[:space:]]*(#|$)/ { print }
+' "${ROOT}/scripts/install/install-harness.sh")"
+[ -n "$managed_cleanup_paths" ] \
+	|| fail "cannot read managed cleanup paths from the canonical installer"
+if printf '%s\n' "$managed_cleanup_paths" \
+	| grep -Eq '(^|[[:space:]])\.env\.example([[:space:]]|$)'; then
+	fail "project-owned environment example must not be a managed cleanup path"
 fi
 
 "$INSTALL" --help >"$OUT"
