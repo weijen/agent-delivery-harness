@@ -22,8 +22,6 @@ tests/scripts/maintenance/test_tombstone_workflow_history.sh
 tests/scripts/test_adopter_smoke_workflow.sh
 tests/scripts/test_adopter_workflow_contract.sh
 tests/scripts/test_customization_frontmatter_validator.sh
-tests/scripts/test_doctrine_retired_vocab.sh
 tests/scripts/test_eval_manifest_validator.sh
-tests/scripts/test_reviewer_end_of_issue_contract.sh
 tests/scripts/test_run_evals_scorecard.sh
 tests/scripts/test_trace_schema.sh

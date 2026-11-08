@@ -99,8 +99,11 @@ awk '
 while IFS= read -r old; do
 	case "$old" in
 		# #496 retired structural/ceremony checks; #517 withdrew Claude support.
+		# #550 retired prose-only checks.
 		tests/meta/test_finish_lib_extracted.sh|tests/scripts/test_fixture_adoption.sh|\
-		tests/scripts/test_trace_feature_start_evidence.sh|tests/scripts/test_claude_adapter.sh)
+		tests/scripts/test_trace_feature_start_evidence.sh|tests/scripts/test_claude_adapter.sh|\
+		tests/scripts/test_doctrine_retired_vocab.sh|tests/scripts/test_loop2_single_review_doctrine.sh|\
+		tests/scripts/test_reviewer_end_of_issue_contract.sh|tests/scripts/test_repair_review_mode.sh)
 			[ ! -e "$ROOT/$old" ] || fail "retired obligation restored: $old"
 			continue ;;
 	esac

@@ -164,5 +164,4 @@ mv "${TMP_DIR}/runner.saved" "${TARGET}/tests/evals/bin/run-evals.sh"
 [ ! -e "${TMP_DIR}/second/scripts/install-harness.dev.assets" ] || fail "default downgrade kept developer manifest"
 "${ROOT}/scripts/install-harness.sh" --help >"$OUT"
 grep -qi 'portable' "$OUT" || fail "help does not explain the migrated developer scope"
-grep -Fq 'source-only' "${ROOT}/docs/getting-started.md" || fail "guide does not explain source-only checks"
 printf 'portable developer installation contract honored\n'

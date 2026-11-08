@@ -17,6 +17,6 @@ for token in gate_start gate_sensors gate_review gate_merge_closeout sensor-evid
 done
 # Executable ordering/evidence guards live in test_review_first_lifecycle.sh,
 # test_sensor_evidence_verify.sh and test_log_handback_write_gate.sh. Reviewer
-# topology is covered by test_reviewer_end_of_issue_contract.sh. Natural-language
-# meaning belongs to focused review, not obligation/negation parsing or synonyms.
+# topology and natural-language meaning belong to independent review, not
+# obligation/negation parsing or synonyms.
 printf 'PASS: review evidence section references current executable authorities.\n'

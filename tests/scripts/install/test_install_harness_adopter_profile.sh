@@ -54,23 +54,8 @@ fi
 
 grep -Fq '.github/harness-identity.env' "${ROOT}/docs/getting-started.md" \
   || fail "getting-started must document repository identity binding"
-grep -Fq "never runs \`gh auth switch\`" "${ROOT}/docs/getting-started.md" \
-  || fail "documentation must state the non-mutating global-account contract"
 if git -C "$ROOT" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
 	fail "the source repository must not track a machine-local identity binding"
-fi
-
-identity_guide="$(awk '
-	/^### Bind the repository/ { capture = 1; next }
-	capture && /^## / { exit }
-	capture { print }
-' "${default_target}/docs/getting-started.md" | tr '\n' ' ')"
-for identity_rule in 'machine-local' 'untracked' 'gitignored'; do
-	printf '%s\n' "$identity_guide" | grep -qiF "$identity_rule" \
-		|| fail "installed identity guide must describe the binding as ${identity_rule}"
-done
-if printf '%s\n' "$identity_guide" | grep -qiE 'may be tracked|binding is repository configuration'; then
-	fail "installed guide must not authorize committing a machine-local identity"
 fi
 
 [ ! -e "${default_target}/.env.example" ] || {
@@ -492,13 +477,6 @@ assert_documented_category "installer --help" "$HELP_OUT" \
 assert_documented_category "installer --help" "$HELP_OUT" \
 	"runtime-adapter guidance/templates" "runtime-adapter" "guides" "templates"
 assert_documented_category "installer --help" "$HELP_OUT" \
-	"VERSION identity" "VERSION" "identity"
-
-assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
-	"runtime contract/schema assets" "runtime contract" "schemas"
-assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
-	"runtime-adapter guidance/templates" "optional/runtime-adapters/" "guide" "template"
-assert_documented_category "docs/getting-started.md" "$GETTING_STARTED" \
 	"VERSION identity" "VERSION" "identity"
 
 for rel in VERSION schemas/trace-schema.v1.json docs/harness-contract.yml; do
