@@ -379,15 +379,19 @@ SH
 	jq -se 'length == 1 and .[0]["harness.version"] == "9.8.7-layout"' \
 		"${target}/.copilot-tracking/issues/issue-91/trace.jsonl" >/dev/null \
 		|| fail_layout "${profile} emitter used source identity instead of installed VERSION"
-	printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
-	if (cd "${target}/unrelated/nested" && "${target}/scripts/run-sensors.sh" green \
-		--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
-		fail_layout "${profile} ignored the installed nested failure"
+	# The same core probe and runner are installed in all three profiles.
+	# Keep per-profile success/root selection; exercise its failing body once.
+	if [ "$profile" = default ]; then
+		printf '#!/usr/bin/env bash\nexit 1\n' >"${target}/tests/scripts/lifecycle/test_installed_probe.sh"
+		if (cd "${target}/unrelated/nested" && "${target}/scripts/run-sensors.sh" green \
+			--declared tests/scripts/lifecycle/test_installed_probe.sh --diff HEAD) >"$layout_log" 2>&1; then
+			fail_layout "${profile} ignored the installed nested failure"
+		fi
+		grep -q '^FAIL tests/scripts/lifecycle/test_installed_probe.sh$' "$layout_log" \
+			|| fail_layout "${profile} failure did not name the installed sensor"
+		grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
+			|| fail_layout "${profile} targeted failure selected unrelated sensors"
 	fi
-	grep -q '^FAIL tests/scripts/lifecycle/test_installed_probe.sh$' "$layout_log" \
-		|| fail_layout "${profile} failure did not name the installed sensor"
-	grep -q 'scope=scoped ran=1 failed=1$' "$layout_log" \
-		|| fail_layout "${profile} targeted failure selected unrelated sensors"
 )
 # Independent targets, logs, binaries and worktrees share only immutable inputs.
 upgrade_pids=()

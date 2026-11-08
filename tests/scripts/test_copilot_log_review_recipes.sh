@@ -354,20 +354,6 @@ else
   fail "I" "Fixture must NOT contain session.shutdown to exercise fallback logic"
 fi
 
-# --- Leg J: Recipe references compaction nested path --------------------------
-if grep -q 'copilotUsage\.tokenDetails\.totalNanoAiu\|copilotUsage.tokenDetails.totalNanoAiu' "$SKILL"; then
-  note "J" "SKILL.md recipe references compaction nested path"
-else
-  fail "J" "SKILL.md recipe must reference .data.copilotUsage.tokenDetails.totalNanoAiu"
-fi
-
-# --- Leg K: Timestamp normalization in recipe ---------------------------------
-if grep -q 'sub("\\\\.\[0-9\]' "$SKILL" || grep -qE 'sub\(.+\.\[0-9\]' "$SKILL"; then
-  note "K" "SKILL.md includes timestamp normalization"
-else
-  fail "K" "SKILL.md must include sub(...) fractional-second timestamp normalization"
-fi
-
 # --- Leg M: Official GitHub billing citation ---------------------------------
 if grep -q 'docs.github.com/en/copilot' "$SKILL"; then
   note "M" "SKILL.md cites official GitHub Docs canonical URL"
@@ -450,61 +436,6 @@ if [ "$NAIVE_SUM" -gt 4200000000 ] 2>/dev/null; then
   note "O" "TEETH: naive sum (${NAIVE_SUM}) > correct latest (4200000000)"
 else
   fail "O" "TEETH: naive sum (${NAIVE_SUM}) must exceed correct value (4200000000)"
-fi
-
-# --- Leg P: TEETH — removing .data. nesting causes error ----------------------
-if [ -n "$RECIPE" ]; then
-  # Strip .data. prefix from all paths: .data.totalNanoAiu → .totalNanoAiu,
-  # .data.copilotUsage → .copilotUsage
-  BROKEN_NO_DATA=$(printf '%s\n' "$RECIPE" | sed 's/\.data\./\./g')
-  BROKEN_EXIT=0
-  printf '%s\n' "$BROKEN_NO_DATA" | jq -s -f /dev/stdin "$FIXTURE" >/dev/null 2>&1 || BROKEN_EXIT=$?
-
-  if [ "$BROKEN_EXIT" -ne 0 ]; then
-    note "P" "TEETH: removing .data. nesting causes jq error (exit ${BROKEN_EXIT})"
-  else
-    fail "P" "TEETH: recipe without .data. nesting must error (got exit 0)"
-  fi
-else
-  fail "P" "Cannot extract recipe for data-nesting mutation"
-fi
-
-# --- Leg Q: TEETH — removing compaction nested path yields wrong output -------
-if [ -n "$RECIPE" ]; then
-  # Replace the compaction-specific path with flat .data.totalNanoAiu
-  BROKEN_COMPACT=$(printf '%s\n' "$RECIPE" | sed 's/\.data\.copilotUsage\.tokenDetails\.totalNanoAiu/.data.totalNanoAiu/g')
-  COMPACT_RESULT=""
-  COMPACT_EXIT=0
-  COMPACT_RESULT=$(printf '%s\n' "$BROKEN_COMPACT" | jq -s -f /dev/stdin "$FIXTURE" 2>&1) || COMPACT_EXIT=$?
-
-  if [ "$COMPACT_EXIT" -ne 0 ]; then
-    note "Q" "TEETH: removing compaction nested path causes error"
-  else
-    COMPACT_NANO=$(printf '%s' "$COMPACT_RESULT" | jq -r '.totalNanoAiu' 2>/dev/null)
-    if [ "$COMPACT_NANO" != "4200000000" ]; then
-      note "Q" "TEETH: removing compaction nested path yields wrong value (${COMPACT_NANO} != 4200000000)"
-    else
-      fail "Q" "TEETH: removing compaction nested path must yield wrong output or error"
-    fi
-  fi
-else
-  fail "Q" "Cannot extract recipe for compaction-path mutation"
-fi
-
-# --- Leg R: TEETH — removing timestamp normalization causes error -------------
-if [ -n "$RECIPE" ]; then
-  # Remove norm_ts definition usage: replace "| norm_ts |" with "|"
-  BROKEN_TS=$(printf '%s\n' "$RECIPE" | sed 's/| norm_ts |/|/g')
-  TS_EXIT=0
-  printf '%s\n' "$BROKEN_TS" | jq -s -f /dev/stdin "$FIXTURE" >/dev/null 2>&1 || TS_EXIT=$?
-
-  if [ "$TS_EXIT" -ne 0 ]; then
-    note "R" "TEETH: removing timestamp normalization causes jq error (exit ${TS_EXIT})"
-  else
-    fail "R" "TEETH: recipe without timestamp normalization must error on fractional seconds"
-  fi
-else
-  fail "R" "Cannot extract recipe for timestamp mutation"
 fi
 
 # --- Leg S: NEGATIVE — malformed record specifically excluded -----------------

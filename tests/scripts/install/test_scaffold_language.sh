@@ -53,7 +53,6 @@ inst="$b/.copilot/instructions/node.instructions.md"
 [ -f "$inst" ] || { echo "case-b: instruction file not created"; exit 1; }
 bash -n "$desc" || { echo "case-b: descriptor bash -n failed"; exit 1; }
 shellcheck -x -P "$b" "$desc" || { echo "case-b: descriptor not shellcheck-clean"; exit 1; }
-grep -qF "# shellcheck disable=SC2034" "$desc" || { echo "case-b: descriptor missing SC2034 disable"; exit 1; }
 ( set -e; cd "$b"
   # shellcheck disable=SC1091  # descriptor is generated at runtime by the generator under test
   . profiles/node.profile.sh

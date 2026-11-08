@@ -2,6 +2,80 @@
 
 <!-- version list -->
 
+## v0.49.2 (2026-11-08)
+
+### Bug Fixes
+
+- **#557**: Align failure provenance with current enforcement
+  ([#559](https://github.com/weijen/agent-delivery-harness/pull/559),
+  [`cf11398`](https://github.com/weijen/agent-delivery-harness/commit/cf113983351cea406993c34bc5529e8ac1501618))
+
+- **#557**: Align trace schema descriptions with current behavior
+  ([#559](https://github.com/weijen/agent-delivery-harness/pull/559),
+  [`cf11398`](https://github.com/weijen/agent-delivery-harness/commit/cf113983351cea406993c34bc5529e8ac1501618))
+
+- **#557**: Describe conductor-only trace handback writes
+  ([#559](https://github.com/weijen/agent-delivery-harness/pull/559),
+  [`cf11398`](https://github.com/weijen/agent-delivery-harness/commit/cf113983351cea406993c34bc5529e8ac1501618))
+
+- **#557**: Label retired trace metadata and reporting paths
+  ([#559](https://github.com/weijen/agent-delivery-harness/pull/559),
+  [`cf11398`](https://github.com/weijen/agent-delivery-harness/commit/cf113983351cea406993c34bc5529e8ac1501618))
+
+- **#557**: Retire the trace rewrite exception in schema guidance
+  ([#559](https://github.com/weijen/agent-delivery-harness/pull/559),
+  [`cf11398`](https://github.com/weijen/agent-delivery-harness/commit/cf113983351cea406993c34bc5529e8ac1501618))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.49.1
+  ([`8ec44ba`](https://github.com/weijen/agent-delivery-harness/commit/8ec44ba438a554053387420b1581de502404f518))
+
+### Refactoring
+
+- **scripts**: Simplify installer bookkeeping
+  ([#548](https://github.com/weijen/agent-delivery-harness/pull/548),
+  [`fc6230a`](https://github.com/weijen/agent-delivery-harness/commit/fc6230af06e3b7b07504f247d61561d7589c0469))
+
+### Testing
+
+- **#547**: Consolidate installed-layout verification
+  ([#549](https://github.com/weijen/agent-delivery-harness/pull/549),
+  [`187fe58`](https://github.com/weijen/agent-delivery-harness/commit/187fe585253a121f73e3ad72729f627d166b321b))
+
+- **#550**: Remove prose-only harness assertions
+  ([#555](https://github.com/weijen/agent-delivery-harness/pull/555),
+  [`5974345`](https://github.com/weijen/agent-delivery-harness/commit/5974345ace6da1fa9690344fd7aaef486a9b0c03))
+
+- **#550**: Remove prose-only sensor assertions
+  ([#555](https://github.com/weijen/agent-delivery-harness/pull/555),
+  [`5974345`](https://github.com/weijen/agent-delivery-harness/commit/5974345ace6da1fa9690344fd7aaef486a9b0c03))
+
+- **#550**: Remove remaining log-recipe prose pins
+  ([#555](https://github.com/weijen/agent-delivery-harness/pull/555),
+  [`5974345`](https://github.com/weijen/agent-delivery-harness/commit/5974345ace6da1fa9690344fd7aaef486a9b0c03))
+
+- **#550**: Retire the obsolete canonical sensor obligation
+  ([#555](https://github.com/weijen/agent-delivery-harness/pull/555),
+  [`5974345`](https://github.com/weijen/agent-delivery-harness/commit/5974345ace6da1fa9690344fd7aaef486a9b0c03))
+
+- **#551**: Reduce repeated validation fixture work
+  ([#552](https://github.com/weijen/agent-delivery-harness/pull/552),
+  [`8b6312d`](https://github.com/weijen/agent-delivery-harness/commit/8b6312d42bd04f17e3688cbd60504905dae454bc))
+
+- **#551**: Reuse isolated prepared publication fixtures
+  ([#552](https://github.com/weijen/agent-delivery-harness/pull/552),
+  [`8b6312d`](https://github.com/weijen/agent-delivery-harness/commit/8b6312d42bd04f17e3688cbd60504905dae454bc))
+
+- **#551**: Validate unchanged full history once
+  ([#552](https://github.com/weijen/agent-delivery-harness/pull/552),
+  [`8b6312d`](https://github.com/weijen/agent-delivery-harness/commit/8b6312d42bd04f17e3688cbd60504905dae454bc))
+
+- **#553**: Batch fixture copies and overlap isolated review groups
+  ([#554](https://github.com/weijen/agent-delivery-harness/pull/554),
+  [`e5921be`](https://github.com/weijen/agent-delivery-harness/commit/e5921be6165ea2730987366e1b3fdb2064f4ff5f))
+
+
 ## v0.49.1 (2026-11-01)
 
 ### Bug Fixes
