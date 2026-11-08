@@ -260,6 +260,32 @@ grep -q '^## Historical' "$GUIDE" \
   || fail "guide must distinguish historical compatibility from current operation"
 
 # The installed writer/checker must work without any research-directory schema.
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+schema_source="${TMP_DIR}/schema-source"
+installer_fixture_source "$schema_source"
+schema_assets=(
+  VERSION
+  scripts/install-harness.sh
+  scripts/install/install-harness.sh
+  scripts/lib/reconcile-lib.sh
+  scripts/lib/github-identity-lib.sh
+  scripts/lib/trace-lib.sh
+  scripts/lib/issue-lib.sh
+  scripts/log-handback.sh
+  scripts/trace/log-handback.sh
+  scripts/check-trace-consistency.sh
+  scripts/trace/check-trace-consistency.sh
+  scripts/trace/render-action-log.sh
+  schemas/trace-schema.v1.json
+)
+for asset in "${schema_assets[@]}"; do
+  mkdir -p "${schema_source}/$(dirname "$asset")"
+  cp "${ROOT}/${asset}" "${schema_source}/${asset}"
+done
+printf '%s\n' "${schema_assets[@]}" scripts/install-harness.assets \
+  scripts/install-harness.tombstones tests/harness-dev-sensors.txt docs/harness-contract.yml \
+  >"${schema_source}/scripts/install-harness.assets"
 installed="${TMP_DIR}/adopter"
 mkdir -p "${installed}/docs/evaluation"
 # Immutable final-upstream fixture; current schema edits are not old adopter edits.
@@ -268,9 +294,11 @@ legacy_digest="$(shasum -a 256 "$legacy_schema" | awk '{print $1}')"
 grep -qxF "$(printf '%s\tdocs/evaluation/trace-schema.v1.json' "$legacy_digest")" \
   "${ROOT}/scripts/install-harness.tombstones" \
   || fail "historical schema fixture must match its retirement ledger"
+printf '%s\tdocs/evaluation/trace-schema.v1.json\n' "$legacy_digest" \
+  >"${schema_source}/scripts/install-harness.tombstones"
 cp "$legacy_schema" "${installed}/docs/evaluation/trace-schema.v1.json"
 git -C "$installed" init -q -b feature/issue-77-schema
-if ! bash "${ROOT}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
+if ! bash "${schema_source}/scripts/install-harness.sh" "$installed" --write >"${TMP_DIR}/install.log" 2>&1; then
   cat "${TMP_DIR}/install.log" >&2
   fail "schema relocation install must succeed"
 else
@@ -285,9 +313,16 @@ else
     TRACE_ISSUE=77 ./scripts/log-handback.sh conductor deviation F1 pass "schema migration fixture"
     ./scripts/check-trace-consistency.sh 77
   ) || fail "installed writer/checker must resolve the new schema"
+  mv "${installed}/schemas/trace-schema.v1.json" "${TMP_DIR}/schema.saved"
+  if (cd "$installed" && ./scripts/check-trace-consistency.sh 77) >"${TMP_DIR}/missing-schema.log" 2>&1; then
+    fail "installed checker must not fall back to a source schema"
+  fi
+  grep -Fq 'trace schema contract not found' "${TMP_DIR}/missing-schema.log" \
+    || fail "missing installed schema must produce an explicit diagnostic"
+  mv "${TMP_DIR}/schema.saved" "${installed}/schemas/trace-schema.v1.json"
   mkdir -p "${installed}/docs/evaluation"
   printf '{"customized":true}\n' >"${installed}/docs/evaluation/trace-schema.v1.json"
-  if bash "${ROOT}/scripts/install-harness.sh" "$installed" --update >"${TMP_DIR}/conflict.log" 2>&1; then
+  if bash "${schema_source}/scripts/install-harness.sh" "$installed" --update >"${TMP_DIR}/conflict.log" 2>&1; then
     fail "customized retired schema must produce a conflict"
   fi
   grep -qF '{"customized":true}' "${installed}/docs/evaluation/trace-schema.v1.json" \
