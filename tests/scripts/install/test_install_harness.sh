@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression sensor (issue #76): scripts/install-harness.sh must copy the REAL
-# harness assets verbatim into a target directory, default to a dry run, apply
+# selected assets verbatim into a target directory, default to a dry run, apply
 # with --write, preserve an untracked-base adopter file as an update conflict,
 # and never touch the target project's own non-harness files.
 set -euo pipefail
@@ -13,31 +13,38 @@ TMP_DIR="$(mktemp -d)"
 OUT="$(mktemp)"
 trap 'rm -rf "${TMP_DIR}"; rm -f "${OUT}"' EXIT
 
-# Representative assets that MUST land in a target install (one per asset group).
+# Full default-profile bytes and exclusions belong to the adopter-profile sensor.
+# This fixture retains real installer self-hosting and installed recipe execution.
+# shellcheck source=tests/scripts/lib/installer-fixture.sh
+source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
+SOURCE="${TMP_DIR}/source"
+installer_fixture_source "$SOURCE"
 REQUIRED_FILES=(
+	VERSION
 	scripts/install-harness.sh
 	scripts/install/install-harness.sh
 	scripts/init.sh
 	scripts/lib/github-identity-lib.sh
-	scripts/lib/issue-lib.sh
-	profiles/python.profile.sh
-	tests/scripts/install/test_install_harness.sh
-	tests/harness-dev-sensors.txt
-	.copilot/instructions/harness.instructions.md
-	.copilot/instructions/python.instructions.md
-	.copilot/agents/code-review-subagent.agent.md
-	.copilot/skills/code-review/SKILL.md
-	.copilot/prompts/session-ritual.prompt.md
-	.github/workflows/harness-smoke.yml
-	.github/harness-identity.env.example
-	docs/HARNESS.md
-	docs/getting-started.md
-	docs/multi-language-profiles.md
-	docs/harness-contract.yml
-	docs/product-quality-rubric.md
-	schemas/trace-schema.v1.json
+	scripts/lib/reconcile-lib.sh
 	scripts/install-harness.assets
+	scripts/install-harness.tombstones
+	tests/harness-dev-sensors.txt
+	docs/harness-contract.yml
+	tests/scripts/test_copilot_log_review_recipes.sh
+	.copilot/skills/copilot-log-review/SKILL.md
+	tests/fixtures/copilot-log-review/sample-transcript.jsonl
+	tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl
+	tests/fixtures/copilot-log-review/cli-record-contract.json
 )
+for rel in VERSION tests/scripts/test_copilot_log_review_recipes.sh \
+	.copilot/skills/copilot-log-review/SKILL.md \
+	tests/fixtures/copilot-log-review/sample-transcript.jsonl \
+	tests/fixtures/copilot-log-review/cli-events-1.0.72-1.jsonl \
+	tests/fixtures/copilot-log-review/cli-record-contract.json; do
+	mkdir -p "${SOURCE}/$(dirname "$rel")"
+	cp "${ROOT}/${rel}" "${SOURCE}/${rel}"
+done
+printf '%s\n' "${REQUIRED_FILES[@]}" >"${SOURCE}/scripts/install-harness.assets"
 
 # --- Case (a): script shape (executable, parses, shellcheck-clean) ------------
 for entry in "$INSTALL" "$CANONICAL"; do
@@ -55,28 +62,20 @@ grep -qi "usage" "$OUT" || { cat "$OUT"; echo "case-a: no usage on missing arg";
 
 # --- Case (b): dry run is the default and writes nothing (AC: dry run default) -
 b="${TMP_DIR}/b"; mkdir -p "$b"
-(cd "$TMP_DIR" && "$CANONICAL" "$b") >"$OUT" 2>&1 || { cat "$OUT"; echo "case-b: dry run failed"; exit 1; }
+(cd "$TMP_DIR" && "$SOURCE/scripts/install/install-harness.sh" "$b") >"$OUT" 2>&1 || { cat "$OUT"; echo "case-b: dry run failed"; exit 1; }
 grep -qF "would create" "$OUT" || { cat "$OUT"; echo "case-b: dry run did not report would-create"; exit 1; }
 if [ -n "$(find "$b" -type f)" ]; then
 	echo "case-b: dry run wrote files into the target"; exit 1
 fi
 
-# --- Case (c): --write installs the full harness verbatim (AC: empty dir copy) -
+# --- Case (c): --write installs selected assets verbatim and runs installed code -
 c="${TMP_DIR}/c"; mkdir -p "$c"
-"$INSTALL" "$c" --write >"$OUT" 2>&1 || { cat "$OUT"; echo "case-c: --write failed"; exit 1; }
+"$SOURCE/scripts/install-harness.sh" "$c" --write >"$OUT" 2>&1 || { cat "$OUT"; echo "case-c: --write failed"; exit 1; }
 for rel in "${REQUIRED_FILES[@]}"; do
 	[ -f "$c/$rel" ] || { echo "case-c: expected asset not installed: $rel"; exit 1; }
 done
-# Harness-repository self-management sensors require an explicit opt-in.
-[ ! -e "$c/tests/meta/test_skill_references_resolve.sh" ] || {
-	echo "case-c: default adopter install included a harness-dev meta sensor"
-	exit 1
-}
-# The selected workflow template and all other assets are copied verbatim.
 for rel in "${REQUIRED_FILES[@]}"; do
-	source_rel="$rel"
-	[ "$rel" != ".github/workflows/harness-smoke.yml" ] || source_rel="profiles/adopter-smoke.yml"
-	cmp -s "$ROOT/$source_rel" "$c/$rel" || { echo "case-c: installed asset differs from selected source: $rel"; exit 1; }
+	cmp -s "$SOURCE/$rel" "$c/$rel" || { echo "case-c: installed asset differs from selected source: $rel"; exit 1; }
 done
 (cd "$TMP_DIR" && bash "$c/tests/scripts/test_copilot_log_review_recipes.sh") >"$OUT" 2>&1 \
 	|| { cat "$OUT"; echo "case-c: installed log-recipe sensor failed"; exit 1; }
@@ -90,14 +89,10 @@ fi
 	|| { cat "$OUT"; echo "case-d: installed canonical second --write failed"; exit 1; }
 grep -qF "up to date" "$OUT" || { cat "$OUT"; echo "case-d: second --write did not report up-to-date"; exit 1; }
 for rel in "${REQUIRED_FILES[@]}"; do
-	source_rel="$rel"
-	[ "$rel" != ".github/workflows/harness-smoke.yml" ] || source_rel="profiles/adopter-smoke.yml"
-	cmp -s "$ROOT/$source_rel" "$c/$rel" || { echo "case-d: idempotent run changed an asset: $rel"; exit 1; }
+	cmp -s "$SOURCE/$rel" "$c/$rel" || { echo "case-d: idempotent run changed an asset: $rel"; exit 1; }
 done
 
 # --- Case (e): no-clobber of a differing harness file without --update --------
-# shellcheck source=tests/scripts/lib/installer-fixture.sh
-source "${ROOT}/tests/scripts/lib/installer-fixture.sh"
 conflict_source="${TMP_DIR}/conflict-source"
 installer_fixture_source "$conflict_source"
 mkdir -p "${conflict_source}/profiles"
