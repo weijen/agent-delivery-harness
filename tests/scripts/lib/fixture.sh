@@ -51,7 +51,8 @@ _fixture_usage_error() {
 fixture_repo() {
   local issue="" scripts_csv="" with_progress=0
   local issue_num=1 script="" source_script="" tmp_dir="" repo="" worktree=""
-  local -a scripts=()
+  local directory="" script_directory="" copied_scripts=""
+  local -a scripts=() sources=()
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -178,9 +179,19 @@ fixture_repo() {
   repo="${tmp_dir}/repo"
   "$_fixture_mkdir" -p "${repo}/scripts"
 
-  for script in "${scripts[@]}"; do
-    "$_fixture_mkdir" -p "${repo}/scripts/$(dirname "$script")"
-    "$_fixture_cp" "${FIXTURE_SOURCE_ROOT}/scripts/${script}" "${repo}/scripts/${script}"
+  for directory in . lib validation lifecycle trace; do
+    sources=()
+    for script in "${scripts[@]}"; do
+      script_directory="${script%/*}"
+      [[ "$script" == */* ]] || script_directory=.
+      [ "$script_directory" = "$directory" ] || continue
+      case ":${copied_scripts}" in *":${script}:"*) continue ;; esac
+      copied_scripts+="${script}:"
+      sources+=("${FIXTURE_SOURCE_ROOT}/scripts/${script}")
+    done
+    [ "${#sources[@]}" -gt 0 ] || continue
+    [ "$directory" = . ] || "$_fixture_mkdir" -p "${repo}/scripts/${directory}"
+    "$_fixture_cp" "${sources[@]}" "${repo}/scripts/${directory}/"
   done
   if [ -f "${repo}/scripts/run-sensors.sh" ]; then
     "$_fixture_mkdir" -p "${repo}/tests/scripts"
