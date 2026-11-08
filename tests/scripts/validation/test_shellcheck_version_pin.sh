@@ -13,12 +13,15 @@ fail() {
 
 grep -Eq '^  SHELLCHECK_VERSION:[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+$' "$WORKFLOW" \
   || fail "workflow-level ShellCheck version pin is missing"
-# shellcheck disable=SC2016 # Assert the workflow defers interpolation to CI.
-grep -Fq 'releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz' "$WORKFLOW" \
-  || fail "ShellCheck install does not use the pinned upstream release"
-# shellcheck disable=SC2016 # Assert the workflow uses the pinned digest variable.
-grep -Fq '${SHELLCHECK_SHA256}' "$WORKFLOW" \
-  || fail "ShellCheck release digest is not verified"
+INSTALLER="${ROOT}/scripts/install/install-ci-tool.sh"
+for workflow in "$WORKFLOW" "${ROOT}/profiles/adopter-smoke.yml"; do
+  version="$(awk '$1 == "SHELLCHECK_VERSION:" {print $2}' "$workflow")"
+  digest="$(awk '$1 == "SHELLCHECK_SHA256:" {print $2}' "$workflow")"
+  grep -Fxq "SHELLCHECK_VERSION_PIN=$version" "$INSTALLER" || fail "ShellCheck version parity differs"
+  grep -Fxq "SHELLCHECK_SHA256_PIN=$digest" "$INSTALLER" || fail "ShellCheck checksum parity differs"
+  grep -Fq 'run: ./scripts/install-ci-tool.sh shellcheck' "$workflow" \
+    || fail "workflow does not use verified shared installation"
+done
 if grep -Eq 'apt-get install([[:space:]]+-y)?[[:space:]]+shellcheck' "$WORKFLOW"; then
   fail "workflow installs an unpinned distro ShellCheck package"
 fi

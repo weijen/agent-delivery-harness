@@ -145,12 +145,15 @@ grep -q 'chore(release): sync uv.lock' <<<"$sync_block" \
 
 # --- Leg F: fixer/checker uv version parity (UV-LOCK-AUTHORITY-VERSION-SKEW) --
 CI_WF="${ROOT}/.github/workflows/python-ci.yml"
-uv_pins="$(grep -h -A8 'astral-sh/setup-uv@' "$WF" "$CI_WF" \
-  | sed -n 's/^[[:space:]]*version:[[:space:]]*"\([^"]*\)".*/\1/p' | sort -u)"
+uv_pins="$(sed -n 's/^[[:space:]]*UV_VERSION:[[:space:]]*"\([^"]*\)".*/\1/p' "$WF" "$CI_WF" | sort -u)"
 [ "$(wc -l <<<"$uv_pins" | tr -d ' ')" = "1" ] && [ -n "$uv_pins" ] \
   || fail "F: release.yml and python-ci.yml must pin the SAME explicit uv version (got: $(tr '\n' ' ' <<<"$uv_pins"))"
-grep -q 'astral-sh/setup-uv@d4b2f3b' "$WF" \
-  || fail "F: the release sync must provision uv via the SHA-pinned setup-uv action, not pip"
+grep -Fxq "UV_VERSION_PIN=$uv_pins" "${ROOT}/scripts/install/install-ci-tool.sh" \
+  || fail "F: installer must use the same pinned uv version as the fixer/checker"
+for workflow in "$WF" "$CI_WF"; do
+  grep -Fq 'run: ./scripts/install-ci-tool.sh uv' "$workflow" \
+    || fail "F: uv must be provisioned through the verified shared installer"
+done
 
 for identity in scripts/maintenance/sync-version.sh \
   tests/scripts/maintenance/test_release_workflow.sh tests/scripts/maintenance/test_release_lock_sync.sh; do
