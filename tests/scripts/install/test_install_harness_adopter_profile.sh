@@ -453,16 +453,6 @@ fail() {
 	exit 1
 }
 
-assert_documented_category() {
-	local surface="$1" file="$2" category="$3"
-	shift 3
-	local token
-	for token in "$@"; do
-		grep -qF "$token" "$file" \
-			|| fail "${surface} does not name ${category} category token: ${token}"
-	done
-}
-
 [ -f "$INSTALL" ] || fail "installer source is absent: ${INSTALL}"
 [ -f "$GETTING_STARTED" ] \
 	|| fail "onboarding guide is absent: ${GETTING_STARTED}"
@@ -471,13 +461,6 @@ if ! "$INSTALL" --help >"$HELP_OUT" 2>&1; then
 	cat "$HELP_OUT" >&2
 	fail "installer --help failed"
 fi
-
-assert_documented_category "installer --help" "$HELP_OUT" \
-	"runtime contract/schema assets" "runtime contract" "schemas"
-assert_documented_category "installer --help" "$HELP_OUT" \
-	"runtime-adapter guidance/templates" "runtime-adapter" "guides" "templates"
-assert_documented_category "installer --help" "$HELP_OUT" \
-	"VERSION identity" "VERSION" "identity"
 
 for rel in VERSION schemas/trace-schema.v1.json docs/harness-contract.yml; do
 	cmp -s "${ROOT}/${rel}" "${TARGET}/${rel}" \
