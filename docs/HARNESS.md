@@ -283,12 +283,16 @@ stage header still excludes whole-suite wrappers from feature greens.
 
 ### Shared test execution budget
 
-One required validation run has a fixed **600-second cumulative test wall-time
+One required validation run has a fixed **900-second cumulative test wall-time
 budget**. Sequential profiles and sensors share the remaining time; nested
 execution joins the active phase and parallel work counts elapsed union, not
 summed worker/CPU time. Local and CI runs have independent sessions, as do
 separate TDD iterations. Release, maintenance and explicit evaluation runs obey
 the same limit. Selection and assertions are not reduced to fit the deadline.
+
+600 seconds remains a performance target, not an execution cutoff. A run may
+exceed that target while retaining all required coverage; the hard limit remains
+900 seconds.
 
 Use the single-purpose session entrypoint to compose existing budget-aware gates:
 
@@ -317,7 +321,7 @@ The core uses a monotonic clock (`/proc/uptime` on Linux, Perl's core
 
 Exhaustion is latched: stop the active test process group, allow one second of
 bounded termination grace, then force termination. Emit elapsed milliseconds,
-the 600-second budget and active phase; exit 124, start no later tests, and
+the 900-second budget and active phase; exit 124, start no later tests, and
 record no successful gate evidence. Accounting errors also fail closed.
 There is no supported limit extension/reset/disable option. Coverage/budget
 conflicts require an explicit scope/design ruling, never automatic test deletion.

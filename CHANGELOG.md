@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v0.50.0 (2026-11-08)
+
+### Chores
+
+- **release**: Sync uv.lock for 0.49.2
+  ([`25e0595`](https://github.com/weijen/agent-delivery-harness/commit/25e0595421fb53abf09d1638320600157a067dd4))
+
+### Features
+
+- **#562**: Raise shared test budget to 900 seconds
+  ([#563](https://github.com/weijen/agent-delivery-harness/pull/563),
+  [`9e1e437`](https://github.com/weijen/agent-delivery-harness/commit/9e1e437002b5c255291d1ab31e30443f7779eac6))
+
+### Testing
+
+- **#560**: Consolidate harness test setup and behavioral proof
+  ([#561](https://github.com/weijen/agent-delivery-harness/pull/561),
+  [`ffb4aa0`](https://github.com/weijen/agent-delivery-harness/commit/ffb4aa07ad91d6bd3c0b64996a80e1d899507ad5))
+
+- **scripts**: Batch managed deletion ledger validation
+  ([#561](https://github.com/weijen/agent-delivery-harness/pull/561),
+  [`ffb4aa0`](https://github.com/weijen/agent-delivery-harness/commit/ffb4aa07ad91d6bd3c0b64996a80e1d899507ad5))
+
+- **scripts**: Consolidate repeated installed-layout proof
+  ([#561](https://github.com/weijen/agent-delivery-harness/pull/561),
+  [`ffb4aa0`](https://github.com/weijen/agent-delivery-harness/commit/ffb4aa07ad91d6bd3c0b64996a80e1d899507ad5))
+
+- **scripts**: Narrow installed schema migration setup
+  ([#561](https://github.com/weijen/agent-delivery-harness/pull/561),
+  [`ffb4aa0`](https://github.com/weijen/agent-delivery-harness/commit/ffb4aa07ad91d6bd3c0b64996a80e1d899507ad5))
+
+- **scripts**: Prune non-behavioral harness assertions
+  ([#561](https://github.com/weijen/agent-delivery-harness/pull/561),
+  [`ffb4aa0`](https://github.com/weijen/agent-delivery-harness/commit/ffb4aa07ad91d6bd3c0b64996a80e1d899507ad5))
+
+
 ## v0.49.2 (2026-11-08)
 
 ### Bug Fixes
