@@ -265,7 +265,7 @@ designs, not additional current lifecycle gates:
 - [trace-action-log-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/archive/evaluation/trace-action-log-evals.md) check that required
   agent and lifecycle spans (handbacks, review verdict, approval SHA) are
   present and attributed to the right role.
-- [cost-efficiency-evals.md](https://github.com/weijen/agent-delivery-harness/blob/main/docs/evaluation/cost-efficiency-evals.md) sum `gen_ai.usage.*`
+- [historical cost-efficiency proposal](https://github.com/weijen/agent-delivery-harness/blob/8ec44ba438a554053387420b1581de502404f518/docs/evaluation/cost-efficiency-evals.md) sums `gen_ai.usage.*`
   tokens and count tool spans for cost and efficiency metrics.
 
 The common vocabulary permits these analyses when the relevant evidence exists.

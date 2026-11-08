@@ -87,7 +87,7 @@ Use Azure Machine Learning for deterministic or mostly deterministic batch
 evaluators that operate over traces and artifacts:
 
 - Cost and efficiency counters from
-  [cost-efficiency-evals.md](../../evaluation/cost-efficiency-evals.md).
+  [cost-efficiency-evals.md](https://github.com/weijen/agent-delivery-harness/blob/8ec44ba438a554053387420b1581de502404f518/docs/evaluation/cost-efficiency-evals.md).
 - Latency distributions, including median, p75, p95, and variance bands.
 - Tool-call, retry, and loop/thrash detectors.
 - Trace schema validation over a large corpus.

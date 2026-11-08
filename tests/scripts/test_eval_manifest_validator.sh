@@ -2,7 +2,7 @@
 # test_eval_manifest_validator.sh — regression sensor for feature
 # f2-manifest-validator (issue #61): the eval-case manifest validator
 # `tests/evals/bin/validate-manifest.sh <manifest-path>` enforces the Manifest
-# Schema contract in docs/evaluation/l0-solution/spec.md § "Manifest Schema".
+# Contract in docs/eval-tooling.md, "Manifest contract".
 #
 # Executable spec for the validator:
 #   * REQUIRED fields (all present): id, schema_version, target, capability,

@@ -21,10 +21,13 @@ check_retirement_notice() {
 check_retirement_notice docs/archive/observability-journey.md
 check_retirement_notice docs/archive/deep-tracing-journey.md
 
-for spec in README architecture spec; do
-  [ -s "docs/evaluation/l0-solution/${spec}.md" ] \
-    && [ -s "docs/evaluation/l1-solution/${spec}.md" ] \
-    || { echo "active evaluation specification missing: ${spec}"; exit 1; }
+[ ! -d docs/evaluation ] \
+  || { echo "retired evaluation research directory still exists"; exit 1; }
+[ -s docs/eval-tooling.md ] \
+  || { echo "live evaluation tooling contract missing"; exit 1; }
+for section in 'Commands' 'Manifest contract' 'Scorecard contract'; do
+  grep -qxF "## ${section}" docs/eval-tooling.md \
+    || { echo "live evaluation tooling section missing: ${section}"; exit 1; }
 done
 while IFS= read -r doc; do
   while IFS= read -r target; do
@@ -34,4 +37,4 @@ while IFS= read -r doc; do
   done < <(grep -oE '\]\([^[:space:])]+\)' "$doc" | sed -E 's/^\]\(//; s/\)$//')
 done < <(find docs -type f -name '*.md' | LC_ALL=C sort)
 
-printf 'documentation links, active specifications and journey retirement checks passed\n'
+printf 'documentation links, live tooling contract and journey retirement checks passed\n'

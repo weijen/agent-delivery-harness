@@ -24,7 +24,7 @@
 #      the finish span survives worktree teardown.
 #
 # This trace is the first real trajectory fixture for
-# docs/evaluation/trajectory-evals.md.
+# docs/archive/evaluation/trajectory-evals.md.
 #
 # Fixture: test_lifecycle_order.sh precedents — pinned PATH (real
 # coreutils/git/jq + fake gh), bare local origin, stub init.sh exiting 0.

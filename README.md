@@ -14,8 +14,8 @@ Ruby** generator-supported on demand, plus a generator for adding more (see
 New to the harness? Start with [docs/getting-started.md](docs/getting-started.md)
 for a walkthrough of standing up a new project and choosing a language.
 For the full Copilot issue lifecycle, see [docs/HARNESS.md](docs/HARNESS.md).
-For the harness evaluation strategy, see
-[docs/evaluation/README.md](docs/evaluation/README.md).
+For implemented maintainer evaluation commands and contracts, see
+[docs/eval-tooling.md](docs/eval-tooling.md).
 
 ## Sensitivity
 

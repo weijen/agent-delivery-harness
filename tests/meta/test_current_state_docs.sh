@@ -29,9 +29,7 @@ reject_regex() {
     || fail "${path} retains retired reference: ${contradiction}"
 }
 
-for path in docs/scripts-language-policy.md docs/evaluation/cost-efficiency-evals.md; do
-  reject "$path" 'trace-report.sh'
-done
+reject docs/scripts-language-policy.md 'trace-report.sh'
 
 profile_current="$(awk '
   /^## Current profile workflow/ {capture=1; next}
@@ -76,7 +74,7 @@ require docs/failure-mode-taxonomy.md '](../schemas/trace-schema.v1.json)'
 # inventory. Adapter source deletion is a separate boundary.
 while IFS= read -r guide; do
   case "$guide" in
-    docs/archive/*|optional/*|CHANGELOG.md|docs/evaluation/README.md) continue ;;
+    docs/archive/*|optional/*|CHANGELOG.md) continue ;;
   esac
   reject_regex "$guide" '(optional/runtime-adapters|docs/runtime-adapters)/claude'
 done < <(git ls-files '*.md')

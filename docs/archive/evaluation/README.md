@@ -8,8 +8,9 @@
 > deleted history, only moved out of the sensed tree. See epic #331 for the full
 > rationale and issue #337 for the archival decision (decision 3a).
 
-The live, runtime-referenced evaluation docs (roadmap, product-quality rubric,
-observability/trace-schema doctrine, L0 solution, and the active `l1-solution/`
-contracts) stay in [docs/evaluation/](../../evaluation/README.md). Nothing in
-this directory is referenced by any runtime script, agent doctrine file, or
-`AGENTS.md`.
+The remaining active evaluation research was deleted under #546, without adding
+another archived copy. The implemented local commands and contracts now live in
+[eval-tooling.md](../../eval-tooling.md). Current operating authorities include
+the [quality rubric](../../product-quality-rubric.md) and
+[observability guide](../../observability-and-trace-schema.md).
+Links below to deleted proposals pin their final upstream revision.
