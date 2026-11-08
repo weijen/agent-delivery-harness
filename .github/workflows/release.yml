@@ -85,14 +85,21 @@ jobs:
       # (0.39.0/0.40.0/0.40.1/0.43.0 all hit this). When the lock is already
       # consistent (a uv-capable release path refreshed it) this commits
       # nothing.
+      - name: Cache verified uv archive and dependencies
+        if: steps.release.outputs.released == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/harness-ci-tools/uv-*.tar
+            ~/.cache/uv
+          key: ci-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install/install-ci-tool.sh', 'uv.lock') }}
+
       - name: Set up uv for the lock sync
         if: steps.release.outputs.released == 'true'
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
-        with:
-          # One uv everywhere (#455 repair UV-LOCK-AUTHORITY-VERSION-SKEW):
-          # this pin MUST match python-ci.yml's — the lock this step commits
-          # is the lock that check verifies. Sensor-enforced parity.
-          version: "0.12.3"
+        env:
+          UV_VERSION: "0.12.3"
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/install-ci-tool.sh uv
 
       - name: Sync uv.lock with the released version
         if: steps.release.outputs.released == 'true'

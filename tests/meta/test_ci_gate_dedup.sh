@@ -29,7 +29,9 @@ duplicate_runs="$(
 	awk '
 		/^[[:space:]]+run:[[:space:]]+[^|>]/ {
 			sub(/^[[:space:]]+run:[[:space:]]+/, "")
-			print
+			# Independent jobs need their own bootstrap, not repeated test gates.
+			if ($0 !~ /^\.\/scripts\/install-ci-tool\.sh (shellcheck|uv)$/)
+				print
 		}
 	' "$SMOKE" "$PYTHON" |
 		sort |
