@@ -173,6 +173,12 @@ fi
 emit "create-pr preserves the verified candidate when main advances"
 
 tap_done
+review_group_dir="${FIXTURE_TMP_DIR}/review-groups"
+mkdir -p "$review_group_dir"
+review_group_pids=()
+# All groups clone the completed seed, then mutate only their own repositories.
+(cd "$REPO" && find . -type f -exec shasum -a 256 {} + | LC_ALL=C sort) \
+  >"${review_group_dir}/seed-before"
 (
 cd "$ROOT"
 
@@ -286,7 +292,8 @@ if [ "$fails" -ne 0 ]; then
   exit 1
 fi
 printf 'review-gate issue-resolution helper contract honored\n'
-)
+) >"${review_group_dir}/resolution.log" 2>&1 &
+review_group_pids+=("$!")
 
 (
 cd "$ROOT"
@@ -506,7 +513,8 @@ if [ "$fails" -ne 0 ]; then
   exit 1
 fi
 printf 'verdict PR-gate contract honored\n'
-)
+) >"${review_group_dir}/verdict.log" 2>&1 &
+review_group_pids+=("$!")
 
 (
 cd "$ROOT"
@@ -716,7 +724,8 @@ if [ "$fails" -ne 0 ]; then
   exit 1
 fi
 printf 'reject-cap PR-gate contract honored\n'
-)
+) >"${review_group_dir}/reject-cap.log" 2>&1 &
+review_group_pids+=("$!")
 
 (
 cd "$ROOT"
@@ -771,4 +780,23 @@ if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then
 fi
 
 printf 'PASS: docs-only carry honors the review-diet-2 contract\n'
-)
+) >"${review_group_dir}/carry.log" 2>&1 &
+review_group_pids+=("$!")
+
+review_group_status=0
+for pid in "${review_group_pids[@]}"; do
+  wait "$pid" || review_group_status=1
+done
+for group in resolution verdict reject-cap carry; do
+  cat "${review_group_dir}/${group}.log"
+done
+[ "$review_group_status" -eq 0 ] || {
+  printf 'FAIL: an independent review contract group failed\n' >&2
+  exit 1
+}
+(cd "$REPO" && find . -type f -exec shasum -a 256 {} + | LC_ALL=C sort) \
+  >"${review_group_dir}/seed-after"
+cmp -s "${review_group_dir}/seed-before" "${review_group_dir}/seed-after" || {
+  printf 'FAIL: a review contract group modified the shared seed\n' >&2
+  exit 1
+}
