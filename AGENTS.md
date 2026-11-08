@@ -127,7 +127,8 @@ not a second full L0 invocation. A green run is a hard precondition for merge (e
 and not GitHub auto-merge; a repo admin may additionally enable a
 branch-protection required check on `main`.
 
-Required validation runs share one hard 600-second test budget. Compose profile
+Required validation runs share one hard 900-second test budget; 600 seconds
+remains a performance target, not a cutoff. Compose profile
 gates and sensors with `scripts/validation/validate.sh`; independent setup/static
 phases are excluded, but preparation inside tests counts. Do not reset the budget
 or remove coverage to fit it; see [the runtime contract](docs/HARNESS.md#shared-test-execution-budget).

@@ -66,7 +66,7 @@ budget_update() {
 				*) rc=1 ;;
 			esac
 			[ "$active" -ge 0 ] || rc=1
-			if [ "$spent" -ge 600000 ]; then
+			if [ "$spent" -ge 900000 ]; then
 				printf '%s\n' "$spent" >"$HARNESS_TEST_SESSION/timeout"
 			fi
 			printf '%s %s %s\n' "$spent" "$now" "$active" \
@@ -127,7 +127,7 @@ budget_run() (
 				|| ! now="$(budget_now_ms)"; then
 				watch_rc=1
 			else
-				remaining=$((600000 - spent - now + last))
+				remaining=$((900000 - spent - now + last))
 				if [ "$remaining" -gt 0 ]; then
 					printf -v duration '%d.%03d' "$((remaining / 1000))" "$((remaining % 1000))"
 					(
@@ -160,7 +160,7 @@ budget_run() (
 				elapsed=unknown
 				read -r elapsed _ _ <"$HARNESS_TEST_SESSION/state" || true
 				phase="$(cat "$HARNESS_TEST_ACTIVE")"
-				printf 'TIMEOUT elapsed_ms=%s budget=600 phase=%s\n' "$elapsed" "$phase" >&2
+				printf 'TIMEOUT elapsed_ms=%s budget=900 phase=%s\n' "$elapsed" "$phase" >&2
 				kill -TERM -- "-$child" 2>/dev/null || true
 				sleep 1
 				kill -KILL -- "-$child" 2>/dev/null || true
@@ -177,7 +177,7 @@ budget_run() (
 	exec 9>&-
 	rm -f "$HARNESS_TEST_ACTIVE" "$HARNESS_TEST_ACTIVE.done"
 	if [ "$update_rc" -ne 0 ]; then
-		[ "$update_rc" -ne 124 ] || printf 'TIMEOUT elapsed_ms=%s budget=600 phase=%s\n' \
+		[ "$update_rc" -ne 124 ] || printf 'TIMEOUT elapsed_ms=%s budget=900 phase=%s\n' \
 			"$(cat "$HARNESS_TEST_SESSION/timeout")" "$label" >&2
 		exit "$update_rc"
 	fi

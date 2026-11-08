@@ -95,7 +95,7 @@ grep -q "typecheck" "$OUT" && { cat "$OUT"; echo "case-e: go must not declare a 
   cd "$e"
   ./scripts/scaffold-language.sh go --write >/dev/null
   mkdir deadline
-  printf '600000 0 0\n' >deadline/state
+  printf '900000 0 0\n' >deadline/state
   : >deadline/timeout
   unset HARNESS_TEST_ACTIVE
   export HARNESS_TEST_SESSION="$e/deadline"

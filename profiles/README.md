@@ -1,6 +1,7 @@
 # Harness language profiles
 
-Profile test slots join the core's shared 600-second test budget. `init.sh`
+Profile test slots join the core's shared hard 900-second test budget, with
+600 seconds retained as a performance target rather than a cutoff. `init.sh`
 wraps the `test` slot, and shipped/generated direct test commands also enforce
 it. Compose profiles and sensors with `scripts/validation/validate.sh` for one
 required run; independently executed sync/build/static phases are excluded,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One miniature suite for the shared deadline, not a 10-minute sleep.
+# One miniature suite for the shared deadline, not a 15-minute sleep.
 # shellcheck disable=SC2030,SC2031 # Assertions run inside the session's subshell.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -13,17 +13,31 @@ source "$ROOT/scripts/lib/test-budget-lib.sh"
 unset HARNESS_TEST_SESSION HARNESS_TEST_ACTIVE
 
 success() {
+	read -r _ last active <"$HARNESS_TEST_SESSION/state"
+	printf '600001 %s %s\n' "$last" "$active" >"$HARNESS_TEST_SESSION/state"
 	budget_run first true
 	sleep 0.05 # an excluded phase does not spend test time
 	budget_run second true
 }
-budget_session success >"$TMP/success" 2>&1 || fail "within-budget phases failed"
+budget_session success >"$TMP/success" 2>&1 || fail "work past 600 seconds failed inside the 900-second budget"
+
+limit_boundary() {
+	budget_now_ms() { printf '0\n'; }
+	printf '899999 0 0\n' >"$HARNESS_TEST_SESSION/state"
+	budget_update tick || fail "budget expired before 900 seconds"
+	printf '900000 0 0\n' >"$HARNESS_TEST_SESSION/state"
+	rc=0
+	budget_update tick || rc=$?
+	[ "$rc" = 124 ] && [ "$(cat "$HARNESS_TEST_SESSION/timeout")" = 900000 ] \
+		|| fail "budget did not expire exactly at 900 seconds"
+}
+budget_session limit_boundary >"$TMP/boundary" 2>&1 || { cat "$TMP/boundary"; fail "900-second boundary failed"; }
 
 aggregate() {
 	budget_run first true
 	# Internal fixture seam: near-exhausted state, never a production timeout flag.
 	read -r _ last active <"$HARNESS_TEST_SESSION/state"
-	printf '599900 %s %s\n' "$last" "$active" >"$HARNESS_TEST_SESSION/state"
+	printf '899900 %s %s\n' "$last" "$active" >"$HARNESS_TEST_SESSION/state"
 	if budget_run second sleep 0.3; then fail "second phase exceeded budget but passed"; fi
 	budget_run third touch "$TMP/later"
 }
@@ -31,11 +45,11 @@ rc=0
 budget_session aggregate >"$TMP/aggregate" 2>&1 || rc=$?
 [ "$rc" = 124 ] || fail "aggregate exhaustion must be timeout, got $rc"
 [ ! -f "$TMP/later" ] || fail "work continued after exhaustion"
-grep -Eq 'TIMEOUT.*budget=600.*phase=second' "$TMP/aggregate" || fail "timeout lacks budget/phase"
+grep -Eq 'TIMEOUT.*budget=900.*phase=second' "$TMP/aggregate" || fail "timeout lacks budget/phase"
 
 cleanup() {
 	read -r _ last active <"$HARNESS_TEST_SESSION/state"
-	printf '599900 %s %s\n' "$last" "$active" >"$HARNESS_TEST_SESSION/state"
+	printf '899900 %s %s\n' "$last" "$active" >"$HARNESS_TEST_SESSION/state"
 	# shellcheck disable=SC2016 # Expansion belongs to the test child.
 	budget_run stubborn bash -c 'trap "" TERM; echo "$$" >"$1"; sleep 30 & echo "$!" >>"$1"; wait' _ "$TMP/pids"
 }
