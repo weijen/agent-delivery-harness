@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  UV_VERSION: "0.12.3"
+
 jobs:
   python-lock:
     name: Python lock integrity
@@ -17,13 +20,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - name: Cache verified uv archive and dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          # One uv everywhere (#455 repair UV-LOCK-AUTHORITY-VERSION-SKEW):
-          # this pin MUST match release.yml's — the release safety net
-          # regenerates the lock this job checks. Sensor-enforced parity.
-          version: "0.12.3"
+          path: |
+            ~/.cache/harness-ci-tools/uv-*.tar
+            ~/.cache/uv
+          key: ci-uv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/install/install-ci-tool.sh', 'uv.lock') }}
+
+      - name: Set up uv
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/install-ci-tool.sh uv
 
       - name: Verify dependency lock
         run: uv lock --check
