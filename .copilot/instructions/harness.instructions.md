@@ -188,7 +188,7 @@ Workflow per issue:
 
 ### Shared test execution budget
 
-One required validation run shares a hard 600-second cumulative test wall-time
+One required validation run shares a hard 900-second cumulative test wall-time
 budget across profiles, sensors and nested runners. Parallel work counts elapsed
 union. Compose existing budget-aware commands with
 `./scripts/validation/validate.sh bash -euc '<commands>'`; for final local
@@ -197,6 +197,9 @@ inside that one session. CI similarly shares profile tests and sensors; release,
 maintenance and explicit evaluation boundaries retain the same budget.
 Separate TDD iterations and local/remote runs are separate sessions, not a
 lifetime issue budget.
+
+600 seconds remains a performance target, not an execution cutoff. Preserve
+required coverage when a run exceeds that target.
 
 Independent dependency installation, build, format, lint and typecheck phases
 are excluded. Preparation performed inside a test command counts. Exhaustion

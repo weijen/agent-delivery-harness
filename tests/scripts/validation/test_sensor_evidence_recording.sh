@@ -106,7 +106,7 @@ chmod +w "${FIX}/.copilot-tracking/issues/issue-77"
 
 # Near-exhausted fixture state, never a production budget override.
 mkdir "$TMP_DIR/deadline"
-printf '599000 0 0\n' >"$TMP_DIR/deadline/state"
+printf '899000 0 0\n' >"$TMP_DIR/deadline/state"
 printf '#!/usr/bin/env bash\nsleep 30\n' >"$FIX/tests/scripts/test_timeout.sh"
 printf '#!/usr/bin/env bash\ntouch later-started\n' >"$FIX/tests/scripts/test_z_later.sh"
 rows="$(wc -l <"$EVIDENCE")"
