@@ -169,7 +169,7 @@
   },
   "trace_file": {
     "path": ".copilot-tracking/issues/issue-NN/trace.jsonl",
-    "format": "append-only JSONL, one span object per line; narrow runtime carve-out: the Copilot hook may atomically and idempotently upgrade its own already-emitted harness.subagent value in place during stop-time retro-upgrade, otherwise the file is append-only",
+    "format": "append-only JSONL, one span object per line. Current trace-lib.sh appends redacted records without rewriting existing spans. The deleted Copilot reconstruction hook historically retro-upgraded its own harness.subagent values in place; that retired exception does not authorize current trace rewrites.",
     "visibility": "local-only, never committed; covered by the existing .gitignore rule .copilot-tracking/issues/issue-*/"
   },
   "redaction": {
