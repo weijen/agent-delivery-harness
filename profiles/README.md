@@ -9,6 +9,15 @@ Python `python-gates.sh static` runs only format/lint/typecheck; `all` retains
 those checks plus tests. Source CI runs tests once in the shared sensor session.
 See [the runtime contract](../docs/HARNESS.md#shared-test-execution-budget).
 
+CI installs pinned ShellCheck and uv with
+[`scripts/install-ci-tool.sh`](../scripts/install-ci-tool.sh) on Linux x86_64.
+The installer downloads fixed GitHub REST release assets, verifies SHA-256 on
+every download and cache hit, and checks the binary version before exposing its
+PATH. Downloads have at most three attempts with a 20-second request limit.
+Corrupt archives and permanent HTTP errors fail explicitly. SHA-pinned cache
+actions retain tool archives and applicable uv dependencies; no test gate or
+shared test budget is bypassed.
+
 This directory holds the harness's **language profile descriptors** and is the
 current descriptor-interface authority. `scripts/init.sh` uses the Python
 descriptor's applicability function and explicit marker checks for the other

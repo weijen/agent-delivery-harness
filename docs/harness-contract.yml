@@ -99,6 +99,9 @@ layout_moves:
   - from: scripts/install-harness.sh
     to: scripts/install/install-harness.sh
     public_entrypoint: scripts/install-harness.sh
+  - from: scripts/install-ci-tool.sh
+    to: scripts/install/install-ci-tool.sh
+    public_entrypoint: scripts/install-ci-tool.sh
   - from: tests/scripts/test_install_harness.sh
     to: tests/scripts/install/test_install_harness.sh
   - from: tests/scripts/test_install_harness_adopter_profile.sh
