@@ -210,6 +210,9 @@ git -C "$HISTORY" commit -qam 'test: ordinary profile update'
 	|| { cat "$TMP/history.out" >&2; fail "ordinary update gate failed"; }
 grep -q 'scope=applicable ran=1 failed=0$' "$TMP/history.out" \
 	|| fail "ordinary profile update must not replay deletion history"
+history_base="$(git -C "$HISTORY" rev-parse HEAD)"
+git -C "$HISTORY" update-ref refs/remotes/origin/main "$history_base"
+: >"$TMP/deletion-ledger"
 for path in "${managed[@]}"; do
 	digest="$(shasum -a 256 "$HISTORY/$path" | awk '{print $1}')"
 	rm "$HISTORY/$path"
@@ -220,16 +223,25 @@ for path in "${managed[@]}"; do
 			|| fail "$phase deletion of $path omitted history acceptance"
 	done
 	git -C "$HISTORY" commit -qm 'test: managed deletion without ledger'
-	rc=0
-	(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 || rc=$?
-	if [ "$rc" != 1 ] || ! grep -q 'missing managed deletion history' "$TMP/history.out"; then
-		cat "$TMP/history.out" >&2
-		fail "committed deletion of $path did not fail the actual checker through the runner"
-	fi
-	printf '%s\t%s\n' "$digest" "$path" >>"$HISTORY/scripts/install-harness.tombstones"
-	git -C "$HISTORY" commit -qam 'test: acknowledge managed deletion'
-	(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 \
-		|| { cat "$TMP/history.out" >&2; fail "correct ledger failed for $path"; }
+	printf '%s\t%s\n' "$digest" "$path" >>"$TMP/deletion-ledger"
+	# Isolate the next root's staged/unstaged selection from earlier deletions.
 	git -C "$HISTORY" update-ref refs/remotes/origin/main HEAD
 done
+# Reconstruct the combined deletion diff and run the real checker once per state.
+git -C "$HISTORY" update-ref refs/remotes/origin/main "$history_base"
+rc=0
+(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 || rc=$?
+if [ "$rc" != 1 ] || ! grep -q 'missing managed deletion history' "$TMP/history.out"; then
+	cat "$TMP/history.out" >&2
+	fail "committed deletions did not fail the actual checker through the runner"
+fi
+while IFS= read -r row; do
+	# Runner diagnostics strip the ledger's tab separator along with control bytes.
+	grep -Fq "${row//$'\t'/}" "$TMP/history.out" \
+		|| fail "checker omitted a managed root's missing final-upstream entry: $row"
+done <"$TMP/deletion-ledger"
+cp "$TMP/deletion-ledger" "$HISTORY/scripts/install-harness.tombstones"
+git -C "$HISTORY" commit -qam 'test: acknowledge managed deletions'
+(cd "$HISTORY" && ./scripts/run-sensors.sh --gate pre-pr) >"$TMP/history.out" 2>&1 \
+	|| { cat "$TMP/history.out" >&2; fail "correct combined ledger failed"; }
 printf 'bounded dispositions and known dependency obligations honored\n'
