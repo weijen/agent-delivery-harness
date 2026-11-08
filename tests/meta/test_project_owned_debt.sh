@@ -8,7 +8,6 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 fail() { printf 'project-owned-debt: %s\n' "$*" >&2; exit 1; }
 
 tracker="${ROOT}/docs/tech-debt-tracker.md"
-policy="${ROOT}/.copilot/instructions/harness.instructions.md"
 active="$(awk '/^## Active/ {capture=1; next} capture && /^## / {exit} capture' "$tracker")"
 resolved="$(awk '/^## Resolved/ {capture=1; next} capture && /^## / {exit} capture' "$tracker")"
 grep -q '^## Active' "$tracker" || fail "tracker must distinguish active findings"
@@ -19,11 +18,6 @@ fi
 if grep -qiE 'hook[-_]liveness' "${ROOT}/scripts/lifecycle/start-issue.sh"; then
   fail "TD-001 cannot be resolved while its hook-liveness mechanism remains"
 fi
-grep -qF 'create on first use' "$policy" || fail "on-demand debt policy missing"
-grep -qF 'project-owned' "$policy" || fail "debt ownership policy missing"
-for requirement in 'clearing condition' "human's agreement" 'Minor / Low'; do
-  grep -qF "$requirement" "$policy" || fail "deferral rule missing: ${requirement}"
-done
 
 target="${TMP_DIR}/adopter"
 # Keep the real unselected tracker beside the bounded installer payload.

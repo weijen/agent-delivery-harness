@@ -90,6 +90,29 @@ if fixture_repo --with-scripts ../escape.sh >/dev/null 2>&1; then
   fail "script names containing paths must fail"
 fi
 
+copy_binary="$_fixture_cp"
+copy_calls=0
+copied_scripts=()
+record_fixture_copy() {
+  copy_calls=$((copy_calls + 1))
+  local source
+  for source in "${@:1:$#-1}"; do
+    copied_scripts+=("${source#"${FIXTURE_SOURCE_ROOT}/scripts/"}")
+  done
+  "$copy_binary" "$@"
+}
+_fixture_cp=record_fixture_copy
+fixture_repo --with-scripts create-pr.sh,validation/review-gate.sh,log-handback.sh
+_fixture_cp="$copy_binary"
+[ "$copy_calls" -eq 5 ] || fail "fixture copies must be batched into its five populated script directories"
+for script in "${copied_scripts[@]}"; do
+  cmp -s "${FIXTURE_SOURCE_ROOT}/scripts/${script}" "${FIXTURE_REPO}/scripts/${script}" \
+    || fail "batched fixture copy changed script bytes: ${script}"
+  [ -x "${FIXTURE_REPO}/scripts/${script}" ] || fail "batched fixture copy lost executable mode: ${script}"
+done
+[ "$(printf '%s\n' "${copied_scripts[@]}" | sort | uniq -d | wc -l | tr -d ' ')" -eq 0 ] \
+  || fail "fixture copied a dependency more than once"
+
 fixture_cleanup
 rm -rf "$SELF_TMP"
 

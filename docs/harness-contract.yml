@@ -185,8 +185,6 @@ layout_moves:
     to: tests/scripts/validation/test_rebind_repair_loop.sh
   - from: tests/scripts/test_repair_feature_items.sh
     to: tests/scripts/validation/test_repair_feature_items.sh
-  - from: tests/scripts/test_repair_review_mode.sh
-    to: tests/scripts/validation/test_repair_review_mode.sh
   - from: tests/scripts/test_review_gate.sh
     to: tests/scripts/validation/test_review_gate.sh
   - from: tests/scripts/test_review_gate_ci_coverage.sh

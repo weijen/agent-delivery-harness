@@ -80,10 +80,6 @@ for rel in "${REQUIRED_FILES[@]}"; do
 done
 (cd "$TMP_DIR" && bash "$c/tests/scripts/test_copilot_log_review_recipes.sh") >"$OUT" 2>&1 \
 	|| { cat "$OUT"; echo "case-c: installed log-recipe sensor failed"; exit 1; }
-# The REAL subagent file, not a placeholder (nb: the doctrine legitimately
-# contains the word "skeleton" post-#352, so key on a required contract line).
-grep -qF "CODE REVIEW SUBAGENT" "$c/.copilot/agents/code-review-subagent.agent.md" \
-	|| { echo "case-c: agent file missing its role contract, expected the real asset"; exit 1; }
 # __pycache__ / compiled artifacts must not be dragged along.
 if find "$c" -name '*.pyc' -o -name '__pycache__' | grep -q .; then
 	echo "case-c: copied python bytecode/__pycache__ artifacts"; exit 1

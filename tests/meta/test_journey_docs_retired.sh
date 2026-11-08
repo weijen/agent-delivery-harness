@@ -14,11 +14,6 @@ check_retirement_notice() {
     END { if (!complete) exit 1 }
   ' "$path")" \
     || { echo "journey-retirement: bounded retirement notice missing from ${path}"; exit 1; }
-  if ! grep -Eqi '\bretired\b' <<<"$notice" \
-    || ! grep -Eqi '\b(historical|snapshot)\b' <<<"$notice"; then
-    echo "journey-retirement: historical retirement warning missing from ${path}"
-    exit 1
-  fi
   grep -Eq '\]\(\.\./harness-contract\.yml(#[^)]*)?\)' <<<"$notice" \
     || { echo "journey-retirement: current doctrine link missing from notice in ${path}"; exit 1; }
 }

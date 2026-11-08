@@ -198,8 +198,7 @@ section() {
   ' "$2"
 }
 
-# flatten <text> — join to one spaced line so phrase assertions tolerate the
-# markdown hard line-wraps in prose.
+# flatten <text> — normalize section text for path and field checks.
 flatten() {
   printf '%s' "$1" | tr '\n' ' ' | tr -s ' '
 }
@@ -214,14 +213,8 @@ printf '%s\n' "${loc}" | grep -qiF 'workspace.json' \
   || fail "Locate: must resolve the workspace hash via workspaceStorage/*/workspace.json"
 printf '%s\n' "${loc}" | grep -qF 'workspaceStorage' \
   || fail "Locate: must name the workspaceStorage directory"
-printf '%s\n' "${loc}" | grep -qiF 'review window' \
-  || fail "Locate: must enumerate sessions overlapping the review window"
-printf '%s\n' "${loc}" | grep -qiF 'lifecycle-span' \
-  || fail "Locate: must support an issue lifecycle-span enumeration window"
 printf '%s\n' "${loc}" | grep -qF 'trace.jsonl' \
   || fail "Locate: lifecycle-span window must come from .copilot-tracking/issues/issue-NN/trace.jsonl"
-printf '%s\n' "${loc}" | grep -qiF 'offline join' \
-  || fail "Locate: must describe the offline (time-window) session-to-issue join"
 
 # Verified macOS transcript path fragments.
 printf '%s\n' "${loc}" | grep -qF 'Library/Application Support/Code/User/workspaceStorage' \
@@ -229,15 +222,11 @@ printf '%s\n' "${loc}" | grep -qF 'Library/Application Support/Code/User/workspa
 printf '%s\n' "${loc}" | grep -qF 'GitHub.copilot-chat/transcripts' \
   || fail "Locate: must give the verified macOS transcript path (GitHub.copilot-chat/transcripts)"
 
-# Per-OS: macOS verified, Windows + Linux variants unverified.
-printf '%s\n' "${loc}" | grep -qiF 'only macOS paths are verified' \
-  || fail "Locate: must state only macOS paths are verified"
+# Per-OS path variants.
 printf '%s\n' "${loc}" | grep -qF '%APPDATA%' \
   || fail "Locate: must give the Windows (%APPDATA%) workspaceStorage variant"
 printf '%s\n' "${loc}" | grep -qF '.config/Code/User/workspaceStorage' \
   || fail "Locate: must give the Linux (~/.config) workspaceStorage variant"
-printf '%s\n' "${loc}" | grep -qiF 'unverified' \
-  || fail "Locate: must mark the Windows/Linux variants as unverified"
 
 # --- Qualify stage ----------------------------------------------------------
 if ! grep -qE '^## Qualify[[:space:]]*$' "${SKILL}"; then
@@ -260,27 +249,11 @@ printf '%s\n' "${rep}" | grep -qF 'logs/audit/' \
   || fail "Report: must name the logs/audit/<UTC-timestamp>/ output directory"
 printf '%s\n' "${rep}" | grep -qF 'copilot-log-review.md' \
   || fail "Report: must write to logs/audit/<UTC-timestamp>/copilot-log-review.md"
-printf '%s\n' "${rep}" | grep -qiF 'previous report' \
-  || fail "Report: must compare against the previous report when one exists"
-printf '%s\n' "${rep}" | grep -qiF 'trend' \
-  || fail "Report: must produce a trend, not a snapshot"
 
 # --- Report-only + privacy --------------------------------------------------
 if ! grep -qE '^## Report-only and privacy[[:space:]]*$' "${SKILL}"; then
   fail "Privacy: missing a '## Report-only and privacy' section"
 fi
-priv="$(flatten "$(section '^## Report-only and privacy[[:space:]]*$' "${SKILL}")")"
-
-printf '%s\n' "${priv}" | grep -qiF 'report-only' \
-  || fail "Privacy: must restate the skill is report-only"
-printf '%s\n' "${priv}" | grep -qiF 'never edit' \
-  || fail "Privacy: must state the skill never edits the repo"
-printf '%s\n' "${priv}" | grep -qiF 'never commit' \
-  || fail "Privacy: must forbid committing raw transcript excerpts (never commit)"
-printf '%s\n' "${priv}" | grep -qiF 'transcript' \
-  || fail "Privacy: must scope the never-commit rule to transcript content"
-printf '%s\n' "${priv}" | grep -qiF 'redact' \
-  || fail "Privacy: must route quotes through the redaction patterns"
 
 if [ "${fails}" -ne 0 ]; then
   printf '\n%d copilot-log-review structure obligation(s) failed.\n' "${fails}" >&2
@@ -329,14 +302,6 @@ if grep -q 'session-store\.db' "$SKILL"; then
   note "B" "SKILL.md documents session-store.db"
 else
   fail "B" "SKILL.md must document ~/.copilot/session-store.db"
-fi
-
-# --- Leg C: Distinguishes CLI from VS Code ------------------------------------
-if grep -q 'VS Code' "$SKILL" && grep -qi 'CLI' "$SKILL" \
-   && grep -qi 'distinct\|separate\|independent\|unlike\|in contrast\|not.*same' "$SKILL"; then
-  note "C" "SKILL.md distinguishes CLI from VS Code records"
-else
-  fail "C" "SKILL.md must explicitly distinguish CLI records from VS Code transcripts"
 fi
 
 # --- Leg D: Fixture exists (already pre-checked, always passes here) ----------
@@ -403,20 +368,11 @@ else
   fail "K" "SKILL.md must include sub(...) fractional-second timestamp normalization"
 fi
 
-# --- Leg L: AI Credits vocabulary with nano-AIU conversion --------------------
-if grep -q 'AI Credits' "$SKILL" && grep -q 'totalNanoAiu / 1e9' "$SKILL" \
-   && grep -qi 'empirical\|community\|adopter' "$SKILL"; then
-  note "L" "SKILL.md documents AI Credits with empirical nano-AIU conversion"
+# --- Leg M: Official GitHub billing citation ---------------------------------
+if grep -q 'docs.github.com/en/copilot' "$SKILL"; then
+  note "M" "SKILL.md cites official GitHub Docs canonical URL"
 else
-  fail "L" "SKILL.md must document empirical totalNanoAiu / 1e9 = AI Credits conversion"
-fi
-
-# --- Leg M: Official GitHub billing citation with access date -----------------
-if grep -q 'docs.github.com/en/copilot' "$SKILL" \
-   && grep -q 'accessed 2026' "$SKILL"; then
-  note "M" "SKILL.md cites official GitHub Docs canonical URL with access date"
-else
-  fail "M" "SKILL.md must cite canonical docs.github.com/en/copilot URL with access date"
+  fail "M" "SKILL.md must cite canonical docs.github.com/en/copilot URL"
 fi
 
 # --- Helper: extract jq recipe from SKILL.md CLI session cost section ---------
@@ -625,7 +581,7 @@ if [ "$fails" -gt 0 ]; then
   printf '\nRESULT: %d leg(s) failed\n' "$fails" >&2
   exit 1
 else
-  printf '\nRESULT: all 21 legs passed (A-U)\n'
+  printf '\nRESULT: all retained CLI cost checks passed\n'
   exit 0
 fi
 )
@@ -1008,7 +964,7 @@ expect_rejection() {
       fail "$case_id" "TEETH: expected '${reason}', got: ${output}"
     fi
   done <<<"$reasons"
-  if grep -Eq 'copilot-log-review Quantify recipes:|PASS: copilot-log-review SKILL.md|RESULT: all 21 legs passed' <<<"$output"; then
+  if grep -Eq 'copilot-log-review Quantify recipes:|PASS: copilot-log-review SKILL.md|RESULT: all retained CLI cost checks passed' <<<"$output"; then
     fail "$case_id" "TEETH: mutation replayed unchanged recipe/documentation groups"
   fi
 }

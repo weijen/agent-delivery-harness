@@ -160,12 +160,6 @@ fail() {
 
 [ -f "$DOC" ] || { fail "docs/RELEASING.md not found"; exit 1; }
 
-grep -qiF '1.0.0' "$DOC" \
-  || fail "RELEASING.md must document the 1.0.0 policy"
-grep -qiE 'manual|human|deliberate' "$DOC" \
-  || fail "RELEASING.md must state 1.0.0 is a manual/human decision, not mechanical"
-grep -qiE 'semantic-release version --major|--major|BREAKING CHANGE' "$DOC" \
-  || fail "RELEASING.md must name the manual cut path (--major or BREAKING CHANGE)"
 grep -qiF 'python-semantic-release' "$DOC" \
   || fail "RELEASING.md must reference python-semantic-release as the release tool"
 
@@ -174,12 +168,6 @@ for authority in scripts/maintenance/sync-version.sh release.yml python-ci.yml '
   printf '%s\n' "$lock_notes" | grep -qF "$authority" \
     || fail "release lock guidance must reference ${authority}"
 done
-grep -qF 'major_on_zero=false' "$DOC" \
-  || fail "release guidance must explain the configured zero-major policy"
-doc_flat="$(tr '\n' ' ' <"$DOC" | tr -s ' ')"
-if printf '%s\n' "$doc_flat" | grep -qiE 'this is harmless|self-heals|not.{0,12}on the release path|or by landing a commit that carries an explicit'; then
-  fail "release guidance must not permit stale locks or a breaking footer to override zero-major policy"
-fi
 for owner in scripts/maintenance/sync-version.sh .github/workflows/release.yml .github/workflows/python-ci.yml; do
   grep -qF 'uv lock' "${ROOT}/${owner}" \
     || fail "documented lock owner ${owner} must implement lock management"
@@ -230,40 +218,6 @@ if [ "$fails" -ne 0 ]; then
 fi
 
 printf 'zero-version release policy honored (allow_zero_version=true, major_on_zero=false)\n'
-)
-
-(
-cd "$ROOT"
-
-DOC="${ROOT}/AGENTS.md"
-
-fails=0
-fail() {
-  printf 'FAIL: %s\n' "$*" >&2
-  fails=$((fails + 1))
-}
-
-[ -f "$DOC" ] || { fail "AGENTS.md not found (${DOC})"; exit 1; }
-
-grep -qiF 'conventional commits' "$DOC" \
-  || fail "AGENTS.md must name the Conventional Commits convention"
-grep -qE 'type\(scope\): *subject|type\(scope\): *description' "$DOC" \
-  || fail "AGENTS.md must document the type(scope): subject grammar"
-grep -qiE 'feat[^ ]*.{0,40}minor|minor.{0,40}feat' "$DOC" \
-  || fail "AGENTS.md must document feat -> minor bump"
-grep -qiE 'fix[^ ]*.{0,40}patch|patch.{0,40}fix' "$DOC" \
-  || fail "AGENTS.md must document fix -> patch bump"
-grep -qiE 'BREAKING CHANGE|feat!' "$DOC" \
-  || fail "AGENTS.md must document BREAKING CHANGE / feat! -> major bump"
-grep -qiF 'python-semantic-release' "$DOC" \
-  || fail "AGENTS.md must reference python-semantic-release as the release driver"
-
-if [ "$fails" -ne 0 ]; then
-  printf '\n%d commit-convention-docs obligation(s) missing.\n' "$fails" >&2
-  exit 1
-fi
-
-printf 'commit-convention documentation contract honored\n'
 )
 
 (

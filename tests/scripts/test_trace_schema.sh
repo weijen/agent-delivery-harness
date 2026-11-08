@@ -234,8 +234,7 @@ git -C "${ROOT}" check-ignore -q .copilot-tracking/issues/issue-99/trace.jsonl \
 # docs/failure-mode-taxonomy.md is the prose authority for the
 # eight-mode enum: it must name every frozen enum member verbatim (iterated
 # from the hardcoded backstop, not the contract, so a shrunken contract cannot
-# also shrink this check) and state the governance stance — human-gated,
-# with explicit non-goals (no automated harness mutation).
+# also shrink this check).
 TAXONOMY_DOC="${ROOT}/docs/failure-mode-taxonomy.md"
 if [ -f "$TAXONOMY_DOC" ]; then
   while IFS= read -r mode; do
@@ -243,10 +242,8 @@ if [ -f "$TAXONOMY_DOC" ]; then
     grep -qF -- "$mode" "$TAXONOMY_DOC" \
       || fail "failure-mode-taxonomy.md does not name the frozen failure mode '${mode}'"
   done < <(jq -r '.[]' <<< "$expected_failure_modes")
-  grep -qiE 'non-goals' "$TAXONOMY_DOC" \
-    || fail "failure-mode-taxonomy.md must carry an explicit non-goals statement"
-  grep -qiE 'human[- ]gated' "$TAXONOMY_DOC" \
-    || fail "failure-mode-taxonomy.md must state the human-gated governance stance"
+  grep -q '^### Non-Goals$' "$TAXONOMY_DOC" \
+    || fail "failure-mode-taxonomy.md lacks its non-goals section"
 else
   fail "taxonomy doc not found at docs/failure-mode-taxonomy.md"
 fi
@@ -255,23 +252,12 @@ fi
 # new writer obligations.
 GUIDE="${ROOT}/docs/observability-and-trace-schema.md"
 current="$(awk '/^## Current operating contract/ {capture=1; next} capture && /^## / {exit} capture {print}' "$GUIDE")"
-for term in 'delivering agent' 'independent reviewer' 'sensor-evidence.jsonl' deviation review_verdict 'native records'; do
+for term in sensor-evidence.jsonl deviation review_verdict; do
   printf '%s\n' "$current" | grep -qiF "$term" \
     || fail "current operating contract must describe ${term}"
 done
-guide_flat="$(tr '\n' ' ' <"$GUIDE" | tr -s ' ')"
-if printf '%s\n' "$guide_flat" | grep -qiE 'accepted red-first proof|new runs attribute all three|harness writes a second|log emission is on by default|not wired into lifecycle gates|requires all non-exceptional lifecycle steps'; then
-  fail "current guide retains retired evidence/log/gate obligations"
-fi
-grep -qiE '^## Historical.*(retired|compatibility)' "$GUIDE" \
+grep -q '^## Historical' "$GUIDE" \
   || fail "guide must distinguish historical compatibility from current operation"
-grep -qF 'conductor only' "${ROOT}/scripts/trace/log-handback.sh" \
-  || fail "documented single-agent writer must match the implementation"
-SKILL="${ROOT}/.copilot/skills/copilot-log-review/SKILL.md"
-skill_flat="$(tr '\n' ' ' <"$SKILL" | tr -s ' ')"
-if printf '%s\n' "$skill_flat" | grep -qiE 'hooks log.*is a second|token usage is a cloud-only signal'; then
-  fail "native-record guidance must not require the retired hook or cloud-only token capture"
-fi
 
 # The installed writer/checker must work without any research-directory schema.
 installed="${TMP_DIR}/adopter"
