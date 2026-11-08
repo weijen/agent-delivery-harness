@@ -1,6 +1,6 @@
 [project]
 name = "agent-delivery-harness-trace-tools"
-version = "0.50.0"
+version = "0.50.1"
 description = "Harness evaluation tooling and release metadata; Python gates cover the source-only evaluation assets."
 readme = "README.md"
 requires-python = ">=3.14"

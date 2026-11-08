@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v0.50.1 (2026-11-08)
+
+### Bug Fixes
+
+- **#558**: Make pinned CI tool downloads resilient
+  ([#564](https://github.com/weijen/agent-delivery-harness/pull/564),
+  [`4872401`](https://github.com/weijen/agent-delivery-harness/commit/48724012fb6b61061bc1710ba2a8ed64aaa17673))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.50.0
+  ([`f60970f`](https://github.com/weijen/agent-delivery-harness/commit/f60970f51c19b1c73ce9449f800c9fdf04ac2c15))
+
+
 ## v0.50.0 (2026-11-08)
 
 ### Chores
