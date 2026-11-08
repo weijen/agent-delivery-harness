@@ -82,7 +82,7 @@ run_gate_loop() {
     else
       rc=$?
       if [ "$rc" -eq 124 ]; then
-        note_fail "shared 600-second test budget exhausted"
+        note_fail "shared 900-second test budget exhausted"
         return 124
       fi
       if [ "$rc" -eq 2 ]; then
