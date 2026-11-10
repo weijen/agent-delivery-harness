@@ -656,7 +656,11 @@ compatibility, but they are outside the lifecycle and make no closeout claim.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 delivering agent runs it once per recorded event (single-source), and that single invocation writes the agent span to
-`trace.jsonl` — the canonical record. The `## Action Log` section in `progress.md` is **rendered** from those
+`trace.jsonl` — the canonical record. The independent reviewer returns verdict
+records with the reviewed SHA; only the delivering agent writes them, after
+checking that HEAD still matches. The writer stamps current HEAD, not a supplied
+historical SHA. Retiring the conductor/generator choreography did not retire
+this independent review result. The `## Action Log` section in `progress.md` is **rendered** from those
 spans by `scripts/render-action-log.sh` (which log-handback.sh calls after span emission), so the trace is the
 single source of truth and the Action Log is a human-readable view derived from it. Never hand-author the span or
 the Action Log line separately; always use `scripts/log-handback.sh` so the canonical span and the rendered view
@@ -722,6 +726,17 @@ are printed with a `⚠` summary but do not change the exit code — live traces
 otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the documented promotion flag, mirroring
 `REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
 before `worktree remove`, leaving the worktree intact.
+
+That tool default is distinct from review policy: a reviewer still blocks a
+concrete current safety/lifecycle violation, schema/redaction failure, missing
+hard-gate evidence already due, unresolved deviation or substantiated repeated-loop
+violation. A checker warning alone does not establish such a defect. Historical
+attribution/field-shape defects are residual telemetry risk, not per-feature
+repair requests or a reason to rewrite old spans. Separate verdict, currency,
+reject-cap and publication-evidence gates keep their existing enforcement.
+Unavailable instrumentation is `trace evidence unavailable`, never an inferred
+pass. The detailed handback fields live in
+[Agent-span conventions](../.copilot/instructions/harness.instructions.md#agent-span-conventions).
 
 The log-completeness gate (`review-gate.sh log-completeness`) scans the per-issue Action Log `progress.md` for known
 placeholder signatures that should be filled before closeout: `Recorded on completion below`, `TBD`, and
