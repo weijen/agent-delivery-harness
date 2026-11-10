@@ -123,6 +123,7 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
   uname true false find
 cat > "${BIN}/gh" <<'SH'
 #!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'issue view' ]; then printf 'Trace gate fixture\n'; exit 0; fi
 exit 1
 SH
 chmod +x "${BIN}/gh"

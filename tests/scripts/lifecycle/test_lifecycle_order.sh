@@ -78,14 +78,14 @@ link_tools() {
 }
 
 # write_fake_gh <path> — a fake gh: `pr view` => no PR; `pr create` logs to
-# GH_LOG; `issue view` => fail (callers fall back). Everything else fails.
+# GH_LOG; `issue view` => synthetic title. Everything else fails.
 write_fake_gh() {
   cat > "$1" <<'SH'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
   "pr view")    exit 1 ;;
   "pr create")  printf '%s\n' "$*" >> "${GH_LOG:?}"; exit 0 ;;
-  "issue view") exit 1 ;;
+  "issue view") printf 'Lifecycle order fixture\n'; exit 0 ;;
 esac
 exit 1
 SH

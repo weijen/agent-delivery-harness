@@ -125,6 +125,10 @@ else
 fi
 
 # --- 2. Resolve naming ------------------------------------------------------
+ISSUE_TITLE_RAW="$(issue_read_title "$ISSUE_NUM")"
+if [ -z "$SLUG_ARG" ]; then
+  SLUG_ARG="$(issue_derive_slug "$ISSUE_NUM" "$ISSUE_TITLE_RAW")"
+fi
 if declare -F harness_identity_configure_git >/dev/null 2>&1; then
   harness_identity_configure_git "$ROOT"
 fi
@@ -160,7 +164,6 @@ green "✓ Worktree created at ${WORKTREE_DIR} (base: ${base_ref})"
 if [ ! -d "$TRACKING_DIR" ]; then
   SCAFFOLDED=true
   mkdir -p "$TRACKING_DIR"
-  ISSUE_TITLE_RAW="$(gh issue view "$ISSUE_NUM" --json title -q .title 2>/dev/null || true)"
   [ -n "$ISSUE_TITLE_RAW" ] || ISSUE_TITLE_RAW="issue ${ISSUE_NUM}"
   ISSUE_TITLE_JSON="$(json_string "$ISSUE_TITLE_RAW")"
   cat > "${TRACKING_DIR}/feature_list.json" <<JSON

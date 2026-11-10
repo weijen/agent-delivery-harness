@@ -257,6 +257,11 @@ case "${1:-} ${2:-}" in
     fi
     ;;
   'issue view')
+    if [ "${GH_FAKE_DENIED:-0}" = 1 ]; then
+      [ "${GH_TOKEN:-}" = token-for-weijen ] || exit 2
+      printf 'HTTP 404: repository access denied for designated account\n' >&2
+      exit 1
+    fi
     printf '%s\n' 'Identity-bound issue'
     ;;
   *)
@@ -304,6 +309,24 @@ grep -Fq 'token=token-for-weijen args=issue view 348' "$GH_LOG" \
 if grep -q 'auth switch' "$GH_LOG"; then
   fail "start-issue must not switch global gh state"
 fi
+
+for naming in derived explicit; do
+  args=(349)
+  [ "$naming" != explicit ] || args+=(SLUG=denied-access)
+  : >"$GH_LOG"
+  if (
+    cd "$REPO"
+    GH_TOKEN=wrong-token GITHUB_TOKEN=wrong-token GH_FAKE_DENIED=1 \
+      SKIP_INIT=1 PATH="${BIN}:/usr/bin:/bin" ./scripts/start-issue.sh "${args[@]}"
+  ) >"${TMP_DIR}/denied-start.out" 2>"${TMP_DIR}/denied-start.err"; then
+    fail "${naming} startup must stop on designated-account repository denial"
+  fi
+  [ ! -e "${REPO}/.worktrees/issue-349" ] || fail "repository denial created a worktree"
+  [ "$(grep -c 'args=auth token' "$GH_LOG")" = 1 ] || fail "denial selected another account"
+  [ "$(grep -c 'args=issue view 349' "$GH_LOG")" = 1 ] || fail "denial retried repository access"
+  grep -Fq 'repository access denied' "${TMP_DIR}/denied-start.err" \
+    || fail "repository denial must be visible for same-account recovery"
+done
 
 for scenario in missing unavailable; do
   if [ "$scenario" = missing ]; then

@@ -459,6 +459,7 @@ link_tools "$BIN" bash sh env git basename dirname mkdir rmdir rm cat sed tr cut
   uname true false
 cat > "${BIN}/gh" <<'GH'
 #!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'issue view' ]; then printf 'Log completeness fixture\n'; exit 0; fi
 exit 1
 GH
 chmod +x "${BIN}/gh"
@@ -670,6 +671,7 @@ link_tools() {
 write_fake_gh() {
   cat > "$1" <<'SH'
 #!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'issue view' ]; then printf 'Log completeness fixture\n'; exit 0; fi
 exit 1
 SH
   chmod +x "$1"

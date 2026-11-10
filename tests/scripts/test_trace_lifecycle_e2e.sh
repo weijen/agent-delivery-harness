@@ -94,7 +94,7 @@ write_fake_gh() {
   cat > "$1" <<'SH'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
-  "issue view") exit 1 ;;
+  "issue view") printf 'Lifecycle trace fixture\n'; exit 0 ;;
   "pr view")
     if [ -f "${GH_STATE:?}" ]; then
       case "$*" in

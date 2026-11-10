@@ -3,7 +3,7 @@
 # per-issue naming used by the worktree harness. issue-lib.sh is SOURCED (not
 # executed), so this test sources it inside throwaway git repos and asserts the
 # pure naming contract: issue-number parsing, zero-padding, slug derivation +
-# offline fallback, branch naming, worktree-path naming, and main-checkout
+# failed lookup rejection, branch naming, worktree-path naming, and main-checkout
 # resolution from inside a linked worktree.
 #
 # It uses a temp repo and a fake `gh` so it does not touch the developer's real
@@ -88,19 +88,22 @@ resolve_issue_env 105 wide
 [ "$ISSUE_PAD" = "105" ]                      || fail "pad: 105 should be left untouched (got '$ISSUE_PAD')"
 [ "$BRANCH" = "feature/issue-105-wide" ]      || fail "branch: 3-digit branch name wrong '$BRANCH'"
 
-# --- 3. Slug derivation + offline fallback -----------------------------------
-# Offline / not found: gh exits 1 -> slug falls back to issue-<num>.
+# --- 3. Slug derivation + failed repository lookup ---------------------------
 unset GH_TITLE
-[ "$(issue_derive_slug 42)" = "issue-42" ]    || fail "slug: offline gh should fall back to issue-42"
+if issue_derive_slug 42 >"${TMP_DIR}/slug.out" 2>"${TMP_DIR}/slug.err"; then
+  fail "slug: failed repository lookup must not return a successful fallback"
+fi
+grep -Fq 'designated account' "${TMP_DIR}/slug.err" || fail "slug: identify same-account recovery"
 
 # A real title is lowercased, hyphenated, and trimmed.
 GH_TITLE="Hello, World!  Foo" issue_derive_slug 42 >"${TMP_DIR}/slug.out"
 [ "$(cat "${TMP_DIR}/slug.out")" = "hello-world-foo" ] || fail "slug: title not normalized (got '$(cat "${TMP_DIR}/slug.out")')"
 
-# resolve_issue_env with NO explicit slug uses the derived (fallback) slug.
+# resolve_issue_env must preserve a failed lookup's status even in a conditional.
 unset GH_TITLE
-resolve_issue_env 42
-[ "$BRANCH" = "feature/issue-42-issue-42" ]   || fail "resolve: fallback slug not used in branch (got '$BRANCH')"
+if resolve_issue_env 42 >"${TMP_DIR}/resolve.out" 2>"${TMP_DIR}/resolve.err"; then
+  fail "resolve: failed lookup must propagate instead of exporting fallback state"
+fi
 
 # --- 4. main-checkout resolution from inside a linked worktree ---------------
 # issue_main_root must point at the MAIN checkout even when invoked from a
