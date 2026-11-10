@@ -221,6 +221,17 @@ not an agent transcription.
 
 ### Risk-proportionate delivery
 
+Use the [workflow classification rubric](workflow-tiers.instructions.md) to
+route clearly read-only work and clearly low-risk corrections directly. For
+other changes, investigate enough to choose the approach and determine Tier 2/3
+before implementation. Known risks and authorization limits apply throughout.
+Conclude planning with the tier, its impact-based reason and any missing
+preparation in existing progress or conversation; this is not another gate or
+approval pause. Reuse valid plans and evidence when a suspected risk is ruled
+out; extend only missing preparation when risk increases. Reassess material new
+findings before crossing the affected boundary. Unresolved credible critical
+risk cannot be silently treated as contained work.
+
 For a contained, reversible change with understood behavior and no new material
 trust, data-loss or external-side-effect risk, use a short approach in the existing
 issue progress or conversation instead of a separate `plan.md`. Keep the fixed
@@ -228,9 +239,11 @@ feature base and criterion/sensor record in local tracking. One real criterion
 needs one feature, not an artificial breakdown. Use `concise` independent review:
 it reduces report size, not the finding pass or required verdicts.
 
-Use a fuller plan and `full` review when uncertainty, cross-component contracts,
-irreversible effects or material security exposure warrant them. File count or
-words such as "deployment" alone do not decide risk. Ask for human decisions
+Use a fuller plan and `full` review when material risk or consequential unresolved
+contracts warrant them. Investigate uncertainty that could change the approach;
+unfamiliarity, file count or planning depth alone do not establish higher risk.
+Honor deeper-planning requests without automatically escalating classification.
+Ask for human decisions
 when requirements, authorization or consequential tradeoffs remain unresolved,
 not at routine milestones with no decision to make.
 

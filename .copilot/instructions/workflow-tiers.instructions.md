@@ -1,221 +1,114 @@
 ---
-description: 'Risk-proportionate workflow defaults; host issue-lifecycle gates take precedence.'
+description: 'Impact-based workflow classification; host lifecycle gates remain mandatory.'
 applyTo: "**"
 ---
 
-# Personal Workflow Doctrine
+# Workflow Tier Classification
 
-You are the single delivering agent (#352 retired the conductor/subagent choreography; the word survives only as the log-handback role label). This file is your operating doctrine across **every** project — repo conventions still
-override it. When the host repo has its own harness instructions, follow its lifecycle and proportionality rules. This is the default
-workflow when the host project doesn't specify one.
-
-In this issue harness, tiers vary ceremony, not gate eligibility: every coding issue
-retains preflight/worktree, genuine criterion records, applicable evidence,
-independent review, current-HEAD approval, PR/CI and authorized closeout.
-Contained low-risk work needs no separate plan file and uses `concise` review.
-Use the lifecycle in `harness.instructions.md`, not the generic commit/approval
-defaults below. File counts and keywords alone never force escalation.
+This file owns the classification rubric. The host repository owns the delivery
+lifecycle and authorization rules; in this harness, follow
+[harness.instructions.md](harness.instructions.md). Tiers vary planning depth and
+review output, not mandatory gate eligibility.
 
 ## Workflow Tiers
 
-Every coding task is classified into one of four tiers before work begins.
+Route clearly read-only work to Tier 0 and clearly low-risk corrections to
+Tier 1. For other changes, investigate and plan proportionately before deciding
+Tier 2 or Tier 3 from the planned impact; an initial Tier 2/3 guess is not required.
+Known risks and authorization limits apply during investigation, not only after
+classification. If a Tier 1 task reveals material risk, reassess before proceeding.
 
-| Tier | When to use | Subagents | Plan file | Tests | Commit-strategy ask |
-| ---- | ----------- | --------- | --------- | ----- | ------------------- |
-| 0    | Questions, explanations, shell-only / read-only ops | None | No | None | No |
-| 1    | Contained, reversible edits with understood behavior and no new material risk | Main-agent self-check; host harness still requires independent review | No | Applicable targeted checks | No (commit on request) |
-| 2    | Contained behavior change with some uncertainty | Single concise review when host rules, risk or user require it | When useful for continuity or decisions | Targeted first; applicable completion gates | No (commit on request) |
-| 3    | Material trust/data-loss risk, irreversible effects, uncertain cross-component contracts | Direct planning and implementation, then independent review | Fuller plan in host tracking | Risk-relevant checks and applicable completion gates | Follow existing authorization; ask only if unresolved |
+An explanation is Tier 0; a local spelling correction can be Tier 1. A one-line
+change to an approval control is not Tier 1 merely because the edit is small.
+If the spelling correction turns out to alter executable configuration,
+reassess its effects before continuing. Use applicable host configuration or
+deployment skills without treating the task name as its risk classification.
 
 ### Tier 0 — Direct answers
 
-Questions, explanations, branch switches, status checks, reading logs, simple terminal ops. Respond directly. No
-planning, no plan files, no commit-strategy questions.
+Questions, explanations, status checks and reading logs with no intended state
+change. Respond directly without planning or issue ceremony. Terminal use alone
+does not make work read-only: a destructive command is not Tier 0.
 
 ### Tier 1 — Fast path
 
-Contained and reversible, with understood acceptance and no new material trust,
-data-loss or external-side-effect risk. Consider behavior, not the number or names of files.
-
-State a brief approach, edit, run targeted tests (`<project test command> path::test_name`), self-check the diff. No
-plan file, no review subagent unless risk surfaces or the user asks. Commit only on request.
+Local, reversible corrections with understood behavior that preserve existing
+contracts and operating boundaries, with no new material trust, data-loss or
+external-side-effect risk. Use a brief approach and applicable targeted checks;
+follow the host lifecycle for review and delivery.
 
 ### Tier 2 — Lightweight structured
 
-Multiple related files, behavior change needing tests, some uncertainty but no broad architectural risk.
+Bounded behavioral development within the existing architecture, with known
+affected consumers that can be updated and verified together, and no material
+Tier 3 impact. Updating an internal parser and its repository-owned callers can
+qualify even when their internal interface changes.
 
-Inline short plan (in chat, not a file). Targeted TDD for behavior changes. **Optional** one review pass after
-implementation when risk warrants or the user asks — use `code-review-subagent` in `concise` mode. Targeted tests
-first; applicable completion gates at the end. No separate plan file unless useful
-or requested. Commit according to host rules or user authorization.
+### Tier 3 — Consequential boundaries
 
-### Tier 3 — Full orchestrated workflow
+Material changes to trust or security controls (including authentication,
+authorization, data isolation and approval controls), data-loss exposure,
+irreversible external effects, consequential breaking contracts for independent
+consumers, or architectural transitions requiring coordinated system changes.
+Use deeper planning and risk-relevant safeguards for the actual impact.
 
-Material security or data-loss exposure, irreversible external effects, uncertain
-cross-component behavior, or a user request for deeper planning. Merely touching a
-deployment document or several files does not create that risk.
+Using an existing security mechanism is not the same as changing its policy.
+Changing an independently consumed contract is not the same as updating known
+internal callers together. Describing a possible deployment in a document is
+not itself a deployment; actual provisioning, activation or teardown must be
+assessed for its effects and authorization.
 
-Uses `code-review-subagent` for the independent review (#352 retired the planning/generator
-subagents — plan directly in `.copilot-tracking/plans/`); otherwise the main
-agent implements directly. In a contract-v2 issue harness, one delivering agent follows
-`gate_start`, `gate_sensors`, `gate_review`, and `gate_merge_closeout`; local harness rules replace the generic
-approval pauses below.
+File/module count, internal interface changes, phased implementation, unfamiliarity
+and planning depth alone do not establish Tier 3. Honor a request for deeper
+planning without automatically changing the risk classification. Uncertainty
+directs investigation; consequences determine safeguards. Investigate credible
+critical risk before treating a change as contained. An agent capability limit
+is a separate blocker, not a higher task-risk tier.
 
-## Shared Principles
+## Conclude planning with the classification
 
-- **YAGNI** — Only build what was asked for. No speculative features, no "while we're here" improvements.
-- **TDD** — Write tests first. Run them to verify they fail for the right reason. Then write the minimal code to make
-  them pass.
-- **DRY** — But not at the cost of tight coupling. Three similar lines beat a premature abstraction.
-- **Minimum working path** — First prove the smallest real input-to-result slice.
-  Split independent criteria, not arbitrary file groups. Stop when acceptance and
-  necessary failure protection are demonstrated.
-- **Project conventions first** — Follow the host repo's formatting, naming, and test patterns. Verify with the
-  project's lint/format commands for any code change.
+Inspect enough relevant consumers, controls and effects to choose the smallest
+correct approach. Planning may be a few sentences; do not require a separate
+document or exhaustive investigation just to select a tier.
 
-## Routing
+Before implementation, state the tier and its impact-based reason in the
+existing progress or conversation, together with any missing preparation. For
+example: "Tier 2: all affected consumers are internal and updated and verified
+together; no trust boundary or independent contract changes."
 
-When a request arrives, classify the task type and respond accordingly.
+If a provisional assessment changes, explain what evidence changed it. A
+Tier 2-to-3 upgrade extends only the missing preparation before implementation.
+A Tier 3-to-2 downgrade requires evidence ruling out the suspected Tier 3 impact;
+reuse the existing plan and valid evidence. Unchanged classifications need no
+duplicate plan or repeated justification. This concludes planning, not a new
+gate or routine approval pause.
 
-- **Tier 0 (questions, explanations, branch switches, status checks, reading logs)** — respond directly with no
-  orchestration. No issue requirement, no subagent.
-- **Configuration-only edits** in a repo with explicit configure skills — use the host repo's configure skill if
-  present; otherwise treat as Tier 1 or Tier 2 by scope.
-- **Setup, teardown, deployment** in a repo with explicit setup/teardown/deploy skills — use the host repo's skill if
-  present; otherwise classify by scope.
-- **Coding tasks (Tier 1+)** — classify by the tier rubric above.
+If credible critical risk remains unresolved, do not claim Tier 2 containment.
+Investigate further or stop before the affected boundary when a safe approach
+cannot be established. A higher tier does not resolve a capability limitation
+or grant missing authorization. Reassess whenever implementation reveals a
+material scope or risk change, before crossing the newly affected boundary.
 
-### Chat-to-issue handshake
+## Delivery follows the host lifecycle
 
-For chat-driven coding tasks that will modify any file (Tier 1, 2, or 3): when the host repo uses an issue-driven
-workflow (`.github/ISSUE_TEMPLATE/` exists, the README references issues, or the user has signalled they want one),
-draft an issue first.
-
-1. Draft a title and body (background, expected behavior, acceptance criteria).
-2. Present the draft to the user; ask for approval before creating it.
-3. On approval, run `gh issue create --title "…" --body "…"` and, if the host repo provides an issue-init command,
-   run it to snapshot the issue and a test baseline.
-4. If the user declines: stop. Do not implement inline.
-
-**Tier 0 is exempt.** The handshake only fires when files will be modified.
-
-**Personal-only / scratchpad work is exempt** — the user can waive the handshake by saying so.
-
-## Tier 3 Orchestrated Workflow
-
-The delivering agent's only subagent invocation is the independent end-of-issue review (#352). **To invoke it, read the
-agent's `.agent.md` file and pass its full content plus relevant work context as the subagent prompt.**
-
-Personal subagent locations:
-
-- `.copilot/agents/code-review-subagent.agent.md`
-
-### 1. Start
-
-Use the host's commit convention and existing user authorization. Ask only when
-commit or publication authority is genuinely unresolved.
-
-### 2. Plan
-
-Write the plan yourself in host tracking (default `.copilot-tracking/plans/`).
-Include the acceptance criteria, approach, consequential decisions and verification.
-Do not copy the conversation or add detail without a delivery purpose.
-In an issue harness, choose the approach before decomposing features, following
+Choose the approach before decomposing features, following
 [the breakdown flow](../../docs/HARNESS.md#the-breakdown-flow-plan--clarify--feature_list).
-Its reasoning questions do not require extra headings, alternatives, or approval.
+In this harness, every coding issue retains issue authority, isolated
+worktree/preflight, TDD, criterion/sensor evidence, independent whole-diff review,
+current-HEAD approval, final applicable validation, PR/green CI and authorized
+merge/closeout. Contained low-risk work uses a short approach and `concise` review;
+material risk or consequential unresolved contracts warrant fuller planning and
+`full` review under [Risk-proportionate delivery](harness.instructions.md#risk-proportionate-delivery).
+Review output depth does not reduce the finding pass or required verdicts.
 
-### 3. Resolve open decisions
+For chat-driven coding in an issue-driven host, draft the issue and obtain
+approval to create it unless that authority is already explicit. If declined,
+do not implement inline. Tier 0 and explicitly waived personal scratchpad work
+are exempt. An existing approved issue needs no repeat handshake.
 
-Ask about unresolved requirements, consequential tradeoffs or authorization.
-Otherwise proceed within the approved task; no routine pause is needed.
-
-### 4. Implement (phase by phase)
-
-For each phase in the approved plan:
-
-a. **Implement** — follow the host repo's implementation path (#352: single agent) for
-  the selected feature's complete RED, minimal implementation, GREEN, and pass-state cycle
-  (teeth-proof retired, #334); otherwise implement directly.
-   - For behavior changes, follow strict TDD: failing test → verify right failure → minimal implementation → passing test.
-   - Apply style fixes scoped to touched files using the project's lint/format commands.
-   - Run targeted tests during the phase and applicable completion gates at the end.
-
-b. **Verify** — run the selected feature's declared sensors and mark `passes:true` only after checks and
-  product-quality blocking gates pass.
-
-c. **Self-check** — before declaring the phase done, scan the diff: lint clean, tests pass, no debug leftovers, no
-  unrelated changes.
-
-d. **Commit** — if user chose auto-commit, write a conventional-commit message (`type(scope): summary` ≤ 50 chars,
-   body bullets, no internal-workflow references). **Use the user's existing signing setup** — never disable signing
-   to avoid a passphrase prompt. If manual, stage the changes and present the commit message; let the user commit.
-
-### 5. Review before close
-
-After all phases are implemented, invoke `code-review-subagent` in `full` mode. Pass:
-
-- The objective and acceptance criteria from the plan
-- The set of files modified across all phases
-- Tests that were expected
-- The review mode (`full` for Tier 3 close)
-
-**Response protocol:**
-
-- **CRITICAL** or **MAJOR** findings (spec or quality) — fix and re-run the review on the affected scope.
-- **MINOR** findings — note in the completion summary; do not block.
-- A failed spec-compliance check blocks approval even if quality is clean, and vice versa.
-
-### 6. Complete
-
-Present the completion summary inline. Write a persistent summary to `.copilot-tracking/plans/` only when the user
-asks for one.
-
-### Mid-pipeline rules
-
-- Surface material changes in scope or risk; do not add count-based approval pauses.
-
-For blocker, retry, and review-feedback handling, see **When to Stop and Ask** and **Important Rules** below — those
-rules are stated once there.
-
-## Optional: host-repo issue-lifecycle commands
-
-When the host repo provides its own issue-lifecycle commands (preflight, issue init, finish/close), prefer them over
-this file's defaults as the shell layer around the pipeline above. This repo's own harness is script-based
-(`scripts/start-issue.sh`, `scripts/finish-issue.sh`, `.copilot-tracking/issues/`) — there is no Taskfile — so treat
-any `task …` invocation as illustrative, not a command to hunt for.
-
-## When to Stop and Ask
-
-Stop and ask the user when:
-
-- A blocker requires human authorization, missing requirements or an unavailable dependency.
-- The plan has critical gaps that prevent starting a phase.
-- A subagent returns an unclear or unexpected result.
-- Reassessment of repeated failures reveals an unresolved scope or design decision.
-- You're unsure which phase to execute next.
-
-Do **not**:
-
-- Repeat a failing approach without reassessing it.
-- Skip a phase because it seems blocked.
-- Make assumptions about user intent when the plan is ambiguous.
-- Force through a blocker that a subagent raised.
-
-## Commit Message Format
-
-```
-fix/feat/chore/test/refactor: Short description (max 50 chars)
-
-- Concise bullet describing a change
-- Another bullet if needed
-```
-
-Do not reference plan phases or internal workflow in commit messages.
-
-## Important Rules
-
-- For Tier 3 work, you implement directly; the one other model invocation is the single independent review at issue completion (#352).
-- For Tier 1 and Tier 2 work, you may implement directly with at most one optional review pass at the end.
-- Never force-push or amend commits that have already been pushed.
-- Never proceed through an unresolved authorization or consequential human decision.
-- When relaying review feedback to revision, include the full feedback — don't summarise or soften it.
+Work autonomously within the authorized scope through implementation, verification
+and the agreed delivery endpoint. Ask only when missing requirements,
+consequential tradeoffs or authorization prevent safe progress. Classification
+does not expand that authority or waive security, privacy, publication or merge
+controls. Run applicable required checks; broaden or repeat only when changes,
+failures or unresolved concerns justify it, then continue to completion.

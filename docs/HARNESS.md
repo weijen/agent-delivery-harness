@@ -441,7 +441,12 @@ root-level copies are stale by definition and should be removed instead of docum
 
 The delivering agent derives `feature_list.json` from the issue and chosen approach.
 Planning depth follows behavioral risk; no separate plan file is required for a
-contained low-risk change. Do not proceed while a necessary human decision is unresolved:
+contained low-risk change. Use the
+[workflow classification rubric](../.copilot/instructions/workflow-tiers.instructions.md):
+clearly read-only work and clearly low-risk corrections route directly;
+other changes need proportionate investigation before determining Tier 2/3.
+Known risks and authorization constraints apply during planning too.
+Do not proceed while a necessary human decision is unresolved:
 
 1. **Choose the approach before decomposing work.** Start from the observable
    result and how to verify it, not an assumed implementation. Inspect existing
@@ -455,6 +460,14 @@ contained low-risk change. Do not proceed while a necessary human decision is un
    alternatives when one approach is sufficient. Keep that short approach in
    progress/chat for low-risk work; write
    `.copilot-tracking/issues/issue-NN/plan.md` when complexity or uncertainty warrants it.
+   Conclude planning before implementation by stating the tier, its impact-based
+   reason and any missing preparation in existing progress or conversation.
+   Extend only missing preparation if risk increases; reuse valid plans and
+   evidence when inspection rules out a suspected higher-risk impact. Unchanged
+   decisions need no duplicate planning. This is part of choosing the approach,
+   not an additional gate, approval pause or classification document. Reassess
+   material new findings before crossing an affected boundary; do not claim
+   containment while credible critical risk remains unresolved.
 2. **Resolve necessary human decisions.** Ask about unresolved requirements,
    authorization or consequential tradeoffs. Do not manufacture an approval pause
    when the issue already provides the needed decisions.
