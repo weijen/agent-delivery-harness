@@ -115,6 +115,19 @@ if run_check_hard; then cat "$CHECK_OUT"; fail "incomplete feature should fail u
 grep -qi 'incomplete' "$CHECK_OUT" || fail "hard mode should report incomplete features"
 emit "incomplete feature fails under REQUIRE_FEATURES_COMPLETE=1"
 
+for payload in '{}' '{"features":[]}'; do
+  set_features "$payload"
+  if ! run_check; then cat "$CHECK_OUT"; fail "unpopulated progress should remain usable in warning mode"; fi
+  if run_check_hard; then cat "$CHECK_OUT"; fail "strict completion accepted absent required items: ${payload}"; fi
+  grep -q '\.features' "$CHECK_OUT" || fail "strict completion must identify the missing required feature array"
+done
+emit "strict completion rejects absent or empty feature arrays without blocking progress checks"
+
+set_features '{"features":[{"id":"R1","type":"repair","finding_fingerprint":"fixture-repair","title":"Required repair","steps":[],"passes":false,"blocked_on":"implementation remains incomplete"}]}'
+if run_check_hard; then cat "$CHECK_OUT"; fail "strict completion accepted an incomplete blocked repair"; fi
+grep -qi 'incomplete' "$CHECK_OUT" || fail "strict completion must report the unfinished repair"
+emit "strict completion includes incomplete blocked repair items"
+
 # 9. A fully complete, well-formed list passes in both modes.
 set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green"}]}'
 if ! run_check; then cat "$CHECK_OUT"; fail "complete list should pass in default mode"; fi
@@ -145,6 +158,12 @@ if grep -qi "command not found" "$CHECK_OUT"; then
   fail "missing-jq run hit an undefined command (crash, not a clean skip)"
 fi
 emit "missing jq skips the check with a warning and exit 0"
+
+if PATH="$NOJQ_BIN" run_check_hard; then
+  cat "$CHECK_OUT"; fail "strict completion accepted unavailable validation tooling"
+fi
+grep -qiE 'jq.*required' "$CHECK_OUT" || fail "strict completion must identify the required jq tool"
+emit "missing jq blocks strict completion instead of producing successful evidence"
 
 # 12. Retired proof and waiver fields are inert unknown metadata.
 set_features '{"features":[{"id":"a","title":"A","steps":["s"],"passes":true,"verification":"sensor X green","teeth_proof":"malformed legacy value","teeth_proof_waiver":{},"red_first_waiver":42}]}'

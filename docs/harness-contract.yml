@@ -482,6 +482,7 @@ env_flags:
   - name: REQUIRE_FEATURES_COMPLETE
     owner: scripts/validation/check-feature-list.sh
     present: REQUIRE_FEATURES_COMPLETE
+    effect: Require jq, a nonempty feature array and complete required items; unavailable validation fails closed.
   - name: REQUIRE_TRACE_CONSISTENCY
     owner: scripts/validation/review-gate.sh
     present: REQUIRE_TRACE_CONSISTENCY

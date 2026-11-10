@@ -758,8 +758,12 @@ numeric count omitted.
 `./scripts/validation/check-feature-list.sh <N>` is a lightweight feature-list lifecycle guard. It validates that an issue's
 `feature_list.json` is well formed — valid JSON object; every `.features[]` item has `id`, `title`, an array `steps`,
 and a boolean `passes`; and any `passes:true` feature carries non-empty `verification` text — and reports completion
-state. Incomplete (`passes:false`) features are a non-blocking warning by default and a hard failure under
-`REQUIRE_FEATURES_COMPLETE=1`. `./scripts/finish-issue.sh` reuses this same check, so the two paths cannot drift. It
+state. Incomplete (`passes:false`) features are a non-blocking warning by default.
+Strict completion (`REQUIRE_FEATURES_COMPLETE=1`) requires available `jq`, a
+nonempty `.features` array and all required feature/repair items complete;
+missing tooling or an unpopulated list cannot produce successful completion.
+Default progress validation retains its warning/skip behavior.
+`./scripts/finish-issue.sh` reuses this same check, so the two paths cannot drift. It
 is deliberately generic: it does not read project docs, devcontainers, CI, or any sensor registry, and never executes
 anything from the feature list.
 
