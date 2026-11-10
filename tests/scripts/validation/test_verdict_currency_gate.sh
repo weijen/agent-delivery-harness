@@ -25,7 +25,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/fixture.sh"
-fixture_repo --with-scripts validation/review-gate.sh
+fixture_repo --with-scripts validation/review-gate.sh,log-handback.sh
 TMP_DIR="$FIXTURE_TMP_DIR"
 REPO="$FIXTURE_REPO"
 
@@ -221,6 +221,100 @@ fi
 grep -q 'not a full commit SHA' "${TMP_DIR}/approve.out" \
   || fail "S11: refusal must name the non-SHA identity"
 emit "ref-name reviewed_sha refused"
+
+# Two independently reviewed features; repairing F1 does not refresh F2.
+printf 'independent\n' > independent.txt
+git add independent.txt
+git commit -q -m "feat: independent feature"
+source_sha="$(git rev-parse HEAD)"
+write_feature_list
+jq '.features += [{"id":"F2","title":"independent feature","passes":true}]' \
+  "${TRACK_DIR}/feature_list.json" > "${TMP_DIR}/features.json"
+mv "${TMP_DIR}/features.json" "${TRACK_DIR}/feature_list.json"
+write_verdict "$source_sha"
+jq -c '."harness.feature_id" = "F2"' "${TRACK_DIR}/trace.jsonl" \
+  > "${TMP_DIR}/f2-verdict.json"
+cat "${TMP_DIR}/f2-verdict.json" >> "${TRACK_DIR}/trace.jsonl"
+printf 'repair\n' >> product.txt
+git add product.txt
+git commit -q -m "fix: repair F1 only"
+append_verdict "$(git rev-parse HEAD)"
+if approve; then fail "unattested stale F2 must still refuse"; fi
+emit "scoped repair alone cannot refresh another feature"
+
+assessment="$(jq -cn --arg sha "$source_sha" '[{
+  feature_id:"F2", reviewed_sha:$sha,
+  rationale:"Reviewed every intervening change: only F1 product.txt changed; F2 independent.txt has no shared dependencies or changed contracts."
+}]')"
+TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE=F1 TRACE_REVIEW_EVENT_ID=scoped-repair \
+  TRACE_CARRY_FORWARD="$assessment" \
+  bash scripts/log-handback.sh conductor review_verdict F1 pass "F1 repair verified" \
+  > "${TMP_DIR}/writer.out" 2>&1
+cp "${TRACK_DIR}/trace.jsonl" "${TMP_DIR}/valid-carry.jsonl"
+if ! approve; then
+  fail "explicit current-candidate unaffected-F2 assessment should approve"
+  sed 's/^/# /' "${TMP_DIR}/approve.out" >&2
+fi
+[ "$(jq -s '[.[] | select(."harness.feature_id" == "F2")] | length' "${TRACK_DIR}/trace.jsonl")" = 1 ] \
+  || fail "carry must preserve the original F2 verdict, not synthesize a pass"
+emit "explicit carry-forward permits scoped repair without restamping F2"
+
+carry_refuses() {
+  local description="$1" marker
+  marker="$(cat "$MARKER")"
+  if approve; then fail "$description"; fi
+  grep -q 'verdict currency' "${TMP_DIR}/approve.out" \
+    || fail "$description: expected currency rejection"
+  [ "$(cat "$MARKER")" = "$marker" ] || fail "$description: marker changed"
+}
+
+# Hand-edited trace controls must fail closed even when bypassing the writer.
+for mutation in \
+  '."harness.carry_forward" = "not-json"' \
+  '."harness.carry_forward" = "[]"' \
+  '."harness.carry_forward" |= (fromjson | .[0].reviewed_sha = "HEAD" | tojson)' \
+  '."harness.carry_forward" |= (fromjson | .[0].rationale = " " | tojson)' \
+  '."harness.carry_forward" |= (fromjson | . + . | tojson)' \
+  '."harness.carry_forward" |= (fromjson | .[0].feature_id = "F1" | tojson)' \
+  '."harness.review_event_id" = ""' \
+  '."harness.repair_scope" = "F1,F3"' \
+  '."harness.reviewed_sha" = "0000000000000000000000000000000000000000"'; do
+  jq -c "if has(\"harness.carry_forward\") then $mutation else . end" \
+    "${TMP_DIR}/valid-carry.jsonl" > "${TRACK_DIR}/trace.jsonl"
+  carry_refuses "invalid carry assessment ($mutation) must refuse"
+done
+emit "malformed and incomplete carry assessments cannot bypass approval"
+
+jq -c --arg sha "$(git rev-parse HEAD)" '
+  if has("harness.carry_forward") then
+    ."harness.carry_forward" |= (fromjson | .[0].reviewed_sha = $sha | tojson)
+  else . end' "${TMP_DIR}/valid-carry.jsonl" > "${TRACK_DIR}/trace.jsonl"
+carry_refuses "carry source must match the original newest F2 passing verdict"
+emit "carry source identity must match the original verdict"
+
+cp "${TMP_DIR}/valid-carry.jsonl" "${TRACK_DIR}/trace.jsonl"
+append_verdict "$(git rev-parse HEAD)" repair
+carry_refuses "superseded repair events cannot supply carry assessments"
+emit "carry requires the latest scoped verdicts to belong to its repair event"
+
+cp "${TMP_DIR}/valid-carry.jsonl" "${TRACK_DIR}/trace.jsonl"
+jq -c '."harness.outcome" = "fail"' "${TMP_DIR}/f2-verdict.json" \
+  >> "${TRACK_DIR}/trace.jsonl"
+carry_refuses "an unresolved F2 failure must not be bypassed by carry"
+emit "carry cannot bypass a later failure on the carried feature"
+
+cp "${TMP_DIR}/valid-carry.jsonl" "${TRACK_DIR}/trace.jsonl"
+printf 'shared dependency change\n' > shared.txt
+git add shared.txt
+git commit -q -m "feat: unreviewed shared dependency"
+append_verdict "$(git rev-parse HEAD)"
+carry_refuses "a subsequent shared change needs a new impact assessment"
+printf 'affected feature change\n' >> independent.txt
+git add independent.txt
+git commit -q -m "feat: unreviewed F2 change"
+append_verdict "$(git rev-parse HEAD)"
+carry_refuses "changed F2 content must not carry on a stale assessment"
+emit "unreviewed shared and feature changes invalidate candidate-bound carry"
 
 # --- S12 linked-worktree layout: feature_list in the worktree, trace at the ---
 # main root (the live-run layout that produced Unilever issue-21). A gate that

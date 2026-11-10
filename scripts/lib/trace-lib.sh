@@ -54,6 +54,28 @@ trace_warn() {
   return 0
 }
 
+# Validation, not emission: callers must reject a false result.
+trace_review_carry_valid() {
+  local assessment="$1" scope="$2"
+  jq -es --arg scope "$scope" '
+    def token: type == "string" and test("^[A-Za-z0-9._-]+$");
+    if length != 1 then false else .[0]
+    |
+    ($scope | split(",")) as $repaired
+    | ($scope | test("^[A-Za-z0-9._-]+(,[A-Za-z0-9._-]+)*$"))
+      and (($repaired | unique | length) == ($repaired | length))
+      and (type == "array" and length > 0)
+      and all(.[];
+        type == "object"
+        and (.feature_id | token)
+        and (.reviewed_sha | type == "string" and test("^[0-9a-f]{40}$"))
+        and (.rationale | type == "string" and test("\\S"))
+        and (.feature_id as $id | $repaired | index($id) == null))
+      and ((map(.feature_id) | unique | length) == length)
+    end
+  ' <<< "$assessment" >/dev/null 2>&1
+}
+
 # Redact secret shapes from a fully-serialized span line (stdin→stdout).
 # Portable sed -E only (BSD + GNU); patterns per plan D3:
 #   - GitHub tokens ghp_/gho_/ghu_/ghs_/ghr_ and github_pat_

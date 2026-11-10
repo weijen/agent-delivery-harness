@@ -76,6 +76,13 @@ Historical schema values do not authorize new writes or add completion gates.
 - Deeper Copilot analysis reads native records. Runtime tool/model spans are
   not required to prove that the kept semantic spine exists.
 - Independent review judges test quality and records attributed findings.
+  Passing repair verdicts may carry the optional `harness.carry_forward`
+  assessment string: unaffected feature IDs, original reviewed SHAs and impact
+  rationales, bound to the carrier's candidate SHA and repair event.
+  This preserves original verdicts rather than emitting synthetic refreshed
+  passes. The approval gate requires a complete current repair event and matching
+  original verdict identities; the reviewer judges shared-change impact.
+  See [Scoped repair currency](../.copilot/instructions/harness.instructions.md#scoped-repair-currency).
   The current lifecycle authority is [HARNESS.md](HARNESS.md), not an
   ordered triple of historical handbacks.
 

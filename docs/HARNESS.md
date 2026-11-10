@@ -704,6 +704,25 @@ conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
 merge instead of a rebase. Review and validate the resulting HEAD, not the
 candidate that existed before synchronization.
 
+**Scoped repair and unaffected verdicts.** The reviewer repairs its judgment only
+for the named revised features. It also assesses all changes since each other
+feature's original reviewed commit, including shared dependencies and contracts.
+For genuinely unaffected features it returns an explicit ID, original reviewed
+SHA and impact rationale, not a new passing verdict. The delivering agent records
+that assessment as `TRACE_CARRY_FORWARD` on an actual passing repair verdict.
+The original verdict remains intact. Approval requires the assessment to name
+that original verdict and bind the exact current candidate, with all scoped
+repair verdicts passing in the same event. Changed or affected features require
+repair review; an unchanged file alone is not evidence of independence.
+Missing, invalid or stale assessments still block approval. See
+[Scoped repair currency](../.copilot/instructions/harness.instructions.md#scoped-repair-currency)
+for the handoff format and compatibility rules.
+
+If the reviewer adds tests, the delivering agent incorporates and validates them,
+commits the candidate and obtains review of that resulting candidate before
+recording final verdicts. Do not approve the old HEAD with uncommitted test
+additions. Scripts check candidate binding, not the truth of an impact rationale.
+
 `./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state
 without running sensors. After review and repairs, explicitly run the final
 `./scripts/run-sensors.sh --gate pre-pr` once on the successful unchanged candidate.

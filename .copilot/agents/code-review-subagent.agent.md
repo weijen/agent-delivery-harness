@@ -79,6 +79,9 @@ edit authority. Report the changed assets, command and observed result.
 Use existing focused runners and the harness's shared test-execution budget.
 A new test exposing a material defect requires `NEEDS_REVISION`; give the
 delivering agent the repair direction and sensor to rerun after repair.
+If you change test assets, hand them back for the delivering agent to incorporate,
+validate and commit. Review the resulting candidate before returning final
+verdicts; a verdict at the old HEAD cannot cover uncommitted additions.
 
 Retain one independent case per required behavior/failure scenario, preserving
 distinct negative, safety and runtime boundaries. Before retiring a duplicate,
@@ -166,6 +169,16 @@ adversarial test judgment and targeted regression checks. It defers the
 whole-diff exposure sweep, not the pre-PR exposure obligation: new repair content
 must be covered before publication. Report new out-of-scope findings as a
 separate non-repair event for their own feature; never expand repair scope silently.
+
+For unaffected features whose original verdict would otherwise become stale,
+apply [Scoped repair currency](../instructions/harness.instructions.md#scoped-repair-currency).
+Assess every intervening change from each original reviewed SHA, including
+shared dependencies/contracts, and return explicit ID/SHA/impact-rationale
+entries for `TRACE_CARRY_FORWARD` on an actual passing repair verdict.
+Do not issue new passing verdicts for these features. Affected features require
+actual repair review, not carry-forward. Include all scoped verdicts under the
+same event ID and candidate SHA; scripts cannot establish independence from
+unchanged paths or verify the truth of your rationale.
 
 Return one report containing:
 
