@@ -444,7 +444,7 @@ sha_bindings:
     owner: scripts/validation/review-gate.sh
     present: approved-head
   - id: approval-required-state
-    binding: Active-issue approval creation requires valid complete feature and repair state plus passing per-feature review evidence; unavailable required validation rejects without a new marker.
+    binding: Active-issue approval creation and consumption require valid complete feature and repair state plus passing per-feature review evidence, even at unchanged HEAD; rejection cannot create or carry a marker.
     owner: scripts/validation/review-gate.sh
     present: required_review_state_gate
   - id: review-verdict

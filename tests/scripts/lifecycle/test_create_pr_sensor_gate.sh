@@ -104,6 +104,36 @@ reject_before_push feature-green-only
   || fail "fixture pre-PR failed"
 cp "$EVIDENCE" "$SAVED"
 
+STATE="${REPO}/.copilot-tracking/issues/issue-418/feature_list.json"
+TRACE="${REPO}/.copilot-tracking/issues/issue-418/trace.jsonl"
+MARKER="${REPO}/.copilot-tracking/review-gate/issue-418/approved-head"
+cp "$STATE" "${FIXTURE_TMP_DIR}/reviewed-state"
+cp "$TRACE" "${FIXTURE_TMP_DIR}/reviewed-trace"
+cp "$MARKER" "${FIXTURE_TMP_DIR}/approved-marker"
+for mutation in missing-state invalid-state incomplete-feature blocked-repair missing-review; do
+  cp "${FIXTURE_TMP_DIR}/reviewed-state" "$STATE"
+  cp "${FIXTURE_TMP_DIR}/reviewed-trace" "$TRACE"
+  case "$mutation" in
+    missing-state) rm "$STATE" ;;
+    invalid-state) printf '{"features":null}\n' >"$STATE" ;;
+    incomplete-feature) jq '.features[0].passes=false' "${FIXTURE_TMP_DIR}/reviewed-state" >"$STATE" ;;
+    blocked-repair)
+      jq '.features += [{id:"R1",title:"Required repair",steps:[],passes:false,type:"repair",finding_fingerprint:"repair",blocked_on:"unfinished"}]' \
+        "${FIXTURE_TMP_DIR}/reviewed-state" >"$STATE" ;;
+    missing-review)
+      jq -c 'select(.["harness.lifecycle_step"] != "review_verdict")' \
+        "${FIXTURE_TMP_DIR}/reviewed-trace" >"$TRACE" ;;
+  esac
+  reject_before_push "$mutation"
+  [ ! -f "$GH_STATE" ] || fail "$mutation: refused candidate created a PR"
+  [ "$(git -C "$REPO" rev-parse HEAD)" = "$head" ] || fail "$mutation changed HEAD"
+  cmp -s "$MARKER" "${FIXTURE_TMP_DIR}/approved-marker" || fail "$mutation changed approval"
+  grep -Eqi 'required.*(feature|review)|feature_list' "$OUT" \
+    || fail "$mutation lacked a corrective required-state diagnostic"
+done
+cp "${FIXTURE_TMP_DIR}/reviewed-state" "$STATE"
+cp "${FIXTURE_TMP_DIR}/reviewed-trace" "$TRACE"
+
 # Mutate real recorder output, re-signing semantic-shape cases to isolate them
 # from the checksum guard; these are adversarial fixture rows, not gate evidence.
 for mutation in malformed malformed-tail tampered wrong-mode wrong-scope empty-count negative-count string-count failed; do

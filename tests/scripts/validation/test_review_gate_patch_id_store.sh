@@ -507,11 +507,22 @@ advance_origin_main_unrelated "$RA"
 
 OUT_A="${TMP_DIR}/a.out"
 CALL_LOG_A="${TMP_DIR}/a-review-gate-calls"
+(cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/create-pr.sh --prepare) \
+  >"$OUT_A" 2>&1 || { cat "$OUT_A"; fail "(A) preparation failed"; }
+STATE_A="${RA}/.copilot-tracking/issues/issue-310/feature_list.json"
+cp "$STATE_A" "${TMP_DIR}/reviewed-state-a"
+cp "$MARKER_A" "${TMP_DIR}/approved-marker-a"
+jq '.features[0].passes=false' "${TMP_DIR}/reviewed-state-a" >"$STATE_A"
+if (cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_A") \
+    >"$OUT_A" 2>&1; then
+  fail "(A) compatibility carry consumed incomplete required state"
+fi
+cmp -s "$MARKER_A" "${TMP_DIR}/approved-marker-a" || fail "(A) refused carry rewrote approval"
+cp "${TMP_DIR}/reviewed-state-a" "$STATE_A"
 (
   cd "$RA"
-  PATH="${BIN}:${PATH}" ./scripts/create-pr.sh --prepare
   PATH="${BIN}:${PATH}" REVIEW_GATE_CALL_LOG="$CALL_LOG_A" \
-    ./scripts/validation/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_A"
+    ./scripts/validation/review-gate.sh carry-rebase-approval "$PRE_REBASE_HEAD_A" &&
   ./scripts/run-sensors.sh --gate pre-pr
 ) >"$OUT_A" 2>&1 || { cat "$OUT_A"; fail "(A) explicit preparation/carry/pre-PR failed"; }
 # Carry remains an explicit compatibility API, not an implicit publish action.

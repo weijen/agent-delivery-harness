@@ -984,6 +984,7 @@ case "$command" in
       yellow "⚠ carry-rebase-approval: patch-id changed — branch diff was altered by the rebase (or a post-rebase amend). Re-run review and approve."
       exit 1
     fi
+    required_review_state_gate || exit 1
 
     # In a linked worktree the canonical marker lives in the main checkout
     # root, so carry validates and updates both copies.
@@ -1024,6 +1025,8 @@ case "$command" in
     fi
     IFS= read -r approved_sha < "$marker_read_file" || true
     approved_sha="$(printf '%s' "$approved_sha" | tr -d '[:space:]')"
+    TRACE_STAGE="required_review_state"
+    required_review_state_gate || exit 1
     if [ "$approved_sha" != "$head_sha" ]; then
       # Docs-only carry (2026-07-22, extends the #310 identity carry): when the
       # approved SHA is an ancestor of HEAD and every commit since touches ONLY

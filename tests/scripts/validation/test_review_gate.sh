@@ -791,6 +791,16 @@ out="$(./scripts/validation/review-gate.sh approve 2>&1)" || fail "approve faile
 
 # 1. docs-only delta carries
 printf 'more\n' >> docs/guide.md && git add docs/guide.md && git commit -qm "docs: more"
+state=.copilot-tracking/issues/issue-77/feature_list.json
+marker=.copilot-tracking/review-gate/issue-77/approved-head
+cp "$state" "${TMP_DIR}/reviewed-state"
+cp "$marker" "${TMP_DIR}/approved-marker"
+jq '.features[0].passes=false' "${TMP_DIR}/reviewed-state" >"$state"
+if ./scripts/validation/review-gate.sh check >"${TMP_DIR}/incomplete.out" 2>&1; then
+  fail "docs-only carry approved incomplete required work"
+fi
+cmp -s "$marker" "${TMP_DIR}/approved-marker" || fail "blocked docs-only carry rewrote approval"
+cp "${TMP_DIR}/reviewed-state" "$state"
 out="$(./scripts/validation/review-gate.sh check 2>&1)" || fail "docs-only delta must carry the approval (got: $out)"
 grep -q "carried" <<<"$out" || fail "carry notice missing (got: $out)"
 
