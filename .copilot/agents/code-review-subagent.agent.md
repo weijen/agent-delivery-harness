@@ -53,6 +53,16 @@ Use references for the decision at hand:
 
 ## Four Review Verdicts
 
+For a candidate revised through
+[blocked-review recovery](../instructions/harness.instructions.md#blocked-review-recovery),
+verify the recorded human reason/conditions, assessment and replacement mapping
+against the authoritative issue requirements, including explicit owner approval
+for any requirement change and affected dependencies. Assess the implemented
+replacement and actual verification; a replanning record is not review evidence.
+Preserve justified unaffected verdicts through the existing scoped carry rules.
+The delivering agent owns replanning and repairs; do not manufacture a failed
+reviewer verdict merely because approval was blocked before review.
+
 Report each verdict distinctly for each reviewed feature:
 
 1. **Spec compliance:** required acceptance criteria are met without unapproved

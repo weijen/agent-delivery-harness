@@ -320,6 +320,47 @@ Remediate supported defects and verify repairs before approval. Unresolved
 scope/authority decisions go to the owner, not to a fabricated implementation
 repair. Optional observations need no debt entry merely to permit completion.
 
+### Blocked-review recovery
+
+For active issue delivery, approval creation and consumption require valid,
+complete required feature/repair state and passing per-feature review evidence,
+including at unchanged HEAD. Unavailable required validation/evidence blocks
+approval; optional telemetry does not replace it. A rejection cannot create or
+carry an approval marker. Ordinary in-progress validation remains warning-mode.
+
+At blocked review/approval, **repair is the default**: implement the missing
+behavior or obtain missing verification, then return to the applicable review
+gate. Changing a plan alone is not completion or approval. Do not invent a
+failed reviewer verdict when no independent reviewer issued one.
+
+Only at this blocked review point may a **human request replanning**, providing
+a reason and relevant conditions. Assess what changed or which assumption was
+wrong, whether the conditions hold, why repair is insufficient, and how a
+feasible replacement covers affected requirements and dependencies. Check
+technical claims where feasible; legitimate owner constraints need no failing
+external call. Clarify unclear or conflicting information without overruling
+authorized owner requirements.
+
+If justified, record the request, reason, conditions, assessment and affected
+scope in the existing issue/progress records. Replan only affected work and
+retain a traceable mapping from unmet items to their replacements, covering the
+authoritative requirements and related dependencies. Removing or weakening a
+requirement needs an explicit owner-approved issue change, recorded with that
+mapping; never silently delete unmet work. Permission to replan does not flip
+`passes:false` to `passes:true` or introduce a waived status.
+
+Preserve unaffected completed work and applicable evidence, including
+[explicit scoped-review carry-forward](#scoped-repair-currency). Revised required
+behavior still needs implementation, applicable tests and actual independent
+review, then approval, final applicable validation and normal publication gates.
+If justification is absent, insufficient or unverified, explain why and keep
+approval blocked while repairing or resolving missing information. Do not
+endlessly retry a known-impossible implementation.
+
+This is not a global interruption/replanning mechanism or an automatic response
+to ordinary test/CI failure. Existing escalation and safety/authorization stops
+remain in force.
+
 ### Publication exposure protection
 
 The delivering agent inspects staged content before committing and **all
