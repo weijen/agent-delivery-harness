@@ -9,7 +9,7 @@ project, not the harness.
 
 After any context compaction, re-read this block before continuing.
 - Emit `deviation` when it happens and `review_verdict` at review handback.
-- On a `review_verdict` fail, `log-handback.sh` requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE` (true demands a reproduction or proposed fix); omit optional attributes rather than guessing.
+- For failed verdicts, use `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT` and the other required fields in [Agent-span conventions](.copilot/instructions/harness.instructions.md#agent-span-conventions); omit unknown optional fields.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
 
 ## Choose the task path
