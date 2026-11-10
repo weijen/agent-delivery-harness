@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SHELLCHECK_VERSION_PIN=0.11.0
 SHELLCHECK_SHA256_PIN=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
 UV_VERSION_PIN=0.12.3
@@ -40,9 +39,8 @@ if [ -f "$archive" ]; then
 else
   headers=(--header 'Accept: application/octet-stream')
   if [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]; then
-    # shellcheck source=scripts/lib/github-identity-lib.sh
-    source "$ROOT/scripts/lib/github-identity-lib.sh"
-    harness_identity_activate
+    # Fixed public tool assets use the supplied CI service token, not a
+    # developer account binding. Repository lifecycle operations stay separate.
     headers+=(--header "Authorization: Bearer ${GH_TOKEN:-$GITHUB_TOKEN}")
   fi
   downloaded=0

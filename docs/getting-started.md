@@ -253,6 +253,15 @@ verify that this same account has access to the configured origin; correct its
 permissions or origin rather than trying another identity. No lifecycle command
 falls back to the globally active account or switches global authentication.
 
+The CI tool downloader (`scripts/install/install-ci-tool.sh`) is separate: it
+downloads only its fixed public ShellCheck/uv release assets, verifies pinned
+checksums and versions, and uses an explicitly supplied `GH_TOKEN` (or
+`GITHUB_TOKEN`) service token, or an unauthenticated download if neither is set.
+It does not load a developer binding, look up accounts or select another token
+after a permission failure. Hosted runners need no human binding for this
+download. This is not a bypass for issue-delivery repository operations, which
+always require the canonical binding above.
+
 ## 3. Choose a language
 
 Pick the language for your project's first surface. The harness ships profiles

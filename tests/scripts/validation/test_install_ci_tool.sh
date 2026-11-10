@@ -34,7 +34,7 @@ while [ "$#" -gt 0 ]; do
       if [ "$2" = 'Accept: application/octet-stream' ]; then accept=1
       else
         [ "${TEST_AUTH:-0}" = 1 ] && [ "$2" = 'Authorization: Bearer fixture-token' ]
-        [ -f "$RUNNER_TEMP/identity-activated" ]; authenticated=1
+        authenticated=1
       fi
       shift 2 ;;
     --write-out) [ "$2" = '%{http_code}' ]; shift 2 ;;
@@ -105,16 +105,37 @@ for tool in shellcheck uv; do
     [ ! -s "$GITHUB_PATH" ] || fail "$tool download failure exposed PATH"
   done
   mkdir -p "$fixture/scripts/lib"
-  cat >"$fixture/scripts/lib/github-identity-lib.sh" <<'SH'
+  cp "$ROOT/scripts/lib/github-identity-lib.sh" "$fixture/scripts/lib/"
+  cat >"$TMP_DIR/bin/gh" <<'SH'
 #!/usr/bin/env bash
-harness_identity_activate() { touch "$RUNNER_TEMP/identity-activated"; }
+printf 'unexpected developer account lookup\n' >>"$RUNNER_TEMP/gh-calls"
+exit 1
 SH
-  printf '0\n' >"$CALLS"
-  TEST_AUTH=1 GITHUB_TOKEN=fixture-token SCENARIO=success \
-    "$fixture/scripts/install/install-ci-tool.sh" "$tool" >"$fixture/out" 2>&1 \
-    || fail "$tool authenticated API installation"
-  if grep -Fq fixture-token "$fixture/out"; then fail "$tool token leaked to diagnostics"; fi
-  rm "$cache"; : >"$GITHUB_PATH"
+  chmod +x "$TMP_DIR/bin/gh"
+  printf '0\n' >"$CALLS"; : >"$GITHUB_PATH"
+  if TEST_AUTH=1 GITHUB_TOKEN=fixture-token SCENARIO=permanent \
+    "$fixture/scripts/install/install-ci-tool.sh" "$tool" >"$fixture/out" 2>&1; then
+    fail "$tool authenticated denial accepted"
+  fi
+  [ "$(cat "$CALLS")" = 1 ] && [ ! -s "$GITHUB_PATH" ] \
+    || fail "$tool authenticated permanent denial retried or exposed PATH"
+  for credential in GH_TOKEN GITHUB_TOKEN; do
+    printf '0\n' >"$CALLS"
+    if [ "$credential" = GH_TOKEN ]; then
+      TEST_AUTH=1 GH_TOKEN=fixture-token GITHUB_TOKEN=wrong-token SCENARIO=success \
+        "$fixture/scripts/install/install-ci-tool.sh" "$tool" >"$fixture/out" 2>&1 \
+        || { cat "$fixture/out" >&2; fail "$tool GH_TOKEN service-token installation"; }
+    else
+      TEST_AUTH=1 GITHUB_TOKEN=fixture-token SCENARIO=success \
+        "$fixture/scripts/install/install-ci-tool.sh" "$tool" >"$fixture/out" 2>&1 \
+        || { cat "$fixture/out" >&2; fail "$tool GITHUB_TOKEN service-token installation"; }
+    fi
+    [ "$(cat "$CALLS")" = 1 ] || fail "$tool service-token download retried"
+    if grep -Eq 'fixture-token|wrong-token' "$fixture/out"; then fail "$tool token leaked to diagnostics"; fi
+    rm "$cache"
+  done
+  [ ! -e "$RUNNER_TEMP/gh-calls" ] || fail "$tool download looked up a developer account"
+  : >"$GITHUB_PATH"
   printf '#!/usr/bin/env bash\nprintf "%s 9.9.9\\n"\n' \
     "$([ "$tool" = shellcheck ] && printf version: || printf uv)" >"$fixture/payload/$directory/$tool"
   tar -cf "$ARCHIVE" -C "$fixture/payload" "$directory"
