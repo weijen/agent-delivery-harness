@@ -441,7 +441,12 @@ root-level copies are stale by definition and should be removed instead of docum
 
 The delivering agent derives `feature_list.json` from the issue and chosen approach.
 Planning depth follows behavioral risk; no separate plan file is required for a
-contained low-risk change. Do not proceed while a necessary human decision is unresolved:
+contained low-risk change. Use the
+[workflow classification rubric](../.copilot/instructions/workflow-tiers.instructions.md):
+clearly read-only work and clearly low-risk corrections route directly;
+other changes need proportionate investigation before determining Tier 2/3.
+Known risks and authorization constraints apply during planning too.
+Do not proceed while a necessary human decision is unresolved:
 
 1. **Choose the approach before decomposing work.** Start from the observable
    result and how to verify it, not an assumed implementation. Inspect existing
@@ -455,6 +460,14 @@ contained low-risk change. Do not proceed while a necessary human decision is un
    alternatives when one approach is sufficient. Keep that short approach in
    progress/chat for low-risk work; write
    `.copilot-tracking/issues/issue-NN/plan.md` when complexity or uncertainty warrants it.
+   Conclude planning before implementation by stating the tier, its impact-based
+   reason and any missing preparation in existing progress or conversation.
+   Extend only missing preparation if risk increases; reuse valid plans and
+   evidence when inspection rules out a suspected higher-risk impact. Unchanged
+   decisions need no duplicate planning. This is part of choosing the approach,
+   not an additional gate, approval pause or classification document. Reassess
+   material new findings before crossing an affected boundary; do not claim
+   containment while credible critical risk remains unresolved.
 2. **Resolve necessary human decisions.** Ask about unresolved requirements,
    authorization or consequential tradeoffs. Do not manufacture an approval pause
    when the issue already provides the needed decisions.
@@ -656,7 +669,11 @@ compatibility, but they are outside the lifecycle and make no closeout claim.
 
 Conductor decisions and subagent handbacks are recorded as **agent spans** through `scripts/log-handback.sh`: the
 delivering agent runs it once per recorded event (single-source), and that single invocation writes the agent span to
-`trace.jsonl` — the canonical record. The `## Action Log` section in `progress.md` is **rendered** from those
+`trace.jsonl` — the canonical record. The independent reviewer returns verdict
+records with the reviewed SHA; only the delivering agent writes them, after
+checking that HEAD still matches. The writer stamps current HEAD, not a supplied
+historical SHA. Retiring the conductor/generator choreography did not retire
+this independent review result. The `## Action Log` section in `progress.md` is **rendered** from those
 spans by `scripts/render-action-log.sh` (which log-handback.sh calls after span emission), so the trace is the
 single source of truth and the Action Log is a human-readable view derived from it. Never hand-author the span or
 the Action Log line separately; always use `scripts/log-handback.sh` so the canonical span and the rendered view
@@ -722,6 +739,17 @@ are printed with a `⚠` summary but do not change the exit code — live traces
 otherwise fail every in-flight run. Setting `REQUIRE_TRACE_CONSISTENCY=1` (the documented promotion flag, mirroring
 `REQUIRE_FEATURES_COMPLETE`) turns findings into a hard failure: `check` exits non-zero and `finish-issue.sh` refuses
 before `worktree remove`, leaving the worktree intact.
+
+That tool default is distinct from review policy: a reviewer still blocks a
+concrete current safety/lifecycle violation, schema/redaction failure, missing
+hard-gate evidence already due, unresolved deviation or substantiated repeated-loop
+violation. A checker warning alone does not establish such a defect. Historical
+attribution/field-shape defects are residual telemetry risk, not per-feature
+repair requests or a reason to rewrite old spans. Separate verdict, currency,
+reject-cap and publication-evidence gates keep their existing enforcement.
+Unavailable instrumentation is `trace evidence unavailable`, never an inferred
+pass. The detailed handback fields live in
+[Agent-span conventions](../.copilot/instructions/harness.instructions.md#agent-span-conventions).
 
 The log-completeness gate (`review-gate.sh log-completeness`) scans the per-issue Action Log `progress.md` for known
 placeholder signatures that should be filled before closeout: `Recorded on completion below`, `TBD`, and
