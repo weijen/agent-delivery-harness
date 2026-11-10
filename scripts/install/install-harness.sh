@@ -41,6 +41,7 @@ MANAGED_CLEANUP_PATHS=(
 	.copilot/agents
 	.copilot/skills
 	.copilot/prompts
+	.github/copilot-instructions.md
 	.github/harness-identity.env.example
 	.github/workflows/harness-smoke.yml
 	VERSION

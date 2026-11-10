@@ -1,22 +1,23 @@
 ---
-mode: agent
-description: 'Run the harness coding-session ritual: get bearings, implement ONE feature with TDD, leave a clean state.'
+agent: agent
+description: 'Deliver one issue feature; complete review and closeout when it is the last feature.'
 ---
 
 # Session Ritual
 
-Work on issue: **${input:issue:which issue number? e.g. 1}**.
+Work on issue **${input:issue:GitHub issue number}** using the project's `AGENTS.md`
+and [canonical issue lifecycle](../instructions/harness.instructions.md).
 
-Follow the project's own `AGENTS.md` when present, then the canonical lifecycle in
-[.copilot/instructions/harness.instructions.md](../instructions/harness.instructions.md).
-In harness-enabled projects, strict harness adherence overrides personal workflow tiers and generic coding-agent
-behavior.
+Start or resume its isolated worktree, read the live issue and local state, then
+deliver the highest-priority eligible `passes:false` feature. Work on one item
+at a time using TDD and its scoped completion sensors; commit, push and update
+progress before stopping.
 
-One agent owns the issue end-to-end (#352): plan, TDD, scoped sensors, spans, boundary
-scripts. The only other model invocation is `code-review-subagent` — the independent review, once, at
-issue completion, over the whole branch diff. If you deviate from the harness path: stop, report, recover — record the deviation span via
-`scripts/log-handback.sh`, then return to the required lifecycle step.
+If unfinished features remain, stop after this feature. If all features pass
+(including when they already pass on entry), continue through the lifecycle's
+independent review, required repairs, final applicable validation, PR, green CI,
+merge and closeout. Repair items are also delivered one at a time. Use the existing
+scripts and authority boundaries; stop on unresolved blockers rather than bypassing gates.
 
-Use the repo's own issue state to pick the next `feature_list` item. Implement one feature,
-verify its declared completion sensors, leave a clean state, and report the feature, commit
-SHA, and next feature/blocker.
+Report the feature/result, checks run and outcomes, commit SHA, and next feature or
+blocker. At issue completion, include the PR and verified merge/closeout state.

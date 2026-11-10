@@ -178,7 +178,7 @@ fi
 # ============================================================================
 if [ -f "${PROMPT}" ]; then
   head -1 "${PROMPT}" | grep -q -- '---' || fail "C: prompt missing YAML frontmatter"
-  grep -q 'mode: *agent' "${PROMPT}" || fail "C: prompt is not mode: agent"
+  grep -q '^agent: *agent$' "${PROMPT}" || fail "C: prompt does not select agent: agent"
   grep -q 'scripts/maintenance/audit-sweep.sh' "${PROMPT}" \
     || fail "C: prompt does not reference ./scripts/maintenance/audit-sweep.sh"
   grep -q 'index.md' "${PROMPT}" || fail "C: prompt does not reference index.md"

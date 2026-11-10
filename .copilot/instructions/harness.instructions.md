@@ -1,23 +1,14 @@
 ---
-description: 'Harness doctrine — guides, sensors, and the per-feature lifecycle agents must follow.'
-applyTo: '**'
+description: 'Canonical lifecycle for starting, resuming, delivering and closing harness issues. Read before issue delivery, not for read-only questions.'
 ---
 
 # Harness Doctrine
 
-This file is the **full lifecycle** behind the golden rules in
-[the upstream map](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md). The human-readable lifecycle overview and diagram live in
-[docs/HARNESS.md](../../docs/HARNESS.md). In harness-enabled projects, strict harness adherence is mandatory:
-these instructions override personal workflow tiers and override generic coding-agent behavior whenever they differ.
-Keep the same lifecycle gates while scaling planning and review output to actual risk
-(see **Risk-proportionate delivery** below). The model is borrowed from three sources:
-
-- **Anthropic** — long-running agents: initializer vs coding agent, a feature list, incremental
-  progress, getting-up-to-speed rituals, leave a clean state.
-- **Martin Fowler** — Agent = Model + Harness; **Guides (feedforward)** + **Sensors (feedback)**;
-  computational vs inferential; quality-left; the steering loop.
-- **OpenAI/Codex** — repo as system of record, AGENTS.md as a map, enforce invariants not
-  implementations, garbage collection of drift.
+Read this file for issue delivery. Questions and read-only reviews do not enter
+this lifecycle. For active issue work, these rules take precedence over generic
+workflow defaults; scale planning and review detail using **Risk-proportionate
+delivery** below without dropping gates. The human-readable overview and diagram
+live in [docs/HARNESS.md](../../docs/HARNESS.md).
 
 If you deviate from the harness path: stop, report, recover — record the deviation with `scripts/log-handback.sh` (step `deviation`, outcome `blocked` — see the agent-span
 conventions in §3) so the agent span and the Action Log entry are written together, then recover by returning to the
@@ -35,13 +26,13 @@ important sources of truth from its own `AGENTS.md`.
 - Issues mechanise the project contract: each one should be small enough to review, test, and
   merge without leaving half-finished work behind.
 
-## 1. Two kinds of session
+## 1. Session scope
 
-- **Initializer (this scaffold)** — sets up the environment so future sessions can work:
-  AGENTS.md, `scripts/init.sh`, project docs, and per-issue `feature_list.json`. Done once per
-  project/issue.
-- **Coding session** — makes **incremental** progress on exactly one feature, then leaves a
-  clean state. This is the normal mode.
+Deliver one feature at a time. A one-feature session stops after its verified,
+committed and pushed feature when unfinished items remain. If all items pass,
+continue through independent review, required repairs, final validation and
+authorised PR/CI/merge/closeout (§3), including when all items pass on entry.
+Repair items follow the same one-at-a-time discipline.
 
 ## 2. Start-of-session ritual (always)
 
@@ -54,17 +45,6 @@ a reproduction or proposed fix. Before authenticated GitHub operations, call
 as the upstream [Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor).
 
 1. **Get into the right worktree.**
-   - **Launch topology (optional, historical):** starting the Copilot CLI conductor session from
-     the repository root — the trusted folder that contains `.github/hooks/` — used to matter
-     because the CLI loads workspace hooks from the session cwd, and a launch from `$HOME` or
-     another untrusted cwd silently skipped `.github/hooks/harness-trace.json`. That hook only ever
-     reconstructed runtime `tool span`s, which issue #305 **retired**; the kept semantic spine the
-     harness emits about itself is written regardless of launch cwd, so a non-root launch no longer
-     loses any kept signal. See **The Capture Retirement Boundary** in
-     [../../docs/observability-and-trace-schema.md](../../docs/observability-and-trace-schema.md),
-     which owns this reconciliation. Listing the repository root under `trustedFolders` in
-     `~/.copilot/config.json` and launching from it remains a harmless convention, not a
-     requirement to avoid a lost run.
    - **Starting an issue:** run `./scripts/start-issue.sh <N>` from the **main checkout**. It runs
      `./scripts/init.sh` and, only on a green environment, creates branch
     `feature/issue-NN-<slug>` and an isolated worktree at
@@ -110,9 +90,8 @@ trace spans, #332) is the only progress artifact.
 
 ## 3. Deliver the issue (one agent, one context — #352)
 
-There are no conductor/generator roles and no handback choreography. ONE agent owns the issue
-end-to-end in a single continuous context. The only other model invocation in the lifecycle is
-the independent review (gate 3).
+One delivering agent owns the issue in a continuous context. The only other model
+invocation is independent review and any required repair review (gate 3).
 
 Workflow per issue:
 
@@ -279,9 +258,9 @@ checker's warn-only `repair_items_missing` audits the routing.
 
 #### Required per-feature handoff sequence
 
-Retired as choreography (#352). `feature_start` is not required for current
-`passes:true` work (#370): historical spans remain schema-valid, but no
-selection-evidence gate or waiver applies.
+Use scoped feature verification followed by independent end-of-issue review.
+`feature_start` is optional, not a completion gate.
+Historical `passes:true` records remain readable without a `feature_start` span.
 
 #### Agent-span conventions
 
@@ -345,13 +324,10 @@ defects remain residual telemetry risk, reported once without span-rewrite
 repairs. Unavailable instrumentation is reported as `trace evidence unavailable`,
 not inferred as pass. See [the review gate](../../docs/HARNESS.md#review-gate).
 
-What is deliberately gone (#352): red/impl/green handback payloads and their spans as
-obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check
-ceremony at green (the review owns quality), full pre-review execution, automatic
-approval-time evidence rebinding, and the conductor/generator payload choreography.
-This does not retire the independent reviewer's result or transfer trace-writing
-ownership to the reviewer. The trace spine narrows to lifecycle spans emitted by
-the scripts, `deviation`, and `review_verdict`.
+The trace spine is script-emitted lifecycle spans, `deviation` and `review_verdict`.
+Historical capture and retired choreography are explained in the
+[trace reference](../../docs/observability-and-trace-schema.md#current-operating-contract);
+they do not add current obligations or transfer trace-writing ownership to the reviewer.
 
 ## Same-Class Escalation
 

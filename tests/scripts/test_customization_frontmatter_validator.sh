@@ -236,6 +236,15 @@ assert_invalid "agent description is limited to 1024 characters" \
 
 assert_valid "no-argument discovery accepts checked-in skills and agents"
 
+mkdir -p "${TMP_DIR}/prompts"
+printf '%s\n' '---' 'agent: agent' 'description: Run a focused task' '---' \
+  >"${TMP_DIR}/prompts/task.prompt.md"
+assert_valid "prompt selects its execution agent" "${TMP_DIR}/prompts/task.prompt.md"
+printf '%s\n' '---' 'mode: agent' 'description: Obsolete selector' '---' \
+  >"${TMP_DIR}/prompts/legacy.prompt.md"
+assert_invalid "prompt requires the current agent selector" \
+  "${TMP_DIR}/prompts/legacy.prompt.md" "missing_agent"
+
 if [ "$fails" -ne 0 ]; then
   printf 'FAIL: %d customization frontmatter assertion(s) regressed\n' "$fails" >&2
   exit 1

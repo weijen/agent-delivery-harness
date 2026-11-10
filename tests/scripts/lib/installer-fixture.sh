@@ -25,6 +25,13 @@ installer_assert_fresh_layout() {
 				|| fail "fresh ${profile} changed dependency ${asset}"
 		done <"$manifest"
 	done
+	local entry="${target}/.github/copilot-instructions.md" guide
+	[ -f "$entry" ] || fail "fresh ${profile} lacks the host-discoverable instruction entry point"
+	for guide in .copilot/instructions/harness.instructions.md \
+		.copilot/instructions/workflow-tiers.instructions.md docs/github-copilot.md; do
+		grep -Fq "](../${guide})" "$entry" && [ -f "${target}/${guide}" ] \
+			|| fail "fresh ${profile} cannot route to ${guide}"
+	done
 	layout_map="$(awk '
 		function emit() {
 			if (old != "") print old "\t" canonical "\t" (audience == "" ? "installed" : audience) "\t" public

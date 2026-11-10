@@ -1,9 +1,17 @@
 ---
-description: 'Impact-based workflow classification; host lifecycle gates remain mandatory.'
-applyTo: "**"
+description: 'Task routing and impact-based classification; read when choosing a workflow. Host lifecycle gates remain mandatory.'
 ---
 
-# Workflow Tier Classification
+# Workflow Routing
+
+Choose by the requested outcome, not file count or keywords.
+
+| Task | Path |
+| --- | --- |
+| Question, explanation or read-only review | Answer directly; no issue, plan, worktree or implementation pipeline |
+| Issue delivery in a harness-enabled project | Read [the canonical lifecycle](harness.instructions.md); it owns all delivery gates and proportionality |
+| Explicit maintenance audit | Read the requested skill and respect its edit/report policy; an audit does not authorise publication or unrelated fixes |
+| Other work in a project without an issue lifecycle | Follow the project's conventions and classify impact below |
 
 This file owns the classification rubric. The host repository owns the delivery
 lifecycle and authorization rules; in this harness, follow
