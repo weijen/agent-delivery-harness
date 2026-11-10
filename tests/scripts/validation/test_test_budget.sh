@@ -11,6 +11,9 @@ fail() { printf 'test-budget: %s\n' "$*" >&2; exit 1; }
 source "$ROOT/scripts/lib/test-budget-lib.sh"
 # These fixtures own their artificial clock/state; the outer runner still times us.
 unset HARNESS_TEST_SESSION HARNESS_TEST_ACTIVE
+contract_seconds="$(awk '/^test_execution_budget:/{inside=1;next} inside && /^  seconds:/{print $2;exit}' "$ROOT/docs/harness-contract.yml")"
+[[ "$contract_seconds" =~ ^[0-9]+$ ]] || fail "contract budget is missing or invalid"
+contract_limit_ms=$((contract_seconds * 1000))
 
 success() {
 	read -r _ last active <"$HARNESS_TEST_SESSION/state"
@@ -23,13 +26,13 @@ budget_session success >"$TMP/success" 2>&1 || fail "work past 600 seconds faile
 
 limit_boundary() {
 	budget_now_ms() { printf '0\n'; }
-	printf '899999 0 0\n' >"$HARNESS_TEST_SESSION/state"
-	budget_update tick || fail "budget expired before 900 seconds"
-	printf '900000 0 0\n' >"$HARNESS_TEST_SESSION/state"
+	printf '%s 0 0\n' "$((contract_limit_ms - 1))" >"$HARNESS_TEST_SESSION/state"
+	budget_update tick || fail "budget expired before the contract limit"
+	printf '%s 0 0\n' "$contract_limit_ms" >"$HARNESS_TEST_SESSION/state"
 	rc=0
 	budget_update tick || rc=$?
-	[ "$rc" = 124 ] && [ "$(cat "$HARNESS_TEST_SESSION/timeout")" = 900000 ] \
-		|| fail "budget did not expire exactly at 900 seconds"
+	[ "$rc" = 124 ] && [ "$(cat "$HARNESS_TEST_SESSION/timeout")" = "$contract_limit_ms" ] \
+		|| fail "runtime budget did not expire at the contract limit (${contract_seconds}s)"
 }
 budget_session limit_boundary >"$TMP/boundary" 2>&1 || { cat "$TMP/boundary"; fail "900-second boundary failed"; }
 
