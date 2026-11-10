@@ -697,6 +697,14 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
+The lifecycle's [Review acceptance policy](../.copilot/instructions/harness.instructions.md#review-acceptance-policy)
+owns dispositions. Supported BLOCKING/CRITICAL/MAJOR findings require remediation;
+MINOR observations and unresolved suspicions are advisory, not automatic repair
+items or closeout blockers. Evidence can be an executed reproduction or decisive
+static proof; unsafe execution is not required. Two optional suggestions do not
+become two mandatory repairs. Two or more findings **requiring remediation**
+become separate repair items, verified one at a time before scoped repair review.
+
 Before final review and applicable pre-PR validation, run
 `./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
 does not require an approval, execute sensors, push, or open a PR. It aborts

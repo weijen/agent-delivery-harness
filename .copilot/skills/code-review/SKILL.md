@@ -40,15 +40,18 @@ maintainability, and report actionable findings tied to specific lines.
 
 ## Report
 
-Classify each finding **Critical / Warning / Info** and close with a one-line count summary
-(e.g. `2 critical, 1 warning`). Tie every finding to a line and give a concrete fix, not a vague complaint.
+For harness delivery, use [Review acceptance policy](../../instructions/harness.instructions.md#review-acceptance-policy):
+BLOCKING/CRITICAL/MAJOR need concrete support and remediation; MINOR is optional.
+Tie each finding to evidence and a concrete fix; unresolved suspicions remain
+advisory rather than becoming blocking findings because execution was unavailable.
+For other repositories, follow their own severity/disposition contract.
 
 ## Best Practices
 
 - **Review the diff, not the file** — focus on changed lines and their immediate context; skip pre-existing issues
   unless the change interacts with them.
-- **Limit scope per round** — prioritize the top 5–7 most impactful findings; overwhelming the author reduces the
-  chance anything gets fixed.
+- **Limit scope per round** — stay within the requested diff, but report every
+  supported material finding; brevity must not hide a required repair.
 - **Acknowledge good patterns** — call out a clean abstraction or a well-handled edge case.
 - **Check tests alongside code** — tie missing-test findings to explicit requirements
   or credible in-scope failures and identify the gap in existing assertions. An
