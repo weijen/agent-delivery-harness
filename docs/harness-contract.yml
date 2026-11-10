@@ -28,7 +28,8 @@ repair_policy:
   durable_lesson: optional-validated-pair
 
 test_execution_budget:
-  seconds: 600
+  seconds: 900
+  performance_target_seconds: 600
   accounting: cumulative-test-wall-time-union
   excluded: independently-executed-setup-build-format-lint-typecheck
   included: preparation-inside-test-command

@@ -127,6 +127,28 @@ set -e
 [ "$rc" = "1" ] || fail "repair-mode 'unmapped' must be rejected (got ${rc}: $out)"
 [ "$(span_count)" = "$before" ] || fail "rejected repair-unmapped write must append no span"
 
+reject_case "carry on failed verdict" "TRACE_CARRY_FORWARD" \
+  "${valid_env[@]}" TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE=F1 \
+  TRACE_REVIEW_EVENT_ID=carry-test TRACE_CARRY_FORWARD='[]'
+
+carry_write() {
+  (cd "$FIX" && TRACE_REVIEW_MODE=repair TRACE_REPAIR_SCOPE=F1 \
+    TRACE_REVIEW_EVENT_ID=carry-test TRACE_CARRY_FORWARD="$1" \
+    ./scripts/log-handback.sh conductor review_verdict F1 pass "repair assessment" 2>&1)
+}
+for payload in 'not-json' '[]' '{}' \
+  '[] [{"feature_id":"F2","reviewed_sha":"0000000000000000000000000000000000000000","rationale":"checked"}]' \
+  '[{"feature_id":"F2","reviewed_sha":"HEAD","rationale":"checked"}]' \
+  '[{"feature_id":"F1","reviewed_sha":"0000000000000000000000000000000000000000","rationale":"checked"}]' \
+  '[{"feature_id":"F2","reviewed_sha":"0000000000000000000000000000000000000000","rationale":" "}]'; do
+  before="$(span_count)"
+  if out="$(carry_write "$payload")"; then
+    fail "invalid carry payload must reject: $payload"
+  fi
+  grep -q 'TRACE_CARRY_FORWARD' <<<"$out" || fail "carry rejection must name its input"
+  [ "$(span_count)" = "$before" ] || fail "invalid carry must append no span"
+done
+
 # 7. A fully-attributed fail verdict writes one span the checker accepts —
 #    and the checker must actually RUN (rc 0/1, never a load error).
 lh "${valid_env[@]}" TRACE_REVIEW_EVENT_ID=issue77-full-test >/dev/null \

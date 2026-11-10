@@ -170,6 +170,18 @@ else
   warn "scripts/lib/trace-lib.sh not found — agent span skipped"
 fi
 
+if [ -n "${TRACE_CARRY_FORWARD:-}" ]; then
+  [ "$STEP" = "review_verdict" ] && [ "$OUTCOME" = "pass" ] \
+    && [ "${TRACE_REVIEW_MODE:-}" = "repair" ] \
+    || fail "TRACE_CARRY_FORWARD is allowed only on passing repair review verdicts"
+  [[ "${TRACE_REVIEW_EVENT_ID:-}" =~ [^[:space:]] ]] \
+    || fail "TRACE_CARRY_FORWARD requires TRACE_REVIEW_EVENT_ID"
+  if ! declare -F trace_review_carry_valid >/dev/null 2>&1 \
+    || ! trace_review_carry_valid "$TRACE_CARRY_FORWARD" "${TRACE_REPAIR_SCOPE:-}"; then
+    fail "TRACE_CARRY_FORWARD requires a nonempty JSON array of unique unaffected feature_id, full reviewed_sha and nonblank rationale entries outside TRACE_REPAIR_SCOPE"
+  fi
+fi
+
 SPAN_ISSUE=""
 if [ "$HAVE_TRACE_LIB" = "1" ]; then
   SPAN_ISSUE="$(trace__resolve_issue 2>/dev/null || true)"
@@ -331,6 +343,8 @@ other'
         || fail "feature_id '${FEATURE_ID}' is not in TRACE_REPAIR_SCOPE '${TRACE_REPAIR_SCOPE}' (#318) — repair verdicts bind to named in-scope features; emit out-of-scope findings as a separate non-repair review event"
       REVIEW_ARGS+=("harness.repair_scope=${TRACE_REPAIR_SCOPE}")
     fi
+    [ -z "${TRACE_CARRY_FORWARD:-}" ] \
+      || REVIEW_ARGS+=("harness.carry_forward=$(jq -c . <<< "$TRACE_CARRY_FORWARD")")
 
     case "${TRACE_ACTIONABLE:-}" in
       true|false) REVIEW_ARGS+=("harness.actionable=${TRACE_ACTIONABLE}") ;;

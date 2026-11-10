@@ -142,6 +142,9 @@ Workflow per issue:
    A `NEEDS_REVISION` verdict routes the feature back to you; repair it in this same context, and
    re-reviews are `repair`-mode and scoped to the revised features. Repair commits move HEAD,
    so the resulting candidate needs its own explicit final pre-PR validation.
+   Scoped repairs may explicitly carry unaffected original verdicts under
+   [Scoped repair currency](#scoped-repair-currency); never invent refreshed
+   passing verdicts for unreviewed features.
    `./scripts/validation/review-gate.sh approve` records review approval only and never
    runs sensors. The retained `rebind-evidence.sh` compatibility helper only
    verifies existing rows; it cannot refresh missing, stale or invalid evidence.
@@ -304,6 +307,7 @@ values. The delivering agent records each with
 | `TRACE_FINDING_REPRODUCTION` / `TRACE_FINDING_PROPOSED_FIX` | Supply at least one for an actionable finding; include both when known. |
 | `TRACE_REPEAT_OF` | Prior fingerprint only for the same unrepaired defect; omit for a newly discovered hole. |
 | `TRACE_REPAIR_SCOPE` | Required on every repair-mode record, pass or fail: unique `[A-Za-z0-9._-]+` feature IDs separated by commas, no whitespace or empty tokens. The record's feature ID must be an exact member. Omit for full/concise. |
+| `TRACE_CARRY_FORWARD` | Optional on a passing repair verdict only: JSON array of unaffected `feature_id`, original `reviewed_sha` and concrete `rationale` entries, under [Scoped repair currency](#scoped-repair-currency). Requires the repair event ID. |
 
 Use a separate non-repair event for a finding outside the declared repair scope.
 The positional feature ID is the actual feature ID, or `unmapped` when no feature
@@ -312,6 +316,39 @@ Omit unknown optional fields instead of guessing. The writer validates the
 schema and automatically records `harness.reviewed_sha`; do not hand-author spans
 or translate a malformed invocation into a production finding. Multiple findings
 route through repair items as described above; do not aggregate their records.
+
+### Scoped repair currency
+
+The original passing verdict remains the evidence for an unaffected feature;
+an unchanged file alone does not establish that it is unaffected. The independent
+reviewer examines **all changes from that feature's original reviewed SHA to the
+candidate**, including shared dependencies, contracts, tests and configuration.
+Affected features enter the repair scope and receive actual repair verdicts.
+For each genuinely unaffected feature, return its ID, original reviewed SHA and
+a concrete impact rationale. Do not refresh its passing verdict or chain an
+assessment from a later carry-forward SHA.
+
+The delivering agent records those entries as `TRACE_CARRY_FORWARD`, a nonempty
+JSON array, on an actual passing repair verdict in the same review event:
+`[{"feature_id":"F2","reviewed_sha":"<original-full-SHA>","rationale":"<impact assessment>"}]`.
+Replace placeholders with the reviewer's evidence. Entries must be unique,
+outside `TRACE_REPAIR_SCOPE`, and identify completed features. The writer stamps
+the carrier verdict's current HEAD as the candidate; check that it is still the
+reviewed candidate before recording.
+
+Approval accepts carry only at that exact candidate, with every scoped feature's
+latest verdict passing in the same repair event and scope. The carried feature's
+latest verdict must still be its original pass at the named SHA. Missing,
+malformed, incomplete, source-mismatched or stale assessments do not bypass
+whole-content currency. A later candidate needs a new impact assessment or
+repair verdict; existing bookkeeping/rebase identity compatibility is unchanged.
+Scripts validate attribution and currency, not the truth of the reviewer's
+impact judgment.
+
+If the reviewer adds test assets, the delivering agent incorporates and validates
+them, commits the resulting candidate, and obtains review of that candidate
+before recording final verdicts or approving. Uncommitted reviewer additions
+are not covered by a verdict stamped at the previous HEAD.
 
 **Trace enforcement versus review policy.** General trace consistency is
 warn-only by default; `REQUIRE_TRACE_CONSISTENCY=1` promotes violations to a hard

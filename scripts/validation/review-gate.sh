@@ -586,7 +586,8 @@ _patch_id_for_branch() {
 #   * content-preserving rebases carry — identity is the patch stream above
 #     merge-base(origin/main, X), not the tree;
 #   * anything else owes a REPAIR-MODE verdict at HEAD (scoped, cheap), never
-#     a full re-review.
+#     a full re-review; explicitly unaffected verdicts may carry with a
+#     candidate-bound impact assessment from that repair review.
 VERDICT_BOOKKEEPING_PATH=".copilot-tracking"
 
 # _content_patch_id <commit> — product-content patch identity for <commit>:
@@ -633,6 +634,60 @@ _verdict_content_current() {
   # _content_patch_id; an unresolvable toplevel is stale (fail-closed).
   top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
   git -C "$top" diff --quiet "$reviewed" HEAD -- . ":(exclude)${VERDICT_BOOKKEEPING_PATH}" 2>/dev/null
+}
+
+# Keep the original verdict; the assessment belongs to an actual repair event.
+_verdict_carry_forward_current() {
+  local trace_file="$1" fid="$2" source_sha="$3" passing_ids="$4"
+  local rows row assessment scope
+  declare -F trace_review_carry_valid >/dev/null 2>&1 || return 1
+  rows="$(jq -Rsc --arg head "$head_sha" --arg fid "$fid" \
+      --arg source "$source_sha" --arg ids "$passing_ids" '
+    [split("\n")[] | fromjson?
+      | select(.["harness.lifecycle_step"] == "review_verdict")] as $verdicts
+    | ($ids | split("\n")) as $passing
+    | def latest($id):
+        [$verdicts[] | select(.["harness.feature_id"] == $id)] | last;
+    $verdicts[]
+    | select(.["gen_ai.agent.name"] == "conductor"
+        and .["harness.outcome"] == "pass"
+        and .["harness.review_mode"] == "repair"
+        and .["harness.reviewed_sha"] == $head
+        and (.["harness.review_event_id"] | type == "string" and test("\\S"))
+        and (.["harness.repair_scope"] | type == "string")
+        and (.["harness.carry_forward"] | type == "string"))
+    | . as $event
+    | (.["harness.carry_forward"] | fromjson?) as $carry
+    | select(($carry | type) == "array")
+    | select(any($carry[]; .feature_id == $fid and .reviewed_sha == $source))
+    | select(all($carry[];
+        . as $entry
+        | ($passing | index($entry.feature_id)) != null
+          and (latest($entry.feature_id)
+            | .["harness.outcome"] == "pass"
+              and .["harness.reviewed_sha"] == $entry.reviewed_sha)))
+    | (.["harness.repair_scope"] | split(",")) as $scope
+    | select(($scope | index($event["harness.feature_id"])) != null)
+    | select(all($scope[];
+        . as $id
+        | ($passing | index($id)) != null
+          and (latest($id)
+            | .["harness.outcome"] == "pass"
+              and .["harness.reviewed_sha"] == $head
+              and .["harness.review_mode"] == "repair"
+              and .["harness.review_event_id"] == $event["harness.review_event_id"]
+              and .["harness.repair_scope"] == $event["harness.repair_scope"])))
+  ' "$trace_file" 2>/dev/null)" || return 1
+  while IFS= read -r row; do
+    [ -n "$row" ] || continue
+    assessment="$(jq -r '.["harness.carry_forward"]' <<< "$row")" || return 1
+    scope="$(jq -r '.["harness.repair_scope"]' <<< "$row")" || return 1
+    if trace_review_carry_valid "$assessment" "$scope"; then
+      green "✓ verdict currency: feature ${fid} retains its verdict at ${source_sha} with explicit repair-review carry-forward to ${head_sha}."
+      return 0
+    fi
+  done <<< "$rows"
+  return 1
 }
 
 # verdict_currency_gate — refuse approve when any passes:true feature's NEWEST
@@ -747,7 +802,10 @@ verdict_currency_gate() {
       continue
     fi
     if ! _verdict_content_current "$sha"; then
-      red "✗ verdict currency: product content changed since feature ${fid} was reviewed at ${sha} — record a repair-mode verdict at the current HEAD (bookkeeping-only commits and content-preserving rebases carry automatically)."
+      if _verdict_carry_forward_current "$trace_file" "$fid" "$sha" "$passing_ids"; then
+        continue
+      fi
+      red "✗ verdict currency: product content changed since feature ${fid} was reviewed at ${sha} — obtain repair review for affected content, or explicit candidate-bound carry-forward for an unaffected feature (bookkeeping-only commits and content-preserving rebases carry automatically)."
       stale=1
     fi
   done <<< "$passing_ids"
