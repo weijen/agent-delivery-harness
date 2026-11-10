@@ -2,6 +2,58 @@
 
 <!-- version list -->
 
+## v0.51.1 (2026-11-10)
+
+### Bug Fixes
+
+- **#578**: Require complete review approval
+  ([#582](https://github.com/weijen/agent-delivery-harness/pull/582),
+  [`93b491e`](https://github.com/weijen/agent-delivery-harness/commit/93b491ebf5d6ac82a4624a34a2e19f639e7bf44d))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.51.0
+  ([`1b60ca8`](https://github.com/weijen/agent-delivery-harness/commit/1b60ca87c064544313f42fb395d899416733a09b))
+
+### Documentation
+
+- **#573**: Distinguish required review repairs
+  ([#577](https://github.com/weijen/agent-delivery-harness/pull/577),
+  [`58b413d`](https://github.com/weijen/agent-delivery-harness/commit/58b413dfb46f4df9519d2d1fcbbda4556a073136))
+
+- **#573**: Protect each outgoing publication
+  ([#577](https://github.com/weijen/agent-delivery-harness/pull/577),
+  [`58b413d`](https://github.com/weijen/agent-delivery-harness/commit/58b413dfb46f4df9519d2d1fcbbda4556a073136))
+
+- **#573**: Reconcile review and publication policy
+  ([#577](https://github.com/weijen/agent-delivery-harness/pull/577),
+  [`58b413d`](https://github.com/weijen/agent-delivery-harness/commit/58b413dfb46f4df9519d2d1fcbbda4556a073136))
+
+- **#573**: Unify review modes and audit triggers
+  ([#577](https://github.com/weijen/agent-delivery-harness/pull/577),
+  [`58b413d`](https://github.com/weijen/agent-delivery-harness/commit/58b413dfb46f4df9519d2d1fcbbda4556a073136))
+
+- **#574**: Clarify control-file ownership
+  ([#579](https://github.com/weijen/agent-delivery-harness/pull/579),
+  [`1684895`](https://github.com/weijen/agent-delivery-harness/commit/1684895b191567fd1eb3fee9d4bce0e62f0cd581))
+
+- **#574**: Consolidate harness workflow guidance
+  ([#579](https://github.com/weijen/agent-delivery-harness/pull/579),
+  [`1684895`](https://github.com/weijen/agent-delivery-harness/commit/1684895b191567fd1eb3fee9d4bce0e62f0cd581))
+
+- **#574**: Lead with the workflow journey
+  ([#579](https://github.com/weijen/agent-delivery-harness/pull/579),
+  [`1684895`](https://github.com/weijen/agent-delivery-harness/commit/1684895b191567fd1eb3fee9d4bce0e62f0cd581))
+
+- **#574**: Record bounded workflow outcomes
+  ([#579](https://github.com/weijen/agent-delivery-harness/pull/579),
+  [`1684895`](https://github.com/weijen/agent-delivery-harness/commit/1684895b191567fd1eb3fee9d4bce0e62f0cd581))
+
+- **#580**: Continue issue delivery to closeout
+  ([#581](https://github.com/weijen/agent-delivery-harness/pull/581),
+  [`d86fb34`](https://github.com/weijen/agent-delivery-harness/commit/d86fb34723d4eead8e13fef0a4dadf4bab036822))
+
+
 ## v0.51.0 (2026-11-10)
 
 ### Bug Fixes
