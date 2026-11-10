@@ -16,7 +16,11 @@ Choose by the requested outcome, not file count or keywords.
 This file owns the classification rubric. The host repository owns the delivery
 lifecycle and authorization rules; in this harness, follow
 [harness.instructions.md](harness.instructions.md). Tiers vary planning depth and
-review output, not mandatory gate eligibility.
+review output, not mandatory gate eligibility or the authorized endpoint.
+Issue delivery continues sequentially through verified closeout under
+[Session scope](harness.instructions.md#1-session-scope), unless the user
+explicitly narrows or pauses it or a genuine block prevents safe progress.
+Feature boundaries and context resumption require no routine reauthorization.
 
 ## Workflow Tiers
 

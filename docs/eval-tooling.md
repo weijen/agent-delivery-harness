@@ -116,6 +116,8 @@ The evidence below separates observed issue delivery, executed deterministic
 CLI fixtures and semantic/tabletop walkthroughs. It does not establish prompt
 adherence, cross-host reliability, comparative quality, cost or success rates.
 There are no controlled model trial results, model comparisons or inferred scores.
+This is a historical record: #580 supersedes the one-feature-per-session
+stopping policy observed below, without rewriting what those deliveries did.
 
 | Path | Evidence kind | Observed outcome or walkthrough result | Stop / limitation |
 | --- | --- | --- | --- |
@@ -131,7 +133,7 @@ There are no controlled model trial results, model comparisons or inferred score
 
 The normal-path walkthrough starts at README, follows the central guide, enters
 the printed issue worktree and selects one criterion from issue body/comments.
-It now exposes the previously obscured one-feature stop after commit/push,
+At #574 it exposed the then-required one-feature stop after commit/push,
 all-pass continuation, exact-candidate approval and final **applicable**, not
 full-inventory, validation. Onboarding hands off after startup; host invocation
 remains in its own guide. The old repo-wide progress advice was replaced with
@@ -184,6 +186,34 @@ The [central recovery diagram](HARNESS.md#human-requested-replanning-at-blocked-
 shows the narrow branch. Rendering/parser checks, when executed, validate diagram
 syntax and layout only; neither those checks nor prose/link sensors establish
 agent judgment.
+
+## Continuous-delivery policy evaluation (#580)
+
+The current [session scope](../.copilot/instructions/harness.instructions.md#1-session-scope)
+supersedes the historical feature-boundary stop above. The bounded semantic
+walkthroughs below assess the control files, session prompt and guide together.
+They are manual reasoning over the policy, not executed model trials or a
+workflow engine's transition tests.
+
+| Scenario | Walkthrough result | Boundary retained |
+| --- | --- | --- |
+| Two required features, full issue authorized | Verify, commit, push and update F1; immediately select F2, then review and closeout when all required items pass. | One active criterion at a time; no routine request between features. |
+| Review or final validation requires a repair | Diagnose, repair with scoped checks, obtain relevant re-review and approval, then final validation and publication. | No gate bypass or automatic human handback for a recoverable failure. |
+| Explicit one-feature-only request with F2 remaining | Complete the requested feature and its commit/push/progress steps, then stop and report F2 as unfinished. | Do not publish the incomplete issue or reinterpret narrow authority as full delivery. |
+| User pauses or cancels an approved delivery | Follow the latest instruction and preserve the actual state rather than continuing toward the earlier endpoint. | Issue approval does not override a later narrower instruction, including after resumption. |
+| PR-head CI is pending | Wait for checks, then continue according to their actual result. | Pending is neither completion nor permission to merge; failures retain existing escalation limits. |
+| Missing authority, unsafe action or reached escalation cap | Stop the affected unsafe transition, preserve actual progress and identify the required owner decision. | Continuous delivery grants no scope expansion, guardrail release or fabricated green. |
+| Compaction or resumed context after F1 | Recover issue authority, explicit endpoint, candidate and evidence, then continue F2 under the existing objective. | Context loss does not grant new authority or require a routine authorization handshake. |
+
+Existing deterministic sensors cover different, narrower claims:
+[review-first lifecycle](../tests/scripts/validation/test_review_first_lifecycle.sh)
+exercises repair, candidate approval, final evidence and publication using real
+local scripts and fake remote boundaries;
+[post-PR guardrails](../tests/scripts/lifecycle/test_post_pr_guardrails.sh)
+exercises enforced stop/release conditions. Structural documentation and re-anchor
+checks protect references and layout, not semantic instruction following.
+Execution results belong in the issue's runner-owned evidence and delivery report.
+No new prose-pinning tests or controlled model-adherence evaluations are added.
 
 ## CI and retained history
 

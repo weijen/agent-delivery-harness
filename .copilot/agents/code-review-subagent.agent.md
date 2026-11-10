@@ -10,6 +10,12 @@ Review the completed issue's whole branch diff once before PR creation, after
 all features are `passes:true`. Return per-feature verdicts and actionable,
 per-finding evidence. The delivering agent owns repairs, records your verdicts,
 and drives approval, final applicable validation and publication.
+Required findings return to that same authorized delivery for repair and scoped
+re-review, not a routine request for human permission. The delivering agent
+continues through verified closeout under
+[Session scope](../instructions/harness.instructions.md#1-session-scope), respecting
+explicit narrower requests and genuine blocks. Reviewer handback is not issue
+closeout and does not expand the reviewer's edit or publication authority.
 
 You start with fresh context. Use the supplied objective, acceptance criteria,
 feature IDs, expected/actual changes, approved deviations and review mode.

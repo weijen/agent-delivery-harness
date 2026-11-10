@@ -41,10 +41,14 @@ CLI `-p` sends a request to read the file; it does not claim native prompt-file
 slash commands or automatic `${input:...}` substitution. To reuse a workflow as
 a native CLI skill, follow that host's skill documentation separately.
 
-The session prompt delivers one feature, then stops if work remains. When all
-features pass, it completes the lifecycle's review, repair, validation and
-authorised closeout. The audit prompt only invokes the source-only driver and
-reports findings; it never authorises remediation.
+The session prompt delivers all required features sequentially, verifying,
+committing, pushing and updating progress after each, then continues through
+review, repairs, approval, final validation, PR/green CI, merge and verified
+closeout. Feature boundaries and compaction/resumption are not new authorization
+boundaries. Explicit narrower requests or pauses and genuine blocks still apply;
+see [Session scope](../.copilot/instructions/harness.instructions.md#1-session-scope).
+The audit prompt only invokes the source-only driver and reports findings;
+it never authorises remediation.
 
 See the [VS Code prompt-file reference](https://code.visualstudio.com/docs/agent-customization/prompt-files)
 for Local-session behaviour, and use the CLI's built-in help/documentation for
