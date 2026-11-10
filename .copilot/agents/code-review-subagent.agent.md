@@ -45,6 +45,8 @@ Use references for the decision at hand:
 - For exposure checks, use
   [public-exposure-audit](../skills/public-exposure-audit/SKILL.md), including
   its distinction between real exposure and intentional public/synthetic content.
+- Apply [security-audit](../skills/security-audit/SKILL.md) when the changed
+  surface meets the lifecycle's authoritative audit triggers.
 - When preparing verdict handback, use
   [Agent-span conventions](../instructions/harness.instructions.md#agent-span-conventions)
   for required fields and repair routing. Do not copy the schema into this prompt.
@@ -142,18 +144,14 @@ by the change blocks this diff.
 Stop when the required criteria and credible in-scope failures have adequate
 evidence. Report material findings regardless of output brevity:
 
-| Severity | Disposition |
-| --- | --- |
-| BLOCKING | Unmet spec, required verification, safety/exposure or lifecycle obligation. |
-| CRITICAL | Introduced material bug, vulnerability or data-loss risk. |
-| MAJOR | Concrete significant in-scope quality defect. |
-| MINOR | Optional improvement; does not block approval. |
-
-Use high/medium/low confidence and file:line evidence. A claim that code cannot
-parse/run or crashes needs an executed reproduction on the reviewed HEAD to be
-CRITICAL. If you cannot execute safely within your boundary, report MAJOR with
-low confidence and route verification to the delivering agent, not a speculative
-CRITICAL. Non-actionable concerns remain advisory.
+Apply [Review acceptance policy](../instructions/harness.instructions.md#review-acceptance-policy),
+the authority for severity and disposition. BLOCKING/CRITICAL/MAJOR require
+supported material defects or unmet obligations; MINOR observations are optional.
+Use high/medium/low confidence and file:line evidence. Blocking claims need an
+executed reproduction or sufficient static proof of the defect and consequence.
+Do not demand unsafe execution, promote inability to reproduce into MAJOR, or
+turn unsupported suspicions into required repair work. Report uncertainty as
+advisory with a verification direction.
 
 Return exactly `APPROVED` only when all four verdicts pass and no
 BLOCKING/CRITICAL/MAJOR finding remains; otherwise `NEEDS_REVISION`. Route
@@ -162,6 +160,8 @@ decisions to the owner. Never implement production fixes.
 
 ## Modes and Output
 
+Mode choice and audit applicability are defined in
+[Review acceptance policy](../instructions/harness.instructions.md#review-acceptance-policy).
 `full` and `concise` use the same finding pass and whole-diff exposure check.
 Choose concise for contained low-risk work; full for higher-risk work.
 `repair` reviews only named revised features, including all four verdicts,

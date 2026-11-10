@@ -47,6 +47,14 @@ private account details:
 
 ## Scope of the Sweep
 
+During delivery, distinguish two uses under
+[Publication exposure protection](../../instructions/harness.instructions.md#publication-exposure-protection):
+the delivering agent checks staged content and each actual outgoing history/ref
+range before commit/push; independent end-of-issue review performs the broader
+sweep below before PR publication. Do not require a full independent audit per
+feature. Checking only the final tree misses content added then deleted in
+outgoing commits.
+
 1. **Tracked files** — everything currently committed on the working branch (`git ls-files`).
 2. **All branch tips** — every local and remote branch (`git branch -a`), not just the current one.
 3. **Reachable Git history** — content reachable from any commit, since published history cannot be
@@ -127,14 +135,17 @@ must work with built-in Git and grep alone.
 
 ## Severity ladder
 
-- **Critical** — live secret/token/private credential, customer-supplied raw media/exports/decks/
-  screenshots, or real tenant/subscription IDs or private resource endpoints in already-pushed
-  content.
-- **High** — the same classes of material present in soon-to-be-pushed (staged/local-tracked)
-  content, or a personal email exposed in pushed Git metadata.
-- **Medium** — latent exposure in ignored/untracked local files; private internal references.
-- **Low** — borderline identifiers that need human judgement.
-- **Accept** — intentional public content, synthetic fixtures, invalid example emails, placeholders.
+Use [Review acceptance policy](../../instructions/harness.instructions.md#review-acceptance-policy)
+for severity and disposition. Real prohibited material in outgoing content is
+a supported BLOCKING publication obligation; a material live-credential leak
+may be CRITICAL. Other supported significant in-scope exposures may be MAJOR.
+Optional hygiene is MINOR, not automatic repair work. Intentional public content,
+synthetic fixtures and placeholders remain Accept. A pattern hit or an ignored
+local file alone does not prove that material will be published.
+
+Distinguish introduced exposure from already-public residual risk. Report the
+latter to the owner with a response plan; do not silently rewrite history or
+turn unrelated historical findings into blockers for the current diff.
 
 ## Implementation-Usefulness Grading
 
@@ -156,7 +167,7 @@ Produce a findings report:
 ### Findings
 | # | Severity | Category | Evidence (file:line / commit) | Pushed? | Remediation |
 |---|----------|----------|-------------------------------|---------|-------------|
-| 1 | Critical | Secret   | config.json:12                | yes     | Rotate key; remove from history |
+| 1 | CRITICAL | Secret   | config.json:12                | yes     | Rotate key; owner-approved history response |
 
 ### Residual risk (already-published history)
 - Author email `<name>@personal.example` appears in commit metadata across N commits. This is

@@ -697,6 +697,29 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
+**Before each commit/push, not just before review:** the delivering agent checks
+staged content and the actual outgoing commit/content range and relevant Git
+metadata for prohibited private material. Inspect intermediate commits too;
+deleting a secret from the final tree does not remove it from outgoing history.
+This focused check applies to feature and repair pushes; it is not a full
+independent review per feature. Independent whole-diff exposure review still
+precedes PR publication, and new repair content/PR text needs protection before
+its own publication. See
+[Publication exposure protection](../.copilot/instructions/harness.instructions.md#publication-exposure-protection).
+
+The lifecycle's [Review acceptance policy](../.copilot/instructions/harness.instructions.md#review-acceptance-policy)
+owns dispositions. Supported BLOCKING/CRITICAL/MAJOR findings require remediation;
+MINOR observations and unresolved suspicions are advisory, not automatic repair
+items or closeout blockers. Evidence can be an executed reproduction or decisive
+static proof; unsafe execution is not required. Two optional suggestions do not
+become two mandatory repairs. Two or more findings **requiring remediation**
+become separate repair items, verified one at a time before scoped repair review.
+
+That policy also owns review modes and audit applicability: concise/full retain
+the same finding pass and independent whole-diff exposure review; repair is
+scoped. Security audit is risk-triggered by auth/authorization, approval controls,
+CI/workflows, provisioning or data movement, not by unrelated prose alone.
+
 Before final review and applicable pre-PR validation, run
 `./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
 does not require an approval, execute sensors, push, or open a PR. It aborts

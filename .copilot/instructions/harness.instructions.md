@@ -127,6 +127,8 @@ Workflow per issue:
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
    script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha>
    --mode green` and matches the scoped command/log to that feature's tested changes.
+   Apply [Publication exposure protection](#publication-exposure-protection)
+   before each feature commit/push, including repairs.
    Feature greens run before their commit, so their recorded SHA is not a claim
    that the final reviewed HEAD already passed its applicable gate. Only after approval,
    use `--head <final-sha> --mode pre-pr` for final applicable evidence. A direct
@@ -249,7 +251,7 @@ agent ensures that any repair-introduced content receives the pre-PR exposure
 check before publication (§6); repair mode does not waive that obligation.
 
 **Multi-finding rounds route through the feature list (#449).** When one review round yields
-**two or more findings**, author them as feature-list items — `type: "repair"`, ids `R1…Rn`,
+**two or more findings requiring remediation**, author them as feature-list items — `type: "repair"`, ids `R1…Rn`,
 each carrying the finding's `finding_fingerprint` and steps derived from its
 reproduction/proposed-fix — then repair with the SAME discipline features get: **one item at a
 time, scoped sensors green per item before the next**, never a batch blob (batch repairs are
@@ -258,6 +260,76 @@ how issue-9's 7-finding fix introduced 4 new defects). After the last item goes 
 evidence the #447 currency gate consumes at approve). Repair items count toward completion
 (no finish with an open repair item) but are excluded from the issue-sizing guideline; the
 checker's warn-only `repair_items_missing` audits the routing.
+
+Optional observations never become repair items or block completion merely
+because there are several. Add them only when explicitly accepted into scope.
+
+### Review acceptance policy
+
+This is the authority for review modes, audit applicability and finding
+dispositions. Other maps, skills and reviewer guidance reference this policy.
+
+- `concise` suits contained low-risk work; `full` suits higher-risk work.
+  Both perform the same four-verdict finding pass, adversarial test judgment
+  and independent whole-diff `public-exposure-audit` before PR publication.
+  Output length changes, not approval obligations.
+- `repair` reviews only named revised/affected features with all four verdicts
+  and targeted regression judgment. Use explicit unaffected-verdict carry under
+  [Scoped repair currency](#scoped-repair-currency), not wider verdict restamping.
+  New repair content still needs exposure protection before publication.
+- `security-audit` applies when the change affects authentication/authorization
+  or approval controls, CI/workflows, provisioning or data movement. It is not
+  mandatory for unrelated prose. The independent review includes the applicable
+  audit judgment without adding another delivering agent or review topology.
+- The five owner-requested quality audits (`find-duplicates`, `find-over-design`,
+  `find-brute-force`, `dead-code-detection`, `sync-docs`) do not run automatically
+  per PR; ordinary code-quality judgment remains part of review.
+
+Reviewer and audit reports use the same disposition meanings:
+
+| Severity | Meaning and disposition |
+| --- | --- |
+| BLOCKING | Supported unmet spec, required verification, safety/exposure or lifecycle obligation; remediate before approval. |
+| CRITICAL | Supported material severe bug, vulnerability or data-loss risk; remediate before approval. |
+| MAJOR | Supported significant in-scope quality defect; remediate before approval. |
+| MINOR | Optional improvement; does not block approval or create repair work unless accepted into scope. |
+
+A blocking finding needs an executed reproduction **or sufficient static
+evidence** proving the defect and its material consequence. Never demand unsafe
+execution when static evidence suffices. Failure to reproduce or inability to
+execute safely is an unresolved suspicion, not automatically a MAJOR: report
+the uncertainty as advisory with a proposed verification, without blocking
+approval or writing a remediation item solely for that suspicion.
+
+Report confidence separately from severity. Pattern matches, scanner labels
+and checker warnings are clues, not proof. Intentional public/synthetic content
+is Accept, not exposure. Apply the issue's required obligations; do not make
+optional polish mandatory. `APPROVED` requires all four verdicts to pass with no
+supported BLOCKING/CRITICAL/MAJOR remaining; otherwise return `NEEDS_REVISION`.
+Remediate supported defects and verify repairs before approval. Unresolved
+scope/authority decisions go to the owner, not to a fabricated implementation
+repair. Optional observations need no debt entry merely to permit completion.
+
+### Publication exposure protection
+
+The delivering agent inspects staged content before committing and **all
+outgoing commits, content and relevant Git metadata before every push**,
+including feature and repair pushes. Compare with the destination branch's
+known remote tip (or the known base for a new branch); inspect the outgoing
+range, not only its final tree. A secret added then deleted is still in history.
+Check author/committer metadata and any outgoing tags or other refs too.
+Classify real secrets/private material versus intentional public/synthetic
+content using `public-exposure-audit`; do not commit or push prohibited material.
+If the outgoing range or destination is uncertain, resolve it before pushing.
+
+This focused protection is the delivering agent's responsibility, not another
+full independent review for each feature. The independent whole-issue review
+still performs the whole-diff exposure sweep before PR publication. Any content
+added after that sweep needs the same protection before its own publication,
+including repair content and PR text. Repeat inspection when outgoing content
+changes. Already-published exposure requires an explicit owner response, not
+silent history rewriting. A later pre-PR audit cannot retroactively protect
+earlier pushes.
 
 #### Required per-feature handoff sequence
 
@@ -539,31 +611,13 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    `./scripts/init.sh`. Dormant release/toolchain metadata alone invokes no Python
    product gates. Actual Python source or product configuration activates the
    shared profile; harness shell changes require shellcheck.
-4. The review in step 2 includes the standalone inferential sensor set over the branch diff
-   (**this is the authoritative
-   list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
-   scoped by **irreversibility**: only the three checks whose findings become irreversible the
-   moment the branch is pushed / the PR is opened run standalone here:
-   - `code-review-subagent` (full)
-   - `security-audit`
-   - `public-exposure-audit`
-
-   The five quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
-   `dead-code-detection`, `sync-docs`) do **not** run here at all — not standalone and not embedded
-   (#350): quality-pattern findings are reversible. The review keeps a plain-judgment flag for
-   egregious cases in the review's code-quality verdict.
-5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
-   report. Every sensor (whatever its own severity words) maps onto one action table:
-
-   | Severity (any sensor) | Action — BEFORE the PR |
-   |---|---|
-   | **Critical / Major / High** | **Go back to implement and fix it**, then **re-run that sensor** to confirm it's clear. Never merely log it. A doc finding at this level (e.g. `sync-docs` says a doc contradicts behaviour) is fixed the same way — correct the doc or the code. |
-   | **Medium** | Fix by default. Defer only with an explicit reason + clearing condition recorded in `docs/tech-debt-tracker.md` (introduce the file the first time it's needed), and only with the human's agreement. |
-   | **Minor / Low** | May be deferred — record in `docs/tech-debt-tracker.md`. |
-   | **Accept** | False positive or correct-in-context — log one line of rationale; no change. |
-
-   Loop until no Critical/Major/High remains and Medium items are fixed or explicitly deferred.
-   Only then proceed.
+4. Apply the modes and audit triggers in
+   [Review acceptance policy](#review-acceptance-policy). The pre-PR independent
+   whole-diff exposure review supplements, not replaces, protection before
+   earlier feature pushes.
+5. **Resolve findings** under [Review acceptance policy](#review-acceptance-policy).
+   Only required remediation enters repair/completion gates; optional feedback
+   and unsupported suspicions do not.
 
 6. **Project-CI coverage is enforced deterministically.** The same `review-gate.sh check` call
    inside `./scripts/create-pr.sh` runs the fail-closed **`ci-gate`**: if the repo has a code
@@ -580,8 +634,8 @@ to type `gh pr create`, confirm this gate has run for the current branch HEAD fi
 - **Open + merge**
 
 - Do not stop at "PR ready". After the Pre-PR verify gate passes (features all `passes:true`,
-  final gates green, verify-gate findings resolved per the §6 severity→action table —
-  Critical/Major/High fixed and re-checked, not merely logged), open the PR with
+  final gates green, required findings remediated and verified under
+  [Review acceptance policy](#review-acceptance-policy)), open the PR with
   **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
   it checks `./scripts/validation/review-gate.sh check` and verified applicable, nonempty
   pre-PR evidence for the clean current HEAD, pushes that exact commit, and runs
@@ -663,7 +717,7 @@ small increments, not painful bursts.
   audit skills on demand. Only the harness source checkout provides the owner-driven
   `scripts/maintenance/audit-sweep.sh` driver (`--dry-run` first, `--consolidate` for the roll-up);
   it is a manual maintainer tool, not part of either installed profile or a CI dependency.
-- Record knowingly-deferred (Minor/Low, or human-agreed Medium) work in
+- Record accepted in-scope work deliberately deferred with owner agreement in
   `docs/tech-debt-tracker.md` (create on first use).
   This tracker is project-owned state, not a populated reusable harness asset;
   installation must preserve an adopter's existing debt records.

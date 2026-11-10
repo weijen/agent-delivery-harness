@@ -27,6 +27,8 @@ After any context compaction, re-read this block before continuing.
 
 - Never commit customer/confidential material, raw media, screenshots, decks,
   exports, secrets or local environment files. Use explicitly sanitised fixtures.
+  Follow [publication exposure protection](.copilot/instructions/harness.instructions.md#publication-exposure-protection)
+  before commits and every push, not only before the PR.
 - Privileged cloud/provider operations go through approved project wrappers and
   environment configuration, never hard-coded credentials or raw privileged calls
   from a worktree.
@@ -85,7 +87,7 @@ Read the relevant `.copilot/skills/<name>/SKILL.md` or
 | --- | --- |
 | `code-review-subagent` and `code-review` | At issue completion, over the whole branch diff; repair review is scoped to fixes |
 | `public-exposure-audit` | Blocking exposure check in the independent review/pre-PR gate |
-| `security-audit` | Issues touching auth, provisioning or data movement |
+| `security-audit` | Risk-triggered under [Review acceptance policy](.copilot/instructions/harness.instructions.md#review-acceptance-policy), including approval controls and CI/workflows |
 | `create-pr` | PR authoring through `scripts/create-pr.sh` |
 | `find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs` | Owner-requested maintenance, not automatic per-PR protocols |
 

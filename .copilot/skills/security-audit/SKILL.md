@@ -1,6 +1,6 @@
 ---
 name: security-audit
-description: 'Repo-scoped security audit for this harness/docs/scripts project — shell and CI script injection, GitHub Actions workflow permissions, dependency pinning, and secrets handling. Use for issues touching auth, CI/workflows, provisioning, or data movement.'
+description: 'Repo-scoped security audit for shell/CI injection, permissions, pinning and secrets. Apply to changes affecting auth/authorization, approval controls, CI/workflows, provisioning or data movement under the lifecycle review policy.'
 argument-hint: 'scope (paths), changed area, remote/push status, optional already-installed scanners'
 ---
 
@@ -17,6 +17,10 @@ already available; never make a finding contingent on a tool the repo doesn't in
 
 ## What to check
 
+Applicability and blocking dispositions follow
+[Review acceptance policy](../../instructions/harness.instructions.md#review-acceptance-policy).
+Unrelated prose does not activate this audit merely because it belongs to an issue.
+
 - **Shell / CI script injection** — untrusted input (GitHub event fields, `${{ github.* }}`, env, args, file
   contents) reaching `eval`, `bash -c`, unquoted expansions, `curl | sh`, or command substitution. Flag missing
   quoting and word-splitting that lets input become code.
@@ -30,7 +34,8 @@ already available; never make a finding contingent on a tool the repo doesn't in
 
 ## Report
 
-For each finding give **severity** (Critical / High / Medium / Low / Info), **evidence** (file + line + the exact
+For each finding give **severity** (BLOCKING / CRITICAL / MAJOR / MINOR under the
+lifecycle policy), **evidence** (file + line + the exact
 sink), **exploit path** (how untrusted input reaches it), and a **concrete remediation**. Close with a one-line
 severity count. Severity reflects exploitability and blast radius, not tool output volume; if you could not verify
 something (e.g. no scanner available), say so explicitly rather than implying coverage.
