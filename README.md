@@ -11,9 +11,10 @@ Ruby** generator-supported on demand, plus a generator for adding more (see
 > product specs, architecture notes, validation plans, and delivery milestones
 > should live under `docs/` and be linked from the repository map.
 
-New to the harness? Start with [docs/getting-started.md](docs/getting-started.md)
-for a walkthrough of standing up a new project and choosing a language.
-For the full Copilot issue lifecycle, see [docs/HARNESS.md](docs/HARNESS.md).
+**Follow the workflow:** [Central Harness guide](docs/HARNESS.md#lifecycle) —
+roles, commands, one-feature stopping point, review/repair and verified closeout.
+New projects first use [getting started](docs/getting-started.md) for adoption,
+prerequisites and language setup.
 For implemented maintainer evaluation commands and contracts, see
 [docs/eval-tooling.md](docs/eval-tooling.md).
 
@@ -140,8 +141,8 @@ entrypoint copies. Product repositories that adopt this harness can add their ow
   language, scaffold its profile, and start your first issue.
 - **Project contract docs** — keep the active requirements and architecture
   under `docs/`.
-- **Implementation status** — track repo-wide progress in `docs/` once project
-  work starts.
+- **Implementation status** — GitHub issues own requirements; local per-issue
+  `.copilot-tracking/issues/issue-NN/` records progress, not a repo-wide docs journal.
 - **Agents working on issues** — read [AGENTS.md](AGENTS.md) and follow the
   harness lifecycle in [docs/HARNESS.md](docs/HARNESS.md) and
   [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md).

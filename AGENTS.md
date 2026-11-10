@@ -69,7 +69,8 @@ Use `type(scope): subject`, with issue scope when applicable, e.g.
 | Need | Read |
 | --- | --- |
 | Full issue lifecycle, sensors, review and escalation | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
-| Human lifecycle overview and installation | [docs/HARNESS.md](docs/HARNESS.md), [docs/getting-started.md](docs/getting-started.md) |
+| Central human workflow and recovery | [docs/HARNESS.md](docs/HARNESS.md#lifecycle) |
+| Adoption and prerequisites | [docs/getting-started.md](docs/getting-started.md) |
 | Host discovery and prompt invocation | [docs/github-copilot.md](docs/github-copilot.md) |
 | Issue state | `.copilot-tracking/issues/issue-NN/feature_list.json`, `progress.md`, optional `plan.md` |
 | Language profiles and generation | [profiles/README.md](profiles/README.md), [docs/multi-language-profiles.md](docs/multi-language-profiles.md), `scripts/scaffold-language.sh` |
