@@ -26,6 +26,10 @@ repair_policy:
   repeated_failure: reassess-approach-before-hardening
   approach_change_disposition: decompose
   durable_lesson: optional-validated-pair
+  blocked_review_default: repair-or-missing-verification
+  replanning_trigger: human-request-at-blocked-review-with-assessed-reason-and-conditions
+  replanning_approval: forbidden-without-completed-reviewed-required-work
+  replacement_coverage: traceable-authoritative-requirements-and-owner-approved-changes
 
 test_execution_budget:
   seconds: 900

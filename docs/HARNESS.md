@@ -206,6 +206,55 @@ do not make speculative commits or silently release the freeze.
 See [publication/merge enforcement](../.copilot/instructions/harness.instructions.md#publication-and-merge-enforcement)
 for exact caps, permitted releases and merge provenance.
 
+#### Human-requested replanning at blocked review
+
+This branch starts **only at blocked review/approval**, not at every failed
+test or CI run. The lifecycle's
+[blocked-review recovery rule](../.copilot/instructions/harness.instructions.md#blocked-review-recovery)
+owns the decision. Missing verification normally needs verification, not a new
+plan; an incomplete required item cannot be approved.
+
+```mermaid
+flowchart TD
+  B["Review or approval blocked: incomplete required work or missing evidence"]
+  H{"Human requests replanning with reason and conditions?"}
+  A["Assess changed assumptions, conditions, repair alternative and replacement coverage"]
+  J{"Justified and feasible?"}
+  U["Explain; remain blocked while repairing or clarifying"]
+  P["Record assessment, affected scope and traceable replacement mapping"]
+  I["Replan affected work only; preserve unaffected completion and evidence"]
+  D["Implement or repair; obtain missing verification"]
+  R["Actual applicable independent review"]
+  G["Approval, final validation, publication, CI and merge"]
+  B --> H
+  H -->|No: default recovery| D
+  H -->|Yes| A
+  A --> J
+  J -->|No or unverified| U
+  J -->|Yes| P
+  P --> I
+  I --> D
+  D -->|Required work complete and verified| R
+  R -->|Required findings remain| B
+  R -->|Passing required review| G
+```
+
+For example, an unrun integration check calls for that check. If the owner
+prohibits a planned provider but the required outcome remains unchanged, assess
+a permitted alternative and map affected requirements/dependencies before
+replanning; the owner constraint needs no prohibited provider call. An
+unsupported claim that the implementation is impossible does not unblock
+approval: check the technical claim where feasible or clarify it.
+
+Record the reason, conditions, assessment and replacement mapping in existing
+issue/progress records. Removing or weakening a requirement needs explicit
+owner approval in the authoritative issue. Replanning alone never changes
+`passes:false` to `passes:true`, fabricates a reviewer failure or waives required
+work. Preserve applicable unaffected evidence and
+[scoped-review carry-forward](#review-gate). The revised behavior still goes
+through implementation, tests, independent review and normal gates; existing
+escalation and safety/authorization stops remain intact.
+
 Detailed installation, language, sensor, tracking and trace references follow.
 
 ## Installer reference
@@ -891,7 +940,14 @@ recording final verdicts. Do not approve the old HEAD with uncommitted test
 additions. Scripts check candidate binding, not the truth of an impact rationale.
 
 `./scripts/validation/review-gate.sh approve` records the current HEAD SHA in local gitignored state
-without running sensors. After review and repairs, explicitly run the final
+without running sensors. For active issues, creation and consumption of approval
+reuse strict feature validation: missing/invalid state, incomplete required
+features or repairs, unavailable validation and missing passing per-feature
+review evidence block approval, including at unchanged HEAD. Rejection cannot
+create or carry a marker. Optional trace telemetry cannot substitute for required
+review evidence; ordinary in-progress completion warnings remain usable.
+See [blocked-review recovery](#human-requested-replanning-at-blocked-review).
+After review and repairs, explicitly run the final
 `./scripts/run-sensors.sh --gate pre-pr` once on the successful unchanged candidate.
 If that gate fails, repair with scoped checks, obtain relevant re-review, then
 run it again on the repaired final candidate; a failed attempt is never green evidence.
