@@ -28,11 +28,24 @@ important sources of truth from its own `AGENTS.md`.
 
 ## 1. Session scope
 
-Deliver one feature at a time. A one-feature session stops after its verified,
-committed and pushed feature when unfinished items remain. If all items pass,
-continue through independent review, required repairs, final validation and
-authorised PR/CI/merge/closeout (§3), including when all items pass on entry.
-Repair items follow the same one-at-a-time discipline.
+An authorized issue-delivery session completes all required features sequentially,
+then continues through independent review, required repairs, candidate-bound
+approval, final applicable validation, PR publication, green CI, merge and verified
+closeout (§3). "One feature at a time" defines execution order and verification
+granularity, not one feature per session. After each verified feature, commit,
+push and update progress, then immediately select the next required feature.
+Do not stop or request permission at routine feature boundaries. Repair items
+follow the same sequential discipline; when all items pass on entry, continue
+directly to preparation and review.
+
+An explicit planning-only, review-only, one-feature-only or pause request narrows
+the endpoint. The latest explicit user instruction governs, including a pause
+or cancellation after resumption; an approved issue does not override it.
+Genuine safety, authorization and escalation blocks still stop unsafe progress.
+Pending CI is a wait state, not completion or a reason for automatic handback.
+Diagnose and repair recoverable failures within the existing escalation limits;
+never retry indefinitely, bypass gates or fabricate completion. Authorization
+for this issue does not authorize unrelated issues or scope expansion.
 
 ### Authorization
 
@@ -49,6 +62,8 @@ authority or waive security, privacy, publication or merge controls.
 ## 2. Start-of-session ritual (always)
 
 After any context compaction, re-read this section before continuing the ritual.
+Preserve the authorized delivery objective and any explicit narrower endpoint
+across compaction or resumption; neither is a new authorization boundary.
 Use the upstream [Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor):
 emit a `deviation` and recover the actual candidate, evidence and next step.
 Use [Agent-span conventions](#agent-span-conventions) for verdict fields and
@@ -74,7 +89,8 @@ never run `gh auth switch`.
   `.copilot-tracking/issues/<issue>/progress.md` and
    `.copilot-tracking/issues/<issue>/plan.md` (if present), and `git log --oneline -20` for
    this issue's working state.
-3. Read `feature_list.json`; pick the **highest-priority `passes:false`** feature. One only.
+3. Read `feature_list.json`; pick the **highest-priority eligible `passes:false`**
+   feature. Execute one item at a time, then continue selecting under §1.
 4. Read the **GitHub issue itself — description _and_ comments** with
    `gh issue view <N> --comments`. GitHub Issues are the single source of truth for issue
   requirements; the repo keeps **no** local issue-draft files (don't recreate them). For
@@ -150,7 +166,9 @@ Workflow per issue:
    changes, evidence, commit SHA and next item; update the plan if it changed.
    Commit and push each completed feature. A verification-only feature with no
    tracked diff needs no empty commit; record its result in local tracking.
-   Leave a clean state and stop here when unfinished items remain (§1).
+   Immediately select the next required feature if items remain; otherwise
+   proceed to review. Stop here only for an explicit narrower endpoint or a
+   genuine block under §1, not because a feature ended.
 3. **Independent review (gate 3), once, pre-PR:** first run
    `./scripts/create-pr.sh --prepare` to synchronize before final verification,
    then invoke the `code-review-subagent` in `concise` mode for contained low-risk work,
@@ -561,7 +579,9 @@ quota or per-green proof bookkeeping.
 
 ## 5. End-of-session ritual (leave a clean state)
 
-A clean state = mergeable to main: gates green, no debug leftovers, no half-feature.
+Normal completion leaves a clean, verified state with no debug leftovers or
+unfinished required work. A genuine block or explicit pause instead requires
+truthful tracking and safe preservation of work, not fabricated green gates.
 
 > **Dates: never guess.** Any date you write into a doc (status doc "Last updated", a
 > `tech-debt-tracker.md` row, a log entry) must come from the real clock — run
@@ -569,9 +589,12 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-Use §3's feature endpoint or completed-issue closeout, not a second procedure.
-Keep local tracking accurate, preserve the script-rendered Action Log, remove
-scratch/debug leftovers from tracked changes and leave no half-feature.
+Use §3's verified issue closeout as the normal endpoint, not a second procedure.
+At an explicit narrower endpoint or genuine block, record the actual state,
+remaining work and reason; never label unfinished work complete or force a
+passing state. Keep local tracking accurate, preserve the script-rendered Action
+Log and remove scratch/debug leftovers from tracked changes. An interrupted
+session preserves the same authorized objective for resumption.
 
 ## 6. Branching & commits
 

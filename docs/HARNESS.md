@@ -14,9 +14,23 @@ for prompt invocation, use the [Copilot guide](github-copilot.md).
 ## Lifecycle
 
 One delivering agent owns an issue; a fresh-context independent reviewer judges
-the completed diff. A normal session delivers **one feature and stops if work
-remains**. When all features pass, including on entry, it continues through
-review and authorized closeout. Read-only questions/reviews need no issue pipeline.
+the completed diff. An authorized delivery completes all required features
+sequentially, then review, repairs, approval, final applicable validation, PR,
+green CI, merge and verified closeout. After each verified feature, commit, push
+and update progress, then immediately select the next required feature.
+"One feature at a time" means execution order and verification granularity, not
+one feature per session.
+
+No routine permission request is needed between features or delivery stages.
+Compaction and resumption preserve the authorized objective. Explicit planning-only,
+review-only, one-feature-only or pause requests narrow the endpoint; genuine
+safety, authorization and escalation blocks remain blocking. The latest explicit
+user instruction governs, including cancellation; issue approval does not override
+it. Pending CI calls for waiting, while recoverable failures call for diagnosis
+and repair within existing escalation limits, not indefinite retries or automatic
+handback. One issue's authority never extends to unrelated issues or scope expansion.
+Read-only questions/reviews need no issue pipeline.
+See [Session scope](../.copilot/instructions/harness.instructions.md#1-session-scope).
 
 ```mermaid
 flowchart TD
@@ -31,10 +45,10 @@ flowchart TD
     A2{"Existing issue worktree?"}
     A3["Read issue and comments; plan, classify, select feature"]
     A4{"Unfinished feature?"}
+    A10{"Explicit endpoint reached or pause requested?"}
     A5["TDD and scoped green; applicable quality checks"]
     A6["Mark passing item; protect staged/outgoing content; commit, push, update progress"]
-    A7{"All features pass?"}
-    A8["One-feature endpoint: clean state; stop"]
+    A8["Record actual state and remaining work; stop"]
     A9["Repair or wait: follow recovery flow below"]
   end
   subgraph Independent_reviewer
@@ -61,15 +75,15 @@ flowchart TD
   A2 -->|Yes| S1
   S0 --> A3
   S1 --> A3
-  A3 --> A4
+  A3 --> A10
+  A10 -->|Yes| A8
+  A10 -->|No| A4
   A4 -->|Yes| A5
   A5 -->|Green| A6
   A5 -->|Red: repair within scope| A5
-  A6 --> A7
-  A7 -->|No| A8
-  A8 -. Next authorized session .-> S1
-  A7 -->|Yes| S2
-  A4 -->|No: all already pass| S2
+  A6 --> A10
+  A8 -. Resume within authorized scope .-> S1
+  A4 -->|No: all pass| S2
   S2 --> R0
   R0 --> R1
   R1 -->|Yes| S3
@@ -97,7 +111,7 @@ authorized scope; a routine milestone is not another approval pause.
 | Resume / agent + script | Existing worktree and tracking | Enter it; `./scripts/init.sh`; read progress, plan, feature list and Git history. | Current environment/state recovered, not assumed from old prose. |
 | Plan/select / agent | `gh issue view N --json body,comments` and project contract | Choose minimum correct path, classify impact, resolve real decisions, derive criteria/sensors; select one unfinished item. | [Breakdown](#the-breakdown-flow-plan--clarify--feature_list) and fixed pre-edit base in local tracking; all-pass entry goes to prepare. |
 | Implement/check / agent | One criterion and fixed base SHA | TDD for behavior; `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>` plus applicable quality checks. Prose needs semantic review, not invented tests. | Runner-owned scoped green, discriminating regression evidence and real-boundary evidence when applicable. Red cannot become `passes:true`. |
-| Complete feature / agent | Verified changes | Inspect staged content and all outgoing commits/metadata **before commit/push**; mark actual item passing, sign commit, push, update progress. | Clean state, verified commit/remote, truthful tracking. If items remain, **stop this session**; next session resumes. |
+| Complete feature / agent | Verified changes | Inspect staged content and all outgoing commits/metadata **before commit/push**; mark actual item passing, sign commit, push, update progress. | Verified commit/remote and truthful tracking; immediately select the next required item, or prepare review when all pass. Stop only at an explicit narrower endpoint/pause or genuine block. |
 | Prepare / script | All feature/repair items passing | `./scripts/create-pr.sh --prepare`. | Synchronized candidate; conflicts stop without publishing. No sensors, push or approval in this step. |
 | Review/repair / independent reviewer + agent | Prepared whole diff, issue criteria and scoped evidence | Independent `full`/`concise` review; agent handles required repairs and obtains scoped `repair` review. | Four per-feature verdicts, including applicable security and whole-diff exposure judgment; see [recovery](#review-and-recovery) and [review reference](#review-gate). |
 | Approve / agent + script | Passing independent records at reviewed candidate | Check HEAD, record returned verdicts; `./scripts/validation/review-gate.sh approve`. | Exact-HEAD approval and valid unaffected carry if needed. Approval runs no tests. |
@@ -128,6 +142,11 @@ risk-triggered, including approval controls and CI/workflows. Supported
 BLOCKING/CRITICAL/MAJOR findings need repair; MINOR feedback and unsupported
 suspicions are optional. Static proof may suffice; unsafe reproduction is not
 required. Optional-only feedback needs no repair item or debt entry.
+Review handback continues the existing delivery: repair required findings and
+obtain the applicable re-review without routine human permission. Recoverable
+test or CI failures call for diagnosis and repair, not automatic handback.
+Only unresolved authority/safety decisions, explicit narrower requests/pauses
+or the existing escalation safeguards stop that continuation.
 
 ```mermaid
 flowchart TD
