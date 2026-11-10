@@ -2,6 +2,64 @@
 
 <!-- version list -->
 
+## v0.51.0 (2026-11-10)
+
+### Bug Fixes
+
+- **#572**: Align frozen test budget contract
+  ([#576](https://github.com/weijen/agent-delivery-harness/pull/576),
+  [`c4ff7f2`](https://github.com/weijen/agent-delivery-harness/commit/c4ff7f2824aaffdfd55b3f8fc83ae7206e37a8a6))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.50.1
+  ([`9491b79`](https://github.com/weijen/agent-delivery-harness/commit/9491b79f4e82d0cde6dcc8032304857a8dcf0627))
+
+### Documentation
+
+- **#546**: Retire evaluation research and retain tooling contracts
+  ([#556](https://github.com/weijen/agent-delivery-harness/pull/556),
+  [`e279e62`](https://github.com/weijen/agent-delivery-harness/commit/e279e626e1c594ef4c16bcd11ba44cec8371c44d))
+
+- **#565**: Refresh reviewer contract and reconcile harness guidance
+  ([#567](https://github.com/weijen/agent-delivery-harness/pull/567),
+  [`db354d1`](https://github.com/weijen/agent-delivery-harness/commit/db354d1dd22e5d552a2c7fe1aa02619bd15075de))
+
+- **#566**: Confirm classification within planning
+  ([#569](https://github.com/weijen/agent-delivery-harness/pull/569),
+  [`9adcffb`](https://github.com/weijen/agent-delivery-harness/commit/9adcffb0c066ecfd10313317f6c59ff131a9aa20))
+
+- **#566**: Consolidate tier guidance with host lifecycle
+  ([#569](https://github.com/weijen/agent-delivery-harness/pull/569),
+  [`9adcffb`](https://github.com/weijen/agent-delivery-harness/commit/9adcffb0c066ecfd10313317f6c59ff131a9aa20))
+
+- **#566**: Distinguish impact from planning depth
+  ([#569](https://github.com/weijen/agent-delivery-harness/pull/569),
+  [`9adcffb`](https://github.com/weijen/agent-delivery-harness/commit/9adcffb0c066ecfd10313317f6c59ff131a9aa20))
+
+- **#566**: Route tasks by their observable effects
+  ([#569](https://github.com/weijen/agent-delivery-harness/pull/569),
+  [`9adcffb`](https://github.com/weijen/agent-delivery-harness/commit/9adcffb0c066ecfd10313317f6c59ff131a9aa20))
+
+- **#566**: Simplify workflow tier classification
+  ([#569](https://github.com/weijen/agent-delivery-harness/pull/569),
+  [`9adcffb`](https://github.com/weijen/agent-delivery-harness/commit/9adcffb0c066ecfd10313317f6c59ff131a9aa20))
+
+- **#568**: Simplify prompts and harness context
+  ([#570](https://github.com/weijen/agent-delivery-harness/pull/570),
+  [`15b8254`](https://github.com/weijen/agent-delivery-harness/commit/15b82542b8075f17f9ef724cbb38a32209071230))
+
+### Features
+
+- **#572**: Carry unaffected review verdicts
+  ([#576](https://github.com/weijen/agent-delivery-harness/pull/576),
+  [`c4ff7f2`](https://github.com/weijen/agent-delivery-harness/commit/c4ff7f2824aaffdfd55b3f8fc83ae7206e37a8a6))
+
+- **#572**: Reconcile scoped repair currency and budget
+  ([#576](https://github.com/weijen/agent-delivery-harness/pull/576),
+  [`c4ff7f2`](https://github.com/weijen/agent-delivery-harness/commit/c4ff7f2824aaffdfd55b3f8fc83ae7206e37a8a6))
+
+
 ## v0.50.1 (2026-11-08)
 
 ### Bug Fixes
