@@ -12,7 +12,7 @@ Ruby** generator-supported on demand, plus a generator for adding more (see
 > should live under `docs/` and be linked from the repository map.
 
 **Follow the workflow:** [Central Harness guide](docs/HARNESS.md#lifecycle) —
-roles, commands, one-feature stopping point, review/repair and verified closeout.
+roles, commands, sequential feature delivery, review/repair and verified closeout.
 New projects first use [getting started](docs/getting-started.md) for adoption,
 prerequisites and language setup.
 For implemented maintainer evaluation commands and contracts, see

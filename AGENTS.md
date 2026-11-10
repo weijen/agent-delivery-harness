@@ -11,6 +11,8 @@ After any context compaction, re-read this block before continuing.
 - Emit `deviation` when it happens and `review_verdict` at review handback.
 - For failed verdicts, use `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT` and the other required fields in [Agent-span conventions](.copilot/instructions/harness.instructions.md#agent-span-conventions); omit unknown optional fields.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
+- Recover the authorized issue objective and next step after compaction;
+  resumption does not create a new authorization boundary.
 
 ## Choose the task path
 
@@ -37,11 +39,16 @@ After any context compaction, re-read this block before continuing.
 - Deliver one criterion-sized `feature_list` item at a time with TDD and scoped
   sensors. `passes:true` requires regression evidence and real runtime evidence
   when a boundary exists. Commit and push each completed feature, update progress,
-  and leave a clean state.
+  then immediately select the next required item. One at a time is execution
+  order and verification granularity, not one feature per session.
 - Keep independent review (including required repair review), current-HEAD
   approval, final applicable validation and green CI before merge. Use the
   lifecycle scripts; finish authorised merge/closeout rather than leaving manual
   work for the human.
+- Continue the authorized issue through verified closeout without routine
+  permission requests. Respect explicit planning-only, review-only, one-feature-only
+  or pause requests and genuine safety, authorization and escalation blocks.
+  Diagnose and repair recoverable failures; do not expand into unrelated issues.
 - Keep verification proportionate: preserve necessary negative, safety and runtime
   protection without duplicate cases or repeated gates. Do not add prose-pinning tests.
 

@@ -315,8 +315,9 @@ the historical sibling `<repo>-worktrees/issue-NN` layout remain discoverable
 for resume and teardown; only newly created worktrees use `.worktrees/`.
 
 From there, follow the central guide's [workflow stages](HARNESS.md#workflow-stages)
-for roles, inputs, commands and evidence, including the one-feature stopping
-point. Use its [review/recovery flow](HARNESS.md#review-and-recovery) when review,
+for roles, inputs, commands and evidence, including sequential feature delivery
+through verified closeout and explicit narrower stopping points.
+Use its [review/recovery flow](HARNESS.md#review-and-recovery) when review,
 validation, CI or merge blocks. This page owns setup, not a second delivery procedure.
 
 ## 7. Subagent permissions
