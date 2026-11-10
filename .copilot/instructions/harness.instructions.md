@@ -127,6 +127,8 @@ Workflow per issue:
    never hand-copy `SENSORS` lines into ledgers or notes; the reviewer validates the
    script-recorded rows with `scripts/validation/verify-sensor-evidence.sh <NN> --head <recorded-sha>
    --mode green` and matches the scoped command/log to that feature's tested changes.
+   Apply [Publication exposure protection](#publication-exposure-protection)
+   before each feature commit/push, including repairs.
    Feature greens run before their commit, so their recorded SHA is not a claim
    that the final reviewed HEAD already passed its applicable gate. Only after approval,
    use `--head <final-sha> --mode pre-pr` for final applicable evidence. A direct
@@ -307,6 +309,27 @@ supported BLOCKING/CRITICAL/MAJOR remaining; otherwise return `NEEDS_REVISION`.
 Remediate supported defects and verify repairs before approval. Unresolved
 scope/authority decisions go to the owner, not to a fabricated implementation
 repair. Optional observations need no debt entry merely to permit completion.
+
+### Publication exposure protection
+
+The delivering agent inspects staged content before committing and **all
+outgoing commits, content and relevant Git metadata before every push**,
+including feature and repair pushes. Compare with the destination branch's
+known remote tip (or the known base for a new branch); inspect the outgoing
+range, not only its final tree. A secret added then deleted is still in history.
+Check author/committer metadata and any outgoing tags or other refs too.
+Classify real secrets/private material versus intentional public/synthetic
+content using `public-exposure-audit`; do not commit or push prohibited material.
+If the outgoing range or destination is uncertain, resolve it before pushing.
+
+This focused protection is the delivering agent's responsibility, not another
+full independent review for each feature. The independent whole-issue review
+still performs the whole-diff exposure sweep before PR publication. Any content
+added after that sweep needs the same protection before its own publication,
+including repair content and PR text. Repeat inspection when outgoing content
+changes. Already-published exposure requires an explicit owner response, not
+silent history rewriting. A later pre-PR audit cannot retroactively protect
+earlier pushes.
 
 #### Required per-feature handoff sequence
 

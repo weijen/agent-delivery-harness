@@ -47,6 +47,14 @@ private account details:
 
 ## Scope of the Sweep
 
+During delivery, distinguish two uses under
+[Publication exposure protection](../../instructions/harness.instructions.md#publication-exposure-protection):
+the delivering agent checks staged content and each actual outgoing history/ref
+range before commit/push; independent end-of-issue review performs the broader
+sweep below before PR publication. Do not require a full independent audit per
+feature. Checking only the final tree misses content added then deleted in
+outgoing commits.
+
 1. **Tracked files** — everything currently committed on the working branch (`git ls-files`).
 2. **All branch tips** — every local and remote branch (`git branch -a`), not just the current one.
 3. **Reachable Git history** — content reachable from any commit, since published history cannot be

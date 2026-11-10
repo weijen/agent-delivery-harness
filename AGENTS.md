@@ -27,6 +27,8 @@ After any context compaction, re-read this block before continuing.
 
 - Never commit customer/confidential material, raw media, screenshots, decks,
   exports, secrets or local environment files. Use explicitly sanitised fixtures.
+  Follow [publication exposure protection](.copilot/instructions/harness.instructions.md#publication-exposure-protection)
+  before commits and every push, not only before the PR.
 - Privileged cloud/provider operations go through approved project wrappers and
   environment configuration, never hard-coded credentials or raw privileged calls
   from a worktree.

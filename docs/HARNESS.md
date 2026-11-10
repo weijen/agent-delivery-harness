@@ -697,6 +697,16 @@ main-root trace and falls back to the invoking worktree's toplevel tracking dir 
 
 ## Review Gate
 
+**Before each commit/push, not just before review:** the delivering agent checks
+staged content and the actual outgoing commit/content range and relevant Git
+metadata for prohibited private material. Inspect intermediate commits too;
+deleting a secret from the final tree does not remove it from outgoing history.
+This focused check applies to feature and repair pushes; it is not a full
+independent review per feature. Independent whole-diff exposure review still
+precedes PR publication, and new repair content/PR text needs protection before
+its own publication. See
+[Publication exposure protection](../.copilot/instructions/harness.instructions.md#publication-exposure-protection).
+
 The lifecycle's [Review acceptance policy](../.copilot/instructions/harness.instructions.md#review-acceptance-policy)
 owns dispositions. Supported BLOCKING/CRITICAL/MAJOR findings require remediation;
 MINOR observations and unresolved suspicions are advisory, not automatic repair
