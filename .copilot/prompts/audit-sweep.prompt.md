@@ -1,32 +1,29 @@
 ---
-mode: agent
-description: 'Run the six-skill local audit sweep and summarize the Fix-now findings.'
+agent: agent
+description: 'Run the local audit driver and report actionable findings and incomplete audits.'
 ---
 
 # Audit Sweep
 
-Run the repository audit sweep and report the results.
+Run a report-only audit in the harness source checkout. The driver is not installed
+in adopter projects; if it is absent, report that limitation rather than recreating it.
 
-Scope (optional subset of audit skills, space-separated; empty = all six):
-**${input:scope:audit skills to run, e.g. "find-duplicates security-audit" — leave blank for all six}**
+Scope (space-separated audit skill names; blank selects all discovered audits):
+**${input:scope:Optional audit skills, e.g. find-duplicates sync-docs}**
 
 Steps:
 
-1. Run the driver from the repo root: `./scripts/maintenance/audit-sweep.sh ${input:scope}`.
-   It launches each audit skill in its own fresh, report-only `copilot -p`
-   session and writes one report per skill under `logs/audit/<UTC-timestamp>/`.
-   Do not run the audits yourself in this session — the script owns that so each
-   audit gets a fresh context.
-2. When the sweep finishes, read the consolidated `index.md` it prints the path
-   to (`logs/audit/<UTC-timestamp>/index.md`).
-3. Summarize back to the user: the **Fix-now** findings from the roll-up table
-   first (skill, severity, file), then a one-line count of Plan-first /
-   Defer-accept items. Link the `index.md` path for the full detail.
+1. Treat scope as skill names, not shell syntax or flags. From the repository root,
+   run `./scripts/maintenance/audit-sweep.sh --dry-run` with those names as separate
+   arguments. On invalid input or a missing prerequisite, report the error and stop.
+2. Run the same selection without `--dry-run`. The driver owns the fresh,
+   report-only audit sessions; do not run additional audits or remediate findings.
+   This also overrides `sync-docs`' usual edit mode.
+3. Read the printed `index.md` and report: incomplete audits first, then confirmed
+   **Fix now** findings (skill, severity, file), counts of **Plan first** /
+   **Defer-accept** findings, and the index path. Distinguish partial findings from
+   a completed clean audit. Exit 1 means a child audit failed; name it and link its
+   report. Other failures may be usage or setup errors, with no report available.
 
-Notes:
-
-- The sweep is **report-only**; it never modifies files. `sync-docs` runs in
-  report mode here — run its fix mode separately by hand.
-- `logs/audit/` is gitignored: the reports are local artifacts, never committed.
-- If the script exits non-zero, a skill failed to complete; name which one and
-  point the user at its report under the timestamped directory.
+The driver writes gitignored local reports under `logs/audit/<UTC-timestamp>/`
+(or `AUDIT_LOG_ROOT` when set); source edits and committing reports are out of scope.
