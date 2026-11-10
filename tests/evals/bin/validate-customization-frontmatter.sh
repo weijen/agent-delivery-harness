@@ -24,6 +24,10 @@ validate_file() {
       kind="agent"
       expected_name=""
       ;;
+    *.prompt.md)
+      kind="prompt"
+      expected_name=""
+      ;;
     *) reject_usage "$file" ;;
   esac
 
@@ -106,6 +110,9 @@ validate_file() {
           description = scalar_value($0, "description")
         }
       }
+      if ($0 ~ /^agent:[[:space:]]*/) {
+        agent = scalar_value($0, "agent")
+      }
     }
     END {
       if (!saw_first || missing_frontmatter) {
@@ -118,6 +125,10 @@ validate_file() {
       }
       if (tab_indentation) {
         print "tab_indentation"
+        exit
+      }
+      if (kind == "prompt" && agent == "") {
+        print "missing_agent"
         exit
       }
       if (kind == "skill") {
@@ -161,7 +172,7 @@ files=("$@")
 if [ "${#files[@]}" -eq 0 ]; then
   ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   shopt -s nullglob
-  files=("${ROOT}"/.copilot/agents/*.agent.md "${ROOT}"/.copilot/skills/*/SKILL.md)
+  files=("${ROOT}"/.copilot/agents/*.agent.md "${ROOT}"/.copilot/skills/*/SKILL.md "${ROOT}"/.copilot/prompts/*.prompt.md)
 fi
 
 for file in "${files[@]}"; do
