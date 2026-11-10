@@ -59,7 +59,7 @@ git clone -q --bare "$REPO" "$ORIGIN"
 git -C "$REPO" remote add origin "$ORIGIN"
 git -C "$REPO" checkout -qb "$BRANCH"
 mkdir -p "$TRACK"
-printf '{"issue":486,"features":[{"id":"F1","passes":true}]}\n' >"${TRACK}/feature_list.json"
+printf '{"issue":486,"features":[{"id":"F1","title":"Fixture","steps":[],"passes":true,"verification":"fixture"}]}\n' >"${TRACK}/feature_list.json"
 : >"$SENSOR_RUN_LOG"
 
 # Retired entrypoints must fail without a hidden replacement full execution.

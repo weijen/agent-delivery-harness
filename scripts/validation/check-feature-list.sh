@@ -10,7 +10,8 @@
 #
 # Completion reporting matches finish-issue.sh:
 #   * default mode: incomplete (passes:false) features are a NON-BLOCKING warning;
-#   * REQUIRE_FEATURES_COMPLETE=1: incomplete features are a hard failure.
+#   * REQUIRE_FEATURES_COMPLETE=1: jq, a nonempty feature array and completed
+#     required items are mandatory; unavailable validation cannot succeed.
 #
 # It is deliberately generic to the harness: it does not read project docs,
 # devcontainer, CI, or sensor registries, and never executes anything from the
@@ -88,10 +89,10 @@ trace__check_exit() {
 trap trace__check_exit EXIT
 
 # --- Parse args -------------------------------------------------------------
-NUM_ARG="" SLUG_ARG=""
+NUM_ARG=""
 for arg in "$@"; do
   case "$arg" in
-    SLUG=*) SLUG_ARG="${arg#SLUG=}" ;;
+    SLUG=*) ;;
     *)      NUM_ARG="$arg" ;;
   esac
 done
@@ -108,6 +109,10 @@ TRACE_T0="$(trace_now_ms)"
 TRACE_STAGE="check"
 
 if ! command -v jq >/dev/null 2>&1; then
+  if [ "${REQUIRE_FEATURES_COMPLETE:-0}" = "1" ]; then
+    red "✗ jq is required for strict feature-list completion validation; install jq and retry."
+    exit 1
+  fi
   # D8 (#94-review carry-over via #97): the jq-less skip is a pass-shaped
   # outcome with no validation behind it — the EXIT-trap span must say so.
   TRACE_WARNING="jq_skipped"
@@ -115,8 +120,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
-feature_list="${TRACKING_DIR}/feature_list.json"
+feature_list="$(issue_feature_list_path "$ISSUE_NUM")"
 
 if [ ! -f "$feature_list" ]; then
   red "✗ feature_list.json not found at ${feature_list}"
@@ -138,6 +142,13 @@ fi
 features_type="$(jq -r 'if has("features") then (.features | type) else "array" end' "$feature_list")"
 if [ "$features_type" != "array" ]; then
   red "✗ ${feature_list}: .features must be an array"
+  exit 1
+fi
+
+if [ "${REQUIRE_FEATURES_COMPLETE:-0}" = "1" ] \
+    && ! jq -e '(.features | length) > 0' "$feature_list" >/dev/null; then
+  red "✗ ${feature_list}: .features must be a non-empty array for required completion."
+  echo "  Derive the required work from the issue, then implement and verify it before marking items complete."
   exit 1
 fi
 
@@ -183,7 +194,7 @@ incomplete_count="$(jq '[.features[]? | select(.passes != true)] | length' "$fea
 if [ "$incomplete_count" -gt 0 ]; then
   if [ "${REQUIRE_FEATURES_COMPLETE:-0}" = "1" ]; then
     red "✗ ${incomplete_count} incomplete feature_list items remain."
-    echo "  Set each completed feature to passes:true before finishing, or unset REQUIRE_FEATURES_COMPLETE for warning mode."
+    echo "  Complete and verify the required work, then mark only genuinely completed items passes:true and retry."
     exit 1
   fi
   TRACE_WARNING="incomplete_features"

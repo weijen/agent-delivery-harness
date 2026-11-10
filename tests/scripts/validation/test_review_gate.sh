@@ -90,7 +90,7 @@ add_origin_main_commit() {
 }
 
 cd "$REPO"
-export TRACE_ISSUE=129
+unset TRACE_ISSUE
 printf 'initial\n' > README.md
 mkdir -p docs
 printf '# Progress\n\nbaseline\n' > docs/PROGRESS.md
@@ -143,6 +143,8 @@ printf '# Progress\n\nphase B feature\n' > docs/PROGRESS.md
 git add feature.txt docs/PROGRESS.md
 make_commit "feature commit"
 approved_head="$(git rev-parse HEAD)"
+export TRACE_ISSUE=129
+fixture_review_pass 129
 ./scripts/validation/review-gate.sh approve >/tmp/review-gate-approved-feature.out
 ./scripts/run-sensors.sh --gate pre-pr >/dev/null
 
@@ -378,7 +380,7 @@ make_repo() {
   jq -nc --argjson issue "$issue" '
     {issue: $issue,
      features: [{
-       id: "feat-a", title: "A", passes: true, verification: "fixture"
+       id: "feat-a", title: "A", steps: [], passes: true, verification: "fixture"
      }]}' > "${idir}/feature_list.json"
 }
 
@@ -494,18 +496,52 @@ rc="$(run_in "$C3" "$OUT" -- ./scripts/validation/review-gate.sh check)"
   || fail "single-criterion concise review without plan must remain approved (output: $(tr '\n' '|' < "$OUT"))"
 
 # ============================================================================
-# Case 4: graceful_skip_no_trace (issue 43)
+# Case 4: required review evidence cannot degrade to a skip.
 # ============================================================================
-# feat-a is passes:true but NO trace.jsonl is planted, so
-# check-trace-consistency exits 2 (checker could not run). The verdict gate
-# must degrade to a skip (return 0) rather than break the gate, so approve
-# still proceeds and writes the marker.
 C4="${TMP_DIR}/c43"; make_repo "$C4" 43
 rc="$(run_in "$C4" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
-[ "$rc" = "0" ] \
-  || fail "graceful_skip_no_trace: with no trace the verdict gate must degrade to a skip (return 0), not break approve — expected exit 0, got ${rc} (output: $(tr '\n' '|' < "$OUT"))"
-[ -f "$(marker_path "$C4")" ] \
-  || fail "graceful_skip_no_trace: approve must write the approved-head marker when the verdict gate skips gracefully"
+[ "$rc" != "0" ] || fail "missing required review evidence approved"
+[ ! -f "$(marker_path "$C4")" ] || fail "missing review evidence wrote approval"
+grep -qi 'review evidence' "$OUT" || fail "missing review evidence needs an actionable diagnostic"
+
+C5="${TMP_DIR}/c44"; make_repo "$C5" 44
+ID5="${C5}/.copilot-tracking/issues/issue-44"
+add_verdict "$ID5" 44 feat-a
+for state in missing invalid; do
+  if [ "$state" = missing ]; then rm "${ID5}/feature_list.json"
+  else printf '{"features":"invalid"}\n' > "${ID5}/feature_list.json"; fi
+  rc="$(run_in "$C5" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
+  [ "$rc" != 0 ] || fail "${state} required feature state approved"
+  [ ! -f "$(marker_path "$C5")" ] || fail "${state} feature state wrote approval"
+  grep -qi 'feature' "$OUT" || fail "${state} feature state diagnostic did not identify required state"
+done
+
+C6="${TMP_DIR}/c45"; make_repo "$C6" 45
+ID6="${C6}/.copilot-tracking/issues/issue-45"
+jq '.features[0] += {passes:false,type:"repair",finding_fingerprint:"required-repair",blocked_on:"unfinished"}' \
+  "${ID6}/feature_list.json" > "${ID6}/next"
+mv "${ID6}/next" "${ID6}/feature_list.json"
+for attempt in incomplete replanned; do
+  printf 'Affected work remains required: %s\n' "$attempt" > "${ID6}/plan.md"
+  rc="$(run_in "$C6" "$OUT" REQUIRE_FEATURES_COMPLETE=0 -- ./scripts/validation/review-gate.sh approve)"
+  [ "$rc" != 0 ] || fail "${attempt} required repair approved"
+  [ ! -f "$(marker_path "$C6")" ] || fail "${attempt} repair wrote approval"
+done
+jq '.features[0] += {passes:true,blocked_on:null}' "${ID6}/feature_list.json" > "${ID6}/next"
+mv "${ID6}/next" "${ID6}/feature_list.json"
+rc="$(run_in "$C6" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
+[ "$rc" != 0 ] || fail "corrected state alone replaced required review"
+add_verdict "$ID6" 45 feat-a
+rc="$(run_in "$C6" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
+[ "$rc" = 0 ] || fail "completed and actually reviewed repair failed to recover: $(cat "$OUT")"
+
+C7="${TMP_DIR}/c46"; make_repo "$C7" 46
+add_verdict "${C7}/.copilot-tracking/issues/issue-46" 46 feat-a
+mv "${C7}/scripts/validation/check-feature-list.sh" "${TMP_DIR}/validator.saved"
+rc="$(run_in "$C7" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
+[ "$rc" != 0 ] || fail "unavailable required validator approved"
+[ ! -f "$(marker_path "$C7")" ] || fail "unavailable validation wrote approval"
+grep -qi 'validation unavailable' "$OUT" || fail "unavailable validator needs a corrective diagnostic"
 
 # --- Result -------------------------------------------------------------------
 if [ "$fails" -ne 0 ]; then
@@ -592,8 +628,7 @@ make_repo() {
   mkdir -p "$idir"
   printf '# Issue %s progress\n\nStatus: in progress.\n\n## Action Log\n\n' "$issue" \
     > "${idir}/progress.md"
-  printf '{"issue":%s,"features":[{"id":"feat-a","title":"A","passes":false}]}\n' "$issue" \
-    > "${idir}/feature_list.json"
+  (cd "$dir" && fixture_review_pass "$issue" feat-a)
 }
 
 # add_reject <idir> <issue> <fid>: append one schema-shaped review_verdict/fail
@@ -729,6 +764,7 @@ review_group_pids+=("$!")
 
 (
 cd "$ROOT"
+unset TRACE_ISSUE
 TMP_DIR="$(mktemp -d)"
 trap 'cd /; rm -rf "${TMP_DIR}"' EXIT
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
@@ -750,10 +786,21 @@ git -C "$FIX" add -A && git -C "$FIX" commit -qm "add docs fixture"
 cd "$FIX"
 mkdir -p .copilot-tracking/review-gate
 
-./scripts/validation/review-gate.sh approve >/dev/null 2>&1 || fail "approve failed"
+fixture_review_pass 77
+out="$(./scripts/validation/review-gate.sh approve 2>&1)" || fail "approve failed: $out"
 
 # 1. docs-only delta carries
 printf 'more\n' >> docs/guide.md && git add docs/guide.md && git commit -qm "docs: more"
+state=.copilot-tracking/issues/issue-77/feature_list.json
+marker=.copilot-tracking/review-gate/issue-77/approved-head
+cp "$state" "${TMP_DIR}/reviewed-state"
+cp "$marker" "${TMP_DIR}/approved-marker"
+jq '.features[0].passes=false' "${TMP_DIR}/reviewed-state" >"$state"
+if ./scripts/validation/review-gate.sh check >"${TMP_DIR}/incomplete.out" 2>&1; then
+  fail "docs-only carry approved incomplete required work"
+fi
+cmp -s "$marker" "${TMP_DIR}/approved-marker" || fail "blocked docs-only carry rewrote approval"
+cp "${TMP_DIR}/reviewed-state" "$state"
 out="$(./scripts/validation/review-gate.sh check 2>&1)" || fail "docs-only delta must carry the approval (got: $out)"
 grep -q "carried" <<<"$out" || fail "carry notice missing (got: $out)"
 
@@ -765,6 +812,7 @@ fi
 git reset -q --hard HEAD~1
 
 # 3. doctrine markdown must fail
+fixture_review_pass 77
 ./scripts/validation/review-gate.sh approve >/dev/null 2>&1
 printf 'x\n' >> .copilot/skills/doc.md && git add .copilot/skills/doc.md && git commit -qm "docs: doctrine"
 if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then
@@ -773,6 +821,7 @@ fi
 git reset -q --hard HEAD~1
 
 # 4. AGENTS.md must fail
+fixture_review_pass 77
 ./scripts/validation/review-gate.sh approve >/dev/null 2>&1
 printf 'x\n' >> AGENTS.md && git add AGENTS.md && git commit -qm "docs: agents"
 if ./scripts/validation/review-gate.sh check >/dev/null 2>&1; then

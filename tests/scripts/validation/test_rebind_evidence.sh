@@ -19,6 +19,7 @@ git -C "$FIX" add tests
 git -C "$FIX" commit -qm 'test: count sensor execution'
 git -C "$FIX" checkout -qb feature/issue-77-fixture
 head_sha="$(git -C "$FIX" rev-parse HEAD)"
+(cd "$FIX" && fixture_review_pass 77)
 EVIDENCE="${FIX}/.copilot-tracking/issues/issue-77/sensor-evidence.jsonl"
 MARKER="${FIX}/.copilot-tracking/review-gate/issue-77/approved-head"
 
@@ -63,6 +64,7 @@ mv "${FIXTURE_TMP_DIR}/rebind.saved" "${FIX}/scripts/validation/rebind-evidence.
 
 printf '# changed\n' >>"${FIX}/tests/scripts/test_counted.sh"
 git -C "$FIX" commit -qam 'test: repaired candidate'
+(cd "$FIX" && fixture_review_pass 77)
 approve || fail "approval of a repaired candidate required a full run"
 if rebind; then fail "stale evidence satisfied the repaired candidate"; fi
 no_execution

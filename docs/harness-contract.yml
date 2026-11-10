@@ -26,6 +26,10 @@ repair_policy:
   repeated_failure: reassess-approach-before-hardening
   approach_change_disposition: decompose
   durable_lesson: optional-validated-pair
+  blocked_review_default: repair-or-missing-verification
+  replanning_trigger: human-request-at-blocked-review-with-assessed-reason-and-conditions
+  replanning_approval: forbidden-without-completed-reviewed-required-work
+  replacement_coverage: traceable-authoritative-requirements-and-owner-approved-changes
 
 test_execution_budget:
   seconds: 900
@@ -443,6 +447,10 @@ sha_bindings:
     binding: review approval is bound to HEAD by approved-head
     owner: scripts/validation/review-gate.sh
     present: approved-head
+  - id: approval-required-state
+    binding: Active-issue approval creation and consumption require valid complete feature and repair state plus passing per-feature review evidence, even at unchanged HEAD; rejection cannot create or carry a marker.
+    owner: scripts/validation/review-gate.sh
+    present: required_review_state_gate
   - id: review-verdict
     binding: review verdict carries reviewed_sha
     owner: scripts/trace/log-handback.sh
@@ -482,6 +490,7 @@ env_flags:
   - name: REQUIRE_FEATURES_COMPLETE
     owner: scripts/validation/check-feature-list.sh
     present: REQUIRE_FEATURES_COMPLETE
+    effect: Require jq, a nonempty feature array and complete required items; unavailable validation fails closed.
   - name: REQUIRE_TRACE_CONSISTENCY
     owner: scripts/validation/review-gate.sh
     present: REQUIRE_TRACE_CONSISTENCY

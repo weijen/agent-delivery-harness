@@ -68,6 +68,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tests/scripts/lib/fixture.sh
+source "${ROOT}/tests/scripts/lib/fixture.sh"
 CONTRACT_YML="${ROOT}/docs/harness-contract.yml"
 SCHEMA="${ROOT}/schemas/trace-schema.v1.json"
 TMP_DIR="$(mktemp -d)"
@@ -274,6 +276,7 @@ fi
 printf '# Progress\n\nissue-80 work\n' > "${WT1}/docs/PROGRESS.md"
 git -C "$WT1" add docs/PROGRESS.md
 git -C "$WT1" commit -q -m "issue-80: progress update"
+(cd "$WT1" && fixture_review_pass 80 feat-a)
 rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh approve)"
 [ "$rc" = "0" ] || hard_fail "setup: review-gate approve failed in F1 (output: $(tr '\n' '|' < "$OUT"))"
 rc="$(run_in "$WT1" "$OUT" -- ./scripts/validation/review-gate.sh check)"

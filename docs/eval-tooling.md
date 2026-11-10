@@ -162,6 +162,31 @@ informed conflict auditing, explicit topology and calibrated verification.
 It does not replace this harness's single delivering agent plus independent
 reviewer or supply missing model-evaluation evidence.
 
+## Blocked-review recovery evaluation (#578)
+
+The following bounded **delivering-agent semantic walkthroughs** evaluate the
+recovery rule separately from deterministic gate behavior. They are not isolated
+model trials, measured adherence rates or cross-host benchmarks. Fresh-context
+review may probe them separately; only its actual recorded results, not this
+table, can support claims about that probe.
+
+| Input at blocked review/approval | Walkthrough outcome | Coverage and limit |
+| --- | --- | --- |
+| Required integration verification is missing; no human replan request | Keep approval blocked, execute the missing verification, repair if needed and return through applicable review. No automatic replan or synthetic failed verdict. | Original requirement stays required. Executed shell fixtures separately prove that missing review/state and a plan edit cannot grant approval; they do not judge natural-language intent. |
+| Owner explicitly forbids the planned provider, requests a permitted equivalent, and retains the required outcome | Treat the authorized constraint as authoritative without calling the forbidden provider. Assess alternative feasibility and dependencies; record reason, conditions and old-to-new requirement/item mapping; replan affected work only. | Preserve unaffected completion and applicable carry. Required implementation, tests and actual review remain due; neither an owner constraint nor a new plan is approval. If feasibility is unknown, clarify/check rather than claim success. |
+| Human says the current approach is impossible but provides no support for a technical condition | Keep approval blocked; check the claim where feasible or seek clarification. If justification remains insufficient, repair the existing approach; if it is genuinely impossible, resolve the assumption/scope rather than endlessly retry. | No silent requirement removal or weakening. An explicit owner-approved issue change is necessary for changed requirements. This semantic judgment is not shell-enforced. |
+
+Executed regression boundaries are
+[strict/default completion](../tests/scripts/validation/test_feature_list_check.sh),
+[approval and recovery](../tests/scripts/validation/test_review_gate.sh),
+[unchanged-HEAD publication](../tests/scripts/lifecycle/test_create_pr_sensor_gate.sh),
+and [supported review currency/carry](../tests/scripts/validation/test_verdict_currency_gate.sh).
+They use isolated synthetic state/review records, not fabricated real approvals.
+The [central recovery diagram](HARNESS.md#human-requested-replanning-at-blocked-review)
+shows the narrow branch. Rendering/parser checks, when executed, validate diagram
+syntax and layout only; neither those checks nor prose/link sensors establish
+agent judgment.
+
 ## Continuous-delivery policy evaluation (#580)
 
 The current [session scope](../.copilot/instructions/harness.instructions.md#1-session-scope)
