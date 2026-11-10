@@ -24,13 +24,6 @@ Tier 2 or Tier 3 from the planned impact; an initial Tier 2/3 guess is not requi
 Known risks and authorization limits apply during investigation, not only after
 classification. If a Tier 1 task reveals material risk, reassess before proceeding.
 
-| Tier | When to use | Subagents | Plan file | Tests | Commit-strategy ask |
-| ---- | ----------- | --------- | --------- | ----- | ------------------- |
-| 0    | Questions, explanations, shell-only / read-only ops | None | No | None | No |
-| 1    | Contained, reversible edits with understood behavior and no new material risk | Main-agent self-check; host harness still requires independent review | No | Applicable targeted checks | No (commit on request) |
-| 2    | Contained behavior change with some uncertainty | Single concise review when host rules, risk or user require it | When useful for continuity or decisions | Targeted first; applicable completion gates | No (commit on request) |
-| 3    | Material trust/data-loss risk, irreversible effects, uncertain cross-component contracts | Direct planning and implementation, then independent review | Fuller plan in host tracking | Risk-relevant checks and applicable completion gates | Follow existing authorization; ask only if unresolved |
-
 ### Tier 0 — Direct answers
 
 Questions, explanations, status checks and reading logs with no intended state
@@ -39,32 +32,38 @@ does not make work read-only: a destructive command is not Tier 0.
 
 ### Tier 1 — Fast path
 
-Contained and reversible, with understood acceptance and no new material trust,
-data-loss or external-side-effect risk. Consider behavior, not the number or names of files.
-
-State a brief approach, edit, run targeted tests (`<project test command> path::test_name`), self-check the diff. No
-plan file, no review subagent unless risk surfaces or the user asks. Commit only on request.
+Local, reversible corrections with understood behavior that preserve existing
+contracts and operating boundaries, with no new material trust, data-loss or
+external-side-effect risk. Use a brief approach and applicable targeted checks;
+follow the host lifecycle for review and delivery.
 
 ### Tier 2 — Lightweight structured
 
-Multiple related files, behavior change needing tests, some uncertainty but no broad architectural risk.
+Bounded behavioral development within the existing architecture, with known
+affected consumers that can be updated and verified together, and no material
+Tier 3 impact. Updating an internal parser and its repository-owned callers can
+qualify even when their internal interface changes.
 
-Inline short plan (in chat, not a file). Targeted TDD for behavior changes. **Optional** one review pass after
-implementation when risk warrants or the user asks — use `code-review-subagent` in `concise` mode. Targeted tests
-first; applicable completion gates at the end. No separate plan file unless useful
-or requested. Commit according to host rules or user authorization.
+### Tier 3 — Consequential boundaries
 
-### Tier 3 — Full orchestrated workflow
+Material changes to trust or security controls (including authentication,
+authorization, data isolation and approval controls), data-loss exposure,
+irreversible external effects, consequential breaking contracts for independent
+consumers, or architectural transitions requiring coordinated system changes.
+Use deeper planning and risk-relevant safeguards for the actual impact.
 
-Material security or data-loss exposure, irreversible external effects, uncertain
-cross-component behavior, or a user request for deeper planning. Merely touching a
-deployment document or several files does not create that risk.
+Using an existing security mechanism is not the same as changing its policy.
+Changing an independently consumed contract is not the same as updating known
+internal callers together. Describing a possible deployment in a document is
+not itself a deployment; actual provisioning, activation or teardown must be
+assessed for its effects and authorization.
 
-Uses `code-review-subagent` for the independent review (#352 retired the planning/generator
-subagents — plan directly in `.copilot-tracking/plans/`); otherwise the main
-agent implements directly. In a contract-v2 issue harness, one delivering agent follows
-`gate_start`, `gate_sensors`, `gate_review`, and `gate_merge_closeout`; local harness rules replace the generic
-approval pauses below.
+File/module count, internal interface changes, phased implementation, unfamiliarity
+and planning depth alone do not establish Tier 3. Honor a request for deeper
+planning without automatically changing the risk classification. Uncertainty
+directs investigation; consequences determine safeguards. Investigate credible
+critical risk before treating a change as contained. An agent capability limit
+is a separate blocker, not a higher task-risk tier.
 
 ## Shared Principles
 
