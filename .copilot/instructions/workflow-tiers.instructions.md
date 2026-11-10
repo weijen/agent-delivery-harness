@@ -101,22 +101,7 @@ material scope or risk change, before crossing the newly affected boundary.
 
 Choose the approach before decomposing features, following
 [the breakdown flow](../../docs/HARNESS.md#the-breakdown-flow-plan--clarify--feature_list).
-In this harness, every coding issue retains issue authority, isolated
-worktree/preflight, TDD, criterion/sensor evidence, independent whole-diff review,
-current-HEAD approval, final applicable validation, PR/green CI and authorized
-merge/closeout. Contained low-risk work uses a short approach and `concise` review;
-material risk or consequential unresolved contracts warrant fuller planning and
-`full` review under [Risk-proportionate delivery](harness.instructions.md#risk-proportionate-delivery).
-Review output depth does not reduce the finding pass or required verdicts.
-
-For chat-driven coding in an issue-driven host, draft the issue and obtain
-approval to create it unless that authority is already explicit. If declined,
-do not implement inline. Tier 0 and explicitly waived personal scratchpad work
-are exempt. An existing approved issue needs no repeat handshake.
-
-Work autonomously within the authorized scope through implementation, verification
-and the agreed delivery endpoint. Ask only when missing requirements,
-consequential tradeoffs or authorization prevent safe progress. Classification
-does not expand that authority or waive security, privacy, publication or merge
-controls. Run applicable required checks; broaden or repeat only when changes,
-failures or unresolved concerns justify it, then continue to completion.
+Apply [Authorization](harness.instructions.md#authorization) before chat-driven
+edits and [Risk-proportionate delivery](harness.instructions.md#risk-proportionate-delivery)
+for planning/review depth. The lifecycle owns the delivery sequence and gates;
+classification neither expands authority nor waives them.

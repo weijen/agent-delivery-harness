@@ -162,12 +162,8 @@ decisions to the owner. Never implement production fixes.
 
 Mode choice and audit applicability are defined in
 [Review acceptance policy](../instructions/harness.instructions.md#review-acceptance-policy).
-`full` and `concise` use the same finding pass and whole-diff exposure check.
-Choose concise for contained low-risk work; full for higher-risk work.
-`repair` reviews only named revised features, including all four verdicts,
-adversarial test judgment and targeted regression checks. It defers the
-whole-diff exposure sweep, not the pre-PR exposure obligation: new repair content
-must be covered before publication. Report new out-of-scope findings as a
+For `repair`, stay within the named revised/affected features; perform all four
+verdicts and targeted regression judgment. Report new out-of-scope findings as a
 separate non-repair event for their own feature; never expand repair scope silently.
 
 For unaffected features whose original verdict would otherwise become stale,

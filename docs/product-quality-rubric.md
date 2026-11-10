@@ -8,39 +8,17 @@ exemplar-quality threshold: optional robustness is not an independent reason
 to block. Process completion and passing isolated tests alone do not prove
 the user's workflow works.
 
-## Blocking Gates
+## Using this reference
 
-### 1. Spec Fidelity
-
-The change satisfies the issue's acceptance criteria without unapproved scope.
-Compare observable results, not the exact implementation steps in a plan.
-Missing required behavior and unnecessary features are both relevant.
-
-### 2. Executable Verification
-
-Required behavioral claims have executed, discriminating assertions. Use real
-runtime evidence for real boundaries; reuse the same test for regression and
-end-to-end coverage when it genuinely proves both. Non-behavioral prose needs
-semantic review, not invented tests.
-
-The reviewer identifies a concrete gap before adding the smallest independent
-test. Production remains read-only. A new test exposing a material in-scope
-defect requires repair; unsupported hypotheticals do not. Preserve necessary
-negative and safety cases, and remove duplicate assurance only after identifying
-the retained assertion that detects the same failure.
-
-### 3. Main Workflow Works
+The [fresh-context reviewer](../.copilot/agents/code-review-subagent.agent.md#four-review-verdicts)
+owns the four verdicts and its edit authority; the lifecycle owns
+[acceptance and dispositions](../.copilot/instructions/harness.instructions.md#review-acceptance-policy)
+and [minimum sufficient verification](../.copilot/instructions/harness.instructions.md#minimum-sufficient-verification).
+This page supplies calibration, not another gate checklist or score threshold.
 
 The actual entrypoint produces the requested result through the intended
 components. A collection of merged components or unit-test successes is not
 integrated delivery. Confirm the artifact survives the workflow where applicable.
-
-### 4. No Known Critical Breakage
-
-Do not introduce credential leaks, authorization bypasses, destructive data loss
-or other concrete critical defects. Apply the existing exposure checks and
-inspect affected safety boundaries. This does not require speculative threat
-modeling of unrelated systems or production-grade recovery for every helper.
 
 ## Quality Questions
 
@@ -61,17 +39,10 @@ or another abstraction? Do not demand a refactor merely to match reviewer taste.
 
 ## Handback Routing
 
-`NEEDS_REVISION` needs an unmet acceptance criterion or concrete material
-in-scope failure, with evidence and a repair direction. A gate failure cannot
-be compensated by strengths elsewhere. Route implementation and test defects
-to the delivering agent; unresolved scope or authority decisions to the owner.
-
-`APPROVED` means the gates pass. Mention optional improvements as non-blocking
-notes only when useful. There is no waiver ceremony for out-of-scope polish and
-no requirement to attain a stronger score.
-
-Preserve the existing four review verdicts and structured finding attribution;
-this rubric adds no stage, payload schema or mandatory checklist artifact.
+Use the reviewer's [findings and completion](../.copilot/agents/code-review-subagent.agent.md#findings-and-completion)
+and [handback](../.copilot/agents/code-review-subagent.agent.md#modes-and-output).
+A required failure cannot be compensated by strengths elsewhere; optional
+polish needs neither a waiver ceremony nor a stronger score.
 
 ## Calibration Examples
 

@@ -294,9 +294,9 @@ environment is healthy and runs the gates for whatever surfaces it detects.
 REQUIRE_AZ=1 ./scripts/init.sh # when the work needs Azure / Terraform
 ```
 
-Hard checks (GitHub auth, signing) fail with remediation instructions; soft
-checks (a missing language toolchain or absent gates) only warn while the
-project still has no code.
+GitHub authentication and detected quality-gate failures are hard failures.
+Signing configuration warns in preflight; signing must still remain enabled
+for delivery. Optional-tool/absent-surface skips are reported explicitly.
 
 ## 6. Start your first issue
 
@@ -314,10 +314,10 @@ worktrees out of the main checkout's status. Existing in-flight worktrees in
 the historical sibling `<repo>-worktrees/issue-NN` layout remain discoverable
 for resume and teardown; only newly created worktrees use `.worktrees/`.
 
-From there, follow the lifecycle in [docs/HARNESS.md](HARNESS.md): populate
-`.copilot-tracking/issues/issue-NN/feature_list.json`, work one feature at a
-time as the delivering agent, run the review gate, open a PR with
-`./scripts/create-pr.sh`, and close out with `./scripts/finish-issue.sh`.
+From there, follow the central guide's [workflow stages](HARNESS.md#workflow-stages)
+for roles, inputs, commands and evidence, including the one-feature stopping
+point. Use its [review/recovery flow](HARNESS.md#review-and-recovery) when review,
+validation, CI or merge blocks. This page owns setup, not a second delivery procedure.
 
 ## 7. Subagent permissions
 

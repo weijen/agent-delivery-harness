@@ -23,6 +23,11 @@ links into the project's existing instructions rather than overwriting them.
 
 ## Running the task prompts
 
+The [central workflow guide](HARNESS.md#lifecycle) explains stage ownership,
+commands and evidence; its [recovery flow](HARNESS.md#review-and-recovery) covers
+requested changes and blocked validation/CI/merge. This page owns host discovery,
+invocation and runtime records, not another lifecycle.
+
 | Host | Invocation |
 | --- | --- |
 | VS Code **Local** session | Open `.copilot/prompts/session-ritual.prompt.md` and use the editor play button. Supply the issue input. The source checkout also has `audit-sweep.prompt.md`. |

@@ -34,15 +34,27 @@ continue through independent review, required repairs, final validation and
 authorised PR/CI/merge/closeout (§3), including when all items pass on entry.
 Repair items follow the same one-at-a-time discipline.
 
+### Authorization
+
+For chat-driven coding, draft the issue and obtain approval to create it unless
+that authority is already explicit. If declined, do not implement inline.
+Read-only work and explicitly waived personal scratchpad work are exempt.
+An existing approved issue needs no repeat handshake.
+
+Work autonomously within the authorized scope through the agreed endpoint.
+Ask when missing requirements, consequential tradeoffs or authorization prevent
+safe progress, not at routine milestones. Classification does not expand
+authority or waive security, privacy, publication or merge controls.
+
 ## 2. Start-of-session ritual (always)
 
 After any context compaction, re-read this section before continuing the ritual.
-Emit `deviation` when it happens and `review_verdict` at review handback.
-A failed review verdict requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`,
-`TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE`; actionable findings need
-a reproduction or proposed fix. Before authenticated GitHub operations, call
-`harness_identity_activate`; never run `gh auth switch`. These are the same rules
-as the upstream [Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor).
+Use the upstream [Post-compaction re-anchor](https://github.com/weijen/agent-delivery-harness/blob/main/AGENTS.md#post-compaction-re-anchor):
+emit a `deviation` and recover the actual candidate, evidence and next step.
+Use [Agent-span conventions](#agent-span-conventions) for verdict fields and
+[Same-Class Escalation](#same-class-escalation) for failed/blocked deviations.
+Before authenticated GitHub operations call `harness_identity_activate`;
+never run `gh auth switch`.
 
 1. **Get into the right worktree.**
    - **Starting an issue:** run `./scripts/start-issue.sh <N>` from the **main checkout**. It runs
@@ -84,9 +96,9 @@ human-readable companion to the GitHub issue. Standard contents:
   and update it at milestones.
 - `progress.md` — running log: what changed, which features flipped, commit shas, next feature to pick.
 
-`docs/PROGRESS.md` is RETIRED (2026-07-22, frozen under `docs/archive/`): the repo-wide journal
-duplicated git log, GitHub issues, and the trace. The per-issue `progress.md` (rendered from
-trace spans, #332) is the only progress artifact.
+Use per-issue progress, not the retired repo-wide `docs/PROGRESS.md` journal.
+The Action Log is rendered from trace spans; the surrounding progress records
+the current state and next step.
 
 ## 3. Deliver the issue (one agent, one context — #352)
 
@@ -133,7 +145,12 @@ Workflow per issue:
    that the final reviewed HEAD already passed its applicable gate. Only after approval,
    use `--head <final-sha> --mode pre-pr` for final applicable evidence. A direct
    `bash tests/.../test_*.sh` multi-glob invocation is a deviation because Bash
-   executes only the first match. Commit and push after each completed feature.
+   executes only the first match.
+   Once green, mark the actual feature `passes:true` and update progress with
+   changes, evidence, commit SHA and next item; update the plan if it changed.
+   Commit and push each completed feature. A verification-only feature with no
+   tracked diff needs no empty commit; record its result in local tracking.
+   Leave a clean state and stop here when unfinished items remain (§1).
 3. **Independent review (gate 3), once, pre-PR:** first run
    `./scripts/create-pr.sh --prepare` to synchronize before final verification,
    then invoke the `code-review-subagent` in `concise` mode for contained low-risk work,
@@ -152,7 +169,9 @@ Workflow per issue:
    verifies existing rows; it cannot refresh missing, stale or invalid evidence.
    Same-class escalation (#317/#327) applies to your own repairs: on the second
    same-class failure reassess the approach before expanding the repair.
-4. **Ship (gate 4):** `./scripts/run-sensors.sh --gate pre-pr` on the final HEAD, then
+4. **Ship (gate 4):** compose `./scripts/init.sh` and
+   `./scripts/run-sensors.sh --gate pre-pr` on the approved final HEAD under
+   the [shared budget](#shared-test-execution-budget), then
    `./scripts/create-pr.sh` → CI → `./scripts/merge-pr.sh --squash --delete-branch` (authoritative MERGED + merge SHA,
    #328) → `./scripts/finish-issue.sh` (write-once conclusion #323 and teardown
    gated on live merge evidence #316). Publication verifies current-HEAD applicable
@@ -231,31 +250,22 @@ Ask for human decisions
 when requirements, authorization or consequential tradeoffs remain unresolved,
 not at routine milestones with no decision to make.
 
-Both paths retain issue authority, isolated worktree/preflight, TDD, scoped
-feature evidence, independent whole-diff review, current-HEAD approval, final
-applicable validation, PR/green CI and authorized merge/closeout. Neither path
-uses bypass flags, fake evidence, additional tier files or an alternate gate engine.
+Both paths follow §3 without bypass flags, fake evidence, additional tier files
+or an alternate gate engine.
 
 **Review profile at issue completion.** At issue completion (all features `passes:true`), the single end-of-issue review
-runs in **`concise` or `full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
-sweep (`public-exposure-audit`); the five quality skills are not part of the review
-(#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
-runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.
+runs under [Review acceptance policy](#review-acceptance-policy), returning the
+four per-feature verdicts defined by the fresh-context reviewer.
 Three countable verdicts for the same unrepaired defect (same reviewed SHA or an explicit
 `repeat_of` chain) trip `review_reject_cap_exceeded`; three distinct repaired findings warn, while
 five total countable failures remain the hard moving-goalposts backstop. A cap asks the human for
 a **design ruling**, not a fourth point repair; `review-gate.sh` remains its deterministic enforcer.
-Post-repair re-reviews run the **`repair` review profile** scoped to the revised
-features only, without repeating the whole-diff exposure sweep. The delivering
-agent ensures that any repair-introduced content receives the pre-PR exposure
-check before publication (§6); repair mode does not waive that obligation.
 
 **Multi-finding rounds route through the feature list (#449).** When one review round yields
 **two or more findings requiring remediation**, author them as feature-list items — `type: "repair"`, ids `R1…Rn`,
 each carrying the finding's `finding_fingerprint` and steps derived from its
 reproduction/proposed-fix — then repair with the SAME discipline features get: **one item at a
-time, scoped sensors green per item before the next**, never a batch blob (batch repairs are
-how issue-9's 7-finding fix introduced 4 new defects). After the last item goes green, run
+time, scoped sensors green per item before the next**, not a batch fix. After the last item goes green, run
 **one** batch-end `repair`-mode review; its per-feature verdicts stamp the new HEAD (the
 evidence the #447 currency gate consumes at approve). Repair items count toward completion
 (no finish with an open repair item) but are excluded from the issue-sizing guideline; the
@@ -333,9 +343,8 @@ earlier pushes.
 
 #### Required per-feature handoff sequence
 
-Use scoped feature verification followed by independent end-of-issue review.
-`feature_start` is optional, not a completion gate.
-Historical `passes:true` records remain readable without a `feature_start` span.
+Follow §3. `feature_start` is not required for `passes:true`; historical
+completed features remain valid without a start span.
 
 #### Agent-span conventions
 
@@ -472,20 +481,13 @@ superseded guidance with one or two lines in `AGENTS.md` or an existing, non-sym
 
 ## 4. Sensors — run to self-correct (quality-left)
 
-| Stage | Computational (fast, every change) | Inferential (skills, on demand) | Gating? |
-|---|---|---|---|
-| GREEN (per feature) | declared `regression_sensor`/`e2e_sensor` + feature-affected sensors from a fixed feature base; boundary-only whole-suite wrappers are deferred — **no FULL fallback** | — | **BLOCKING** for the feature's `passes:true`; invalid scope/declarations stop the run |
-| Pre-commit | declared/affected sensors plus `shellcheck` on touched shell files | — (review runs once, at issue completion — #303/#352) | **BLOCKING** — do not commit on red |
-| Independent review (once per issue) | recorded scoped feature checks; targeted probes only | the inferential sensor set — **authoritative list in §6** | **BLOCKING** — resolve review findings before approval; no full-suite prerequisite |
-| **Pre-PR verify gate** | one complete applicable suite after approval | resolved review verdicts — **authoritative list in §6** | **BLOCKING** — see §6; do not `gh pr create` until final validation succeeds |
-
-Prefer the cheap deterministic sensors on every change; reserve the expensive inferential sensor
-set (enumerated once in §6) for the Pre-PR verify gate. When a sensor message tells you how to
-fix something, do it before moving on.
-
-The Pre-PR verify gate also runs a deterministic **`ci-gate`** (project-CI coverage): a repo with a
-code surface but no project-CI workflow running its gates cannot open a PR. See §6 (bypass:
-`SKIP_CI_GATE=1`, logged).
+§3 owns execution order. Feature evidence uses declared plus affected sensors
+from the fixed base; final applicable evidence covers the approved HEAD.
+Run cheap applicable format/lint/type checks too: Python source activates the
+shared profile, and harness shell changes require shellcheck. Do not commit
+on red or repeat adequate checks without changed content, failure or a concrete
+gap. [Review acceptance policy](#review-acceptance-policy) owns inferential checks;
+§6 explains publication and CI enforcement.
 
 ### Completion sensors: regression vs. end-to-end
 
@@ -567,21 +569,9 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 > shell (or the `git log` author dates you can already see) as the source of truth, exactly as
 > you would for any other fact. Do not write a remembered or estimated date.
 
-1. Ensure the detected computational gates are green. Python source activates
-   sync, ruff and mypy; pytest reports a skip when no Python tests are collected.
-   Harness shell changes require shellcheck. Evaluation oracles with shell
-   entrypoints remain covered by their declared shell sensors.
-2. Flip the completed feature(s) to `passes:true` in `feature_list.json`.
-3. Update `.copilot-tracking/issues/<issue>/progress.md` (what changed, which features flipped,
-  commit sha, next feature to pick). The Action Log is rendered from trace spans (#332); write
-  `deviation` / `review_verdict` spans as they happen and the render stays
-  truthful. Update `.copilot-tracking/issues/<issue>/plan.md` if the approach or remaining
-  phases changed.
-
-4. **Commit and push after every completed feature** to the issue's working branch. If a
-   verification-only feature produced no tracked diff (e.g. the gates were already green),
-   do NOT manufacture an empty commit — fold its `passes:true` bump into the next
-   code-bearing feature's commit body, or leave it for the issue-close commit.
+Use §3's feature endpoint or completed-issue closeout, not a second procedure.
+Keep local tracking accurate, preserve the script-rendered Action Log, remove
+scratch/debug leftovers from tracked changes and leave no half-feature.
 
 ## 6. Branching & commits
 
@@ -592,34 +582,16 @@ A clean state = mergeable to main: gates green, no debug leftovers, no half-feat
 
 ### Pre-PR verify gate (MANDATORY — stop here before `gh pr create`)
 
-When the issue's features are all `passes:true`, do **not** open the PR yet. First run the
-**Pre-PR verify gate** (the BLOCKING row in §4) over the whole branch diff (`main...HEAD`):
+Follow §3's single ordered procedure. Preparation fetches/synchronizes without
+sensors, publication or a new publication round; default rebase can be replaced
+by `CREATE_PR_NO_REWRITE=1` merge. Approval runs no sensors. Publication does not
+synchronize or run tests: it verifies current approval and nonempty applicable
+evidence for the clean current HEAD, pushes exactly that commit and opens the PR.
+Do not replace `create-pr.sh` with raw `gh pr create`. Changes to the candidate
+require corresponding review and validation again. Dormant toolchain metadata
+alone does not activate Python product gates.
 
-1. **Prepare before final verification.** Run `./scripts/create-pr.sh --prepare` to
-   fetch main and synchronize the issue branch. Default preparation rebases;
-   `CREATE_PR_NO_REWRITE=1` merges instead. This explicit step does not run sensors,
-   push, open a PR or consume a successful publication round.
-2. **Review and approve the prepared candidate.** Invoke the single independent
-   `code-review-subagent` end-of-issue review and applicable inferential checks described below,
-   using scoped feature evidence. A full suite is not a review prerequisite.
-   Resolve findings before `./scripts/validation/review-gate.sh approve`.
-   Approval runs no sensors. Final evidence must cover the resulting HEAD; subsequent changes require
-   the corresponding review and validation obligations again.
-3. **Verify the final candidate before publication.** Complete applicable validation green
-   for the current detected surfaces:
-   `./scripts/run-sensors.sh --gate pre-pr` plus the profile gates from
-   `./scripts/init.sh`. Dormant release/toolchain metadata alone invokes no Python
-   product gates. Actual Python source or product configuration activates the
-   shared profile; harness shell changes require shellcheck.
-4. Apply the modes and audit triggers in
-   [Review acceptance policy](#review-acceptance-policy). The pre-PR independent
-   whole-diff exposure review supplements, not replaces, protection before
-   earlier feature pushes.
-5. **Resolve findings** under [Review acceptance policy](#review-acceptance-policy).
-   Only required remediation enters repair/completion gates; optional feedback
-   and unsupported suspicions do not.
-
-6. **Project-CI coverage is enforced deterministically.** The same `review-gate.sh check` call
+**Project-CI coverage is enforced deterministically.** The `review-gate.sh check` call
    inside `./scripts/create-pr.sh` runs the fail-closed **`ci-gate`**: if the repo has a code
    surface (Python/Go/Node/Java/Ruby) but no `.github/workflows/*.y*ml` other than
    `harness-smoke.yml` running its gates, `create-pr.sh` refuses to open the PR — `harness-smoke.yml`
@@ -627,43 +599,26 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    with `SKIP_CI_GATE=1` (a **logged** escape hatch) when a repo legitimately has no project CI yet.
    Preflight (`init.sh`) surfaces the same gap earlier as a WARN.
 
-Skipping this gate is a process violation even when the four computational gates are green —
-the inferential sensors catch what the deterministic ones cannot. If you find yourself about
-to type `gh pr create`, confirm this gate has run for the current branch HEAD first.
+### Publication and merge enforcement
 
-- **Open + merge**
-
-- Do not stop at "PR ready". After the Pre-PR verify gate passes (features all `passes:true`,
-  final gates green, required findings remediated and verified under
-  [Review acceptance policy](#review-acceptance-policy)), open the PR with
-  **`./scripts/create-pr.sh --title "…" --body-file …`**. This is the deterministic, mandatory path:
-  it checks `./scripts/validation/review-gate.sh check` and verified applicable, nonempty
-  pre-PR evidence for the clean current HEAD, pushes that exact commit, and runs
-  `gh pr create`. Publication never synchronizes, automatically carries approval,
-  or executes sensors. Invalid evidence and push failures stop without rewriting
-  the candidate. Do not bypass these obligations with a direct `gh pr create`.
-  Later main updates rely on remote PR CI; the current configuration does not
-  guarantee freshness after every base update (the separate #485 design).
-- **A green remote CI run is a hard precondition for merge.** After the PR is open and local
-  gates/reviews are complete, do **not** merge until the harness CI run
-  (`.github/workflows/harness-smoke.yml`) has concluded green for the PR's head. Merge through
-  **`./scripts/merge-pr.sh --squash --delete-branch`** (the method flag forwards to `gh pr merge`, which
-  non-interactively requires `--merge|--rebase|--squash`, while `--delete-branch` is handled by
-  the script itself; a bare invocation fails and, with green checks, manufactures a G3 green-freeze), which verifies `gh pr checks` is green and then merges — it refuses
-  while checks are pending or failing. You still merge it yourself (do not leave manual merge work
-  for the human); this gate is **not** GitHub auto-merge, which remains disabled as a standing
-  practice. A repo admin should additionally enforce this as a branch-protection required check on
-  `main`.
+Later main updates rely on remote PR CI; local evidence does not guarantee
+freshness after every base update. Do not stop at "PR ready" when closeout is
+authorized. `merge-pr.sh` requires green checks, including completed harness CI
+for the PR head, and confirms authoritative MERGED state and merge SHA.
+Use an explicit method (`--squash --delete-branch` in §3); a bare invocation can
+fail even with green CI and trigger G3 below. Never bypass it with raw
+`gh pr merge`. GitHub auto-merge stays disabled; admins should also require
+harness CI in main's branch protection.
 - **Post-PR termination guardrails (#450).** Post-PR progress cannot be proven — CI is
   non-monotonic (a real run went red→green→red) — so the loop is **budgeted**, never open-ended.
-  Three guardrails enforce it; each release is a **human design ruling** (the #416 pattern), never
+  Three guardrails enforce it; each release is a **human design ruling**, never
   a fourth automated repair:
   - **G1 round budget** — `create-pr.sh` refuses at `POST_PR_ROUND_CAP` (default 3) prior
     `pr_create` rounds, printing the per-round fact table from the trace. Release:
     `RELEASE_POST_PR_ROUNDS=1`.
   - **G2 structural-red** — `merge-pr.sh` records failing checks per head; the same check red at
-    ≥ 2 distinct commits means the defect is likely NOT in this branch (base workflow,
-    environment, self-test blind spot — the #298 class-closure principle applied to CI). Exit 3 +
+    ≥ 2 distinct commits requires investigation beyond another branch point-fix
+    (base workflow, environment or self-test blind spot). Exit 3 +
     handback. Release: `RELEASE_STRUCTURAL_CI=1`.
   - **G3 green-freeze** — a merge failure with green checks (protection, missing approval,
     conflict) writes a freeze marker; `create-pr.sh` refuses further rounds — every commit after
@@ -696,9 +651,6 @@ Enforce boundaries centrally; allow autonomy locally (OpenAI lesson).
 
 - Parse/validate structured outputs from external services at the boundary
   with typed models matching the canonical project schemas; never build on guessed shapes.
-- Once Python lands, respect the layered architecture: `apps/` may depend on `packages/`,
-  never the reverse, and an app must not import a sibling app. The first app that introduces
-  multiple modules should also introduce `tests/meta/test_architecture.py` to enforce it.
 - Config/secrets come from env, never hard-coded. Service endpoints + keys live in `.env` /
   a secrets manager; never embed a live endpoint URL (e.g. a `<resource>.openai.azure.com` host)
   or `sk-...`-style key in source.
@@ -727,6 +679,7 @@ small increments, not painful bursts.
 
 ## 9. The steering loop (for the human + agent)
 
-When the **same** problem appears more than once, don't just fix the instance — strengthen a
-guide or add a sensor so it can't recur. Improving the harness is ongoing engineering, not a
-one-time setup.
+Use [Same-Class Escalation](#same-class-escalation) to reassess recurring failures
+and [Durable Class Lessons](#durable-class-lessons) for selective regression
+protection or permanent guidance. Repetition does not automatically require
+more instructions.

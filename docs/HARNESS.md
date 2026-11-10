@@ -4,8 +4,209 @@ This repository is a reusable harness for issue-driven Copilot work. The harness
 project contract in GitHub Issues, the implementation isolated in per-issue worktrees, and the
 agent steering loop grounded in local sensors.
 
-For harness-enabled projects, the harness lifecycle is mandatory and stricter than generic Copilot or personal
-workflow rules. If another instruction conflicts with this lifecycle, use the harness rule.
+This is the central human workflow guide. The
+[agent lifecycle](../.copilot/instructions/harness.instructions.md) owns operational
+requirements; scripts and the [frozen contract](harness-contract.yml) enforce
+mechanically checkable rules. Generic workflow defaults do not replace them.
+For adoption and prerequisites, use [getting started](getting-started.md);
+for prompt invocation, use the [Copilot guide](github-copilot.md).
+
+## Lifecycle
+
+One delivering agent owns an issue; a fresh-context independent reviewer judges
+the completed diff. A normal session delivers **one feature and stops if work
+remains**. When all features pass, including on entry, it continues through
+review and authorized closeout. Read-only questions/reviews need no issue pipeline.
+
+```mermaid
+flowchart TD
+  subgraph Human
+    H0["Request or approved GitHub issue"]
+    H1{"Edits authorized?"}
+    H2["Resolve scope or approve issue creation; otherwise stop"]
+  end
+  subgraph Delivering_agent
+    A0{"Read-only?"}
+    A1["Answer directly; stop"]
+    A2{"Existing issue worktree?"}
+    A3["Read issue and comments; plan, classify, select feature"]
+    A4{"Unfinished feature?"}
+    A5["TDD and scoped green; applicable quality checks"]
+    A6["Mark passing item; protect staged/outgoing content; commit, push, update progress"]
+    A7{"All features pass?"}
+    A8["One-feature endpoint: clean state; stop"]
+    A9["Repair or wait: follow recovery flow below"]
+  end
+  subgraph Independent_reviewer
+    R0["Whole-diff full or concise review"]
+    R1{"All four verdicts pass?"}
+  end
+  subgraph Scripts_and_CI
+    S0["Main checkout: start-issue.sh N"]
+    S1["Existing worktree: init.sh"]
+    S2["create-pr.sh --prepare"]
+    S3["review-gate.sh approve: exact candidate"]
+    S4["Shared-budget init.sh plus applicable pre-pr gate"]
+    S5["create-pr.sh: verify evidence, push, publish"]
+    S6{"PR-head CI green?"}
+    S7["merge-pr.sh --squash --delete-branch"]
+    S8["Confirmed MERGED and SHA; main checkout finish-issue.sh N"]
+  end
+  H0 --> A0
+  A0 -->|Yes| A1
+  A0 -->|No| H1
+  H1 -->|No or unclear| H2
+  H1 -->|Yes| A2
+  A2 -->|No| S0
+  A2 -->|Yes| S1
+  S0 --> A3
+  S1 --> A3
+  A3 --> A4
+  A4 -->|Yes| A5
+  A5 -->|Green| A6
+  A5 -->|Red: repair within scope| A5
+  A6 --> A7
+  A7 -->|No| A8
+  A8 -. Next authorized session .-> S1
+  A7 -->|Yes| S2
+  A4 -->|No: all already pass| S2
+  S2 --> R0
+  R0 --> R1
+  R1 -->|Yes| S3
+  R1 -->|Requested changes| A9
+  S3 --> S4
+  S4 -->|Pass| S5
+  S4 -->|Fail| A9
+  S5 --> S6
+  S6 -->|Pending or red| A9
+  S6 -->|Green| S7
+  S7 -->|Confirmed| S8
+  S7 -->|Blocked merge| A9
+```
+
+### Workflow stages
+
+Commands below use public entrypoints under `scripts/`, from the issue worktree
+unless stated otherwise. The agent runs them on the human's behalf within
+authorized scope; a routine milestone is not another approval pause.
+
+| Stage / actor | Input | Action | Evidence or next state |
+| --- | --- | --- | --- |
+| Route / human + agent | Request and authority | Answer read-only work directly. For chat-driven edits, follow [authorization](../.copilot/instructions/harness.instructions.md#authorization). | Approved existing issue or authority to create it; unresolved decisions stop edits. |
+| Start / script | Approved issue number | From **main checkout**, `./scripts/start-issue.sh N`; enter printed worktree. Cloud work prefixes startup with `REQUIRE_AZ=1`. | Green preflight, identity, isolated branch/worktree and tracking scaffold. |
+| Resume / agent + script | Existing worktree and tracking | Enter it; `./scripts/init.sh`; read progress, plan, feature list and Git history. | Current environment/state recovered, not assumed from old prose. |
+| Plan/select / agent | `gh issue view N --json body,comments` and project contract | Choose minimum correct path, classify impact, resolve real decisions, derive criteria/sensors; select one unfinished item. | [Breakdown](#the-breakdown-flow-plan--clarify--feature_list) and fixed pre-edit base in local tracking; all-pass entry goes to prepare. |
+| Implement/check / agent | One criterion and fixed base SHA | TDD for behavior; `./scripts/run-sensors.sh green --declared <sensors> --diff <feature-base-sha>` plus applicable quality checks. Prose needs semantic review, not invented tests. | Runner-owned scoped green, discriminating regression evidence and real-boundary evidence when applicable. Red cannot become `passes:true`. |
+| Complete feature / agent | Verified changes | Inspect staged content and all outgoing commits/metadata **before commit/push**; mark actual item passing, sign commit, push, update progress. | Clean state, verified commit/remote, truthful tracking. If items remain, **stop this session**; next session resumes. |
+| Prepare / script | All feature/repair items passing | `./scripts/create-pr.sh --prepare`. | Synchronized candidate; conflicts stop without publishing. No sensors, push or approval in this step. |
+| Review/repair / independent reviewer + agent | Prepared whole diff, issue criteria and scoped evidence | Independent `full`/`concise` review; agent handles required repairs and obtains scoped `repair` review. | Four per-feature verdicts, including applicable security and whole-diff exposure judgment; see [recovery](#review-and-recovery) and [review reference](#review-gate). |
+| Approve / agent + script | Passing independent records at reviewed candidate | Check HEAD, record returned verdicts; `./scripts/validation/review-gate.sh approve`. | Exact-HEAD approval and valid unaffected carry if needed. Approval runs no tests. |
+| Final validation / script | Approved unchanged HEAD | Run the shared-budget command below. | Green detected profile checks and runner-owned, nonempty **applicable** pre-PR evidence at that exact HEAD. |
+| Publish / script | Clean approved and validated candidate; protected PR text | `./scripts/create-pr.sh --title "..." --body-file <local-body-file>`. | Exact candidate pushed and PR opened; wrapper verifies evidence, never synchronizes or runs tests. |
+| CI / scripts + agent | Published PR head | Wait for registered checks; investigate red checks under the recovery rules. | Green remote checks, including completed harness CI, before any merge. Pending/red is not merge permission. |
+| Merge / script | Green checks and authorized closeout | `./scripts/merge-pr.sh --squash --delete-branch`. | Authoritative MERGED state and merge SHA, not merely a successful-looking command. |
+| Close / script | Live merge evidence | From **main checkout**, `./scripts/finish-issue.sh N`. | Write-once conclusion and durable progress survive safe worktree teardown. Do not stop at "PR ready". |
+
+Final validation is one required run, not separately reset budgets:
+
+```sh
+./scripts/validation/validate.sh bash -euc \
+  './scripts/init.sh; ./scripts/run-sensors.sh --gate pre-pr'
+```
+
+The hard test budget is **900 seconds**; **600 seconds is a performance target**.
+Do not reset it or remove coverage to fit. Installation/build/static phases are
+excluded as specified in the [budget reference](#shared-test-execution-budget).
+Final selection is the complete applicable set, not the old full inventory.
+New candidate changes need corresponding review, approval and final evidence.
+
+### Review and recovery
+
+Use the lifecycle's [review acceptance policy](../.copilot/instructions/harness.instructions.md#review-acceptance-policy):
+`concise` and `full` change report depth, not the finding pass. Security is
+risk-triggered, including approval controls and CI/workflows. Supported
+BLOCKING/CRITICAL/MAJOR findings need repair; MINOR feedback and unsupported
+suspicions are optional. Static proof may suffice; unsafe reproduction is not
+required. Optional-only feedback needs no repair item or debt entry.
+
+```mermaid
+flowchart TD
+  subgraph Independent_reviewer
+    R0["Full or concise whole-diff review"]
+    R1{"Required findings remain?"}
+    R2["Repair review of revised or affected features; assess unaffected carry"]
+  end
+  subgraph Delivering_agent
+    A0["Pass or optional-only: no forced repair or debt"]
+    A1{"Two or more required findings?"}
+    A2["Create one repair item per finding"]
+    A3["Repair one criterion; scoped green; protect content; commit and push"]
+    A4["Resolve missing or stale evidence; never restamp unreviewed features"]
+    A5["Wait; no merge"]
+  end
+  subgraph Scripts_and_CI
+    S0{"Review cap reached?"}
+    S1["Exact-candidate approval"]
+    S2["Shared-budget final applicable validation"]
+    S3["Evidence-only PR publication"]
+    S4{"PR-head CI state?"}
+    S5{"Publication-round or structural-red cap?"}
+    S6["merge-pr.sh with explicit method"]
+    S7{"Confirmed MERGED plus SHA?"}
+    S8["Green freeze: stop new rounds"]
+    S9["Main-checkout closeout"]
+  end
+  subgraph Human
+    H0["Scope or design ruling; no automatic fourth point-fix or guardrail release"]
+  end
+  R0 --> R1
+  R1 -->|No| A0
+  A0 --> S1
+  R1 -->|Yes| S0
+  S0 -->|Yes| H0
+  S0 -->|No| A1
+  A1 -->|Yes| A2
+  A1 -->|No| A3
+  A2 --> A3
+  A3 -->|One item at a time; review after last| R2
+  R2 --> R1
+  S1 -->|Missing or stale| A4
+  A4 --> R2
+  S1 -->|Approved| S2
+  S2 -->|Fail: repair and re-review| A3
+  S2 -->|Green| S3
+  S3 -->|Round cap| H0
+  S3 -->|Published| S4
+  S4 -->|Pending| A5
+  A5 --> S4
+  S4 -->|Red| S5
+  S5 -->|Reached| H0
+  S5 -->|Not reached: diagnose and repair| A3
+  S4 -->|Green| S6
+  S6 --> S7
+  S7 -->|No| S8
+  S8 --> H0
+  S7 -->|Yes| S9
+```
+
+The reviewer checks **all intervening changes**, including shared dependencies,
+before carrying an unaffected feature's original verdict. It returns the
+original SHA and impact rationale on a real passing repair event bound to the
+candidate; changed/affected features require review. Unchanged paths alone and
+fabricated fresh passes are insufficient. If it adds tests, the agent validates
+and commits them, then gets verdicts for that resulting candidate.
+
+Final validation failure is not approval: repair with scoped checks, obtain
+relevant repair review and fresh approval, then rerun the applicable final gate.
+Pending CI means wait; red CI means diagnose, not merge. Repeated same-class
+failures require [approach reassessment](../.copilot/instructions/harness.instructions.md#same-class-escalation).
+Review reject caps and post-PR round/structural-red caps require a human design
+ruling. A merge failure after green CI freezes further publication rounds;
+do not make speculative commits or silently release the freeze.
+See [publication/merge enforcement](../.copilot/instructions/harness.instructions.md#publication-and-merge-enforcement)
+for exact caps, permitted releases and merge provenance.
+
+Detailed installation, language, sensor, tracking and trace references follow.
 
 ## Installer reference
 
@@ -377,65 +578,7 @@ fixtures when changing instrumentation; do not run extra real full suites just
 to benchmark it. A run's elapsed values include any nested work the sensor does;
 they do not count or attribute its individual assertions.
 
-## Lifecycle
-
-```mermaid
-flowchart TD
-  A[GitHub issue] --> B[./scripts/start-issue.sh N]
-  B --> C[Issue worktree]
-  C --> HG[Choose path and clarify material decisions]
-  HG --> D[Author feature_list.json]
-  D --> E[Select one passes:false feature]
-  E --> F[TDD: RED then implementation then GREEN, scoped sensors]
-  F --> H{Feature sensors and quality gates pass?}
-  H -- no --> F
-  H -- yes --> I[Mark feature passes:true]
-  I --> J{All issue features pass?}
-  J -- no --> E
-  J -- yes --> S[./scripts/create-pr.sh --prepare]
-  S --> K[code-review-subagent, once; scoped repair if needed]
-  K --> L[./scripts/validation/review-gate.sh approve]
-  L --> V[Full pre-pr gate]
-  V --> M[./scripts/create-pr.sh: evidence-only publication]
-  M --> N[Pull request]
-  N --> Q[./scripts/merge-pr.sh CI-green gate]
-  Q --> O[Merge]
-  O --> P[./scripts/finish-issue.sh N]
-```
-
-The normal path is:
-
-1. Create or pick a GitHub issue with concrete acceptance criteria and sensors.
-2. Run `./scripts/start-issue.sh <N>` from the main checkout.
-3. Work inside `<repo>/.worktrees/issue-NN`, not directly on the main checkout.
-   Keeping worktrees under the repository trust boundary avoids sibling-path
-   sandbox denials. During migration, lifecycle scripts still resolve an
-   already-existing sibling `<repo>-worktrees/issue-NN` worktree.
-4. Choose an approach proportionate to the change; use `plan.md` for non-trivial work
-   and a short inline approach for contained low-risk work. Resolve genuine open decisions,
-   then author `feature_list.json` (each feature
-   carrying its `regression_sensor` / `e2e_sensor`). See
-   [The breakdown flow](#the-breakdown-flow-plan--clarify--feature_list).
-5. Pick one `passes:false` feature.
-6. Deliver it yourself with TDD — RED sensor, minimal production implementation, GREEN verified
-   with scoped sensors (`./scripts/run-sensors.sh green`), record any `deviation`
-   spans, and flip `passes:true` (#352: one agent, no handback choreography).
-7. Repeat until all features pass.
-8. Run `./scripts/create-pr.sh --prepare`, then
-   `code-review-subagent` on the completed diff using recorded scoped feature evidence.
-   Do not run a full suite before review. The reviewer applies the sufficient-quality rubric during review before closeout, following
-  [docs/product-quality-rubric.md](product-quality-rubric.md), and performs an
-  adversarial test-quality pass before closeout. It reuses sufficient evidence and
-  adds a test only for an uncovered required or credible in-scope failure. Once
-  adequate evidence exists, it stops; production remains read-only.
-9. Run `./scripts/validation/review-gate.sh approve` for the current HEAD.
-10. Run `./scripts/run-sensors.sh --gate pre-pr`, then open the PR with
-    `./scripts/create-pr.sh --title "..." --body-file body.md` without further tests or synchronization.
-11. Merge the PR when checks are green and findings are resolved.
-12. Run `./scripts/finish-issue.sh <N>` from the main checkout.
-
-All shell entrypoints live under `scripts/`. The repository root does not carry `.sh` entrypoints;
-root-level copies are stale by definition and should be removed instead of documented.
+## Planning reference
 
 ### The breakdown flow (plan → clarify → feature_list)
 
@@ -720,12 +863,9 @@ the same finding pass and independent whole-diff exposure review; repair is
 scoped. Security audit is risk-triggered by auth/authorization, approval controls,
 CI/workflows, provisioning or data movement, not by unrelated prose alone.
 
-Before final review and applicable pre-PR validation, run
-`./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
-does not require an approval, execute sensors, push, or open a PR. It aborts
-conflicts without publishing; `CREATE_PR_NO_REWRITE=1` retains history through a
-merge instead of a rebase. Review and validate the resulting HEAD, not the
-candidate that existed before synchronization.
+Follow the [workflow stages](#workflow-stages) for execution order.
+`CREATE_PR_NO_REWRITE=1` retains history through a merge during preparation
+instead of the default rebase; conflicts stop without publishing.
 
 **Scoped repair and unaffected verdicts.** The reviewer repairs its judgment only
 for the named revised features. It also assesses all changes since each other
@@ -771,7 +911,7 @@ remains the default for explicit preparation; `CREATE_PR_NO_REWRITE=1` instead
 merges during preparation and uses a plain push during publication. A remote
 force-policy rejection stops without resetting or rewriting the verified
 candidate. A fast-forward can retry with that non-rewriting flag; otherwise,
-prepare a history-preserving candidate explicitly and repeat its review/full
+prepare a history-preserving candidate explicitly and repeat its review/applicable
 pre-PR obligations. Authentication, network and content-policy rejections remain
 loud failures, never a reason to silently change the candidate.
 
