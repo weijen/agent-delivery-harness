@@ -16,7 +16,7 @@ mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/schemas" "$
 mkdir -p "${REPO}/scripts/trace"
 printf '#!/usr/bin/env bash\nbash -n scripts/validation/review-gate.sh\n' >"${REPO}/tests/scripts/test_review_syntax.sh"
 for script in lib/test-budget-lib.sh lib/lifecycle-runtime-lib.sh validation/review-gate.sh check-trace-consistency.sh trace/check-trace-consistency.sh lib/trace-lib.sh \
-  lib/issue-lib.sh lib/ci-coverage-lib.sh \
+  lib/issue-lib.sh lib/ci-coverage-lib.sh validation/check-feature-list.sh \
   validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh validation/verify-sensor-evidence.sh; do
   cp "${ROOT}/scripts/${script}" "${REPO}/scripts/${script}"
 done
@@ -41,7 +41,7 @@ git -C "${REPO}" fetch -q origin main
 ISSUE_DIR="${REPO}/.copilot-tracking/issues/issue-370"
 mkdir -p "${ISSUE_DIR}"
 printf '%s\n' \
-  '{"issue":370,"features":[{"id":"feat-a","title":"A","passes":true,"verification":"green"}]}' \
+  '{"issue":370,"features":[{"id":"feat-a","title":"A","steps":[],"passes":true,"verification":"green"}]}' \
   >"${ISSUE_DIR}/feature_list.json"
 cat >"${ISSUE_DIR}/progress.md" <<'EOF'
 # Issue 370 progress

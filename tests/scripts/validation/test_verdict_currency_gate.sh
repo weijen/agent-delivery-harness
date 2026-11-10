@@ -61,7 +61,7 @@ write_feature_list() {
 {
   "issue": 1,
   "features": [
-    { "id": "F1", "title": "fixture feature", "passes": true }
+    { "id": "F1", "title": "fixture feature", "steps": [], "passes": true, "verification": "fixture" }
   ]
 }
 JSON
@@ -228,7 +228,7 @@ git add independent.txt
 git commit -q -m "feat: independent feature"
 source_sha="$(git rev-parse HEAD)"
 write_feature_list
-jq '.features += [{"id":"F2","title":"independent feature","passes":true}]' \
+jq '.features += [{"id":"F2","title":"independent feature","steps":[],"passes":true,"verification":"fixture"}]' \
   "${TRACK_DIR}/feature_list.json" > "${TMP_DIR}/features.json"
 mv "${TMP_DIR}/features.json" "${TRACK_DIR}/feature_list.json"
 write_verdict "$source_sha"
@@ -335,7 +335,7 @@ cat > "${WT_TRACK}/feature_list.json" <<'JSON'
 {
   "issue": 1,
   "features": [
-    { "id": "F1", "title": "fixture feature", "passes": true }
+    { "id": "F1", "title": "fixture feature", "steps": [], "passes": true, "verification": "fixture" }
   ]
 }
 JSON

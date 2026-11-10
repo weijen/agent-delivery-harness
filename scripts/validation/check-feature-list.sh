@@ -89,10 +89,10 @@ trace__check_exit() {
 trap trace__check_exit EXIT
 
 # --- Parse args -------------------------------------------------------------
-NUM_ARG="" SLUG_ARG=""
+NUM_ARG=""
 for arg in "$@"; do
   case "$arg" in
-    SLUG=*) SLUG_ARG="${arg#SLUG=}" ;;
+    SLUG=*) ;;
     *)      NUM_ARG="$arg" ;;
   esac
 done
@@ -120,8 +120,7 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-resolve_issue_env "$ISSUE_NUM" "$SLUG_ARG"
-feature_list="${TRACKING_DIR}/feature_list.json"
+feature_list="$(issue_feature_list_path "$ISSUE_NUM")"
 
 if [ ! -f "$feature_list" ]; then
   red "✗ feature_list.json not found at ${feature_list}"

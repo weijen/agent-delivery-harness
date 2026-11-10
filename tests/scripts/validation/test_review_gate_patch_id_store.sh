@@ -334,6 +334,7 @@ git -C "$H_WT_398" add issue-398.txt
 git -C "$H_WT_398" -c user.name="Harness Test" \
   -c user.email="harness-test@example.invalid" commit -q -m "issue 398 state"
 h_head_398="$(git -C "$H_WT_398" rev-parse HEAD)"
+(cd "$H_WT_398" && fixture_review_pass 398)
 (cd "$H_WT_398" && REVIEW_GATE_ISSUE=398 ./scripts/validation/review-gate.sh approve) \
   >"${TMP_DIR}/approve-h-398.out" 2>&1 \
   || fail "Scenario H: issue 398 approve failed"
@@ -343,6 +344,9 @@ git -C "$H_WT_399" add issue-399.txt
 git -C "$H_WT_399" -c user.name="Harness Test" \
   -c user.email="harness-test@example.invalid" commit -q -m "issue 399 state"
 h_head_399="$(git -C "$H_WT_399" rev-parse HEAD)"
+(cd "$H_WT_399" && fixture_review_pass 399)
+cp "${H_WT_398}/.copilot-tracking/issues/issue-398/feature_list.json" "${H_MAIN}/.copilot-tracking/issues/issue-398/"
+cp "${H_WT_399}/.copilot-tracking/issues/issue-399/feature_list.json" "${H_MAIN}/.copilot-tracking/issues/issue-399/"
 (cd "$H_WT_399" && REVIEW_GATE_ISSUE=399 ./scripts/validation/review-gate.sh approve) \
   >"${TMP_DIR}/approve-h-399.out" 2>&1 \
   || fail "Scenario H: issue 399 approve failed"
@@ -438,6 +442,7 @@ make_pr_repo() {
   git -C "$dir" add docs/PROGRESS.md feature.txt
   git -C "$dir" commit -q -m "issue-${pad}: feature work"
   git -C "$dir" fetch -q origin main
+  (cd "$dir" && fixture_review_pass "$pad")
 }
 
 # advance_origin_main_unrelated <dir> — push a change to origin main that does
@@ -486,6 +491,7 @@ git -C "$RA" add scripts/validation/review-gate.sh scripts/validation/review-gat
 git -C "$RA" commit -q -m "test: instrument review gate calls"
 
 # Approve before the rebase (pre-rebase HEAD is approved with 2-line marker).
+(cd "$RA" && fixture_review_pass 310)
 (cd "$RA" && PATH="${BIN}:${PATH}" ./scripts/validation/review-gate.sh approve) \
   || fail "(A) setup: initial approve failed"
 PRE_REBASE_HEAD_A="$(git -C "$RA" rev-parse HEAD)"

@@ -76,6 +76,25 @@ issue_main_root() {
 # Backwards-compatible alias used by the entry scripts to locate the main root.
 issue_repo_root() { issue_main_root; }
 
+issue_feature_list_path() {
+  local num root main_root relative canonical
+  num="$(issue_parse_number "$1")" || return 1
+  printf -v num '%02d' "$((10#$num))"
+  root="$(git rev-parse --show-toplevel)" || return 1
+  main_root="$(issue_main_root)" || return 1
+  relative=".copilot-tracking/issues/issue-${num}/feature_list.json"
+  canonical="${main_root}/.worktrees/issue-${num}/${relative}"
+  if [ "$root" != "$main_root" ] && [ -f "${root}/${relative}" ]; then
+    printf '%s\n' "${root}/${relative}"
+  elif [ -f "$canonical" ]; then
+    printf '%s\n' "$canonical"
+  elif [ -f "${main_root}/${relative}" ]; then
+    printf '%s\n' "${main_root}/${relative}"
+  else
+    printf '%s\n' "$canonical"
+  fi
+}
+
 # Strip an optional ISSUE= prefix and validate a positive integer.
 issue_parse_number() {
   local raw="${1:-}"

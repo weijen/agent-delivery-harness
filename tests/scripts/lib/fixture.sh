@@ -48,6 +48,29 @@ _fixture_usage_error() {
   return 2
 }
 
+fixture_review_pass() {
+  local issue="$1" fid="${2:-F1}" root common pad track trace
+  root="$("$_fixture_git" rev-parse --show-toplevel)"
+  common="$("$_fixture_git" rev-parse --git-common-dir)"
+  case "$common" in /*) ;; *) common="${PWD}/${common}" ;; esac
+  common="$(cd "$(dirname "$common")" && pwd -P)"
+  printf -v pad '%02d' "$((10#$issue))"
+  track="${root}/.copilot-tracking/issues/issue-${pad}"
+  trace="${common}/.copilot-tracking/issues/issue-${pad}"
+  "$_fixture_mkdir" -p "$track" "$trace"
+  jq -nc --arg id "$fid" '{features:[{id:$id,title:"Reviewed fixture",steps:[],passes:true,verification:"isolated fixture"}]}' \
+    > "${track}/feature_list.json"
+  jq -nc --argjson issue "$((10#$issue))" --arg id "$fid" \
+    --arg sha "$("$_fixture_git" rev-parse HEAD)" \
+    --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+    '{schema_version:1,timestamp:$timestamp,span:"agent",span_id:"f000000000000001",
+      "harness.issue":$issue,"harness.version":"0.0.0-test",
+      "gen_ai.operation.name":"invoke_agent","gen_ai.agent.name":"conductor",
+      "harness.lifecycle_step":"review_verdict","harness.feature_id":$id,
+      "harness.outcome":"pass","harness.review_mode":"full","harness.reviewed_sha":$sha}' \
+    >> "${trace}/trace.jsonl"
+}
+
 fixture_repo() {
   local issue="" scripts_csv="" with_progress=0
   local issue_num=1 script="" source_script="" tmp_dir="" repo="" worktree=""
@@ -134,7 +157,7 @@ fixture_repo() {
         esac
         # Review/publication fixtures use explicit gates and their evidence verifier.
         for dep in validation/rebind-evidence.sh run-sensors.sh validation/run-sensors.sh validation/affected-sensors.sh \
-          validation/verify-sensor-evidence.sh lib/trace-lib.sh; do
+          validation/verify-sensor-evidence.sh validation/check-feature-list.sh lib/issue-lib.sh lib/trace-lib.sh; do
           case ",${scripts_csv}," in
             *,"${dep}",*) ;;
             *) scripts+=("${dep}") ;;
@@ -165,6 +188,7 @@ fixture_repo() {
         _fixture_usage_error "invalid script name: $script"
         return 2
       }
+
       source_script="${FIXTURE_SOURCE_ROOT}/scripts/${script}"
       [ -f "$source_script" ] || {
         _fixture_usage_error "source script does not exist: $script"

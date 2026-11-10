@@ -68,6 +68,7 @@ git clone -q --bare "$REPO" "$ORIGIN"
 git -C "$REPO" remote add origin "$ORIGIN"
 git -C "$REPO" checkout -qb "$BRANCH"
 git -C "$REPO" fetch -q origin main
+(cd "$REPO" && fixture_review_pass 418)
 (cd "$REPO" && ./scripts/validation/review-gate.sh approve) >"$OUT" 2>&1 \
   || fail "fixture approval failed"
 head="$(git -C "$REPO" rev-parse HEAD)"
@@ -136,7 +137,7 @@ git -C "$REPO" commit -qm 'test: changed candidate'
 printf '%s\n\n' "$(git -C "$REPO" rev-parse HEAD)" \
   >"${REPO}/.copilot-tracking/review-gate/issue-418/approved-head"
 reject_before_push stale
-(cd "$REPO" && ./scripts/validation/review-gate.sh approve && ./scripts/run-sensors.sh --gate pre-pr) \
+(cd "$REPO" && fixture_review_pass 418 && ./scripts/validation/review-gate.sh approve && ./scripts/run-sensors.sh --gate pre-pr) \
   >"$OUT" 2>&1 || fail "updated candidate validation failed"
 head="$(git -C "$REPO" rev-parse HEAD)"
 

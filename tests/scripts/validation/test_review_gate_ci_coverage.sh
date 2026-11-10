@@ -188,6 +188,7 @@ printf '%s' "$PY_SURFACE" > pyproject.toml
 printf '# Progress\n\nissue-129\n' > docs/PROGRESS.md
 git add pyproject.toml docs/PROGRESS.md
 make_commit "surface + status doc, no project CI"
+fixture_review_pass 129
 ./scripts/validation/review-gate.sh approve >/dev/null
 : > "$GH_LOG"
 if ./scripts/create-pr.sh --title "t" --body "b" >"${TMP_DIR}/b-block.out" 2>&1; then
@@ -203,6 +204,7 @@ printf '%s\n' "$CI_WORKFLOW" > .github/workflows/ci.yml
 printf '# Progress\n\nissue-129 covered\n' > docs/PROGRESS.md
 git add .github/workflows/ci.yml docs/PROGRESS.md
 make_commit "surface + status doc + project CI"
+fixture_review_pass 129
 ./scripts/validation/review-gate.sh approve >/dev/null
 ./scripts/run-sensors.sh --gate pre-pr >/dev/null
 : > "$GH_LOG"

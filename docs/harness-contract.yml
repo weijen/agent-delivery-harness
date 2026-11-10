@@ -443,6 +443,10 @@ sha_bindings:
     binding: review approval is bound to HEAD by approved-head
     owner: scripts/validation/review-gate.sh
     present: approved-head
+  - id: approval-required-state
+    binding: Active-issue approval creation requires valid complete feature and repair state plus passing per-feature review evidence; unavailable required validation rejects without a new marker.
+    owner: scripts/validation/review-gate.sh
+    present: required_review_state_gate
   - id: review-verdict
     binding: review verdict carries reviewed_sha
     owner: scripts/trace/log-handback.sh

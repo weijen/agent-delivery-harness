@@ -194,6 +194,11 @@ ci_gate() {
 # number and returns 0 on success; prints nothing and returns 1 when the issue
 # cannot be resolved (each caller emits its own gate-specific skip note).
 resolve_issue_number() {
+  if [ -n "${REVIEW_GATE_ISSUE:-}" ]; then
+    [[ "${REVIEW_GATE_ISSUE}" =~ ^[0-9]+$ ]] || return 1
+    printf '%s' "$((10#${REVIEW_GATE_ISSUE}))"
+    return 0
+  fi
   if [ -n "${TRACE_ISSUE:-}" ]; then
     [[ "${TRACE_ISSUE}" =~ ^[0-9]+$ ]] || return 1
     printf '%s' "$((10#${TRACE_ISSUE}))"
@@ -690,6 +695,42 @@ _verdict_carry_forward_current() {
   return 1
 }
 
+required_review_state_gate() {
+  [ -n "$marker_issue" ] || return 0
+  local validator="${SCRIPT_DIR}/validation/check-feature-list.sh"
+  if [ ! -x "$validator" ] || ! declare -F issue_feature_list_path >/dev/null; then
+    red "✗ required feature validation unavailable: restore check-feature-list.sh and issue-lib.sh, then retry."
+    return 1
+  fi
+  if ! REQUIRE_FEATURES_COMPLETE=1 "$validator" "$marker_issue"; then
+    red "✗ required feature state is invalid or incomplete: repair and verify the required work before review approval."
+    return 1
+  fi
+  local feature_list trace_file missing
+  feature_list="$(issue_feature_list_path "$marker_issue")" || return 1
+  trace_file="${marker_main_root}/.copilot-tracking/issues/issue-${marker_issue}/trace.jsonl"
+  if [ ! -f "$trace_file" ] || [ ! -r "$trace_file" ]; then
+    red "✗ required review evidence unavailable at ${trace_file}: obtain applicable independent review and record its actual verdicts."
+    return 1
+  fi
+  if ! missing="$(jq -Rnr --slurpfile state "$feature_list" \
+      --argjson issue "$((10#$marker_issue))" '
+      [inputs | fromjson? | select(type == "object")
+        | select(.span == "agent" and .["harness.issue"] == $issue
+          and .["harness.lifecycle_step"] == "review_verdict"
+          and .["harness.outcome"] == "pass")] as $reviews
+      | $state[0].features[].id as $id
+      | select(any($reviews[]; .["harness.feature_id"] == $id) | not)
+      | $id' "$trace_file")"; then
+    red "✗ required review evidence could not be read: restore the evidence and retry."
+    return 1
+  fi
+  if [ -n "$missing" ]; then
+    red "✗ required review evidence missing for feature(s): ${missing//$'\n'/, }. Obtain applicable independent review and record the passing verdicts."
+    return 1
+  fi
+}
+
 # verdict_currency_gate — refuse approve when any passes:true feature's NEWEST
 # review_verdict does not cover HEAD content. Degrades to a skip (mirroring
 # review_verdict_gate) when the issue number, trace, feature list, or jq is
@@ -713,25 +754,8 @@ verdict_currency_gate() {
   }
   issue_pad="$(printf '%02d' "$((10#$issue_num))")"
   trace_file="${main_root}/.copilot-tracking/issues/issue-${issue_pad}/trace.jsonl"
-  # Live-run layout (#103): the trace is main-root-pinned but feature_list.json
-  # is scaffolded in the WORKTREE — resolve it worktree-first with the main
-  # root as fallback, the same split the trace checker works around. A gate
-  # that only looked at the main root silently skipped in every linked-
-  # worktree run (the exact Unilever issue-21 layout this gate exists for).
-  local wt_root=""
-  wt_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  feature_list=""
-  local candidate
-  for candidate in \
-      "${wt_root:+${wt_root}/.copilot-tracking/issues/issue-${issue_pad}/feature_list.json}" \
-      "${main_root}/.copilot-tracking/issues/issue-${issue_pad}/feature_list.json"; do
-    [ -n "$candidate" ] || continue
-    if [ -f "$candidate" ]; then
-      feature_list="$candidate"
-      break
-    fi
-  done
-  if [ ! -f "$trace_file" ] || [ -z "$feature_list" ]; then
+  feature_list="$(issue_feature_list_path "$issue_num")"
+  if [ ! -f "$trace_file" ] || [ ! -f "$feature_list" ]; then
     yellow "⚠ verdict currency gate skipped: trace or feature list missing for issue ${issue_num}"
     return 0
   fi
@@ -814,6 +838,11 @@ verdict_currency_gate() {
 }
 
 repo_root="$(git rev-parse --show-toplevel)"
+if [ -n "${TRACE_ISSUE:-}" ] \
+    && { [[ ! "$TRACE_ISSUE" =~ ^[0-9]+$ ]] || [ "$((10#$TRACE_ISSUE))" -lt 1 ]; }; then
+  red "✗ TRACE_ISSUE must be a positive integer, got '${TRACE_ISSUE}'."
+  exit 2
+fi
 marker_issue="${REVIEW_GATE_ISSUE:-}"
 if [ -z "$marker_issue" ]; then
   marker_issue="$(resolve_issue_number || true)"
@@ -860,6 +889,10 @@ case "$command" in
     # blocked approve never leaves an approved-head marker behind.
     if ! review_reject_cap_gate; then
       red "✗ approve refused: a feature hit the review-rejection cap (see above) — not recording approval."
+      exit 1
+    fi
+    if ! required_review_state_gate; then
+      red "✗ approve refused: required state or review evidence is unavailable — not recording approval."
       exit 1
     fi
     # Review-verdict gate (issue #303): refuse to record approval when a

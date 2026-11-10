@@ -76,8 +76,9 @@ SH
 
   (
     cd "$REPO"
-    CREATE_PR_NO_REWRITE="$no_rewrite" ./scripts/create-pr.sh --prepare
-    ./scripts/validation/review-gate.sh approve
+    CREATE_PR_NO_REWRITE="$no_rewrite" ./scripts/create-pr.sh --prepare &&
+    fixture_review_pass 90 &&
+    ./scripts/validation/review-gate.sh approve &&
     ./scripts/run-sensors.sh --gate pre-pr
   ) >"$OUT" 2>&1 || fail "mode ${no_rewrite}: real preparation/validation failed"
 }
