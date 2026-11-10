@@ -1,7 +1,9 @@
 # AGENTS.md — Map for AI agents working in this harness repo
 
-> This file is a **map, not an encyclopedia**. It points to the sources of truth.
-> Keep it short. Detailed rules live in the linked docs.
+This repository is a reusable, language-agnostic harness for issue-driven delivery:
+preflight, isolated worktrees, local progress, quality gates, independent review and
+PR closeout. Product requirements and provider conventions belong to the adopting
+project, not the harness.
 
 ## Post-compaction re-anchor
 
@@ -10,223 +12,84 @@ After any context compaction, re-read this block before continuing.
 - On a `review_verdict` fail, `log-handback.sh` requires `TRACE_FAILURE_CLASS`, `TRACE_FINDING_FINGERPRINT`, `TRACE_FINDING_BASELINE_STATE`, and `TRACE_ACTIONABLE` (true demands a reproduction or proposed fix); omit optional attributes rather than guessing.
 - Before authenticated GitHub operations, call `harness_identity_activate`; never run `gh auth switch`.
 
-## What this project is
+## Choose the task path
 
-This repository is a reusable, language-agnostic harness for issue-driven agent
-work. It provides preflight checks, isolated issue worktrees,
-local per-issue progress state, quality gates, review sensors, and PR closeout
-scripts. Language support is declarative: the core ships profiles for Python
-and Node.js (plus Terraform surface detection), with Go, Java, and Ruby
-generator-supported on demand, and a generator for adding more, without hard-coding any language in the core. Project-specific
-product specs, architecture notes, validation plans, delivery milestones, and any
-cloud/provider conventions (e.g. Azure, Foundry) should live under `docs/` or the
-project's own instruction files — the harness itself does not require them.
+- **Questions and read-only reviews:** answer directly. Do not start an issue,
+  worktree, implementation, review pipeline or publication merely to answer.
+- **Issue delivery:** read the [canonical lifecycle](.copilot/instructions/harness.instructions.md)
+  before acting. It owns planning, feature selection, sensors, review, publication
+  and closeout; generic workflow defaults do not replace its gates.
+- **Other authorised work:** follow the project's conventions and use the
+  [workflow routing guide](.copilot/instructions/workflow-tiers.instructions.md)
+  when the task does not enter issue delivery.
 
-## Sensitivity (read before writing or pushing anything)
+## Safety and delivery invariants
 
-Do not commit customer-supplied or confidential material such as raw media,
-screenshots, decks, exports, secrets, or local environment files. Keep sensitive
-project data outside tracked paths unless the project explicitly provides a
-sanitized, commit-safe fixture or specification.
+- Never commit customer/confidential material, raw media, screenshots, decks,
+  exports, secrets or local environment files. Use explicitly sanitised fixtures.
+- Privileged cloud/provider operations go through approved project wrappers and
+  environment configuration, never hard-coded credentials or raw privileged calls
+  from a worktree.
+- GitHub issue descriptions **and comments** are the requirements authority:
+  `gh issue view <N> --comments`. Local tracking is progress, not an issue draft.
+- Deliver one criterion-sized `feature_list` item at a time with TDD and scoped
+  sensors. `passes:true` requires regression evidence and real runtime evidence
+  when a boundary exists. Commit and push each completed feature, update progress,
+  and leave a clean state.
+- Keep independent review (including required repair review), current-HEAD
+  approval, final applicable validation and green CI before merge. Use the
+  lifecycle scripts; finish authorised merge/closeout rather than leaving manual
+  work for the human.
+- Keep verification proportionate: preserve necessary negative, safety and runtime
+  protection without duplicate cases or repeated gates. Do not add prose-pinning tests.
 
-## Golden rules (non-negotiable)
+## Start or resume issue work
 
-1. **Work one `feature_list` item at a time. Prove the smallest real user path first, then expand.**
-2. **TDD stays the default discipline** (once code exists): write a failing test first, then
-   minimal code, and never edit or delete a test just to make it pass. Trace-level proof of
-   redness is retired (#334): test quality is judged by the independent end-of-issue review,
-   not by evidence ceremony at every green.
-3. **Leave the environment clean after every session**: green gates, committed, progress updated.
-4. **Push after every completed feature** to the issue's working branch.
-5. **Agents don't call privileged cloud/provider APIs with privileged credentials from a worktree** —
-   go through the project's approved tool wrappers and config from env, never hard-coded secrets.
-   (For example, in an Azure/Foundry project this means the Content Understanding client, model
-   client, or Code Interpreter session — never a raw privileged call.)
-6. **GitHub Issues (description + comments) are the single source of truth** for issue
-   requirements — fetch with `gh issue view <N> --comments`; there are no local issue-draft files.
-7. When an issue is complete and reviewed, **open the PR, then merge it once CI is green**;
-   wait for the harness CI run to pass, then merge with **`./scripts/merge-pr.sh --squash --delete-branch`** (non-interactive `gh pr merge` requires a method flag; it verifies
-   `gh pr checks` is green before merging). A green CI run is a hard merge precondition. Don't
-   leave manual merge work for the human unless GitHub blocks it. Do **not** enable GitHub
-   auto-merge as a standing practice.
-8. `passes:true` means runnable, regression-protected work: every `feature_list` item should name
-   its regression sensor, and any feature with a real runtime boundary (e.g. an external service
-   call, agent run, report generation, deployed endpoint) should name its e2e sensor. **What counts
-   as one feature** — its granularity — is defined in
-   [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md): one
-   externally observable acceptance criterion mapped to concrete executed assertions.
-   Existing sensors may be shared across criteria; a real runtime boundary still needs
-   runtime evidence, which the same behavioral test may provide.
-9. **Strictly adhere to the harness** whenever this repo's issue workflow is active; harness rules override generic
-   coding-agent habits and personal workflow shortcuts.
-10. **Keep the trace current** — the Action Log in `.copilot-tracking/issues/issue-NN/progress.md` is rendered
-   from spans (#332): record `deviation` and review verdicts as they happen.
-11. **Never commit customer-supplied raw media, screenshots, decks, secrets, or exports.**
-12. **Keep verification proportionate** — retain one independent case per required behavior/failure
-    scenario, not duplicate assurance. Preserve necessary negative, safety and runtime protection;
-    review prose meaning rather than growing a natural-language parser.
+From the main checkout: `./scripts/start-issue.sh <N>`, then enter its printed
+worktree path. To resume, enter the existing worktree and run `./scripts/init.sh`.
+For cloud/infrastructure/deployment work, prefix preflight/startup with `REQUIRE_AZ=1`.
+Keep shell entrypoints under `scripts/`, not at the repository root.
 
-→ The full lifecycle is in **[docs/HARNESS.md](docs/HARNESS.md)**. The enforceable
-session rituals and garbage-collection cadence are in
-**[.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md)**.
+Required validation shares a hard 900-second test budget. Compose checks with
+`scripts/validation/validate.sh`; do not reset the budget or remove coverage to fit
+it. See the [runtime contract](docs/HARNESS.md#shared-test-execution-budget).
 
 ## Commit message convention (Conventional Commits)
 
-Every commit **must** use standard [Conventional Commits](https://www.conventionalcommits.org/).
-This is not cosmetic: releases are automated with
-[python-semantic-release](https://python-semantic-release.readthedocs.io/) (see issue #257), which
-parses **only** standard Conventional Commits to decide the SemVer bump. The older `[tag] summary`
-and bare `type: summary` styles are retired — mixed styles make the bump undecidable.
+Use `type(scope): subject`, with issue scope when applicable, e.g.
+`docs(#568): simplify prompt routing`. Preserve the existing signing setup.
+`fix` and `feat` drive automatic releases; `docs`, `test`, `refactor`, `chore`,
+`ci`, `build` and `style` do not. Breaking-change and 1.0.0 policy live in
+[the releasing guide](docs/RELEASING.md).
 
-Grammar:
+## Sources of truth
 
-```
-type(scope): subject
+| Need | Read |
+| --- | --- |
+| Full issue lifecycle, sensors, review and escalation | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
+| Human lifecycle overview and installation | [docs/HARNESS.md](docs/HARNESS.md), [docs/getting-started.md](docs/getting-started.md) |
+| Host discovery and prompt invocation | [docs/github-copilot.md](docs/github-copilot.md) |
+| Issue state | `.copilot-tracking/issues/issue-NN/feature_list.json`, `progress.md`, optional `plan.md` |
+| Language profiles and generation | [profiles/README.md](profiles/README.md), [docs/multi-language-profiles.md](docs/multi-language-profiles.md), `scripts/scaffold-language.sh` |
+| Applicable code conventions | `.copilot/instructions/<language>.instructions.md`; [Bash](.copilot/instructions/bash.instructions.md), [TDD](.copilot/instructions/tdd.instructions.md) |
+| Frozen lifecycle contract | [docs/harness-contract.yml](docs/harness-contract.yml), `tests/scripts/lifecycle/test_harness_contract.sh` |
+| Traces and retired capture history | [docs/observability-and-trace-schema.md](docs/observability-and-trace-schema.md) |
+| Maintainer evaluation tooling | [docs/eval-tooling.md](docs/eval-tooling.md) |
 
-<optional body>
+## Skills and independent review
 
-<optional footer, e.g. BREAKING CHANGE: …>
-```
+Read the relevant `.copilot/skills/<name>/SKILL.md` or
+`.copilot/agents/<name>.agent.md` before use.
 
-The type drives the automatic version bump:
+| Asset | When |
+| --- | --- |
+| `code-review-subagent` and `code-review` | At issue completion, over the whole branch diff; repair review is scoped to fixes |
+| `public-exposure-audit` | Blocking exposure check in the independent review/pre-PR gate |
+| `security-audit` | Issues touching auth, provisioning or data movement |
+| `create-pr` | PR authoring through `scripts/create-pr.sh` |
+| `find-brute-force`, `find-duplicates`, `find-over-design`, `dead-code-detection`, `sync-docs` | Owner-requested maintenance, not automatic per-PR protocols |
 
-| Commit | SemVer bump |
-|---|---|
-| `fix: …` (or `fix(scope): …`) | **patch** (0.1.1 → 0.1.2) |
-| `feat: …` (or `feat(scope): …`) | **minor** (0.1.1 → 0.2.0) |
-| `feat!: …` / any `BREAKING CHANGE:` footer | **major** (0.1.1 → 1.0.0)¹ |
-
-Non-releasing types (`chore:`, `docs:`, `test:`, `refactor:`, `ci:`, `build:`, `style:`) land
-without cutting a release. Keep the harness issue trailer (`fix(#NN): …`) — `#NN` sits inside the
-`scope` position and stays valid Conventional Commits.
-
-¹ 0.x → 1.0.0 is a **human decision**, not a mechanical bump — see
-[docs/RELEASING.md](docs/RELEASING.md).
-
-## Start every session here
-
-> **Launch topology (optional, historical):** Starting the Copilot CLI conductor session from the
-> repository root — the trusted folder that contains `.github/hooks/` — used to matter because the
-> CLI loads workspace hooks from the session cwd, and a launch from `$HOME` or another untrusted cwd
-> silently skipped `.github/hooks/harness-trace.json`. That hook only ever reconstructed runtime
-> `tool span`s, which issue #305 **retired**. The kept semantic spine the harness emits about itself
-> is written regardless of launch cwd, so a non-root launch no longer loses any kept signal — see
-> **The Capture Retirement Boundary** in
-> [docs/observability-and-trace-schema.md](docs/observability-and-trace-schema.md),
-> which owns this reconciliation. Listing the repository root under `trustedFolders` in
-> `~/.copilot/config.json` and launching from it remains a harmless convention, no longer a
-> requirement to avoid a lost run.
-
-This repo has a `harness-smoke.yml` GitHub Actions workflow that sets up `uv`,
-syncs and runs Python profile gates only when a Python product surface applies
-(`ruff format --check`, `ruff check`, `mypy`, `pytest`), runs the applicable harness shell sensor set
-(`tests/scripts/` and `tests/meta/`), shell parsing, and `shellcheck`. L0 functional
-sensors run once through applicable discovery; evaluation-tool contracts use tiny fixtures,
-not a second full L0 invocation. A green run is a hard precondition for merge (enforced via
-`./scripts/merge-pr.sh`). It is still not CI/CD delivery, not a deploy pipeline,
-and not GitHub auto-merge; a repo admin may additionally enable a
-branch-protection required check on `main`.
-
-Required validation runs share one hard 900-second test budget; 600 seconds
-remains a performance target, not a cutoff. Compose profile
-gates and sensors with `scripts/validation/validate.sh`; independent setup/static
-phases are excluded, but preparation inside tests counts. Do not reset the budget
-or remove coverage to fit it; see [the runtime contract](docs/HARNESS.md#shared-test-execution-budget).
-
-**Starting a new issue?** Use the worktree harness — it runs preflight, then creates
-an isolated branch + worktree so issues never collide in one checkout:
-
-```sh
-./scripts/start-issue.sh 1 # runs scripts/init.sh; on green, creates branch
-                           # feature/issue-01-<slug> + worktree
-                           # .worktrees/issue-01, then cd into it
-cd .worktrees/issue-01
-```
-
-Keep harness shell entrypoints under `scripts/`. Do not create root-level `.sh` copies.
-
-**Resuming / a pure preflight check** in an existing worktree:
-
-```sh
-./scripts/init.sh          # preflight: gh login (HARD), optional az login, signing,
-                           # optional uv sync, optional gates
-REQUIRE_AZ=1 ./scripts/init.sh # for cloud / infra / deploy work (e.g. Azure / Foundry)
-```
-
-## Where to find things
-
-| You need… | Look here |
-|---|---|
-| Product contract / requirements | Project-specific docs under `docs/` |
-| Architecture, components, data contracts | Project-specific docs under `docs/` |
-| Validation plan and smoke tests | Project-specific docs under `docs/` |
-| Agent topology and prompts | Project-specific docs under `docs/` |
-| Delivery plan, RACI, risk register | Project-specific docs under `docs/` |
-| Maintainer evaluation commands and contracts | [docs/eval-tooling.md](docs/eval-tooling.md) |
-| Local issue progress and Action Log | `.copilot-tracking/issues/issue-NN/progress.md` |
-| Copilot issue lifecycle and diagram | [docs/HARNESS.md](docs/HARNESS.md) |
-| Full lifecycle / sensor / verify-gate doctrine | [.copilot/instructions/harness.instructions.md](.copilot/instructions/harness.instructions.md) |
-| Cross-project workflow tiers (Tier 0-3 + subagent pipeline) | [.copilot/instructions/workflow-tiers.instructions.md](.copilot/instructions/workflow-tiers.instructions.md) |
-| Harness layers (Core / Language Profiles / Framework Templates) | [docs/HARNESS.md](docs/HARNESS.md) § Harness Layers |
-| Language profile contract + per-language gate lists | [profiles/README.md](profiles/README.md) |
-| Multi-language profile design (Python, Go, Node.js, Java, Ruby) | [docs/multi-language-profiles.md](docs/multi-language-profiles.md) |
-| Frozen lifecycle / non-regression contract | [docs/harness-contract.yml](docs/harness-contract.yml) + `tests/scripts/lifecycle/test_harness_contract.sh` |
-| Adding or updating a language profile (generator) | `./scripts/scaffold-language.sh <profile>` (see [docs/HARNESS.md](docs/HARNESS.md) § Adding or updating a language profile) |
-| Python conventions (added when code lands) | [.copilot/instructions/python.instructions.md](.copilot/instructions/python.instructions.md) |
-| Go / Node / Java / Ruby conventions | `.copilot/instructions/<language>.instructions.md` — scaffolded by `scripts/scaffold-language.sh`; load the file matching the files you change |
-| Bash conventions (harness scripts & shell tests) | [.copilot/instructions/bash.instructions.md](.copilot/instructions/bash.instructions.md) |
-| TDD discipline | [.copilot/instructions/tdd.instructions.md](.copilot/instructions/tdd.instructions.md) |
-| Terraform / Azure conventions | [.copilot/instructions/terraform-azure.instructions.md](.copilot/instructions/terraform-azure.instructions.md) |
-
-## Skills and subagents (in-repo)
-
-The harness's feature workflow and review gates assume these are available;
-they're now checked into the repo so any contributor (human or AI) gets the
-same toolkit. Read the SKILL.md (or `.agent.md`) before invoking.
-
-| Asset | Purpose | Where the harness uses it |
-|---|---|---|
-| **Skill** `code-review` | Review of the branch diff for spec compliance + bugs | Once, at issue completion (pre-PR) — #303/#352; see `harness.instructions.md` § Verify gate |
-| **Skill** `create-pr` | Author a clean PR title/body, link the issue, ensure acceptance criteria are reflected | `scripts/create-pr.sh` |
-| **Skill** `find-brute-force` | Hunt for hacks, swallowed errors, hardcoded values | Owner-requested maintenance audit, outside issue review |
-| **Skill** `find-duplicates` | Semantic duplication / DRY violations | Owner-requested maintenance audit, outside issue review |
-| **Skill** `find-over-design` | Premature abstraction / unjustified complexity | Owner-requested maintenance audit, outside issue review |
-| **Skill** `dead-code-detection` | Unreachable code, stale flags, oxbow paths | On-demand during refactor issues |
-| **Skill** `security-audit` | Cred handling, secret leakage, RBAC, data classification | Required for any issue touching auth / Azure provisioning / data movement |
-| **Skill** `sync-docs` | Audit docs against the current code after refactors | On-demand documentation audit, outside issue review |
-| **Skill** `public-exposure-audit` | Public-repo exposure audit: tracked files, Git history, Git metadata, ignored/untracked files for leaked personal/company/vendor identifiers, secrets, tokens, cloud IDs, and endpoints | Pulled in by `code-review-subagent` review checklist + §6 verify gate |
-| **Subagent** `code-review-subagent` | Independent review with test-only adversarial coverage and no production edit authority | The delivering agent invokes it once, at issue completion (pre-PR), over the whole branch diff (#352: the only other model invocation in the lifecycle) |
-
-Files live under `.copilot/skills/<name>/SKILL.md` and `.copilot/agents/<name>.agent.md`. The doctrine that decides when each one fires is in `.copilot/instructions/workflow-tiers.instructions.md`.
-The current topology is one delivering agent followed by one independent reviewer across
-`gate_start`, `gate_sensors`, `gate_review`, and `gate_merge_closeout`.
-
-### Skill × subagent × stage
-
-Which skill fires, who owns it, and at which lifecycle phase:
-
-| Skill | Owner role | Stage / phase | Fires on |
-| --- | --- | --- | --- |
-| `find-brute-force` | owner-requested audit | Maintenance | Whole-repo workaround inventory |
-| `find-duplicates` | owner-requested audit | Maintenance | Whole-repo duplication inventory |
-| `find-over-design` | owner-requested audit | Maintenance | Whole-repo complexity inventory |
-| `dead-code-detection` | owner-requested audit | Maintenance | Targeted removal-safety investigation |
-| `sync-docs` | owner-requested audit | Maintenance | Documentation consistency investigation |
-| `public-exposure-audit` | `code-review-subagent` | Review + Closeout verify gate | Secrets, PII, cloud IDs, customer media in pushed/soon-to-be-pushed content (BLOCKING) |
-| `code-review` | conductor · `code-review-subagent` | Review → Closeout verify gate | Single end-of-issue diff review (pre-PR, #303) |
-| `create-pr` | conductor | Closeout | PR title/body, issue link, acceptance criteria — behind `scripts/create-pr.sh` |
-| `security-audit` | conductor (conditional) | Closeout | Issues touching auth, Azure provisioning, or data movement |
-
-The delivering agent's quality bar comes from the applicable
-`<language>.instructions.md`, `.copilot/instructions/tdd.instructions.md`, and this AGENTS.md.
-The five quality-skill protocols are not part of independent review or the
-pre-PR verify gate (#350). The reviewer uses ordinary quality judgment over the
-diff, including doc drift and obvious defects; this does not invoke those skill
-protocols. Exposure and the authoritative §6 verify-gate requirements remain.
-Path/command changes still require synchronized documentation and reference
-validation as part of delivery.
-
-The reviewer may add and execute the smallest independent test, fixture, smoke, or validation asset needed to expose
-a missing failure mode. Production stays read-only: `code-review-subagent` must not edit production or add a required
-production hook. It reports changed tests, commands, and evidence; a newly exposed production defect produces
-`NEEDS_REVISION` and routes to the delivering agent for repair before reviewer rerun.
+The reviewer may add the smallest dedicated test/fixture/validation asset needed
+to expose a missing failure mode. Production remains read-only for the reviewer;
+defects return to the delivering agent. The canonical lifecycle owns review
+requirements and verdict recording.
