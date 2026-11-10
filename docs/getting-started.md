@@ -215,8 +215,9 @@ Before anything else, make sure the hard requirements from the
 
 ### Bind the repository's GitHub identity
 
-When more than one GitHub account is authenticated on a machine, copy the
-installed template and bind the account this repository must use:
+Every developer checkout requires a binding, even with only one authenticated
+GitHub account. In the **main checkout**, copy the installed template and bind
+the account this repository must use:
 
 ```sh
 cp .github/harness-identity.env.example .github/harness-identity.env
@@ -237,9 +238,20 @@ Lifecycle scripts mint the bound account's token with
 never runs `gh auth switch`; another repository can therefore use a different
 account without changing global state. `start-issue.sh` (and an installer rerun when a
 binding already exists) also sets repository-local Git author values and
-account-qualified HTTPS origin routing. A missing binding warns once and keeps
-the legacy active-account behavior; a present binding whose account is not
-authenticated is a hard preflight failure.
+account-qualified HTTPS origin routing. Main checkouts, linked worktrees and fresh
+processes resolve this same binding through Git's shared common directory.
+Worktree-local bindings and ambient account/token variables cannot override it;
+do not copy a filled binding or credentials into worktrees.
+
+Missing, placeholder, malformed, unreadable or symlinked bindings (including a
+symlinked `.github` directory) fail closed before authentication. Correct the
+binding in the main checkout, then rerun preflight. Unavailable, expired or
+mismatched credentials also fail: use `gh auth login --hostname github.com` to
+reauthenticate **the designated account**, never another logged-in account.
+If a repository operation reports permission denied or repository not found,
+verify that this same account has access to the configured origin; correct its
+permissions or origin rather than trying another identity. No lifecycle command
+falls back to the globally active account or switches global authentication.
 
 ## 3. Choose a language
 

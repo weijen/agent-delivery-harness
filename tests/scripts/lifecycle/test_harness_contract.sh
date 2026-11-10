@@ -445,7 +445,7 @@ if [ "$sec_fails" -eq 0 ]; then
         # shellcheck source=/dev/null
         source "${checkout}/scripts/lib/${library}-lib.sh" || exit 1
       done
-      [ "$(harness_identity_repo_root)" = "$(cd "$checkout" && pwd -P)" ] &&
+      [ "$(harness_identity_repo_root)" = "$layout_main" ] &&
       [ "$(cd "$(issue_repo_root)" && pwd -P)" = "$layout_main" ] &&
       [ -f "${CI_COVERAGE_PROFILES_DIR}/python.profile.sh" ] &&
       declare -F reconcile_entry >/dev/null &&

@@ -52,6 +52,10 @@ cp "${ROOT}/schemas/trace-schema.v1.json" "${FIX}/schemas/"
 git -C "$FIX" init -q -b main
 git -C "$FIX" config user.name t; git -C "$FIX" config user.email t@example.invalid
 printf '/.worktrees/\n.copilot-tracking/\n' > "${FIX}/.gitignore"
+mkdir -p "${FIX}/.github"
+printf 'HARNESS_GH_ACCOUNT=fixture-user\nHARNESS_GIT_EMAIL=fixture@example.invalid\n' \
+  >"${FIX}/.github/harness-identity.env"
+printf '/.github/harness-identity.env\n' >>"${FIX}/.git/info/exclude"
 printf 'fixture\n' > "${FIX}/README.md"
 git -C "$FIX" add -A; git -C "$FIX" commit -q -m base
 git -C "$FIX" checkout -q -b feature/issue-77-fixture
@@ -63,6 +67,12 @@ mkdir -p "${TMP_DIR}/bin"
 cat > "${TMP_DIR}/bin/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
+  "auth token")
+    [ "${3:-} ${4:-}" = '--user fixture-user' ] || exit 1
+    printf 'fixture-token\n'; exit 0 ;;
+  "api user")
+    [ "${GH_TOKEN:-}" = fixture-token ] || exit 1
+    printf 'fixture-user\n'; exit 0 ;;
   "pr view")
     case "$*" in
       *state,mergeCommit*)

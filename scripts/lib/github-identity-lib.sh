@@ -6,23 +6,31 @@ if [ -n "${__HARNESS_GITHUB_IDENTITY_LIB_SOURCED:-}" ]; then
   return 0
 fi
 __HARNESS_GITHUB_IDENTITY_LIB_SOURCED=1
-__HARNESS_IDENTITY_WARNING_EMITTED=0
-
 harness_identity_repo_root() {
-  local root=""
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  (cd "$root" && pwd -P)
+  local root="${1:-.}" common=""
+  common="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null)" || {
+    printf 'error: cannot resolve the repository GitHub identity root from %s\n' "$root" >&2
+    return 1
+  }
+  # Match the lifecycle's main-checkout resolution through Git's shared dir.
+  (cd "$root" && cd "$(dirname "$common")" && pwd -P)
 }
 
 harness_identity_load() {
   local root="${1:-}" binding="" line="" key="" value=""
   local seen_account=0 seen_name=0 seen_email=0
 
-  if [ -z "$root" ]; then
-    root="$(harness_identity_repo_root)" || return 2
-  fi
+  unset HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
+  root="$(harness_identity_repo_root "${root:-.}")" || return 1
   binding="${root}/.github/harness-identity.env"
-  [ -f "$binding" ] || return 2
+  if [ -L "${root}/.github" ] || [ -L "$binding" ]; then
+    printf 'error: refusing symlinked GitHub identity binding or parent: %s\n' "$binding" >&2
+    return 1
+  fi
+  [ -f "$binding" ] && [ -r "$binding" ] || {
+    printf 'error: required GitHub identity binding is missing or unreadable: %s; copy .github/harness-identity.env.example in the main checkout and fill the designated account (never a token)\n' "$binding" >&2
+    return 1
+  }
 
   # The binding is MACHINE-LOCAL by design (each developer copies the .example
   # and fills their own account). A committed binding turns one person's
@@ -31,12 +39,6 @@ harness_identity_load() {
   if git -C "$root" ls-files --error-unmatch .github/harness-identity.env >/dev/null 2>&1; then
     printf 'warning: .github/harness-identity.env is COMMITTED — it is machine-local; untrack it (git rm --cached) and gitignore it\n' >&2
   fi
-  [ ! -L "$binding" ] || {
-    printf 'error: refusing symlinked GitHub identity binding: %s\n' "$binding" >&2
-    return 1
-  }
-
-  unset HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
   while IFS= read -r line || [ -n "$line" ]; do
     line="${line%$'\r'}"
     case "$line" in
@@ -102,9 +104,9 @@ harness_identity_load() {
   # nonexistent account (apex-vs incident, 2026-07-23). Treat as absent.
   case "${HARNESS_GH_ACCOUNT}:${HARNESS_GIT_NAME}:${HARNESS_GIT_EMAIL}" in
     *your-github-account*|*"Your Git Author Name"*)
-      printf 'warning: .github/harness-identity.env still contains template placeholders — ignoring the binding until it is filled in\n' >&2
+      printf 'error: %s still contains template placeholders; fill the designated account in the main checkout\n' "$binding" >&2
       unset HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
-      return 2
+      return 1
       ;;
   esac
 
@@ -113,38 +115,20 @@ harness_identity_load() {
 }
 
 harness_identity_activate() {
-  local root="${1:-}" load_rc=0 token="" active_account="" verified_account=""
+  local root="${1:-}" token="" verified_account=""
 
-  harness_identity_load "$root" || load_rc=$?
-  if [ "$load_rc" -eq 2 ]; then
-    if [ "${__HARNESS_IDENTITY_WARNING_EMITTED}" -eq 0 ]; then
-      printf 'warning: .github/harness-identity.env not found; using current gh authentication\n' >&2
-      __HARNESS_IDENTITY_WARNING_EMITTED=1
-    fi
-    return 0
-  fi
-  [ "$load_rc" -eq 0 ] || return "$load_rc"
-
-  if command -v gh >/dev/null 2>&1; then
-    active_account="$(
-      env -u GH_TOKEN -u GITHUB_TOKEN gh api user --jq .login 2>/dev/null || true
-    )"
-  fi
-  if [ -n "$active_account" ] && [ "$active_account" != "$HARNESS_GH_ACCOUNT" ]; then
-    printf "info: global gh account '%s' differs; using repository-bound account '%s' for this process\n" \
-      "$active_account" "$HARNESS_GH_ACCOUNT" >&2
-  fi
-
+  unset GH_TOKEN GITHUB_TOKEN
+  harness_identity_load "$root" || return 1
   token="$(
     env -u GH_TOKEN -u GITHUB_TOKEN \
       gh auth token --user "$HARNESS_GH_ACCOUNT" 2>/dev/null
   )" || {
-    printf "error: cannot mint a token for bound GitHub account '%s'; run: gh auth login --hostname github.com\n" \
+    printf "error: cannot mint a token for bound GitHub account '%s'; run gh auth login --hostname github.com and authenticate only that designated account\n" \
       "$HARNESS_GH_ACCOUNT" >&2
     return 1
   }
   [ -n "$token" ] || {
-    printf "error: cannot mint a token for bound GitHub account '%s'; gh returned an empty token\n" \
+    printf "error: cannot mint a token for bound GitHub account '%s'; gh returned an empty token; reauthenticate that same account with gh auth login --hostname github.com\n" \
       "$HARNESS_GH_ACCOUNT" >&2
     return 1
   }
@@ -152,12 +136,12 @@ harness_identity_activate() {
   verified_account="$(
     GH_TOKEN="$token" GITHUB_TOKEN='' gh api user --jq .login 2>/dev/null
   )" || {
-    printf "error: token verification failed for bound GitHub account '%s'\n" \
+    printf "error: token verification failed for bound GitHub account '%s'; reauthenticate that same account with gh auth login --hostname github.com\n" \
       "$HARNESS_GH_ACCOUNT" >&2
     return 1
   }
   if [ "$verified_account" != "$HARNESS_GH_ACCOUNT" ]; then
-    printf "error: token for bound GitHub account '%s' resolved as '%s'\n" \
+    printf "error: token for bound GitHub account '%s' resolved as '%s'; correct credentials for the designated account, never substitute another account\n" \
       "$HARNESS_GH_ACCOUNT" "$verified_account" >&2
     return 1
   fi
@@ -168,16 +152,10 @@ harness_identity_activate() {
 }
 
 harness_identity_configure_git() {
-  local root="${1:-}" load_rc=0 remote_url="" remote_path=""
+  local root="${1:-}" remote_url="" remote_path=""
 
-  if [ -z "$root" ]; then
-    root="$(harness_identity_repo_root)" || return 1
-  fi
-  harness_identity_load "$root" || load_rc=$?
-  if [ "$load_rc" -eq 2 ]; then
-    return 0
-  fi
-  [ "$load_rc" -eq 0 ] || return "$load_rc"
+  root="$(harness_identity_repo_root "${root:-.}")" || return 1
+  harness_identity_load "$root" || return 1
 
   git -C "$root" config --local user.name "$HARNESS_GIT_NAME"
   git -C "$root" config --local user.email "$HARNESS_GIT_EMAIL"

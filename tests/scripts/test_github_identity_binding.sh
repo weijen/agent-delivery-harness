@@ -23,16 +23,23 @@ printf '%s\n' "$*" >>"${GH_LOG}"
 if [ "${1:-} ${2:-}" = "auth token" ]; then
   [ "${GH_FAKE_UNAVAILABLE:-0}" != "1" ] || exit 1
   [ "${3:-} ${4:-}" = "--user weijen" ] || exit 2
+  [ "${GH_FAKE_EMPTY:-0}" != "1" ] || exit 0
   printf '%s\n' 'token-for-weijen'
   exit 0
 fi
 if [ "${1:-} ${2:-}" = "api user" ]; then
+  [ "${GH_FAKE_VERIFY_FAILURE:-0}" != "1" ] || exit 1
   if [ "${GH_TOKEN:-}" = "token-for-weijen" ]; then
-    printf '%s\n' 'weijen'
+    printf '%s\n' "${GH_FAKE_IDENTITY:-weijen}"
   else
     printf '%s\n' 'wrong-global-account'
   fi
   exit 0
+fi
+if [ "${1:-} ${2:-}" = "repo view" ]; then
+  [ "${GH_TOKEN:-}" = "token-for-weijen" ] || exit 2
+  printf 'repository access denied for designated account\n' >&2
+  exit 1
 fi
 exit 2
 EOF
@@ -45,6 +52,41 @@ HARNESS_GH_ACCOUNT=weijen
 HARNESS_GIT_NAME=\$(touch ${sentinel})
 HARNESS_GIT_EMAIL=11629+weijen@users.noreply.github.com
 EOF
+git -C "${TMP_DIR}/bound" init -q -b main
+git -C "${TMP_DIR}/missing" init -q -b main
+printf '/.github/harness-identity.env\n' >>"${TMP_DIR}/bound/.git/info/exclude"
+git -C "${TMP_DIR}/bound" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  -c commit.gpgsign=false commit --allow-empty -qm seed
+git -C "${TMP_DIR}/bound" worktree add -q -b linked "${TMP_DIR}/linked"
+mkdir -p "${TMP_DIR}/linked/.github"
+printf 'HARNESS_GH_ACCOUNT=wrong-local-account\nHARNESS_GIT_EMAIL=wrong@example.invalid\n' \
+  >"${TMP_DIR}/linked/.github/harness-identity.env"
+
+for checkout in bound linked; do
+  PATH="${TMP_DIR}/bin:/usr/bin:/bin" GH_TOKEN=wrong-token GITHUB_TOKEN=wrong-token \
+    bash -euc '
+      cd "$2"
+      source "$1"
+      harness_identity_activate "$PWD"
+      [ "$HARNESS_GH_ACCOUNT" = weijen ] && [ "$GH_TOKEN" = token-for-weijen ]
+      [ -z "${GITHUB_TOKEN:-}" ]
+      harness_identity_activate
+      [ "$HARNESS_GH_ACCOUNT" = weijen ] && [ "$GH_TOKEN" = token-for-weijen ]
+    ' bash "${ROOT}/scripts/lib/github-identity-lib.sh" "${TMP_DIR}/${checkout}" \
+    >"${TMP_DIR}/fresh.out" 2>"${TMP_DIR}/fresh.err" \
+    || fail "fresh ${checkout} process must use the canonical account, not ambient/local identity"
+done
+mv "${TMP_DIR}/bound/.github/harness-identity.env" "${TMP_DIR}/binding.saved"
+: >"$GH_LOG"
+if PATH="${TMP_DIR}/bin:/usr/bin:/bin" bash -euc '
+  source "$1"
+  harness_identity_activate "$2"
+' bash "${ROOT}/scripts/lib/github-identity-lib.sh" "${TMP_DIR}/linked" \
+  >"${TMP_DIR}/local.out" 2>"${TMP_DIR}/local.err"; then
+  fail "a worktree-local binding must not replace a missing canonical binding"
+fi
+[ ! -s "$GH_LOG" ] || fail "missing canonical binding must fail before gh"
+mv "${TMP_DIR}/binding.saved" "${TMP_DIR}/bound/.github/harness-identity.env"
 
 # shellcheck source=scripts/lib/github-identity-lib.sh
 source "${ROOT}/scripts/lib/github-identity-lib.sh"
@@ -78,17 +120,64 @@ grep -Fq "cannot mint a token for bound GitHub account 'weijen'" \
   || fail "unavailable-account failure must identify the bound account"
 unset GH_FAKE_UNAVAILABLE
 
-unset HARNESS_GH_ACCOUNT HARNESS_GIT_NAME HARNESS_GIT_EMAIL
-__HARNESS_IDENTITY_WARNING_EMITTED=0
-: >"${TMP_DIR}/missing.err"
-PATH="${TMP_DIR}/bin:/usr/bin:/bin" \
-  harness_identity_activate "${TMP_DIR}/missing" 2>>"${TMP_DIR}/missing.err" \
-  || fail "missing binding must preserve legacy behavior"
-PATH="${TMP_DIR}/bin:/usr/bin:/bin" \
-  harness_identity_activate "${TMP_DIR}/missing" 2>>"${TMP_DIR}/missing.err" \
-  || fail "repeated missing binding must preserve legacy behavior"
-[ "$(grep -c 'harness-identity.env not found' "${TMP_DIR}/missing.err")" -eq 1 ] \
-  || fail "missing binding must warn exactly once per process"
+for scenario in missing placeholder malformed duplicate symlink parent-symlink; do
+  binding="${TMP_DIR}/missing/.github/harness-identity.env"
+  mkdir -p "$(dirname "$binding")"
+  case "$scenario" in
+    missing) ;;
+    placeholder) cp "${ROOT}/.github/harness-identity.env.example" "$binding" ;;
+    malformed) printf 'HARNESS_GH_ACCOUNT=bad account\n' >"$binding" ;;
+    duplicate) printf 'HARNESS_GH_ACCOUNT=weijen\nHARNESS_GH_ACCOUNT=other\n' >"$binding" ;;
+    symlink) ln -s "${TMP_DIR}/bound/.github/harness-identity.env" "$binding" ;;
+    parent-symlink)
+      rmdir "${TMP_DIR}/missing/.github"
+      ln -s "${TMP_DIR}/bound/.github" "${TMP_DIR}/missing/.github" ;;
+  esac
+  : >"$GH_LOG"
+  if PATH="${TMP_DIR}/bin:/usr/bin:/bin" GH_TOKEN=wrong-token GITHUB_TOKEN=wrong-token \
+    harness_identity_activate "${TMP_DIR}/missing" >"${TMP_DIR}/invalid.out" 2>"${TMP_DIR}/invalid.err"; then
+    fail "${scenario} binding must prevent activation"
+  fi
+  [ ! -s "$GH_LOG" ] || fail "${scenario} binding must fail before any gh call"
+  if [ "$scenario" = parent-symlink ]; then
+    rm "${TMP_DIR}/missing/.github"
+  elif [ -e "$binding" ] || [ -L "$binding" ]; then
+    rm "$binding"
+  fi
+done
+
+for scenario in unavailable empty verify-failure mismatch; do
+  : >"$GH_LOG"
+  if PATH="${TMP_DIR}/bin:/usr/bin:/bin" bash -euc '
+    source "$1"
+    case "$3" in
+      unavailable) export GH_FAKE_UNAVAILABLE=1 ;;
+      empty) export GH_FAKE_EMPTY=1 ;;
+      verify-failure) export GH_FAKE_VERIFY_FAILURE=1 ;;
+      mismatch) export GH_FAKE_IDENTITY=other-account ;;
+    esac
+    harness_identity_activate "$2"
+  ' bash "${ROOT}/scripts/lib/github-identity-lib.sh" "${TMP_DIR}/bound" "$scenario" \
+    >"${TMP_DIR}/auth.out" 2>"${TMP_DIR}/auth.err"; then
+    fail "${scenario} must fail without trying another account"
+  fi
+  [ "$(grep -c '^auth token' "$GH_LOG")" -eq 1 ] || fail "${scenario} retried account selection"
+  if grep -Eq 'wrong-token|token-for-weijen' "${TMP_DIR}/auth.err"; then
+    fail "${scenario} diagnostics exposed credentials"
+  fi
+done
+
+: >"$GH_LOG"
+if PATH="${TMP_DIR}/bin:/usr/bin:/bin" bash -euc '
+  source "$1"
+  harness_identity_activate "$2"
+  gh repo view
+' bash "${ROOT}/scripts/lib/github-identity-lib.sh" "${TMP_DIR}/bound" \
+  >"${TMP_DIR}/denied.out" 2>"${TMP_DIR}/denied.err"; then
+  fail "repository denial must remain a failure"
+fi
+[ "$(grep -c '^auth token' "$GH_LOG")" -eq 1 ] || fail "repository denial selected another account"
+grep -Fq 'repository access denied' "${TMP_DIR}/denied.err" || fail "access denial must be reported"
 
 
 # --- Placeholder + committed-binding guards (apex-vs incident, 2026-07-23) ----
@@ -98,7 +187,7 @@ git init -q -b main "$PH"
 cp "${ROOT}/.github/harness-identity.env.example" "${PH}/.github/harness-identity.env"
 ph_rc=0
 ph_out="$( (cd "$PH" && . "${ROOT}/scripts/lib/github-identity-lib.sh" && harness_identity_load "$PH") 2>&1 )" || ph_rc=$?
-[ "$ph_rc" -eq 2 ] || fail "placeholder binding must be treated as absent (rc=2), got rc=${ph_rc}: ${ph_out}"
+[ "$ph_rc" -ne 0 ] || fail "placeholder binding must fail, got rc=${ph_rc}: ${ph_out}"
 grep -qi "placeholder" <<<"$ph_out" || fail "placeholder binding must warn about placeholders: ${ph_out}"
 printf 'HARNESS_GH_ACCOUNT=real-account\nHARNESS_GIT_EMAIL=a@users.noreply.github.com\n' > "${PH}/.github/harness-identity.env"
 git -C "$PH" -c user.email=t@t.invalid -c user.name=t add -f .github/harness-identity.env
@@ -239,12 +328,12 @@ git -C "$REPO" init -q -b main
 git -C "$REPO" remote add origin https://github.com/weijen/agent-delivery-harness.git
 load_rc=0
 harness_identity_load "$REPO" || load_rc=$?
-[ "$load_rc" -eq 2 ] || fail "a clean checkout must not require a local binding"
-__HARNESS_IDENTITY_WARNING_EMITTED=0
-harness_identity_activate "$REPO" 2>"${FIXTURE_DIR}/clean-checkout.err" \
-  || fail "a clean checkout must preserve the current gh authentication"
-grep -qF 'using current gh authentication' "${FIXTURE_DIR}/clean-checkout.err" \
-  || fail "a clean checkout must explain the missing-binding fallback"
+[ "$load_rc" -ne 0 ] || fail "a clean checkout must require a local binding"
+if harness_identity_activate "$REPO" 2>"${FIXTURE_DIR}/clean-checkout.err"; then
+  fail "a clean checkout must not use current gh authentication"
+fi
+grep -qF 'harness-identity.env' "${FIXTURE_DIR}/clean-checkout.err" \
+  || fail "a clean checkout must identify the required configuration"
 
 cat >"$BINDING" <<'EOF'
 HARNESS_GH_ACCOUNT=fixture-account

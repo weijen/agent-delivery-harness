@@ -208,11 +208,19 @@ run_upgrade() (
 	git -C "$target" config user.name "Harness Test"
 	git -C "$target" config user.email "harness-test@example.invalid"
 	git -C "$target" config commit.gpgsign false
+	mkdir -p "${target}/.github"
+	printf 'HARNESS_GH_ACCOUNT=fixture-user\nHARNESS_GIT_NAME=Harness Test\nHARNESS_GIT_EMAIL=harness-test@example.invalid\n' \
+		>"${target}/.github/harness-identity.env"
+	printf '/.github/harness-identity.env\n' >>"${target}/.git/info/exclude"
 	mkdir -p "${TMP_DIR}/preflight-bin" "${target}/tests/scripts/lifecycle"
 	cat >"${TMP_DIR}/preflight-bin/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
-	auth) exit 0 ;;
+	auth)
+		if [ "${2:-}" = token ]; then
+			[ "${3:-} ${4:-}" = '--user fixture-user' ] || exit 1
+			printf 'fixture-token\n'
+		fi ;;
 	api) printf 'fixture-user\n' ;;
 	issue) printf 'Installed startup fixture\n' ;;
 	pr)
