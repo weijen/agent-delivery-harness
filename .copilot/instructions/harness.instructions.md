@@ -241,15 +241,17 @@ uses bypass flags, fake evidence, additional tier files or an alternate gate eng
 
 **Review profile at issue completion.** At issue completion (all features `passes:true`), the single end-of-issue review
 runs in **`concise` or `full` mode** over the whole branch diff and issues **per-feature verdicts**: Verdicts 1-4, the adversarial test-quality pass, and the whole-diff exposure
-sweep (check #7, `public-exposure-audit`); the five quality skills are not part of the review
+sweep (`public-exposure-audit`); the five quality skills are not part of the review
 (#350). Use `concise` or `full` (not `repair`) for that pre-PR pass so the exposure sweep always
 runs before `gh pr create`. A `NEEDS_REVISION` verdict routes the feature back to the delivering agent for repair.
 Three countable verdicts for the same unrepaired defect (same reviewed SHA or an explicit
 `repeat_of` chain) trip `review_reject_cap_exceeded`; three distinct repaired findings warn, while
 five total countable failures remain the hard moving-goalposts backstop. A cap asks the human for
 a **design ruling**, not a fourth point repair; `review-gate.sh` remains its deterministic enforcer.
-post-repair re-reviews run the **`repair` review profile** scoped to the revised features only
-and defer the exposure sweep to the pre-PR review (§6).
+Post-repair re-reviews run the **`repair` review profile** scoped to the revised
+features only, without repeating the whole-diff exposure sweep. The delivering
+agent ensures that any repair-introduced content receives the pre-PR exposure
+check before publication (§6); repair mode does not waive that obligation.
 
 **Multi-finding rounds route through the feature list (#449).** When one review round yields
 **two or more findings**, author them as feature-list items — `type: "repair"`, ids `R1…Rn`,
@@ -270,8 +272,16 @@ selection-evidence gate or waiver applies.
 
 #### Agent-span conventions
 
-Spans are written via `scripts/log-handback.sh` (role `conductor`; the role enum is retained
-for historical-trace compatibility). The writer enforces the #318 attribution contract at
+The delivering agent is the single writer of `deviation` and `review_verdict`
+spans via `scripts/log-handback.sh` (role `conductor`, retained for historical
+compatibility). The independent reviewer returns its own verdict records with
+the reviewed SHA; it does not call the writer or approve the branch. Before
+recording, the delivering agent checks that HEAD is still the reviewed SHA,
+because the writer stamps the invoking checkout's current HEAD. If it changed,
+obtain the relevant re-review rather than attributing an old review to new code.
+Recording a verdict does not replace independent review.
+
+The writer enforces the #318 attribution contract at
 write time (#443): a `review_verdict`/fail missing its failure class, fingerprint, or
 baseline state — or any invalid closed-enum value — is rejected with a corrective error, so
 fix the invocation and re-run. **One `review_verdict`/fail span per finding (#448)**: a
@@ -284,12 +294,51 @@ the repair of per-finding context and breaks per-fingerprint reject-cap accounti
 trace gate's business, never review findings and never a rewrite-your-spans repair loop. The
 Action Log in `progress.md` is rendered from spans (#332) — never hand-written.
 
+For each logical review event, the reviewer returns per-feature records with reviewed SHA,
+feature ID, outcome, single-finding summary and the following environment-field
+values. The delivering agent records each with
+`scripts/log-handback.sh conductor review_verdict <feature-id> <pass|fail> <summary>`.
+`APPROVED` maps to `pass`; actionable `NEEDS_REVISION` findings map to `fail`.
+
+| Field | Requirement |
+| --- | --- |
+| `TRACE_REVIEW_MODE` | `full`, `concise` or `repair`, matching the review. |
+| `TRACE_REVIEW_EVENT_ID` | One stable event ID shared by all records in this logical review round. |
+| `TRACE_FAILURE_CLASS` | Required on every fail; use the closed `failure_classes` enum in [the trace schema](../../schemas/trace-schema.v1.json). |
+| `TRACE_FAILURE_CLASS_DETAIL` | Required when the class is `other`; otherwise optional. |
+| `TRACE_FINDING_FINGERPRINT` | Required on every fail, with no whitespace. Identifies the finding, not the entire round. |
+| `TRACE_FINDING_BASELINE_STATE` | Required on every fail: `new`, `unchanged`, `updated` or `resolved`. Resolve a prior finding with a pass record, its same fingerprint and `resolved`. |
+| `TRACE_ACTIONABLE` | Required on every fail: `true` or `false`. `true` requires reproduction evidence or a proposed fix. Non-actionable observations are advisory, not blockers; any recorded `false` failure is excluded from reject-cap accounting. |
+| `TRACE_FINDING_REPRODUCTION` / `TRACE_FINDING_PROPOSED_FIX` | Supply at least one for an actionable finding; include both when known. |
+| `TRACE_REPEAT_OF` | Prior fingerprint only for the same unrepaired defect; omit for a newly discovered hole. |
+| `TRACE_REPAIR_SCOPE` | Required on every repair-mode record, pass or fail: unique `[A-Za-z0-9._-]+` feature IDs separated by commas, no whitespace or empty tokens. The record's feature ID must be an exact member. Omit for full/concise. |
+
+Use a separate non-repair event for a finding outside the declared repair scope.
+The positional feature ID is the actual feature ID, or `unmapped` when no feature
+applies; `-` is invalid on a fail.
+Omit unknown optional fields instead of guessing. The writer validates the
+schema and automatically records `harness.reviewed_sha`; do not hand-author spans
+or translate a malformed invocation into a production finding. Multiple findings
+route through repair items as described above; do not aggregate their records.
+
+**Trace enforcement versus review policy.** General trace consistency is
+warn-only by default; `REQUIRE_TRACE_CONSISTENCY=1` promotes violations to a hard
+gate failure. Separate verdict, currency, reject-cap and publication-evidence
+gates retain their own enforcement. Review still blocks concrete current
+safety/lifecycle violations, schema/redaction failures, evidence already due but
+missing, unresolved deviations and substantiated repeated-loop violations.
+A checker warning alone is not such proof. Historical attribution/field-shape
+defects remain residual telemetry risk, reported once without span-rewrite
+repairs. Unavailable instrumentation is reported as `trace evidence unavailable`,
+not inferred as pass. See [the review gate](../../docs/HARNESS.md#review-gate).
+
 What is deliberately gone (#352): red/impl/green handback payloads and their spans as
 obligations, per-commit review duty, the four-blocking-gate + five-dimension self-check
 ceremony at green (the review owns quality), full pre-review execution, automatic
-approval-time evidence rebinding, and every "return payloads for the conductor to record" convention —
-you write your own spans. The trace spine narrows to lifecycle spans emitted by the scripts,
-`deviation`, and `review_verdict`.
+approval-time evidence rebinding, and the conductor/generator payload choreography.
+This does not retire the independent reviewer's result or transfer trace-writing
+ownership to the reviewer. The trace spine narrows to lifecycle spans emitted by
+the scripts, `deviation`, and `review_verdict`.
 
 ## Same-Class Escalation
 
@@ -476,7 +525,7 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    The five quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
    `dead-code-detection`, `sync-docs`) do **not** run here at all — not standalone and not embedded
    (#350): quality-pattern findings are reversible. The review keeps a plain-judgment flag for
-   egregious cases (review check #6).
+   egregious cases in the review's code-quality verdict.
 5. **Resolve findings — fix, don't just list.** The verify gate is a steering loop, not a
    report. Every sensor (whatever its own severity words) maps onto one action table:
 
