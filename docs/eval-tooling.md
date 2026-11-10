@@ -39,7 +39,8 @@ Ordinary source gates run functional sensors once through discovery. They do
 not rerun the full L0 suite to generate reports. Small recording workloads
 protect runner/manifest wiring and installed-package behavior without duplicating
 functional execution. Explicit suite execution still runs the shipped graders
-and shares the [600-second test budget](HARNESS.md#shared-test-execution-budget).
+and shares the [900-second hard test budget](HARNESS.md#shared-test-execution-budget);
+600 seconds is a performance target.
 Scorecards go to stdout; saved run-specific output is local evidence, not
 committed baseline data.
 
@@ -106,6 +107,58 @@ runner does not generate them. `RUN_EVALS_RUNTIME` accepts `local`, `github-pr`,
 `github-actions`, and `azure-l1-nightly`; unknown values normalize to `local`.
 These are output labels, not execution backends. No Azure scheduler, live-model
 evaluation, or internal VS Code selector observation is provided by these tools.
+
+## Representative workflow evaluation (#571)
+
+This bounded record accompanies the runtime, policy and guide deliveries
+#572–#574. **No controlled model-adherence evaluations were executed.**
+The evidence below separates observed issue delivery, executed deterministic
+CLI fixtures and semantic/tabletop walkthroughs. It does not establish prompt
+adherence, cross-host reliability, comparative quality, cost or success rates.
+There are no controlled model trial results, model comparisons or inferred scores.
+
+| Path | Evidence kind | Observed outcome or walkthrough result | Stop / limitation |
+| --- | --- | --- | --- |
+| Read-only review | Tabletop of the routing map and guide | A question/review routes directly to an answer, without issue creation, worktree or publication. | No model task executed for this path; the expected stop is the answer. |
+| Chat-driven edits | Tabletop of lifecycle authorization | Missing issue-creation authority requires a draft and owner decision before implementation; an approved issue needs no repeat handshake. | Declined/unclear authority stops edits. No controlled authorization prompt run. |
+| Resumed feature | Observed #572 delivery, [PR #576](https://github.com/weijen/agent-delivery-harness/pull/576) | Resumed preflight initially hit a tooling download failure; recovery used the existing synced environment without gate skips. The next criterion received scoped evidence before commit/push. | The earlier one-feature session stopped with unfinished work; continuation followed explicit owner authorization. This is a delivery observation, not a benchmark. |
+| Final-feature closeout | Observed #573 delivery, [PR #577](https://github.com/weijen/agent-delivery-harness/pull/577) | All three criteria passed; preparation preceded independent full review, exact-candidate approval, shared-budget final validation, publication, green CI, confirmed merge and main-checkout closeout. | Historical trace-field warning was retained and disclosed, not rewritten or presented as a clean trace check. |
+| Scoped repair | Executed [currency fixture](../tests/scripts/validation/test_verdict_currency_gate.sh), plus #572 tracking repair | Two originally reviewed features receive a one-feature product repair. Approval accepts justified candidate-bound carry of the unaffected original verdict; missing/stale/mismatched carry and later affected content are rejected. The real tracking-only repair also obtained independent confirmation. | CLI fixtures use synthetic verdicts, not an actual model's independence judgment. Scripts validate attribution/currency, not the truth of a rationale. |
+| Optional-only feedback | Tabletop of acceptance policy and recovery diagram | Two optional observations do not create mandatory repair items or debt; an otherwise passing four-verdict review proceeds to approval. | No controlled reviewer prompt executed. Unsupported suspicions remain advisory, not automatic MAJOR findings. |
+| Blocked CI/merge | Executed [merge CI fixture](../tests/scripts/lifecycle/test_merge_pr_ci_gate.sh) and [guardrail fixture](../tests/scripts/lifecycle/test_post_pr_guardrails.sh) | Pending, failing and empty checks refuse merge without a merge call; green checks permit it, but unconfirmed merge state blocks cleanup. Guardrails cover round exhaustion, structural-red and green-freeze stops. | Fake GitHub boundaries prove deterministic refusal, not model waiting behavior or live provider reliability. Human releases are not automatically granted. |
+
+### Newcomer walkthrough findings
+
+The normal-path walkthrough starts at README, follows the central guide, enters
+the printed issue worktree and selects one criterion from issue body/comments.
+It now exposes the previously obscured one-feature stop after commit/push,
+all-pass continuation, exact-candidate approval and final **applicable**, not
+full-inventory, validation. Onboarding hands off after startup; host invocation
+remains in its own guide. The old repo-wide progress advice was replaced with
+issue authority and local per-issue tracking.
+
+The repair walkthrough follows a required finding through scoped checks,
+one-at-a-time repair items when needed, scoped independent review, explicit
+unaffected carry, approval and final validation. It also follows a failed final
+gate back through repair/review/approval and pending/red CI or a green merge
+failure to the correct wait/stop/human-ruling boundary. Optional-only feedback
+has a direct non-remediation path. These are semantic walkthroughs, not model runs.
+
+An initial control-file structural check failed when cleanup removed a consumed
+handoff heading. Restoring that compatibility anchor and historical
+`feature_start` tolerance made the existing sensor pass; this unfavorable result
+was retained in local evidence. No prose-pinning tests were added. Existing
+structural/link/contract checks protect references and layout, not instruction
+following. The two journey diagrams were reviewed as editable Mermaid source;
+no Mermaid renderer/parser was installed, so rendering was not executed.
+
+Operational ownership remains with the
+[agent lifecycle](../.copilot/instructions/harness.instructions.md);
+the [central human guide](HARNESS.md#lifecycle) explains the journey.
+Official [prompting guidance](https://developers.openai.com/api/docs/guides/latest-model/gpt-6-astra.md)
+informed conflict auditing, explicit topology and calibrated verification.
+It does not replace this harness's single delivering agent plus independent
+reviewer or supply missing model-evaluation evidence.
 
 ## CI and retained history
 
