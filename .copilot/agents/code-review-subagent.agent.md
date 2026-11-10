@@ -45,6 +45,8 @@ Use references for the decision at hand:
 - For exposure checks, use
   [public-exposure-audit](../skills/public-exposure-audit/SKILL.md), including
   its distinction between real exposure and intentional public/synthetic content.
+- Apply [security-audit](../skills/security-audit/SKILL.md) when the changed
+  surface meets the lifecycle's authoritative audit triggers.
 - When preparing verdict handback, use
   [Agent-span conventions](../instructions/harness.instructions.md#agent-span-conventions)
   for required fields and repair routing. Do not copy the schema into this prompt.
@@ -158,6 +160,8 @@ decisions to the owner. Never implement production fixes.
 
 ## Modes and Output
 
+Mode choice and audit applicability are defined in
+[Review acceptance policy](../instructions/harness.instructions.md#review-acceptance-policy).
 `full` and `concise` use the same finding pass and whole-diff exposure check.
 Choose concise for contained low-risk work; full for higher-risk work.
 `repair` reviews only named revised features, including all four verdicts,

@@ -20,8 +20,11 @@ CI-green merge through the harness scripts. Prefer the scripts (`scripts/start-i
    Keep commit signing on, and end the message with the repo's `Co-authored-by: Copilot …` trailer.
 3. **Pre-PR gates** — first run `scripts/create-pr.sh --prepare` to synchronize
    before final verification. Then run the companion skills and record the HEAD review:
-   - **`code-review`** — self-review the diff; fix Critical/Warning findings first.
-   - **`security-audit`** — scan the diff for injection, secrets, workflow-permission and pinning gaps.
+   - Independent **`code-review-subagent`** review, using the
+     [review policy](../../instructions/harness.instructions.md#review-acceptance-policy)
+     for `concise`/`full`, required findings and audit applicability.
+     Whole-diff public exposure review is required; security audit is
+     risk-triggered. Self-review does not replace independent review.
    - **`scripts/validation/review-gate.sh approve`** — records the current HEAD as reviewed (the PR path requires it).
    - **`scripts/run-sensors.sh --gate pre-pr`** — records the separate complete applicable result for the final candidate.
    Stage only the files you intend to publish (respect public-exposure hygiene); never blanket-stage with `git add -A`.
@@ -42,8 +45,8 @@ Brief description of what this PR does and why.
 - Bullet list of key changes made
 
 ## Quality Checks
-- [x] Code review: no critical/warning issues
-- [x] Security: no findings
+- [x] Independent review: required findings resolved
+- [x] Applicable security and public-exposure checks completed
 
 ## Testing
 - How the changes were verified (name the sensor(s) run)

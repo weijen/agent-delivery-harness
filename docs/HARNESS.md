@@ -705,6 +705,11 @@ static proof; unsafe execution is not required. Two optional suggestions do not
 become two mandatory repairs. Two or more findings **requiring remediation**
 become separate repair items, verified one at a time before scoped repair review.
 
+That policy also owns review modes and audit applicability: concise/full retain
+the same finding pass and independent whole-diff exposure review; repair is
+scoped. Security audit is risk-triggered by auth/authorization, approval controls,
+CI/workflows, provisioning or data movement, not by unrelated prose alone.
+
 Before final review and applicable pre-PR validation, run
 `./scripts/create-pr.sh --prepare` to fetch and synchronize with main. Preparation
 does not require an approval, execute sensors, push, or open a PR. It aborts

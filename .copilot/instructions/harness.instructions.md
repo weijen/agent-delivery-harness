@@ -264,8 +264,26 @@ because there are several. Add them only when explicitly accepted into scope.
 
 ### Review acceptance policy
 
-This is the authority for finding dispositions; reviewer and audit reports use
-the same meanings:
+This is the authority for review modes, audit applicability and finding
+dispositions. Other maps, skills and reviewer guidance reference this policy.
+
+- `concise` suits contained low-risk work; `full` suits higher-risk work.
+  Both perform the same four-verdict finding pass, adversarial test judgment
+  and independent whole-diff `public-exposure-audit` before PR publication.
+  Output length changes, not approval obligations.
+- `repair` reviews only named revised/affected features with all four verdicts
+  and targeted regression judgment. Use explicit unaffected-verdict carry under
+  [Scoped repair currency](#scoped-repair-currency), not wider verdict restamping.
+  New repair content still needs exposure protection before publication.
+- `security-audit` applies when the change affects authentication/authorization
+  or approval controls, CI/workflows, provisioning or data movement. It is not
+  mandatory for unrelated prose. The independent review includes the applicable
+  audit judgment without adding another delivering agent or review topology.
+- The five owner-requested quality audits (`find-duplicates`, `find-over-design`,
+  `find-brute-force`, `dead-code-detection`, `sync-docs`) do not run automatically
+  per PR; ordinary code-quality judgment remains part of review.
+
+Reviewer and audit reports use the same disposition meanings:
 
 | Severity | Meaning and disposition |
 | --- | --- |
@@ -570,19 +588,10 @@ When the issue's features are all `passes:true`, do **not** open the PR yet. Fir
    `./scripts/init.sh`. Dormant release/toolchain metadata alone invokes no Python
    product gates. Actual Python source or product configuration activates the
    shared profile; harness shell changes require shellcheck.
-4. The review in step 2 includes the standalone inferential sensor set over the branch diff
-   (**this is the authoritative
-   list** — everywhere else that mentions "the verify-gate sensors" means exactly these). It is
-   scoped by **irreversibility**: only the three checks whose findings become irreversible the
-   moment the branch is pushed / the PR is opened run standalone here:
-   - `code-review-subagent` (full)
-   - `security-audit`
-   - `public-exposure-audit`
-
-   The five quality skills (`find-duplicates`, `find-over-design`, `find-brute-force`,
-   `dead-code-detection`, `sync-docs`) do **not** run here at all — not standalone and not embedded
-   (#350): quality-pattern findings are reversible. The review keeps a plain-judgment flag for
-   egregious cases in the review's code-quality verdict.
+4. Apply the modes and audit triggers in
+   [Review acceptance policy](#review-acceptance-policy). The pre-PR independent
+   whole-diff exposure review supplements, not replaces, protection before
+   earlier feature pushes.
 5. **Resolve findings** under [Review acceptance policy](#review-acceptance-policy).
    Only required remediation enters repair/completion gates; optional feedback
    and unsupported suspicions do not.
