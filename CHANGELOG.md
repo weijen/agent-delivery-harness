@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v0.51.2 (2026-11-10)
+
+### Bug Fixes
+
+- **#583**: Enforce canonical repository GitHub identity
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+- **#583**: Enforce repository-designated GitHub identity
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+- **#583**: Separate CI tool service-token downloads
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+- **#583**: Stop startup on designated-account access denial
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+### Chores
+
+- **release**: Sync uv.lock for 0.51.1
+  ([`c1333b2`](https://github.com/weijen/agent-delivery-harness/commit/c1333b2138a0b2eaa5989bf6a00ebca21e99b528))
+
+### Testing
+
+- **#583**: Bind isolated merge lifecycle fixtures
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+- **#583**: Verify lifecycle identity failure propagation
+  ([#584](https://github.com/weijen/agent-delivery-harness/pull/584),
+  [`254c5f6`](https://github.com/weijen/agent-delivery-harness/commit/254c5f6bea8541f2ad89a19894c99bd0af6d1c38))
+
+
 ## v0.51.1 (2026-11-10)
 
 ### Bug Fixes
