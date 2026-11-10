@@ -218,14 +218,18 @@ fail() {
 
 REPO="${TMP_DIR}/repo"
 BIN="${TMP_DIR}/bin"
-mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/.github" "$BIN"
-cp "${ROOT}/scripts/start-issue.sh" "${REPO}/scripts/"
+mkdir -p "${REPO}/scripts/lib" "${REPO}/scripts/validation" "${REPO}/.github" "${REPO}/profiles" "$BIN"
 mkdir -p "${REPO}/scripts/lifecycle"
-cp "${ROOT}/scripts/lifecycle/start-issue.sh" "${REPO}/scripts/lifecycle/"
+for entry in init start-issue create-pr merge-pr finish-issue; do
+  cp "${ROOT}/scripts/${entry}.sh" "${REPO}/scripts/"
+  cp "${ROOT}/scripts/lifecycle/${entry}.sh" "${REPO}/scripts/lifecycle/"
+done
 cp "${ROOT}/scripts/lib/issue-lib.sh" \
   "${ROOT}/scripts/lib/lifecycle-runtime-lib.sh" \
   "${ROOT}/scripts/lib/github-identity-lib.sh" \
+  "${ROOT}/scripts/lib/test-budget-lib.sh" \
   "${REPO}/scripts/lib/"
+cp "${ROOT}/profiles/python.profile.sh" "${REPO}/profiles/"
 
 cat >"${REPO}/.github/harness-identity.env" <<'EOF'
 HARNESS_GH_ACCOUNT=weijen
@@ -241,6 +245,7 @@ set -euo pipefail
 printf 'token=%s args=%s\n' "${GH_TOKEN:-<unset>}" "$*" >>"${GH_LOG}"
 case "${1:-} ${2:-}" in
   'auth token')
+    [ "${GH_FAKE_UNAVAILABLE:-0}" != 1 ] || exit 1
     [ "${3:-} ${4:-}" = "--user weijen" ] || exit 2
     printf '%s\n' token-for-weijen
     ;;
@@ -300,9 +305,43 @@ if grep -q 'auth switch' "$GH_LOG"; then
   fail "start-issue must not switch global gh state"
 fi
 
-for entrypoint in lifecycle/init.sh lifecycle/start-issue.sh lifecycle/create-pr.sh lifecycle/merge-pr.sh lifecycle/finish-issue.sh; do
-  grep -q 'harness_identity_activate' "${ROOT}/scripts/${entrypoint}" \
-    || fail "${entrypoint} must activate the repository identity before GitHub operations"
+for scenario in missing unavailable; do
+  if [ "$scenario" = missing ]; then
+    mv "${REPO}/.github/harness-identity.env" "${TMP_DIR}/lifecycle-binding.saved"
+  fi
+  for entry in init start-issue create-pr merge-pr finish-issue; do
+    args=()
+    case "$entry" in
+      start-issue|finish-issue) args=(348 SLUG=identity-test) ;;
+      create-pr) args=(--prepare) ;;
+      merge-pr) args=(--squash) ;;
+    esac
+    : >"$GH_LOG"
+    if (
+      cd "$REPO"
+      GH_TOKEN=wrong-token GITHUB_TOKEN=wrong-token \
+        GH_FAKE_UNAVAILABLE=1 SKIP_INIT=1 PATH="${BIN}:/usr/bin:/bin" \
+        "./scripts/${entry}.sh" ${args[@]+"${args[@]}"}
+    ) >"${TMP_DIR}/lifecycle.out" 2>"${TMP_DIR}/lifecycle.err"; then
+      fail "${entry} must propagate ${scenario} identity failure"
+    fi
+    if [ "$scenario" = missing ]; then
+      [ ! -s "$GH_LOG" ] || fail "${entry} called gh with missing configuration"
+      grep -Fq 'required GitHub identity binding' "${TMP_DIR}/lifecycle.err" \
+        || fail "${entry} failed before exercising identity configuration"
+    else
+      [ "$(wc -l <"$GH_LOG" | tr -d ' ')" = 1 ] \
+        || fail "${entry} continued after unavailable credentials"
+      grep -Fq 'args=auth token --user weijen' "$GH_LOG" \
+        || fail "${entry} did not select only the designated account"
+      grep -Fq "cannot mint a token for bound GitHub account 'weijen'" "${TMP_DIR}/lifecycle.err" \
+        || fail "${entry} failed before exercising account authentication"
+    fi
+    [ -d "${REPO}/.worktrees/issue-348" ] || fail "${entry} removed state after identity failure"
+  done
+  if [ "$scenario" = missing ]; then
+    mv "${TMP_DIR}/lifecycle-binding.saved" "${REPO}/.github/harness-identity.env"
+  fi
 done
 
 printf 'start-issue GitHub identity contract honored\n'
