@@ -65,6 +65,30 @@ directs investigation; consequences determine safeguards. Investigate credible
 critical risk before treating a change as contained. An agent capability limit
 is a separate blocker, not a higher task-risk tier.
 
+## Conclude planning with the classification
+
+Inspect enough relevant consumers, controls and effects to choose the smallest
+correct approach. Planning may be a few sentences; do not require a separate
+document or exhaustive investigation just to select a tier.
+
+Before implementation, state the tier and its impact-based reason in the
+existing progress or conversation, together with any missing preparation. For
+example: "Tier 2: all affected consumers are internal and updated and verified
+together; no trust boundary or independent contract changes."
+
+If a provisional assessment changes, explain what evidence changed it. A
+Tier 2-to-3 upgrade extends only the missing preparation before implementation.
+A Tier 3-to-2 downgrade requires evidence ruling out the suspected Tier 3 impact;
+reuse the existing plan and valid evidence. Unchanged classifications need no
+duplicate plan or repeated justification. This concludes planning, not a new
+gate or routine approval pause.
+
+If credible critical risk remains unresolved, do not claim Tier 2 containment.
+Investigate further or stop before the affected boundary when a safe approach
+cannot be established. A higher tier does not resolve a capability limitation
+or grant missing authorization. Reassess whenever implementation reveals a
+material scope or risk change, before crossing the newly affected boundary.
+
 ## Shared Principles
 
 - **YAGNI** — Only build what was asked for. No speculative features, no "while we're here" improvements.
@@ -122,12 +146,11 @@ commit or publication authority is genuinely unresolved.
 
 ### 2. Plan
 
-Write the plan yourself in host tracking (default `.copilot-tracking/plans/`).
-Include the acceptance criteria, approach, consequential decisions and verification.
-Do not copy the conversation or add detail without a delivery purpose.
-In an issue harness, choose the approach before decomposing features, following
+Follow [Conclude planning with the classification](#conclude-planning-with-the-classification)
+before implementation. Include the acceptance criteria, approach, consequential
+decisions and verification at the depth needed for the actual risk. In an issue
+harness, choose the approach before decomposing features, following
 [the breakdown flow](../../docs/HARNESS.md#the-breakdown-flow-plan--clarify--feature_list).
-Its reasoning questions do not require extra headings, alternatives, or approval.
 
 ### 3. Resolve open decisions
 
