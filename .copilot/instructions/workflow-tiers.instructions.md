@@ -18,7 +18,11 @@ defaults below. File counts and keywords alone never force escalation.
 
 ## Workflow Tiers
 
-Every coding task is classified into one of four tiers before work begins.
+Route clearly read-only work to Tier 0 and clearly low-risk corrections to
+Tier 1. For other changes, investigate and plan proportionately before deciding
+Tier 2 or Tier 3 from the planned impact; an initial Tier 2/3 guess is not required.
+Known risks and authorization limits apply during investigation, not only after
+classification. If a Tier 1 task reveals material risk, reassess before proceeding.
 
 | Tier | When to use | Subagents | Plan file | Tests | Commit-strategy ask |
 | ---- | ----------- | --------- | --------- | ----- | ------------------- |
@@ -29,8 +33,9 @@ Every coding task is classified into one of four tiers before work begins.
 
 ### Tier 0 — Direct answers
 
-Questions, explanations, branch switches, status checks, reading logs, simple terminal ops. Respond directly. No
-planning, no plan files, no commit-strategy questions.
+Questions, explanations, status checks and reading logs with no intended state
+change. Respond directly without planning or issue ceremony. Terminal use alone
+does not make work read-only: a destructive command is not Tier 0.
 
 ### Tier 1 — Fast path
 
@@ -75,15 +80,16 @@ approval pauses below.
 
 ## Routing
 
-When a request arrives, classify the task type and respond accordingly.
+Answer read-only requests directly. For a clearly local, reversible correction
+with understood behavior and no material boundary change, use Tier 1.
+Otherwise inspect the relevant consumers, controls or effects and choose the
+approach before determining Tier 2/3. Use applicable host configuration or
+deployment skills without treating the task name as its risk classification.
 
-- **Tier 0 (questions, explanations, branch switches, status checks, reading logs)** — respond directly with no
-  orchestration. No issue requirement, no subagent.
-- **Configuration-only edits** in a repo with explicit configure skills — use the host repo's configure skill if
-  present; otherwise treat as Tier 1 or Tier 2 by scope.
-- **Setup, teardown, deployment** in a repo with explicit setup/teardown/deploy skills — use the host repo's skill if
-  present; otherwise classify by scope.
-- **Coding tasks (Tier 1+)** — classify by the tier rubric above.
+For example, an explanation is Tier 0; a local spelling correction can be
+Tier 1. A one-line change to an approval control is not Tier 1 merely because
+the edit is small. If the spelling correction turns out to alter executable
+configuration, reassess its effects before continuing.
 
 ### Chat-to-issue handshake
 
