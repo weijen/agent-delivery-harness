@@ -13,6 +13,7 @@
 #
 # Guards are mutation-tested by construction: every refusal case asserts the
 # merge sentinel is absent AND a "checks are not green" refusal is printed.
+# harness-sensor-depends: scripts/lib/github-identity-lib.sh scripts/lifecycle/merge-pr.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -49,7 +50,10 @@ mkdir -p "${FIXREPO}"
   git init -q -b main
   git config user.name "Harness Test"
   git config user.email "harness-test@example.invalid"
-  printf '.copilot-tracking/\n' > .gitignore
+  printf '.copilot-tracking/\n.github/harness-identity.env\n' > .gitignore
+  mkdir -p .github
+  printf 'HARNESS_GH_ACCOUNT=fixture-account\nHARNESS_GIT_EMAIL=fixture@example.invalid\n' \
+    >.github/harness-identity.env
   printf 'fixture\n' > README.md
   git add .gitignore README.md
   git commit -q -m initial
@@ -65,6 +69,12 @@ cat > "${BIN}/gh" <<'EOF'
 #!/usr/bin/env bash
 set -uo pipefail
 case "$1 $2" in
+  "auth token")
+    [ "${3:-} ${4:-}" = '--user fixture-account' ] || exit 1
+    printf 'fixture-token\n'; exit 0 ;;
+  "api user")
+    [ "${GH_TOKEN:-}" = fixture-token ] || exit 1
+    printf 'fixture-account\n'; exit 0 ;;
   "pr view")
     case "$*" in
       *"state,mergeCommit"*)
@@ -290,6 +300,12 @@ cat > "${BIN}/gh" <<'EOF'
 #!/usr/bin/env bash
 set -uo pipefail
 case "$1 $2" in
+  "auth token")
+    [ "${3:-} ${4:-}" = '--user fixture-account' ] || exit 1
+    printf 'fixture-token\n'; exit 0 ;;
+  "api user")
+    [ "${GH_TOKEN:-}" = fixture-token ] || exit 1
+    printf 'fixture-account\n'; exit 0 ;;
   "pr view")
     case "$*" in
       *"state,mergeCommit"*)
@@ -322,7 +338,10 @@ build_fixture() {
     git config user.name "Harness Test"
     git config user.email "harness-test@example.invalid"
     git config commit.gpgsign false
-    printf '.copilot-tracking/\n' > .gitignore
+    printf '.copilot-tracking/\n.github/harness-identity.env\n' > .gitignore
+    mkdir -p .github
+    printf 'HARNESS_GH_ACCOUNT=fixture-account\nHARNESS_GIT_EMAIL=fixture@example.invalid\n' \
+      >.github/harness-identity.env
     printf 'fixture\n' > README.md
     git add .gitignore README.md
     git commit -q -m initial

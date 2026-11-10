@@ -12,6 +12,15 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 rm -rf "${TMP_DIR}"
 mkdir -p "${TMP_DIR}"
 
+mkdir -p "${TMP_DIR}/bin"
+cat >"${TMP_DIR}/bin/gh" <<'SH'
+#!/usr/bin/env bash
+if [ "$1 ${2:-}" = 'issue view' ]; then printf 'Feature list fixture\n'; exit 0; fi
+exit 1
+SH
+chmod +x "${TMP_DIR}/bin/gh"
+export PATH="${TMP_DIR}/bin:${PATH}"
+
 # shellcheck source=/dev/null
 source "${ROOT}/tests/scripts/lib/tap.sh"
 

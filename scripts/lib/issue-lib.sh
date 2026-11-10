@@ -106,11 +106,21 @@ issue_parse_number() {
   printf '%s' "$raw"
 }
 
-# Derive a slug from the GitHub issue title via gh. Falls back to "issue-N"
-# when the title cannot be fetched (offline / not found).
+issue_read_title() {
+  if ! gh issue view "$1" --json title -q .title; then
+    printf 'error: cannot read issue %s with the repository-designated account; correct its authentication, repository access or origin, not the account selection\n' "$1" >&2
+    return 1
+  fi
+}
+
+# An already-fetched title avoids a second repository request during startup.
 issue_derive_slug() {
   local num="$1" title slug
-  title="$(gh issue view "$num" --json title -q .title 2>/dev/null || true)"
+  if [ "$#" -ge 2 ]; then
+    title="$2"
+  else
+    title="$(issue_read_title "$num")" || return 1
+  fi
   if [ -z "$title" ]; then
     printf 'issue-%s' "$num"
     return 0
@@ -135,7 +145,7 @@ resolve_issue_env() {
   if [ -n "$explicit_slug" ]; then
     ISSUE_SLUG="$explicit_slug"
   else
-    ISSUE_SLUG="$(issue_derive_slug "$num")"
+    ISSUE_SLUG="$(issue_derive_slug "$num")" || return 1
   fi
   BRANCH="feature/issue-${ISSUE_PAD}-${ISSUE_SLUG}"
   WORKTREE_DIR="${root}/.worktrees/issue-${ISSUE_PAD}"

@@ -64,7 +64,8 @@ case "$SELECTOR" in
     cat > "${SCRATCH}/bin/gh" <<'SH'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
-  "issue view"|"pr view"|"pr list") exit 1 ;;
+  "issue view") printf 'Semantic spine fixture\n'; exit 0 ;;
+  "pr view"|"pr list") exit 1 ;;
 esac
 exit 0
 SH
